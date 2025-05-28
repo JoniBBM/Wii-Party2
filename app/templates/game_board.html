@@ -1,0 +1,3022 @@
+{% extends "base.html" %}
+
+{% block title %}Insel der Abenteuer{% endblock %}
+
+{% block content %}
+
+<div class="game-container">
+    <div id="game-canvas-container">
+        <canvas id="game-canvas"></canvas>
+        
+        <div class="game-overlay">
+            <div class="current-team-display">
+                <h4>Am Zug: <span id="current-team">-</span></h4>
+            </div>
+            
+            <div class="team-status">
+                {% for team in teams %}
+                <div class="team-badge" style="background-color: {{ team_colors[loop.index0 % team_colors|length] }}">
+                    <span class="team-name">{{ team.name }}</span>
+                    <span class="team-position">Position: {{ team.position }}</span>
+                </div>
+                {% endfor %}
+            </div>
+            
+            {% if is_admin %}
+            <div class="admin-controls">                
+                <button id="roll-dice" class="btn btn-primary">Würfeln</button>
+                <div class="help-text">
+                    Drücke <kbd>M</kbd> für freie Kamera, <kbd>F</kbd> für Vollbild
+                </div>
+            </div>
+            {% endif %}
+        </div>
+        
+        <div id="dice-result-display" class="dice-result-display">
+            <div class="dice-result-number">6</div>
+            <div class="dice-result-text">Felder</div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/controls/OrbitControls.js"></script>
+
+<script src="{{ url_for('static', filename='js/characters/tungTungTungSahur.js') }}"></script>
+<script src="{{ url_for('static', filename='js/characters/ballerinaCappuccina.js') }}"></script>
+<script src="{{ url_for('static', filename='js/characters/bombardinoCrocodilo.js') }}"></script>
+<script src="{{ url_for('static', filename='js/characters/liriliLarila.js') }}"></script>
+<script src="{{ url_for('static', filename='js/characters/tralaleroTralala.js') }}"></script>
+<script src="{{ url_for('static', filename='js/characters/trippiTroppi.js') }}"></script>
+<script src="{{ url_for('static', filename='js/characters/defaultCharacter.js') }}"></script>
+
+<script>
+// Spielbrett-Konfiguration - Verbesserte Werte für bessere Optik
+const BOARD_CONFIG = {
+    fieldTypes: {
+        start: { color: 0x4FC3F7, emission: 0x002244, name: 'Start' },
+        normal: { color: 0x81C784, emission: 0x001122, name: 'Normales Feld' },
+        bonus: { color: 0xFFD54F, emission: 0x442200, name: 'Bonusfeld' },
+        chance: { color: 0xAED581, emission: 0x224400, name: 'Ereignisfeld' },
+        trap: { color: 0xE57373, emission: 0x440000, name: 'Falle' },
+        minigame: { color: 0xBA68C8, emission: 0x440044, name: 'Minispiel' },
+        goal: { color: 0xFFB74D, emission: 0x442200, name: 'Ziel' }
+    },
+    fieldSize: 1.0,
+    fieldHeight: 0.25,
+    fieldRadius: 0.55,
+    pathWidth: 2.8,
+    pathSegmentBaseDepth: 0.25,
+    pathColor: 0xD7CCC8,
+    pathBorderColor: 0xBCAAA4,
+    characterElevation: 0.4,
+    characterSize: 0.4,
+    mountainHeight: 20,
+    mountainBaseRadius: 17,
+    mountainTopRadius: 2.5,
+    spiralHeight: 18,
+    spiralStartRadius: 20,
+    spiralLoops: 2.6,
+    pathDepth: 4.5,
+    chamberSize: 7.0,
+    cameraFollowOffset: new THREE.Vector3(0, 7, 12),
+    cameraFrontOffset: new THREE.Vector3(0, 4, -8)
+};
+
+const islandSurfaceY = 1.8; // Erhöht für bessere Proportionen
+
+// Spielzustand
+const GAME_STATE = {
+    currentTeamIndex: 0,
+    isAnimating: false,
+    isDiceRolling: false,
+    isCharacterMoving: false,
+    diceResult: 0,
+    freeCameraMode: false,
+    isFullscreen: false,
+    cameraHeight: 18,
+    cameraDistance: 25,
+    isAnimatingCamera: false,
+    characterTurnSpeed: 0.08,
+    playerTurnInProgress: false,
+    cameraMode: 'front'
+};
+
+// Team-Daten
+const teams = [
+    {% for team in teams %}
+    {
+        id: {{ team.id }},
+        name: "{{ team.name }}",
+        position: {{ team.position }},
+        {% if team.character %}
+        color: "{{ team.character.color }}",
+        character: {
+            id: {{ team.character.id }},
+            name: "{{ team.character.name }}",
+            color: "{{ team.character.color }}"
+        }
+        {% else %}
+        color: "{{ team_colors[loop.index0 % team_colors|length] }}",
+        character: null
+        {% endif %}
+    }{% if not loop.last %},{% endif %}
+    {% endfor %}
+];
+
+class WiiPartyIsland {
+    constructor(canvasId) {
+        this.canvas = document.getElementById(canvasId);
+        this.scene = new THREE.Scene();
+        this.camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
+        this.renderer = new THREE.WebGLRenderer({ 
+            canvas: this.canvas,
+            antialias: true
+        });
+        
+        this.renderer.shadowMap.enabled = true;
+        this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        this.renderer.outputEncoding = THREE.sRGBEncoding;
+        this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        this.renderer.toneMappingExposure = 1.2;
+        
+        this.updateCanvasSize();
+        
+        this.camera.position.set(25, 25, 25);
+        this.camera.lookAt(0, 5, 0);
+        
+        this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
+        this.controls.enableDamping = true;
+        this.controls.dampingFactor = 0.05;
+        this.controls.minDistance = 5;
+        this.controls.maxDistance = 80;
+        this.controls.maxPolarAngle = Math.PI / 1.8;
+        this.controls.target.set(0, 8, 0);
+        this.controls.enabled = false;
+        
+        this.pathPoints = [];
+        this.boardFields = [];
+        this.miiCharacters = {};
+        this.activeCharacterPath = null;
+        this.raycaster = new THREE.Raycaster();
+        
+        this.interactiveDice = null;
+        this.diceResultNumber = null;
+        this.island = null;
+        this.mountainMesh = null;
+
+        this.init();
+    }
+    
+    async init() {
+        this.setupLighting();
+        this.createOcean();
+        this.createIslandAndMountain();
+        this.createSpiralPath();
+        this.createVegetation();
+        this.createTreasureChamber();
+        this.createMiiCharacters();
+        this.createEnvironmentalDetails();
+        this.createInteractiveDice();
+        
+        this.setupEventListeners();
+        this.animate();
+        this.updateTeamDisplay();
+        
+        this.prepareNextPlayerTurn(true);
+    }
+    
+    setupLighting() {
+        // Vereinfachte, weniger aufwendige Beleuchtung
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        this.scene.add(ambientLight);
+        
+        const sunLight = new THREE.DirectionalLight(0xffffff, 1.5);
+        sunLight.position.set(50, 70, 40);
+        sunLight.castShadow = true;
+        sunLight.shadow.mapSize.width = 2048;
+        sunLight.shadow.mapSize.height = 2048;
+        sunLight.shadow.camera.near = 1;
+        sunLight.shadow.camera.far = 200;
+        sunLight.shadow.camera.left = -50;
+        sunLight.shadow.camera.right = 50;
+        sunLight.shadow.camera.top = 50;
+        sunLight.shadow.camera.bottom = -50;
+        this.scene.add(sunLight);
+        
+        // Einfacher Himmel
+        this.scene.background = new THREE.Color(0x87CEEB);
+        this.scene.fog = new THREE.Fog(0xb3d9ff, 80, 200);
+    }
+        
+    createOcean() {
+        const oceanRadius = 120;
+        const waterGeometry = new THREE.PlaneGeometry(oceanRadius * 2, oceanRadius * 2, 128, 128);
+        const positions = waterGeometry.attributes.position.array;
+        
+        for (let i = 0; i < positions.length; i += 3) {
+            const x = positions[i];
+            const z = positions[i + 2];
+            const distance = Math.sqrt(x * x + z * z);
+            
+            if (distance > 35) {
+                positions[i + 1] = Math.sin(x * 0.06) * 0.3 + Math.sin(z * 0.08) * 0.3;
+            } else {
+                positions[i + 1] = Math.sin(x * 0.12) * 0.1 + Math.sin(z * 0.12) * 0.1;
+            }
+        }
+        waterGeometry.attributes.position.needsUpdate = true;
+        waterGeometry.computeVertexNormals();
+
+        const waterMaterial = new THREE.MeshPhongMaterial({
+            color: 0x4DD0E1,
+            specular: 0xB0BEC5,
+            shininess: 80,
+            transparent: true,
+            opacity: 0.9
+        });
+        
+        const water = new THREE.Mesh(waterGeometry, waterMaterial);
+        water.rotation.x = -Math.PI / 2;
+        water.position.y = -0.4;
+        water.receiveShadow = true;
+        this.scene.add(water);
+        
+        water.userData = {
+            animation: time => {
+                const positions = water.geometry.attributes.position.array;
+                for (let i = 0; i < positions.length; i += 3) {
+                    const x = positions[i];
+                    const z = positions[i+2];
+                    const distance = Math.sqrt(x * x + z * z);
+                    
+                    if (distance > 35) {
+                        positions[i + 1] = Math.sin(x * 0.06 + time * 0.8) * 0.3 + 
+                                         Math.sin(z * 0.08 + time * 0.6) * 0.3;
+                    } else {
+                        positions[i + 1] = Math.sin(x * 0.12 + time * 0.5) * 0.1 + 
+                                         Math.sin(z * 0.12 + time * 0.7) * 0.1;
+                    }
+                }
+                water.geometry.attributes.position.needsUpdate = true;
+                water.geometry.computeVertexNormals();
+            }
+        };
+        this.water = water;
+    }
+
+    createIslandAndMountain() {
+        // Verbesserte Insel mit sanfteren Übergängen
+        const islandGeometry = new THREE.CylinderGeometry(28, 30, 3.6, 64, 1, false);
+        const islandPositions = islandGeometry.attributes.position.array;
+        
+        for (let i = 0; i < islandPositions.length; i += 3) {
+            const x = islandPositions[i];
+            const z = islandPositions[i + 2];
+            const distance = Math.sqrt(x * x + z * z);
+            
+            if (distance > 22) {
+                const waveHeight = Math.sin(distance * 0.4) * 0.3 + Math.cos(distance * 0.2) * 0.2;
+                islandPositions[i + 1] += waveHeight;
+            }
+        }
+        
+        islandGeometry.attributes.position.needsUpdate = true;
+        islandGeometry.computeVertexNormals();
+        
+        const islandMaterial = new THREE.MeshPhongMaterial({ 
+            color: 0xF5DEB3, 
+            shininess: 5 
+        });
+        
+        this.island = new THREE.Mesh(islandGeometry, islandMaterial);
+        this.island.position.y = 0;
+        this.island.receiveShadow = true;
+        this.island.castShadow = true;
+        this.scene.add(this.island);
+        
+        this.createIslandVegetation();
+        this.createMountainWithPath();
+    }
+    
+    createIslandVegetation() {
+        const baseIslandTopY = islandSurfaceY;
+        
+        // Vereinfachte Vegetation - nur 2 Layer statt 4
+        const layers = [
+            { radius: 26, height: 0.15, color: 0x4CAF50 }, // Grün
+            { radius: 24, height: 0.1, color: 0x66BB6A }   // Hellgrün
+        ];
+        
+        let currentPlacementY = baseIslandTopY;
+        
+        layers.forEach((layer) => {
+            const vegGeometry = new THREE.CylinderGeometry(
+                layer.radius, 
+                layer.radius + 0.2, 
+                layer.height, 
+                32 // Weniger Segmente
+            );
+            
+            const vegMaterial = new THREE.MeshLambertMaterial({ // Ohne shininess
+                color: layer.color
+            });
+            
+            const vegetation = new THREE.Mesh(vegGeometry, vegMaterial);
+            vegetation.position.y = currentPlacementY + layer.height * 0.5;
+            currentPlacementY += layer.height;
+
+            vegetation.receiveShadow = true;
+            this.scene.add(vegetation);
+        });
+    }
+
+    createMountainWithPath() {
+        this.calculatePathPoints();
+
+        const detail = 256;
+        const mountainGeometry = new THREE.BufferGeometry();
+        const vertices = [];
+        const indices = [];
+        const uvs = [];
+        const flatTopRadius = BOARD_CONFIG.mountainTopRadius * 0.85;
+        const mountainFootY = islandSurfaceY;
+
+        for (let i = 0; i <= detail; i++) {
+            for (let j = 0; j <= detail; j++) {
+                const x = (i / detail - 0.5) * BOARD_CONFIG.mountainBaseRadius * 2.2;
+                const z = (j / detail - 0.5) * BOARD_CONFIG.mountainBaseRadius * 2.2;
+                const distance = Math.sqrt(x * x + z * z);
+                let y_shape = 0;
+
+                if (distance <= BOARD_CONFIG.mountainBaseRadius) {
+                    if (distance <= flatTopRadius) {
+                        y_shape = BOARD_CONFIG.mountainHeight + (Math.random() * 0.05);
+                    } else {
+                        const progress = (distance - flatTopRadius) / (BOARD_CONFIG.mountainBaseRadius - flatTopRadius);
+                        const smoothProgress = 1 - (progress * progress * (3 - 2 * progress));
+                        y_shape = BOARD_CONFIG.mountainHeight * smoothProgress;
+                        
+                        // Natürliche Variationen
+                        y_shape += (Math.sin(x * 1.2) * Math.cos(z * 1.2)) * 0.2 * (1 - smoothProgress);
+                        y_shape += (Math.random() - 0.5) * 0.3 * (1 - smoothProgress);
+                    }
+                    
+                    // Reduzierte Pfadintegration ohne Bretter
+                    const pathInfluence = this.getPathInfluence(x, z);
+                    if (pathInfluence > 0) {
+                        const pathHeightAbsolute = this.getInterpolatedPathHeight(x, z);
+                        const pathHeightRelativeToMountainFoot = pathHeightAbsolute - mountainFootY;
+                        const rinnenTiefe = BOARD_CONFIG.pathDepth * pathInfluence * 0.3; // Viel weniger tief
+                        y_shape = Math.max(y_shape - rinnenTiefe, pathHeightRelativeToMountainFoot - rinnenTiefe * 0.2);
+                    }
+                } else if (distance <= BOARD_CONFIG.mountainBaseRadius * 1.15) {
+                    const fadeOut = 1 - ((distance - BOARD_CONFIG.mountainBaseRadius) / (BOARD_CONFIG.mountainBaseRadius * 0.15));
+                    y_shape = fadeOut * 0.08 - 0.05;
+                } else {
+                    y_shape = -0.05;
+                }
+                
+                vertices.push(x, mountainFootY + y_shape, z);
+                uvs.push(i / detail, j / detail);
+            }
+        }
+        
+        for (let i = 0; i < detail; i++) {
+            for (let j = 0; j < detail; j++) {
+                const a = i * (detail + 1) + j;
+                const b = a + 1;
+                const c = a + detail + 1;
+                const d = c + 1;
+                indices.push(a, b, c);
+                indices.push(b, d, c);
+            }
+        }
+        
+        mountainGeometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+        mountainGeometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+        mountainGeometry.setIndex(indices);
+        mountainGeometry.computeVertexNormals();
+
+        const mountainMaterial = new THREE.MeshPhongMaterial({
+            vertexColors: true,
+            map: null,
+            shininess: 8
+        });
+        
+        // Vereinfachte Farbgebung
+        const mountainColorAttr = new Float32Array(vertices.length);
+        for (let k_color = 0; k_color < vertices.length; k_color += 3) {
+            const yPos = vertices[k_color + 1];
+            const height = Math.max(0, Math.min(1, (yPos - mountainFootY) / BOARD_CONFIG.mountainHeight));
+            
+            let r, g, b;
+            
+            // Einfache Farbzonen
+            if (height < 0.1) {
+                r = 0.3; g = 0.4; b = 0.2; // Dunkles Grün
+            } else if (height < 0.6) {
+                r = 0.2; g = 0.6; b = 0.1; // Grasgrün
+            } else if (height < 0.85) {
+                r = 0.5; g = 0.5; b = 0.4; // Fels
+            } else {
+                r = 0.9; g = 0.9; b = 0.95; // Schnee
+            }
+            
+            mountainColorAttr[k_color] = r;
+            mountainColorAttr[k_color+1] = g;
+            mountainColorAttr[k_color+2] = b;
+        }
+        
+        mountainGeometry.setAttribute('color', new THREE.Float32BufferAttribute(mountainColorAttr, 3));
+        const mountainMesh = new THREE.Mesh(mountainGeometry, mountainMaterial);
+        mountainMesh.castShadow = true;
+        mountainMesh.receiveShadow = true;
+        this.scene.add(mountainMesh);
+        this.mountainMesh = mountainMesh;
+    }
+
+    calculatePathPoints() {
+        this.pathPoints = [];
+        const fieldCount = 73;
+        const lastFieldIndex = fieldCount - 1;
+        const mountainFootY = islandSurfaceY;
+
+        for (let i = 0; i < fieldCount; i++) {
+            const progress = i / (fieldCount - 1);
+            let x, y, z;
+            let onFlatLand = false;
+
+            if (i === 0) {
+                x = BOARD_CONFIG.spiralStartRadius;
+                z = 0;
+                y = islandSurfaceY + 0.3; // Deutlich über der Erde
+                onFlatLand = true;
+            } else if (i === lastFieldIndex) {
+                // Zielpunkt niedriger setzen, näher zur Tür
+                x = 0;
+                y = mountainFootY + BOARD_CONFIG.mountainHeight + 0.2;
+                z = BOARD_CONFIG.chamberSize/2 - 0.3;
+                onFlatLand = false;
+            } else if (i === lastFieldIndex - 1) {
+                // Vorletzter Punkt auch niedriger
+                x = 0;
+                y = mountainFootY + BOARD_CONFIG.mountainHeight + 0.3;
+                z = BOARD_CONFIG.chamberSize/2 + 0.8;
+                onFlatLand = false;
+            } else {
+                let radius;
+                // Engere Spirale am Anfang, weniger Punkte oben
+                if (progress < 0.08) {
+                    // Schnellerer Übergang zum Berg
+                    radius = BOARD_CONFIG.spiralStartRadius * (1.0 - progress * 4.5);
+                } else if (progress < 0.85) {
+                    // Längerer mittlerer Bereich
+                    const localProgress = (progress - 0.08) / 0.77;
+                    const easedProgress = Math.pow(localProgress, 0.9);
+                    radius = THREE.MathUtils.lerp(
+                        BOARD_CONFIG.mountainBaseRadius - 0.6, 
+                        BOARD_CONFIG.mountainTopRadius * 1.8, 
+                        easedProgress
+                    );
+                } else {
+                    // Kürzerer Gipfelbereich - weniger Punkte oben
+                    const gipfelProgress = (progress - 0.85) / 0.15;
+                    radius = BOARD_CONFIG.mountainTopRadius * (2.0 - gipfelProgress * 0.8);
+                }
+                
+                // Angepasste Spirale für bessere Verteilung
+                const spiralProgress = Math.pow(progress, 0.9);
+                const angle = spiralProgress * Math.PI * 2 * BOARD_CONFIG.spiralLoops;
+                x = Math.cos(angle) * radius;
+                z = Math.sin(angle) * radius;
+                const distanceToCenter = Math.sqrt(x * x + z * z);
+                
+                if (distanceToCenter > BOARD_CONFIG.mountainBaseRadius - 0.6) {
+                    y = islandSurfaceY + 0.3; // Deutlich über der Erde
+                    onFlatLand = true;
+                } else {
+                    const mountainProgress = Math.max(0, Math.min(1, 
+                        1 - (distanceToCenter / (BOARD_CONFIG.mountainBaseRadius - 0.6))
+                    ));
+                    const smoothProgress = Math.pow(mountainProgress, 0.8);
+                    y = mountainFootY + smoothProgress * BOARD_CONFIG.mountainHeight;
+                    y += Math.sin(angle * 1.5) * 0.06; // Reduzierte Variationen
+                    onFlatLand = false;
+                }
+            }
+            this.pathPoints.push({ x, y, z, index: i, onFlatLand });
+        }
+        
+        this.projectPathPointsOntoMountain();
+    }
+    
+    projectPathPointsOntoMountain() {
+        if (!this.mountainMesh || !this.pathPoints) return;
+        
+        for (let i = 0; i < this.pathPoints.length - 2; i++) {
+            const point = this.pathPoints[i];
+            if (!point.onFlatLand) {
+                const raycaster = new THREE.Raycaster();
+                const origin = new THREE.Vector3(point.x, 50, point.z);
+                const direction = new THREE.Vector3(0, -1, 0);
+                raycaster.set(origin, direction);
+
+                const intersects = raycaster.intersectObject(this.mountainMesh, false);
+                if (intersects.length > 0) {
+                    point.y = Math.max(point.y, intersects[0].point.y + 0.1); // Mindesthöhe über Terrain
+                }
+            }
+        }
+    }
+
+    getTerrainHeightAt(x, z) {
+        const raycaster = new THREE.Raycaster(new THREE.Vector3(x, 50, z), new THREE.Vector3(0, -1, 0));
+        const objectsToIntersect = [];
+        if (this.mountainMesh) objectsToIntersect.push(this.mountainMesh);
+        if (this.island) objectsToIntersect.push(this.island);
+
+        const intersects = raycaster.intersectObjects(objectsToIntersect, false);
+        if (intersects.length > 0) {
+            return intersects[0].point.y;
+        }
+        return islandSurfaceY;
+    }
+
+    getPathInfluence(x, z) {
+        let minDistance = Infinity;
+        if (!this.pathPoints || this.pathPoints.length === 0) return 0;
+        
+        for (let i = 0; i < this.pathPoints.length; i++) {
+            const point = this.pathPoints[i];
+            const dx = x - point.x;
+            const dz = z - point.z;
+            minDistance = Math.min(minDistance, Math.sqrt(dx * dx + dz * dz));
+        }
+        
+        // Reduzierter Einfluss für natürlicheres Terrain ohne Bretter
+        const pathWidth = BOARD_CONFIG.pathWidth * 0.8;
+        if (minDistance < pathWidth) {
+            return Math.pow(1 - (minDistance / pathWidth), 0.4);
+        }
+        return 0;
+    }
+
+    getInterpolatedPathHeight(x, z) {
+        let closestDistance = Infinity;
+        let closestIndex = -1;
+        let secondClosestDistance = Infinity;
+        let secondClosestIndex = -1;
+
+        if (!this.pathPoints || this.pathPoints.length === 0) return islandSurfaceY;
+
+        for (let i = 0; i < this.pathPoints.length; i++) {
+            const point = this.pathPoints[i];
+            const dx = x - point.x;
+            const dz = z - point.z;
+            const distance = Math.sqrt(dx * dx + dz * dz);
+            
+            if (distance < closestDistance) {
+                secondClosestDistance = closestDistance;
+                secondClosestIndex = closestIndex;
+                closestDistance = distance;
+                closestIndex = i;
+            } else if (distance < secondClosestDistance) {
+                secondClosestDistance = distance;
+                secondClosestIndex = i;
+            }
+        }
+
+        if (closestIndex === -1) return islandSurfaceY;
+        if (closestDistance < 0.3) return this.pathPoints[closestIndex].y;
+
+        if (secondClosestIndex === -1) {
+            return this.pathPoints[closestIndex].y;
+        }
+            
+        const point1 = this.pathPoints[closestIndex];
+        const point2 = this.pathPoints[secondClosestIndex];
+            
+        const dx1 = x - point1.x; 
+        const dz1 = z - point1.z; 
+        const dist1 = Math.sqrt(dx1*dx1 + dz1*dz1);
+        const dx2 = x - point2.x; 
+        const dz2 = z - point2.z; 
+        const dist2 = Math.sqrt(dx2*dx2 + dz2*dz2);
+            
+        if (dist1 + dist2 === 0) return point1.y;
+        const weight1 = 1 - (dist1 / (dist1 + dist2));
+            
+        return point1.y * weight1 + point2.y * (1 - weight1);
+    }
+
+    createSpiralPath() {
+        this.createGameFields();
+        // Pfadsegmente (Bretter) entfernt - nur noch die Felder werden erstellt
+    }
+    
+    createPathSegments() {
+        // Pfadsegmente entfernt - Felder sitzen jetzt direkt auf dem Terrain
+        // ohne störende Bretter darunter
+        return;
+    }
+    
+    createTreasureChamber() {
+        const chamberGroup = new THREE.Group();
+        const chamberSize = BOARD_CONFIG.chamberSize;
+        const chamberHeight = chamberSize * 0.65;
+        const chamberWallThickness = 0.25;
+        chamberGroup.position.set(0, islandSurfaceY + BOARD_CONFIG.mountainHeight, 0);
+
+        // Verbesserte Kammer mit goldenem Aussehen
+        const floorMaterial = new THREE.MeshPhongMaterial({ 
+            color: 0xC9B037, 
+            shininess: 60,
+            specular: 0xFFD700
+        });
+        
+        const floor = new THREE.Mesh(
+            new THREE.BoxGeometry(chamberSize, chamberWallThickness, chamberSize),
+            floorMaterial
+        );
+        floor.position.y = -chamberWallThickness/2;
+        floor.receiveShadow = true;
+        floor.castShadow = true;
+        chamberGroup.add(floor);
+
+        const wallMaterial = new THREE.MeshPhongMaterial({ 
+            color: 0xFFF8DC, 
+            shininess: 30 
+        });
+        
+        const roofMaterial = new THREE.MeshPhongMaterial({ 
+            color: 0xDAA520, 
+            shininess: 80,
+            specular: 0xFFD700
+        });
+        
+        const roof = new THREE.Mesh(
+            new THREE.BoxGeometry(chamberSize, chamberWallThickness, chamberSize),
+            roofMaterial
+        );
+        roof.position.y = chamberHeight + chamberWallThickness/2;
+        roof.castShadow = true;
+        chamberGroup.add(roof);
+
+        // Wände mit besserer Eingangstür
+        for (let i = 0; i < 4; i++) {
+            const isEntrance = (i === 2);
+            if (isEntrance) {
+                const sideWallWidth = (chamberSize - chamberSize*0.35) / 2;
+                
+                const leftWall = new THREE.Mesh(
+                    new THREE.BoxGeometry(sideWallWidth, chamberHeight, chamberWallThickness), 
+                    wallMaterial
+                );
+                leftWall.position.set(-chamberSize/2 + sideWallWidth/2, chamberHeight/2, chamberSize/2);
+                leftWall.castShadow = true;
+                leftWall.receiveShadow = true;
+                chamberGroup.add(leftWall);
+                
+                const rightWall = new THREE.Mesh(
+                    new THREE.BoxGeometry(sideWallWidth, chamberHeight, chamberWallThickness), 
+                    wallMaterial
+                );
+                rightWall.position.set(chamberSize/2 - sideWallWidth/2, chamberHeight/2, chamberSize/2);
+                rightWall.castShadow = true;
+                rightWall.receiveShadow = true;
+                chamberGroup.add(rightWall);
+                
+                const topWall = new THREE.Mesh(
+                    new THREE.BoxGeometry(chamberSize*0.35, chamberHeight*0.25, chamberWallThickness), 
+                    wallMaterial
+                );
+                topWall.position.set(0, chamberHeight - chamberHeight*0.125, chamberSize/2);
+                topWall.castShadow = true;
+                topWall.receiveShadow = true;
+                chamberGroup.add(topWall);
+                
+                // Verbesserte Tür
+                const doorMaterial = new THREE.MeshPhongMaterial({ 
+                    color: 0x8B4513, 
+                    shininess: 40,
+                    specular: 0x654321
+                });
+                
+                const door = new THREE.Mesh(
+                    new THREE.BoxGeometry(chamberSize*0.3, chamberHeight*0.65, chamberWallThickness/2),
+                    doorMaterial
+                );
+                door.position.set(0, chamberHeight*0.325, chamberSize/2);
+                door.castShadow = true;
+                door.receiveShadow = true;
+                chamberGroup.add(door);
+                this.chamberDoor = door;
+                
+                // Türgriff
+                const handleMaterial = new THREE.MeshPhongMaterial({ 
+                    color: 0xDAA520, 
+                    shininess: 100,
+                    specular: 0xFFD700
+                });
+                
+                const handle = new THREE.Mesh(
+                    new THREE.SphereGeometry(0.08, 12, 12), 
+                    handleMaterial
+                );
+                handle.position.set(-chamberSize*0.08, 0, chamberWallThickness/2);
+                door.add(handle);
+            } else {
+                const wall = new THREE.Mesh(
+                    new THREE.BoxGeometry(chamberSize, chamberHeight, chamberWallThickness), 
+                    wallMaterial
+                );
+                
+                if (i === 0) {
+                    wall.position.set(0, chamberHeight/2, -chamberSize/2);
+                } else if (i === 1) {
+                    wall.position.set(chamberSize/2, chamberHeight/2, 0);
+                    wall.rotation.y = Math.PI / 2;
+                } else if (i === 3) {
+                    wall.position.set(-chamberSize/2, chamberHeight/2, 0);
+                    wall.rotation.y = Math.PI / 2;
+                }
+                
+                wall.castShadow = true;
+                wall.receiveShadow = true;
+                chamberGroup.add(wall);
+            }
+        }
+        
+        this.createTreasure(chamberGroup, chamberSize);
+        this.decorateChamber(chamberGroup, chamberSize);
+        this.scene.add(chamberGroup);
+        this.treasureChamber = chamberGroup;
+    }
+
+    createTreasure(chamberGroup, chamberSize) {
+        const treasureGroup = new THREE.Group();
+        
+        // Verbesserter Goldstapel
+        const goldMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0xFFD700, 
+            metalness: 0.8, 
+            roughness: 0.1, 
+            emissive: 0x332200, 
+            emissiveIntensity: 0.3 
+        });
+        
+        const goldPile = new THREE.Mesh(
+            new THREE.ConeGeometry(1.8, 1.2, 12),
+            goldMaterial
+        );
+        goldPile.position.y = 0.6;
+        goldPile.castShadow = true;
+        treasureGroup.add(goldPile);
+        
+        // Mehr Goldmünzen
+        for (let i = 0; i < 30; i++) {
+            const coinMaterial = new THREE.MeshPhongMaterial({ 
+                color: 0xFFD700, 
+                shininess: 120,
+                specular: 0xFFFF88
+            });
+            
+            const coin = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.15, 0.15, 0.04, 16),
+                coinMaterial
+            );
+            
+            const angle = Math.random() * Math.PI * 2;
+            const distance = 0.8 + Math.random() * 1.5;
+            coin.position.set(
+                Math.cos(angle) * distance, 
+                0.02 + Math.random() * 0.1, 
+                Math.sin(angle) * distance
+            );
+            coin.rotation.x = Math.PI / 2;
+            coin.rotation.z = Math.random() * Math.PI * 2;
+            coin.castShadow = true;
+            treasureGroup.add(coin);
+        }
+        
+        // Verbesserte Truhen
+        for (let i = 0; i < 4; i++) {
+            const chest = new THREE.Group();
+            
+            const chestMaterial = new THREE.MeshPhongMaterial({ 
+                color: 0x8B4513, 
+                shininess: 40 
+            });
+            
+            const chestBody = new THREE.Mesh(
+                new THREE.BoxGeometry(0.5, 0.35, 0.4), 
+                chestMaterial
+            );
+            chest.add(chestBody);
+            
+            const trimMaterial = new THREE.MeshPhongMaterial({ 
+                color: 0xDAA520, 
+                shininess: 100,
+                specular: 0xFFD700
+            });
+            
+            const trim = new THREE.Mesh(
+                new THREE.BoxGeometry(0.52, 0.04, 0.42), 
+                trimMaterial
+            );
+            trim.position.y = 0.12;
+            chest.add(trim);
+            
+            const angle = i * Math.PI * 2 / 4;
+            chest.position.set(
+                Math.cos(angle) * 1.6, 
+                0.18, 
+                Math.sin(angle) * 1.6
+            );
+            chest.rotation.y = angle + Math.PI;
+            
+            chest.traverse(child => {
+                if (child.isMesh) {
+                    child.castShadow = true;
+                    child.receiveShadow = true;
+                }
+            });
+            
+            treasureGroup.add(chest);
+        }
+        
+        treasureGroup.position.set(0, 0.4, -chamberSize/4);
+        chamberGroup.add(treasureGroup);
+    }
+
+    decorateChamber(chamberGroup, chamberSize) {
+        // Verbesserte Fackeln
+        for (let i = 0; i < 4; i++) {
+            const angle = i * Math.PI / 2;
+            const x = Math.cos(angle) * (chamberSize / 2 - 0.25);
+            const z = Math.sin(angle) * (chamberSize / 2 - 0.25);
+            
+            const torchGroup = new THREE.Group();
+            
+            const holderMaterial = new THREE.MeshPhongMaterial({ 
+                color: 0x555555, 
+                shininess: 30 
+            });
+            
+            const holder = new THREE.Mesh(
+                new THREE.BoxGeometry(0.15, 0.08, 0.25), 
+                holderMaterial
+            );
+            torchGroup.add(holder);
+            
+            const torchMaterial = new THREE.MeshPhongMaterial({ 
+                color: 0x8B4513, 
+                shininess: 15 
+            });
+            
+            const torchMesh = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.04, 0.025, 0.35, 8), 
+                torchMaterial
+            );
+            torchMesh.position.set(0, 0.12, 0.08);
+            torchMesh.rotation.x = Math.PI / 6;
+            torchGroup.add(torchMesh);
+            
+            const flameMaterial = new THREE.MeshBasicMaterial({ 
+                color: 0xFF6B00, 
+                transparent: true, 
+                opacity: 0.9 
+            });
+            
+            const flame = new THREE.Mesh(
+                new THREE.SphereGeometry(0.08, 8, 8), 
+                flameMaterial
+            );
+            flame.position.y = 0.2;
+            flame.scale.y = 1.8;
+            torchMesh.add(flame);
+            
+            // Warmes Licht
+            const light = new THREE.PointLight(0xFF8C00, 1.2, 4);
+            light.position.copy(flame.position);
+            light.castShadow = true;
+            light.shadow.mapSize.width = 512;
+            light.shadow.mapSize.height = 512;
+            torchMesh.add(light);
+            
+            torchGroup.position.set(x, chamberSize * 0.25, z);
+            torchGroup.lookAt(new THREE.Vector3(0, chamberSize * 0.25, 0));
+            
+            torchGroup.traverse(child => {
+                if (child.isMesh && child !== flame) {
+                    child.castShadow = true;
+                    child.receiveShadow = true;
+                }
+            });
+            
+            chamberGroup.add(torchGroup);
+        }
+        
+        // Verbesserter Teppich
+        const carpetMaterial = new THREE.MeshPhongMaterial({ 
+            color: 0x8B0000, 
+            shininess: 8 
+        });
+        
+        const carpet = new THREE.Mesh(
+            new THREE.CircleGeometry(chamberSize * 0.25, 32), 
+            carpetMaterial
+        );
+        carpet.rotation.x = -Math.PI / 2;
+        carpet.position.y = 0.015;
+        carpet.receiveShadow = true;
+        chamberGroup.add(carpet);
+        
+        // Verbesserte Säulen
+        for (let i = 0; i < 4; i++) {
+            const angle = (i * Math.PI / 2) + (Math.PI / 4);
+            const distance = chamberSize * 0.32;
+            
+            const pillarGroup = new THREE.Group();
+            
+            const pillarMaterial = new THREE.MeshPhongMaterial({ 
+                color: 0xE6E6E6, 
+                shininess: 40 
+            });
+            
+            const pillar = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.12, 0.15, chamberSize * 0.4, 12), 
+                pillarMaterial
+            );
+            pillarGroup.add(pillar);
+            
+            const capGeometry = new THREE.CylinderGeometry(0.15, 0.15, 0.08, 12);
+            const topCap = new THREE.Mesh(capGeometry, pillarMaterial);
+            topCap.position.y = chamberSize * 0.2;
+            pillarGroup.add(topCap);
+            
+            const bottomCap = new THREE.Mesh(capGeometry, pillarMaterial);
+            bottomCap.position.y = -chamberSize * 0.2;
+            pillarGroup.add(bottomCap);
+            
+            pillarGroup.position.set(
+                Math.cos(angle) * distance, 
+                chamberSize * 0.2, 
+                Math.sin(angle) * distance
+            );
+            
+            pillarGroup.traverse(child => {
+                if (child.isMesh) {
+                    child.castShadow = true;
+                    child.receiveShadow = true;
+                }
+            });
+            
+            chamberGroup.add(pillarGroup);
+        }
+    }
+
+    createGameFields() {
+        if (!this.pathPoints || this.pathPoints.length === 0) {
+            console.error("Path points not calculated before creating game fields.");
+            return;
+        }
+        
+        this.pathPoints.forEach((point, index) => {
+            let type = 'normal';
+            if (index === 0) type = 'start';
+            else if (index === this.pathPoints.length - 1) type = 'goal';
+            else if (index % 8 === 0) type = 'bonus';
+            else if (index % 12 === 0) type = 'minigame';
+            else if (index % 15 === 0) type = 'chance';
+            else if (index % 20 === 0) type = 'trap';
+            
+            const field = this.createGameField(point, type, index);
+            this.boardFields.push({ 
+                mesh: field, 
+                originalPathPoint: new THREE.Vector3(point.x, point.y, point.z), 
+                index: index, 
+                type: type 
+            });
+            this.scene.add(field);
+        });
+    }
+
+    createGameField(point, type, index) {
+        const group = new THREE.Group();
+        const config = BOARD_CONFIG.fieldTypes[type];
+        
+        // Einfachere Felder
+        const fieldGeometry = new THREE.CylinderGeometry(
+            BOARD_CONFIG.fieldRadius * 0.9, 
+            BOARD_CONFIG.fieldRadius * 1.0, 
+            BOARD_CONFIG.fieldHeight, 
+            12 // Weniger Segmente
+        );
+        
+        const fieldMaterial = new THREE.MeshLambertMaterial({ // Einfacheres Material
+            color: config.color
+        });
+        
+        const fieldMesh = new THREE.Mesh(fieldGeometry, fieldMaterial);
+        fieldMesh.position.y = BOARD_CONFIG.fieldHeight / 2;
+        fieldMesh.castShadow = true;
+        fieldMesh.receiveShadow = true;
+        group.add(fieldMesh);
+        
+        // Einfacher Ring
+        const ringGeometry = new THREE.TorusGeometry(BOARD_CONFIG.fieldRadius * 0.9, 0.03, 6, 16);
+        const ringMaterial = new THREE.MeshLambertMaterial({
+            color: new THREE.Color(config.color).multiplyScalar(1.3)
+        });
+        
+        const ring = new THREE.Mesh(ringGeometry, ringMaterial);
+        ring.rotation.x = -Math.PI / 2;
+        ring.position.y = BOARD_CONFIG.fieldHeight + 0.01;
+        group.add(ring);
+        
+        // Einfache Basis
+        const baseGeometry = new THREE.CylinderGeometry(
+            BOARD_CONFIG.fieldRadius * 1.1, 
+            BOARD_CONFIG.fieldRadius * 1.2, 
+            0.1, 
+            12
+        );
+        
+        const baseMaterial = new THREE.MeshLambertMaterial({
+            color: new THREE.Color(config.color).multiplyScalar(0.7)
+        });
+        
+        const base = new THREE.Mesh(baseGeometry, baseMaterial);
+        base.position.y = -0.05;
+        base.castShadow = true;
+        base.receiveShadow = true;
+        group.add(base);
+        
+        // Position direkt auf dem berechneten Punkt setzen
+        group.position.set(point.x, point.y, point.z);
+        group.userData = { fieldIndex: index, fieldType: type };
+        
+        return group;
+    }
+    
+    createVegetation() {
+        // Weniger und einfachere Palmen
+        for (let i = 0; i < 8; i++) {
+            const angle = (i / 8) * Math.PI * 2;
+            const radius = 22 + Math.random() * 4;
+            const x = Math.cos(angle) * radius;
+            const z = Math.sin(angle) * radius;
+            
+            if (this.isPositionSafe(x, z, 2)) {
+                const palm = this.createPalmTree();
+                palm.position.set(x, islandSurfaceY, z);
+                palm.scale.setScalar(0.8 + Math.random() * 0.3);
+                palm.rotation.y = Math.random() * Math.PI * 2;
+                this.scene.add(palm);
+            }
+        }
+        
+        // Weniger Büsche
+        for (let i = 0; i < 12; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const radius = 16 + Math.random() * 8;
+            const x = Math.cos(angle) * radius;
+            const z = Math.sin(angle) * radius;
+            
+            if (this.isPositionSafe(x, z, 1.5)) {
+                const bush = this.createBush();
+                const terrainY = this.getTerrainHeightAt(x, z);
+                bush.position.set(x, terrainY, z);
+                bush.scale.setScalar(0.5 + Math.random() * 0.4);
+                this.scene.add(bush);
+            }
+        }
+    }
+
+    createPalmTree() {
+        const palmGroup = new THREE.Group();
+        
+        // Einfacherer Stamm
+        const trunkGeometry = new THREE.CylinderGeometry(0.25, 0.35, 5.5, 8);
+        const trunkMaterial = new THREE.MeshLambertMaterial({ 
+            color: 0x8B4513
+        });
+        
+        const trunk = new THREE.Mesh(trunkGeometry, trunkMaterial);
+        trunk.position.y = 2.75;
+        trunk.castShadow = true;
+        trunk.receiveShadow = true;
+        palmGroup.add(trunk);
+        
+        // Einfachere Palmwedel
+        const leavesGroup = new THREE.Group();
+        leavesGroup.position.y = 5.5;
+        
+        for (let i = 0; i < 8; i++) {
+            const leafGeometry = new THREE.PlaneGeometry(1.2, 2.8);
+            leafGeometry.translate(0, 1.4, 0);
+            
+            const leafMaterial = new THREE.MeshLambertMaterial({ 
+                color: 0x228B22, 
+                side: THREE.DoubleSide
+            });
+            
+            const leaf = new THREE.Mesh(leafGeometry, leafMaterial);
+            leaf.rotation.z = Math.PI / 8 + (Math.random() - 0.5) * 0.3;
+            leaf.rotation.y = (i / 8) * Math.PI * 2;
+            leaf.rotation.x = (Math.random() - 0.5) * 0.2;
+            leaf.castShadow = true;
+            leaf.receiveShadow = true;
+            leavesGroup.add(leaf);
+        }
+        
+        palmGroup.add(leavesGroup);
+        
+        return palmGroup;
+    }
+
+    createBush() {
+        const bushGroup = new THREE.Group();
+        const colors = [0x2E7D32, 0x388E3C, 0x43A047, 0x4CAF50];
+        
+        for (let i = 0; i < 3; i++) {
+            const bushElement = new THREE.Mesh(
+                new THREE.SphereGeometry(0.15 + Math.random() * 0.12, 8, 8),
+                new THREE.MeshLambertMaterial({ 
+                    color: colors[Math.floor(Math.random() * colors.length)]
+                })
+            );
+            
+            bushElement.position.set(
+                (Math.random() - 0.5) * 0.6, 
+                0.15 + Math.random() * 0.15, 
+                (Math.random() - 0.5) * 0.6
+            );
+            bushElement.scale.setScalar(0.7 + Math.random() * 0.6);
+            bushElement.castShadow = true;
+            bushElement.receiveShadow = true;
+            bushGroup.add(bushElement);
+        }
+        
+        return bushGroup;
+    }
+
+    createFlower() {
+        const flowerGroup = new THREE.Group();
+        const colors = [0xFF69B4, 0xFF1493, 0xDC143C, 0xFFD700, 0xFF4500, 0x9C27B0];
+        
+        // Stängel
+        const stemMaterial = new THREE.MeshPhongMaterial({ color: 0x2E7D32 });
+        const stem = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.015, 0.015, 0.18, 6), 
+            stemMaterial
+        );
+        stem.position.y = 0.09;
+        flowerGroup.add(stem);
+        
+        // Blütenblätter
+        const petalColor = colors[Math.floor(Math.random() * colors.length)];
+        const petalMaterial = new THREE.MeshPhongMaterial({ 
+            color: petalColor, 
+            shininess: 60 
+        });
+        
+        for (let i = 0; i < 6; i++) {
+            const petal = new THREE.Mesh(
+                new THREE.SphereGeometry(0.04, 8, 8), 
+                petalMaterial
+            );
+            
+            const angle = (i / 6) * Math.PI * 2;
+            petal.position.set(
+                Math.cos(angle) * 0.06, 
+                0.2, 
+                Math.sin(angle) * 0.06
+            );
+            petal.scale.set(0.7, 0.3, 0.7);
+            flowerGroup.add(petal);
+        }
+        
+        // Blütenmitte
+        const centerMaterial = new THREE.MeshPhongMaterial({ 
+            color: 0xFFFFE0, 
+            emissive: 0x444400, 
+            emissiveIntensity: 0.1 
+        });
+        
+        const center = new THREE.Mesh(
+            new THREE.SphereGeometry(0.025, 8, 8), 
+            centerMaterial
+        );
+        center.position.y = 0.2;
+        flowerGroup.add(center);
+        
+        return flowerGroup;
+    }
+    
+    createGrassBush() {
+        const grassGroup = new THREE.Group();
+        
+        for (let i = 0; i < 8; i++) {
+            const grassBlade = new THREE.Mesh(
+                new THREE.PlaneGeometry(0.02, 0.15),
+                new THREE.MeshLambertMaterial({
+                    color: 0x4CAF50,
+                    side: THREE.DoubleSide,
+                    transparent: true,
+                    alphaTest: 0.1
+                })
+            );
+            
+            grassBlade.position.set(
+                (Math.random() - 0.5) * 0.15,
+                0.075,
+                (Math.random() - 0.5) * 0.15
+            );
+            
+            grassBlade.rotation.y = Math.random() * Math.PI * 2;
+            grassBlade.rotation.x = (Math.random() - 0.5) * 0.3;
+            
+            grassGroup.add(grassBlade);
+        }
+        
+        return grassGroup;
+    }
+    
+    calculateBaseMountainHeight(x, z) {
+        const distance = Math.sqrt(x * x + z * z);
+        if (distance >= BOARD_CONFIG.mountainBaseRadius) return islandSurfaceY;
+        const progress = 1 - (distance / BOARD_CONFIG.mountainBaseRadius);
+        const heightCurve = progress * progress * (3 - 2 * progress);
+        return islandSurfaceY + heightCurve * BOARD_CONFIG.mountainHeight;
+    }
+
+    createEnvironmentalDetails() {
+        this.createClouds();
+        this.createWildlife();
+        // Beach Details entfernt für einfachere Grafik
+    }
+
+    createBeachDetails() {
+        // Funktion entfernt für einfachere Grafik
+        return;
+    }
+
+    createClouds() {
+        this.clouds = [];
+        for (let i = 0; i < 6; i++) { // Weniger Wolken
+            const cloudGroup = new THREE.Group();
+            const cloudParts = 2 + Math.floor(Math.random() * 2); // Weniger Teile
+            
+            for (let j = 0; j < cloudParts; j++) {
+                const size = 1.5 + Math.random() * 2;
+                const cloudMaterial = new THREE.MeshLambertMaterial({ // Einfacheres Material
+                    color: 0xffffff
+                });
+                
+                const cloudMesh = new THREE.Mesh(
+                    new THREE.SphereGeometry(size, 12, 12), // Weniger Segmente
+                    cloudMaterial
+                );
+                
+                cloudMesh.position.set(
+                    (Math.random() - 0.5) * size * 1.5, 
+                    (Math.random() - 0.5) * size * 0.3, 
+                    (Math.random() - 0.5) * size * 1.5
+                );
+                cloudGroup.add(cloudMesh);
+            }
+            
+            const angle = Math.random() * Math.PI * 2;
+            const distance = 50 + Math.random() * 60;
+            cloudGroup.position.set(
+                Math.cos(angle) * distance, 
+                30 + Math.random() * 15, 
+                Math.sin(angle) * distance
+            );
+            
+            this.scene.add(cloudGroup);
+            this.clouds.push({ 
+                mesh: cloudGroup, 
+                baseY: cloudGroup.position.y, 
+                speed: 0.008 + Math.random() * 0.012, 
+                direction: Math.random() > 0.5 ? 1 : -1 
+            });
+        }
+    }
+
+    createWildlife() {
+        this.birds = [];
+        for (let i = 0; i < 3; i++) { // Weniger Vögel
+            const bird = this.createBird();
+            const angle = Math.random() * Math.PI * 2;
+            const radius = 35 + Math.random() * 20;
+            bird.position.set(
+                Math.cos(angle) * radius, 
+                18 + Math.random() * 10, 
+                Math.sin(angle) * radius
+            );
+            this.scene.add(bird);
+            this.birds.push({ 
+                mesh: bird, 
+                angle: angle, 
+                radius: radius, 
+                speed: 0.004 + Math.random() * 0.006, 
+                verticalSpeed: 0.015 + Math.random() * 0.01, 
+                verticalPhase: Math.random() * Math.PI * 2, 
+                wingPhase: Math.random() * Math.PI * 2 
+            });
+        }
+    }
+
+    createBird() {
+        const birdGroup = new THREE.Group();
+        
+        const bodyMaterial = new THREE.MeshLambertMaterial({ 
+            color: 0x8B4513
+        });
+        
+        const body = new THREE.Mesh(
+            new THREE.SphereGeometry(0.2, 8, 8), 
+            bodyMaterial
+        );
+        body.scale.set(1, 0.7, 1.8);
+        birdGroup.add(body);
+        
+        const head = new THREE.Mesh(
+            new THREE.SphereGeometry(0.12, 8, 8), 
+            bodyMaterial
+        );
+        head.position.set(0, 0.08, 0.25);
+        birdGroup.add(head);
+        
+        const beakMaterial = new THREE.MeshLambertMaterial({ color: 0xFFD700 });
+        const beak = new THREE.Mesh(
+            new THREE.ConeGeometry(0.03, 0.12, 6), 
+            beakMaterial
+        );
+        beak.position.set(0, 0.03, 0.32);
+        beak.rotation.x = Math.PI / 2 - 0.2;
+        birdGroup.add(beak);
+        
+        const wingGeometry = new THREE.BoxGeometry(0.7, 0.08, 0.35);
+        const wingMaterial = new THREE.MeshLambertMaterial({ 
+            color: 0x654321
+        });
+        
+        const leftWing = new THREE.Mesh(wingGeometry, wingMaterial);
+        leftWing.position.set(0.35, 0, 0);
+        leftWing.rotation.z = 0.15;
+        birdGroup.add(leftWing);
+        
+        const rightWing = new THREE.Mesh(wingGeometry, wingMaterial);
+        rightWing.position.set(-0.35, 0, 0);
+        rightWing.rotation.z = -0.15;
+        birdGroup.add(rightWing);
+        
+        birdGroup.scale.set(1.2, 1.2, 1.2);
+        birdGroup.leftWing = leftWing;
+        birdGroup.rightWing = rightWing;
+        
+        return birdGroup;
+    }
+
+    isPositionSafe(x, z, minDistance) {
+        const distanceToMountainCenter = Math.sqrt(x * x + z * z);
+        if (distanceToMountainCenter < BOARD_CONFIG.mountainBaseRadius + minDistance) return false;
+        
+        if (!this.pathPoints || this.pathPoints.length === 0) return true;
+        
+        for (const point of this.pathPoints) {
+            const dx = x - point.x;
+            const dz = z - point.z;
+            if (Math.sqrt(dx * dx + dz * dz) < minDistance) return false;
+        }
+        return true;
+    }
+
+    setupEventListeners() {
+        window.addEventListener('resize', () => this.updateCanvasSize());
+        
+        document.addEventListener('keydown', (event) => {
+            if (event.key.toLowerCase() === 'm') {
+                GAME_STATE.freeCameraMode = !GAME_STATE.freeCameraMode;
+                this.controls.enabled = GAME_STATE.freeCameraMode;
+                this.showStatusMessage(GAME_STATE.freeCameraMode ? 'Freie Kamera aktiviert' : 'Freie Kamera deaktiviert');
+                
+                if (!GAME_STATE.freeCameraMode) {
+                    GAME_STATE.isAnimating = false;
+                    GAME_STATE.isAnimatingCamera = false;
+                    GAME_STATE.playerTurnInProgress = false;
+                    this.stopCameraFollow();
+                    this.prepareNextPlayerTurn(false);
+                }
+            } else if (event.key.toLowerCase() === 'f') {
+                this.toggleFullscreen();
+            }
+        });
+        
+        const rollDiceButton = document.getElementById('roll-dice');
+        if (rollDiceButton) {
+            rollDiceButton.addEventListener('click', () => {
+                if (!GAME_STATE.isAnimating && !GAME_STATE.isDiceRolling && !GAME_STATE.isCharacterMoving && !GAME_STATE.playerTurnInProgress) {
+                    this.rollDice();
+                }
+            });
+        }
+    }
+    
+    showStatusMessage(message) {
+        const existingMessage = document.querySelector('.status-message');
+        if (existingMessage) existingMessage.remove();
+        
+        const statusDiv = document.createElement('div');
+        statusDiv.className = 'status-message';
+        statusDiv.textContent = message;
+        document.body.appendChild(statusDiv);
+        
+        setTimeout(() => {
+            statusDiv.remove();
+        }, 3000);
+    }
+
+    getCurrentTeam() { 
+        return teams[GAME_STATE.currentTeamIndex]; 
+    }
+
+    prepareNextPlayerTurn(immediate = false) {
+        if (GAME_STATE.playerTurnInProgress) return;
+        GAME_STATE.playerTurnInProgress = true;
+        GAME_STATE.cameraMode = 'front';
+
+        this.focusCameraOnCurrentTeam(immediate, () => {
+            const currentMii = this.miiCharacters[this.getCurrentTeam().id];
+            if (currentMii) {
+                this.animateCharacterTurn(currentMii, this.camera.position, () => {
+                    GAME_STATE.playerTurnInProgress = false;
+                    GAME_STATE.isAnimating = false;
+                }, 800);
+            } else {
+                GAME_STATE.playerTurnInProgress = false;
+                GAME_STATE.isAnimating = false;
+            }
+        });
+    }
+
+    nextTeam() {
+        GAME_STATE.currentTeamIndex = (GAME_STATE.currentTeamIndex + 1) % teams.length;
+        this.updateTeamDisplay();
+        if (!GAME_STATE.freeCameraMode) {
+            this.prepareNextPlayerTurn(false);
+        }
+    }
+
+    updateTeamDisplay() {
+        const currentTeam = this.getCurrentTeam();
+        if (currentTeam) {
+            document.getElementById('current-team').textContent = currentTeam.name;
+            document.querySelectorAll('.team-badge').forEach(badge => badge.classList.remove('active-team'));
+            const teamBadges = document.querySelectorAll('.team-badge');
+            if (teamBadges[GAME_STATE.currentTeamIndex]) {
+                teamBadges[GAME_STATE.currentTeamIndex].classList.add('active-team');
+            }
+        }
+    }
+
+    focusCameraOnCurrentTeam(immediate = false, callback) {
+        if (GAME_STATE.freeCameraMode && !immediate) {
+            if(callback) callback();
+            return;
+        }
+        GAME_STATE.isAnimating = true;
+
+        const currentTeam = this.getCurrentTeam();
+        if (!currentTeam || !this.miiCharacters[currentTeam.id]) {
+            this.animateCameraToPosition(new THREE.Vector3(20, 20, 20), new THREE.Vector3(0, 8, 0), immediate ? 0 : 1000, callback);
+            return;
+        }
+        
+        const character = this.miiCharacters[currentTeam.id];
+        const targetPosition = character.position.clone();
+        
+        let cameraPosition, lookAtPosition;
+        
+        if (GAME_STATE.cameraMode === 'front') {
+            const currentPositionIndex = currentTeam.position;
+            const offset = BOARD_CONFIG.cameraFrontOffset.clone();
+            
+            // Spezielle Behandlung für Startposition
+            if (currentPositionIndex === 0) {
+                cameraPosition = new THREE.Vector3(
+                    targetPosition.x - 8, 
+                    targetPosition.y + offset.y + 2, 
+                    targetPosition.z - Math.abs(offset.z)
+                );
+                lookAtPosition = targetPosition.clone();
+                lookAtPosition.y += 1.2;
+            } else {
+                cameraPosition = targetPosition.clone().add(new THREE.Vector3(0, offset.y, Math.abs(offset.z)));
+                
+                if (currentPositionIndex > 0 && this.boardFields[currentPositionIndex - 1]) {
+                    const prevFieldPos = this.boardFields[currentPositionIndex - 1].mesh.position;
+                    const currentFieldPos = targetPosition.clone();
+                    
+                    const direction = new THREE.Vector3().subVectors(currentFieldPos, prevFieldPos);
+                    direction.y = 0;
+                    direction.normalize();
+                    
+                    const cameraDistance = Math.abs(offset.z);
+                    cameraPosition = prevFieldPos.clone().sub(direction.multiplyScalar(cameraDistance * 0.6));
+                    cameraPosition.y = Math.max(targetPosition.y + offset.y, prevFieldPos.y + offset.y);
+                    
+                    const directionToPlayer = new THREE.Vector3().subVectors(targetPosition, cameraPosition);
+                    directionToPlayer.normalize();
+                    
+                    this.raycaster.set(cameraPosition, directionToPlayer);
+                    const intersects = this.raycaster.intersectObject(this.mountainMesh, false);
+                    
+                    if (intersects.length > 0) {
+                        const hitDistance = intersects[0].distance;
+                        const targetDistance = cameraPosition.distanceTo(targetPosition);
+                        
+                        if (hitDistance < targetDistance * 0.85) {
+                            cameraPosition.y += 2.5;
+                            cameraPosition.sub(direction.multiplyScalar(1.5));
+                            
+                            this.raycaster.set(cameraPosition, directionToPlayer);
+                            const intersects2 = this.raycaster.intersectObject(this.mountainMesh, false);
+                            
+                            if (intersects2.length > 0 && intersects2[0].distance < cameraPosition.distanceTo(targetPosition) * 0.85) {
+                                cameraPosition = targetPosition.clone().add(new THREE.Vector3(4, offset.y + 1.5, 4));
+                            }
+                        }
+                    }
+                }
+                
+                lookAtPosition = targetPosition.clone();
+                lookAtPosition.y += 1.2;
+            }
+            
+        } else {
+            const offset = BOARD_CONFIG.cameraFollowOffset.clone();
+            const characterDirection = new THREE.Vector3();
+            character.getWorldDirection(characterDirection);
+            characterDirection.y = 0;
+            characterDirection.normalize();
+            
+            cameraPosition = targetPosition.clone().sub(characterDirection.multiplyScalar(offset.z));
+            cameraPosition.y = targetPosition.y + offset.y;
+            
+            lookAtPosition = targetPosition.clone();
+            lookAtPosition.y += 0.8;
+        }
+
+        this.animateCameraToPosition(cameraPosition, lookAtPosition, immediate ? 0 : 1000, callback);
+    }
+    
+    startCameraFollow(character) {
+        if (GAME_STATE.freeCameraMode) return;
+        GAME_STATE.cameraMode = 'follow';
+        this.isFollowingCharacter = true;
+        this.followTarget = character;
+        this.updateCameraFollow(true);
+    }
+    
+    stopCameraFollow() {
+        this.isFollowingCharacter = false;
+        this.followTarget = null;
+    }
+
+    updateCameraFollow(immediate = false) {
+        if (!this.isFollowingCharacter || !this.followTarget || GAME_STATE.freeCameraMode || GAME_STATE.isAnimatingCamera) return;
+        
+        const character = this.followTarget;
+        const targetPosition = character.position.clone();
+        
+        const characterDirection = new THREE.Vector3();
+        character.getWorldDirection(characterDirection);
+        characterDirection.y = 0;
+        characterDirection.normalize();
+
+        const offset = BOARD_CONFIG.cameraFollowOffset.clone();
+        let cameraPosition = targetPosition.clone().sub(characterDirection.multiplyScalar(offset.z));
+        cameraPosition.y += offset.y;
+        
+        const lookAtPosition = targetPosition.clone();
+        lookAtPosition.y += 0.8;
+
+        this.raycaster.set(lookAtPosition, cameraPosition.clone().sub(lookAtPosition).normalize());
+        const intersects = this.raycaster.intersectObject(this.mountainMesh, false);
+        let minDistance = cameraPosition.distanceTo(lookAtPosition);
+
+        if (intersects.length > 0) {
+            if (intersects[0].distance < minDistance) {
+                minDistance = intersects[0].distance;
+                const newCamDir = cameraPosition.clone().sub(lookAtPosition).normalize();
+                cameraPosition = lookAtPosition.clone().add(newCamDir.multiplyScalar(Math.max(intersects[0].distance - 1.2, 3.5)));
+            }
+        }
+        
+        if (immediate) {
+            this.camera.position.copy(cameraPosition);
+            this.controls.target.copy(lookAtPosition);
+        } else {
+            this.camera.position.lerp(cameraPosition, 0.08);
+            this.controls.target.lerp(lookAtPosition, 0.08);
+        }
+        this.camera.lookAt(this.controls.target);
+    }
+    
+    animateCameraToPosition(targetCamPos, targetLookAtPos, duration = 1200, callback) {
+        if (duration === 0) {
+            this.camera.position.copy(targetCamPos);
+            this.controls.target.copy(targetLookAtPos);
+            this.camera.lookAt(this.controls.target);
+            GAME_STATE.isAnimatingCamera = false;
+            if (callback) callback();
+            return;
+        }
+        
+        const startCamPos = this.camera.position.clone();
+        const startLookAt = this.controls.target.clone();
+        const startTime = Date.now();
+        GAME_STATE.isAnimatingCamera = true;
+
+        const animateCameraFrameInternal = () => {
+            const currentTime = Date.now();
+            const progress = Math.min(1, (currentTime - startTime) / duration);
+            const easeProgress = this.easeInOutCubic(progress);
+
+            this.camera.position.lerpVectors(startCamPos, targetCamPos, easeProgress);
+            this.controls.target.lerpVectors(startLookAt, targetLookAtPos, easeProgress);
+            this.camera.lookAt(this.controls.target);
+
+            if (progress < 1) {
+                requestAnimationFrame(animateCameraFrameInternal);
+            } else {
+                this.camera.position.copy(targetCamPos);
+                this.controls.target.copy(targetLookAtPos);
+                this.camera.lookAt(this.controls.target);
+                GAME_STATE.isAnimatingCamera = false;
+                if (callback) callback();
+            }
+        };
+        animateCameraFrameInternal();
+    }
+
+    easeInOutCubic(t) { 
+        return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; 
+    }
+    
+    createDiceFaceTexture(number) {
+        const canvas = document.createElement('canvas');
+        const size = 256;
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext('2d');
+
+        // Schönerer Hintergrund mit Verlauf
+        const gradient = ctx.createLinearGradient(0, 0, size, size);
+        gradient.addColorStop(0, '#ffffff');
+        gradient.addColorStop(0.5, '#f8f8f8');
+        gradient.addColorStop(1, '#eeeeee');
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, size, size);
+        
+        // Schönerer Rahmen
+        ctx.strokeStyle = '#cccccc';
+        ctx.lineWidth = size / 20;
+        ctx.strokeRect(ctx.lineWidth/2, ctx.lineWidth/2, size - ctx.lineWidth, size - ctx.lineWidth);
+
+        // Innerer Schatten-Effekt
+        ctx.strokeStyle = '#e0e0e0';
+        ctx.lineWidth = size / 32;
+        ctx.strokeRect(size/16, size/16, size - size/8, size - size/8);
+
+        ctx.fillStyle = '#2c2c2c';
+        const dotRadius = size / 12;
+        const padding = size / 4.5;
+
+        const positions = {
+            1: [[size / 2, size / 2]],
+            2: [[padding, padding], [size - padding, size - padding]],
+            3: [[padding, padding], [size / 2, size / 2], [size - padding, size - padding]],
+            4: [[padding, padding], [size - padding, padding], [padding, size - padding], [size - padding, size - padding]],
+            5: [[padding, padding], [size - padding, padding], [size / 2, size / 2], [padding, size - padding], [size - padding, size - padding]],
+            6: [[padding, padding], [size - padding, padding], [padding, size / 2], [size - padding, size / 2], [padding, size - padding], [size - padding, size - padding]],
+        };
+
+        if (positions[number]) {
+            positions[number].forEach(pos => {
+                // Schatten für 3D-Effekt
+                ctx.fillStyle = '#1a1a1a';
+                ctx.beginPath();
+                ctx.arc(pos[0] + 2, pos[1] + 2, dotRadius, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Hauptpunkt
+                const dotGradient = ctx.createRadialGradient(
+                    pos[0] - dotRadius/3, pos[1] - dotRadius/3, 0, 
+                    pos[0], pos[1], dotRadius
+                );
+                dotGradient.addColorStop(0, '#444444');
+                dotGradient.addColorStop(0.7, '#2c2c2c');
+                dotGradient.addColorStop(1, '#1a1a1a');
+                
+                ctx.fillStyle = dotGradient;
+                ctx.beginPath();
+                ctx.arc(pos[0], pos[1], dotRadius, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Glanzlicht
+                ctx.fillStyle = '#666666';
+                ctx.beginPath();
+                ctx.arc(pos[0] - dotRadius/4, pos[1] - dotRadius/4, dotRadius/4, 0, Math.PI * 2);
+                ctx.fill();
+            });
+        }
+
+        const texture = new THREE.CanvasTexture(canvas);
+        texture.needsUpdate = true;
+        return texture;
+    }
+
+    createInteractiveDice() {
+        const diceSize = 0.5;
+        const geometry = new THREE.BoxGeometry(diceSize, diceSize, diceSize);
+        
+        // Abgerundete Kanten für realistischeren Look
+        geometry.parameters.widthSegments = 2;
+        geometry.parameters.heightSegments = 2;
+        geometry.parameters.depthSegments = 2;
+        
+        const materials = [];
+        for (let i = 1; i <= 6; i++) {
+            materials.push(new THREE.MeshPhongMaterial({ 
+                map: this.createDiceFaceTexture(i), 
+                shininess: 120,
+                specular: 0xffffff,
+                bumpScale: 0.02
+            }));
+        }
+        
+        const orderedMaterials = [
+            materials[0], // 1
+            materials[5], // 6
+            materials[1], // 2
+            materials[4], // 5
+            materials[2], // 3
+            materials[3]  // 4
+        ];
+        
+        this.interactiveDice = new THREE.Mesh(geometry, orderedMaterials);
+        this.interactiveDice.castShadow = true;
+        this.interactiveDice.receiveShadow = true;
+        this.interactiveDice.visible = false;
+        this.interactiveDice.userData.isDice = true;
+        this.scene.add(this.interactiveDice);
+        
+        this.createDiceResultNumber();
+    }
+    
+    createDiceResultNumber() {
+        const numberGroup = new THREE.Group();
+        
+        const circleGeometry = new THREE.CircleGeometry(0.45, 32);
+        const circleMaterial = new THREE.MeshBasicMaterial({
+            color: 0xFFD700,
+            transparent: true,
+            opacity: 0.95,
+            side: THREE.DoubleSide
+        });
+        const circle = new THREE.Mesh(circleGeometry, circleMaterial);
+        numberGroup.add(circle);
+        
+        numberGroup.visible = false;
+        this.scene.add(numberGroup);
+        this.diceResultNumber = numberGroup;
+    }
+
+    animateCharacterTurn(character, targetLookAtPosition, callback, duration = 600) {
+        GAME_STATE.isAnimating = true;
+        const startRotation = character.quaternion.clone();
+        
+        const characterPos = character.position.clone();
+        const targetPos = targetLookAtPosition.clone();
+        targetPos.y = characterPos.y;
+        
+        const direction = new THREE.Vector3().subVectors(targetPos, characterPos);
+        direction.normalize();
+        
+        const endRotation = new THREE.Quaternion();
+        if (direction.lengthSq() > 0.0001) {
+            const angle = Math.atan2(direction.x, direction.z);
+            endRotation.setFromAxisAngle(new THREE.Vector3(0, 1, 0), angle);
+        } else {
+            endRotation.copy(startRotation);
+        }
+
+        const startTime = Date.now();
+        const animateTurnFrame = () => {
+            const currentTime = Date.now();
+            const progress = Math.min(1, (currentTime - startTime) / duration);
+            const easeProgress = this.easeInOutCubic(progress);
+            
+            character.quaternion.slerpQuaternions(startRotation, endRotation, easeProgress);
+
+            if (progress < 1) {
+                requestAnimationFrame(animateTurnFrame);
+            } else {
+                character.quaternion.copy(endRotation);
+                GAME_STATE.isAnimating = false;
+                if (callback) callback();
+            }
+        };
+        animateTurnFrame();
+    }
+
+    rollDice() {
+        if (GAME_STATE.isAnimating || GAME_STATE.isDiceRolling || GAME_STATE.isCharacterMoving || !this.interactiveDice) return;
+        
+        GAME_STATE.isAnimating = true;
+        GAME_STATE.isDiceRolling = true;
+
+        const currentTeam = this.getCurrentTeam();
+        if (!currentTeam) { 
+            GAME_STATE.isAnimating = false; 
+            GAME_STATE.isDiceRolling = false; 
+            return; 
+        }
+        
+        const mii = this.miiCharacters[currentTeam.id];
+        if (!mii) { 
+            GAME_STATE.isAnimating = false; 
+            GAME_STATE.isDiceRolling = false; 
+            return; 
+        }
+
+        this.interactiveDice.position.copy(mii.position).add(new THREE.Vector3(0, 1.2, 0));
+        this.interactiveDice.visible = true;
+        this.interactiveDice.rotation.set(
+            Math.random() * Math.PI, 
+            Math.random() * Math.PI, 
+            Math.random() * Math.PI
+        );
+
+        this.animateInteractiveDiceRoll((diceResult) => {
+            GAME_STATE.diceResult = diceResult;
+            this.showDiceResult(diceResult);
+            
+            setTimeout(() => {
+                this.interactiveDice.visible = false;
+                this.hideDiceResult();
+
+                const currentPositionIndex = currentTeam.position;
+                let nextFieldIndex = Math.min(currentPositionIndex + 1, this.boardFields.length - 1);
+                if (currentPositionIndex === this.boardFields.length - 1) {
+                    nextFieldIndex = currentPositionIndex;
+                }
+                
+                const nextField = this.boardFields[nextFieldIndex];
+                let lookAtTargetPos = mii.position.clone().add(new THREE.Vector3(0, 0, 1));
+                if(nextField && nextField.mesh) {
+                    lookAtTargetPos = nextField.mesh.position.clone();
+                }
+
+                this.animateCharacterTurn(mii, lookAtTargetPos, () => {
+                    GAME_STATE.isDiceRolling = false;
+                    if (!GAME_STATE.freeCameraMode) {
+                        this.startCameraFollow(mii);
+                    }
+                    this.actuallyMoveCharacter(currentTeam, mii, diceResult, currentPositionIndex);
+                });
+            }, 1800);
+        });
+    }
+    
+    showDiceResult(result) {
+        const display = document.getElementById('dice-result-display');
+        const number = display.querySelector('.dice-result-number');
+        if (display && number) {
+            number.textContent = result;
+            display.classList.add('show');
+        }
+    }
+    
+    hideDiceResult() {
+        const display = document.getElementById('dice-result-display');
+        if (display) {
+            display.classList.remove('show');
+        }
+    }
+
+    animateInteractiveDiceRoll(callback) {
+        const rollAnimationDuration = 1600; // Verkürzt für natürlicheren Look
+        const settleDuration = 400;
+        const startTime = Date.now();
+        
+        const diceStartPos = this.interactiveDice.position.clone();
+        const jumpHeight = 0.3;
+        
+        // Verbesserte Rotation - natürlicher
+        const initialAngularVelocity = {
+            x: (Math.random() - 0.5) * 0.3,
+            y: (Math.random() - 0.5) * 0.3,
+            z: (Math.random() - 0.5) * 0.3
+        };
+
+        const targetRotations = {
+            1: new THREE.Euler(0, 0, -Math.PI / 2),
+            2: new THREE.Euler(0, 0, 0),
+            3: new THREE.Euler(Math.PI / 2, 0, 0),
+            4: new THREE.Euler(-Math.PI / 2, 0, 0),
+            5: new THREE.Euler(Math.PI, 0, 0),
+            6: new THREE.Euler(0, 0, Math.PI / 2)
+        };
+        
+        const finalDiceResult = Math.floor(Math.random() * 6) + 1;
+        const finalRotation = targetRotations[finalDiceResult];
+        
+        const toCameraVector = new THREE.Vector3().subVectors(this.camera.position, this.interactiveDice.position);
+        toCameraVector.y = 0;
+        toCameraVector.normalize();
+        const angleToCamera = Math.atan2(toCameraVector.x, toCameraVector.z);
+        
+        const finalQuaternion = new THREE.Quaternion();
+        const euler = new THREE.Euler(finalRotation.x, angleToCamera, finalRotation.z);
+        finalQuaternion.setFromEuler(euler);
+
+        let bounceCount = 0;
+        let lastBounceTime = startTime;
+        
+        const animateDiceFrame = () => {
+            const currentTime = Date.now();
+            const elapsedTime = currentTime - startTime;
+            
+            if (elapsedTime < rollAnimationDuration) {
+                const rollProgress = elapsedTime / rollAnimationDuration;
+                const rollSpeed = Math.max(0.1, 1 - rollProgress * 0.8); // Langsameres Abbremsen
+                
+                // Natürlichere Rotation mit Abbremsung
+                const dampening = Math.pow(rollSpeed, 1.5);
+                this.interactiveDice.rotation.x += initialAngularVelocity.x * dampening;
+                this.interactiveDice.rotation.y += initialAngularVelocity.y * dampening;
+                this.interactiveDice.rotation.z += initialAngularVelocity.z * dampening;
+
+                // Verbesserte Sprungphysik
+                const timeSinceLastBounce = currentTime - lastBounceTime;
+                const bounceInterval = 300 - (bounceCount * 40); // Schnellere Sprünge
+                
+                if (timeSinceLastBounce > bounceInterval && bounceCount < 4) {
+                    bounceCount++;
+                    lastBounceTime = currentTime;
+                }
+                
+                const bounceProgress = (timeSinceLastBounce % bounceInterval) / bounceInterval;
+                const currentBounceHeight = jumpHeight * Math.max(0.2, 1 - (bounceCount * 0.15));
+                const bounceY = Math.sin(bounceProgress * Math.PI) * currentBounceHeight;
+                
+                this.interactiveDice.position.y = diceStartPos.y + bounceY;
+
+                requestAnimationFrame(animateDiceFrame);
+            } else {
+                // Settle-Phase mit sanfterem Übergang
+                const settleStartTime = startTime + rollAnimationDuration;
+                const settleElapsedTime = currentTime - settleStartTime;
+                const settleProgress = Math.min(1, settleElapsedTime / settleDuration);
+                
+                // Sanftes Landen
+                const landingCurve = 1 - Math.pow(1 - settleProgress, 3);
+                this.interactiveDice.position.y = diceStartPos.y + (jumpHeight * 0.1) * (1 - landingCurve);
+                
+                // Sanfte Rotation zum Endergebnis
+                const rotationProgress = this.easeInOutCubic(settleProgress);
+                THREE.Quaternion.slerp(
+                    this.interactiveDice.quaternion, 
+                    finalQuaternion, 
+                    this.interactiveDice.quaternion, 
+                    rotationProgress * 0.15
+                );
+
+                if (settleProgress < 1) {
+                    requestAnimationFrame(animateDiceFrame);
+                } else {
+                    this.interactiveDice.quaternion.copy(finalQuaternion);
+                    this.interactiveDice.position.y = diceStartPos.y;
+                    if (callback) callback(finalDiceResult);
+                }
+            }
+        };
+        animateDiceFrame();
+    }
+
+    actuallyMoveCharacter(currentTeam, mii, diceRoll, startPositionIndex) {
+        GAME_STATE.isCharacterMoving = true;
+        GAME_STATE.isAnimating = true;
+
+        const endPositionIndex = Math.min(startPositionIndex + diceRoll, this.boardFields.length - 1);
+                
+        const pathPositions = [];
+        if (startPositionIndex < endPositionIndex) {
+            for (let i = startPositionIndex; i <= endPositionIndex; i++) {
+                if (this.boardFields[i] && this.boardFields[i].mesh) {
+                    const fieldBaseY = this.boardFields[i].mesh.position.y;
+                    const characterY = fieldBaseY + BOARD_CONFIG.characterElevation;
+                    pathPositions.push(new THREE.Vector3(
+                        this.boardFields[i].mesh.position.x, 
+                        characterY, 
+                        this.boardFields[i].mesh.position.z
+                    ));
+                }
+            }
+        } else {
+            this.handleMovementCompletion(currentTeam, mii, endPositionIndex);
+            return;
+        }
+
+        if (pathPositions.length <= 1 && startPositionIndex === endPositionIndex) {
+            this.handleMovementCompletion(currentTeam, mii, endPositionIndex);
+            return;
+        }
+        
+        if (pathPositions.length >= 2) {
+            this.activeCharacterPath = new THREE.CatmullRomCurve3(pathPositions, false, 'catmullrom', 0.5);
+            this.animateCharacterAlongPath(mii, this.activeCharacterPath, () => {
+                this.handleMovementCompletion(currentTeam, mii, endPositionIndex);
+            });
+        } else if (pathPositions.length === 1 && startPositionIndex < endPositionIndex) {
+            this.animateCharacterMove(mii, pathPositions[0], () => {
+                this.handleMovementCompletion(currentTeam, mii, endPositionIndex);
+            }, 400);
+        } else {
+            this.handleMovementCompletion(currentTeam, mii, endPositionIndex);
+        }
+    }
+
+    handleMovementCompletion(currentTeam, mii, finalPositionIndex) {
+        currentTeam.position = finalPositionIndex;
+        this.updateTeamBadge(GAME_STATE.currentTeamIndex, finalPositionIndex);
+        this.saveTeamPosition(currentTeam.id, finalPositionIndex);
+
+        GAME_STATE.isCharacterMoving = false;
+        GAME_STATE.isAnimating = true;
+
+        const targetFieldData = this.boardFields[finalPositionIndex];
+        if (targetFieldData && targetFieldData.type === 'goal') {
+            this.showStatusMessage("Zielfeld erreicht! 🎯");
+            this.showFieldEffect(targetFieldData.mesh.position, 0xFFB74D);
+        } else if (targetFieldData && targetFieldData.type === 'bonus') {
+            this.showStatusMessage("Bonusfeld! ⭐");
+            this.showFieldEffect(targetFieldData.mesh.position, 0xFFD54F);
+        } else if (targetFieldData && targetFieldData.type === 'minigame') {
+            this.showStatusMessage("Minispiel! 🎮");
+            this.showFieldEffect(targetFieldData.mesh.position, 0xBA68C8);
+        }
+
+        if (finalPositionIndex === this.boardFields.length - 1) {
+            this.showStatusMessage(`${currentTeam.name} hat das Ziel erreicht und öffnet die Schatzkammer!`);
+            this.stopCameraFollow();
+            this.openTreasureChamberDoor(() => {
+                this.moveCharacterIntoChamber(mii, () => {
+                    const chamberBaseY = islandSurfaceY + BOARD_CONFIG.mountainHeight;
+                    const chamberCamPos = new THREE.Vector3(0, chamberBaseY + 2.5, BOARD_CONFIG.chamberSize * 0.7);
+                    const lookAtPos = new THREE.Vector3(0, chamberBaseY + 0.8, 0);
+                    this.animateCameraToPosition(chamberCamPos, lookAtPos, 1200, () => {
+                        this.animateVictory(mii, currentTeam);
+                        GAME_STATE.isAnimating = false;
+                        setTimeout(() => this.nextTeam(), 4000);
+                    });
+                });
+            });
+        } else {
+            this.stopCameraFollow();
+            setTimeout(() => {
+                GAME_STATE.isAnimating = false;
+                this.nextTeam();
+            }, 800);
+        }
+    }
+    
+    showFieldEffect(position, color) {
+        const particleCount = 25;
+        const particlePositions = new Float32Array(particleCount * 3);
+        const effectBaseY = position.y + BOARD_CONFIG.fieldHeight / 2;
+
+        for (let i = 0; i < particleCount; i++) {
+            particlePositions[i * 3] = position.x;
+            particlePositions[i * 3 + 1] = effectBaseY;
+            particlePositions[i * 3 + 2] = position.z;
+        }
+        
+        const particleGeometry = new THREE.BufferGeometry();
+        particleGeometry.setAttribute('position', new THREE.BufferAttribute(particlePositions, 3));
+        
+        const particleMaterial = new THREE.PointsMaterial({ 
+            color: color, 
+            size: 0.15, 
+            transparent: true, 
+            opacity: 1 
+        });
+        
+        const particles = new THREE.Points(particleGeometry, particleMaterial);
+        this.scene.add(particles);
+        
+        let time = 0;
+        const animateEffectInternal = () => {
+            time += 0.04;
+            if (time > 1.2) {
+                if (particles.parent) this.scene.remove(particles);
+                particleGeometry.dispose();
+                particleMaterial.dispose();
+                return;
+            }
+            
+            const currentPositions = particles.geometry.attributes.position.array;
+            for (let i = 0; i < particleCount; i++) {
+                const angle = i / particleCount * Math.PI * 2 + time * 3;
+                const radius = time * 1.5;
+                currentPositions[i * 3] = position.x + Math.cos(angle) * radius;
+                currentPositions[i * 3 + 1] = effectBaseY + time * 1.0 + Math.sin(time * 6 + i) * 0.15;
+                currentPositions[i * 3 + 2] = position.z + Math.sin(angle) * radius;
+            }
+            particles.geometry.attributes.position.needsUpdate = true;
+            particleMaterial.opacity = Math.max(0, 1 - (time / 1.2));
+            requestAnimationFrame(animateEffectInternal);
+        };
+        animateEffectInternal();
+    }
+    
+    animateCharacterMove(character, targetPosition, callback, totalDuration = 400) {
+        GAME_STATE.isAnimating = true;
+        GAME_STATE.isCharacterMoving = true;
+
+        const startPosition = character.position.clone();
+        const distance = startPosition.distanceTo(targetPosition);
+        const duration = Math.max(150, Math.min(totalDuration, distance * 80));
+        const startTime = Date.now();
+
+        const direction = new THREE.Vector3().subVectors(targetPosition, startPosition);
+        const startRotation = character.quaternion.clone();
+        const endRotation = new THREE.Quaternion();
+        
+        if (direction.lengthSq() > 0.0001) {
+            const angle = Math.atan2(direction.x, direction.z);
+            endRotation.setFromAxisAngle(new THREE.Vector3(0, 1, 0), angle);
+        } else {
+            endRotation.copy(startRotation);
+        }
+        
+        if (character.userData && character.userData.isFlyingCharacter) {
+            if(character.userData) character.userData.isMoving = true;
+        }
+
+        const animateMoveFrameInternal = () => {
+            const currentTime = Date.now();
+            const progress = Math.min(1, (currentTime - startTime) / duration);
+            const easeProgress = this.easeInOutCubic(progress);
+
+            const currentLerpedPos = new THREE.Vector3().lerpVectors(startPosition, targetPosition, easeProgress);
+            
+            character.position.x = currentLerpedPos.x;
+            character.position.z = currentLerpedPos.z;
+
+            if (character.userData && character.userData.isFlyingCharacter) {
+                const flightAmplitude = 0.08;
+                const flightFrequency = 2.5;
+                const baseFlightY = THREE.MathUtils.lerp(startPosition.y, targetPosition.y, easeProgress);
+                character.position.y = baseFlightY + Math.sin(easeProgress * Math.PI * flightFrequency) * flightAmplitude;
+            } else {
+                const jumpHeight = distance < 0.4 ? 0.15 : 0.35;
+                const jumpOffset = Math.sin(easeProgress * Math.PI) * jumpHeight;
+                character.position.y = THREE.MathUtils.lerp(startPosition.y, targetPosition.y, easeProgress) + jumpOffset;
+            }
+            
+            character.quaternion.slerpQuaternions(startRotation, endRotation, easeProgress);
+
+            if (progress < 1) {
+                requestAnimationFrame(animateMoveFrameInternal);
+            } else {
+                character.position.copy(targetPosition);
+                character.quaternion.copy(endRotation);
+                if (character.userData && character.userData.isFlyingCharacter) {
+                    if(character.userData) character.userData.isMoving = false;
+                }
+                if (callback) callback();
+            }
+        };
+        animateMoveFrameInternal();
+    }
+
+    animateCharacterAlongPath(character, pathCurve, onComplete) {
+        GAME_STATE.isAnimating = true;
+        GAME_STATE.isCharacterMoving = true;
+
+        const totalPathLength = pathCurve.getLength();
+        const stepDuration = 500;
+        const numSteps = Math.max(2, Math.floor(totalPathLength / 1.2));
+        const totalDuration = stepDuration * numSteps;
+
+        const startTime = Date.now();
+
+        if (character.userData && character.userData.isFlyingCharacter) {
+            if(character.userData) character.userData.isMoving = true;
+        }
+        
+        const animatePathInternal = () => {
+            const currentTime = Date.now();
+            const progress = Math.min(1, (currentTime - startTime) / totalDuration);
+            const easeProgress = progress;
+
+            const currentPointOnCurve = pathCurve.getPointAt(easeProgress);
+            
+            character.position.x = currentPointOnCurve.x;
+            character.position.z = currentPointOnCurve.z;
+
+            if (character.userData && character.userData.isFlyingCharacter) {
+                const flightAmplitude = 0.08;
+                const flightFrequency = Math.floor(totalPathLength * 0.6);
+                const baseFlightY = currentPointOnCurve.y;
+                character.position.y = baseFlightY + Math.sin(easeProgress * Math.PI * flightFrequency) * flightAmplitude;
+            } else {
+                const stepProgress = (easeProgress * numSteps) % 1;
+                const jumpHeight = 0.3;
+                const jumpOffset = Math.sin(stepProgress * Math.PI) * jumpHeight;
+                character.position.y = currentPointOnCurve.y + jumpOffset;
+            }
+
+            const tangent = pathCurve.getTangentAt(easeProgress).normalize();
+            if (tangent.lengthSq() > 0.0001) {
+                const angle = Math.atan2(tangent.x, tangent.z);
+                const targetRotation = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), angle);
+                character.quaternion.slerp(targetRotation, GAME_STATE.characterTurnSpeed * 1.8);
+            }
+
+            if (progress < 1) {
+                requestAnimationFrame(animatePathInternal);
+            } else {
+                character.position.copy(pathCurve.getPointAt(1));
+                const finalTangent = pathCurve.getTangentAt(1).normalize();
+                if (finalTangent.lengthSq() > 0.0001) {
+                    const finalAngle = Math.atan2(finalTangent.x, finalTangent.z);
+                    character.quaternion.setFromAxisAngle(new THREE.Vector3(0,1,0), finalAngle);
+                }
+                if (character.userData && character.userData.isFlyingCharacter) {
+                    if(character.userData) character.userData.isMoving = false;
+                }
+                if (onComplete) onComplete();
+            }
+        };
+        animatePathInternal();
+    }
+
+    openTreasureChamberDoor(callback) {
+        if (!this.chamberDoor) { 
+            if (callback) callback(); 
+            return; 
+        }
+        
+        GAME_STATE.isAnimating = true;
+        const startRotation = this.chamberDoor.rotation.y;
+        const endRotation = -Math.PI * 0.85;
+        const duration = 800;
+        const startTime = Date.now();
+        
+        const openDoorAnimInternal = () => {
+            const currentTime = Date.now();
+            const progress = Math.min(1, (currentTime - startTime) / duration);
+            const easeProgress = this.easeInOutCubic(progress);
+            this.chamberDoor.rotation.y = startRotation + (endRotation - startRotation) * easeProgress;
+            
+            if (progress < 1) {
+                requestAnimationFrame(openDoorAnimInternal);
+            } else {
+                if (callback) callback();
+            }
+        };
+        openDoorAnimInternal();
+    }
+    
+    moveCharacterIntoChamber(character, callback) {
+        GAME_STATE.isAnimating = true;
+        // Angepasste Position für niedrigeren Zielpunkt
+        const targetY = islandSurfaceY + BOARD_CONFIG.mountainHeight + BOARD_CONFIG.characterElevation + 0.1;
+        const endPosition = new THREE.Vector3(0, targetY, -0.1); // Näher zur Tür
+        this.animateCharacterMove(character, endPosition, callback, 800);
+    }
+
+    animateVictory(character, team) {
+        GAME_STATE.isAnimating = true;
+        const startPosition = character.position.clone();
+        let jumpCount = 0;
+        
+        const celebrateJumpInternal = () => {
+            const jumpDuration = 350;
+            const jumpStartTime = Date.now();
+            const jumpHeight = 0.6;
+            
+            const animateSingleJumpInternal = () => {
+                const jumpTime = Date.now() - jumpStartTime;
+                const jumpProgress = Math.min(1, jumpTime / jumpDuration);
+                character.position.y = startPosition.y + Math.sin(jumpProgress * Math.PI) * jumpHeight;
+                character.rotation.y += 0.15;
+                
+                if (jumpProgress < 1) {
+                    requestAnimationFrame(animateSingleJumpInternal);
+                } else {
+                    jumpCount++;
+                    if (jumpCount < 5) {
+                        setTimeout(celebrateJumpInternal, 80);
+                    } else {
+                        character.position.y = startPosition.y;
+                    }
+                }
+            };
+            animateSingleJumpInternal();
+        };
+        celebrateJumpInternal();
+        this.showVictoryEffect();
+    }
+
+    showVictoryEffect() {
+        const colors = [0xFF0066, 0x00FF66, 0x0066FF, 0xFFFF00, 0xFF00FF, 0x00FFFF];
+        
+        for (let i = 0; i < 6; i++) {
+            setTimeout(() => {
+                const color = colors[Math.floor(Math.random() * colors.length)];
+                const baseEffectY = islandSurfaceY + BOARD_CONFIG.mountainHeight + 4;
+                const pos = new THREE.Vector3(
+                    (Math.random() - 0.5) * 8, 
+                    baseEffectY + Math.random() * 4, 
+                    (Math.random() - 0.5) * 8
+                );
+                
+                const particleCount = 40;
+                const fireworkPositions = new Float32Array(particleCount * 3);
+                
+                for (let j = 0; j < particleCount; j++) {
+                    fireworkPositions[j * 3] = pos.x;
+                    fireworkPositions[j * 3 + 1] = pos.y;
+                    fireworkPositions[j * 3 + 2] = pos.z;
+                }
+                
+                const fireworkGeometry = new THREE.BufferGeometry();
+                fireworkGeometry.setAttribute('position', new THREE.BufferAttribute(fireworkPositions, 3));
+                
+                const fireworkMaterial = new THREE.PointsMaterial({ 
+                    color: color, 
+                    size: 0.25, 
+                    transparent: true, 
+                    opacity: 1 
+                });
+                
+                const fireworks = new THREE.Points(fireworkGeometry, fireworkMaterial);
+                this.scene.add(fireworks);
+                
+                let time = 0;
+                const animateFireworkInternal = () => {
+                    time += 0.04;
+                    if (time > 1.8) {
+                        if(fireworks.parent) this.scene.remove(fireworks);
+                        fireworkGeometry.dispose();
+                        fireworkMaterial.dispose();
+                        return;
+                    }
+                    
+                    const currentPositions = fireworks.geometry.attributes.position.array;
+                    for (let j = 0; j < particleCount; j++) {
+                        const angle1 = Math.random() * Math.PI * 2;
+                        const angle2 = Math.random() * Math.PI;
+                        const speed = 0.08 + Math.random() * 0.08;
+                        
+                        currentPositions[j * 3] += Math.sin(angle2) * Math.cos(angle1) * speed;
+                        currentPositions[j * 3 + 1] += Math.cos(angle2) * speed - 0.015;
+                        currentPositions[j * 3 + 2] += Math.sin(angle2) * Math.sin(angle1) * speed;
+                    }
+                    fireworks.geometry.attributes.position.needsUpdate = true;
+                    fireworkMaterial.opacity = Math.max(0, 1 - (time / 1.8));
+                    requestAnimationFrame(animateFireworkInternal);
+                };
+                animateFireworkInternal();
+            }, i * 250);
+        }
+    }
+
+    updateTeamBadge(teamIndex, position) {
+        const teamBadges = document.querySelectorAll('.team-badge');
+        if (teamIndex < teamBadges.length) {
+            const positionSpan = teamBadges[teamIndex].querySelector('.team-position');
+            if (positionSpan) positionSpan.textContent = `Position: ${position}`;
+        }
+    }
+    
+    saveTeamPosition(teamId, position) {
+        fetch('/api/update-position', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ team_id: teamId, position: position })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                console.log(`Position für Team ${teamId} auf ${position} aktualisiert`);
+            } else {
+                console.error('Fehler beim Speichern der Position:', data.error);
+            }
+        })
+        .catch(error => console.error('Fehler beim Speichern der Position:', error));
+    }
+
+    updateCanvasSize() {
+        const container = document.getElementById('game-canvas-container');
+        if (!container) return;
+        
+        const rect = container.getBoundingClientRect();
+        this.renderer.setSize(rect.width, rect.height, false);
+        
+        if (this.camera) {
+            this.camera.aspect = rect.width / rect.height;
+            this.camera.updateProjectionMatrix();
+        }
+    }
+
+    toggleFullscreen() {
+        const container = document.getElementById('game-canvas-container');
+        if (!document.fullscreenElement) {
+            if (container.requestFullscreen) container.requestFullscreen();
+            else if (container.mozRequestFullScreen) container.mozRequestFullScreen();
+            else if (container.webkitRequestFullscreen) container.webkitRequestFullscreen();
+            else if (container.msRequestFullscreen) container.msRequestFullscreen();
+            GAME_STATE.isFullscreen = true;
+        } else {
+            if (document.exitFullscreen) document.exitFullscreen();
+            else if (document.mozCancelFullScreen) document.mozCancelFullScreen();
+            else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+            else if (document.msExitFullscreen) document.msExitFullscreen();
+            GAME_STATE.isFullscreen = false;
+        }
+        setTimeout(() => this.updateCanvasSize(), 100);
+    }
+
+    createMiiCharacters() {
+        teams.forEach((team, index) => {
+            let characterModel;
+            const characterData = team.character;
+
+            if (characterData) {
+                const characterName = characterData.name.toLowerCase();
+                const color = characterData.color || "#FF5252";
+
+                if (characterName.includes("tung")) characterModel = createTungTungTungSahur(color);
+                else if (characterName.includes("ballerina") || characterName.includes("cappuccina")) characterModel = createBallerinaCappuccina(color);
+                else if (characterName.includes("bombardino")) characterModel = createBombardinoCrocodilo(color);
+                else if (characterName.includes("liril") || characterName.includes("laril")) characterModel = createLiriliLarila(color);
+                else if (characterName.includes("tralalero")) characterModel = createTralaleroTralala(color);
+                else if (characterName.includes("trippi") || characterName.includes("troppi")) characterModel = createTrippiTroppi(color);
+                else characterModel = createDefaultCharacter(color);
+            } else {
+                const defaultColor = team.color || `hsl(${index * 60}, 70%, 60%)`;
+                characterModel = createDefaultCharacter(defaultColor);
+            }
+            
+            characterModel.userData.isCharacterPart = true;
+            characterModel.traverse((child) => {
+                if (child.isMesh) child.userData.isCharacterPart = true;
+            });
+
+            this.miiCharacters[team.id] = characterModel;
+            
+            if (this.boardFields && this.boardFields.length > team.position && this.boardFields[team.position] && this.boardFields[team.position].mesh) {
+                const fieldBaseY = this.boardFields[team.position].mesh.position.y;
+                characterModel.position.copy(this.boardFields[team.position].mesh.position);
+                characterModel.position.y = fieldBaseY + BOARD_CONFIG.characterElevation;
+            } else {
+                if (this.boardFields && this.boardFields.length > 0 && this.boardFields[0].mesh) {
+                    const firstFieldBaseY = this.boardFields[0].mesh.position.y;
+                    characterModel.position.copy(this.boardFields[0].mesh.position);
+                    characterModel.position.y = firstFieldBaseY + BOARD_CONFIG.characterElevation;
+                } else {
+                    characterModel.position.set(0, islandSurfaceY + BOARD_CONFIG.characterElevation, 0);
+                }
+            }
+
+            let lookAtPos;
+            if (this.boardFields && this.boardFields.length > team.position + 1 && this.boardFields[team.position + 1].mesh) {
+                lookAtPos = this.boardFields[team.position + 1].mesh.position.clone();
+            } else if (this.boardFields && this.boardFields.length > 0 && team.position > 0 && this.boardFields[team.position - 1].mesh) {
+                lookAtPos = this.boardFields[team.position - 1].mesh.position.clone();
+                lookAtPos.y = characterModel.position.y;
+                characterModel.lookAt(lookAtPos);
+                characterModel.rotateY(Math.PI);
+            } else {
+                lookAtPos = new THREE.Vector3(characterModel.position.x, characterModel.position.y, characterModel.position.z + 1);
+            }
+            
+            if (lookAtPos && !(team.position === this.boardFields.length - 1 && team.position > 0 && !this.boardFields[team.position + 1])) {
+                lookAtPos.y = characterModel.position.y;
+                characterModel.lookAt(lookAtPos);
+            }
+
+            this.scene.add(characterModel);
+        });
+    }
+
+    updateCharacterAnimations(time) {
+        Object.values(this.miiCharacters).forEach(characterModel => {
+            if (characterModel.userData && characterModel.userData.animation) {
+                characterModel.userData.animation(time);
+            }
+        });
+        
+        this.boardFields.forEach(field => {
+            if (field.mesh.userData.animation) {
+                field.mesh.userData.animation(time);
+            }
+        });
+        
+        // Einfache Vegetation-Animationen entfernt für bessere Performance
+    }
+
+    animate() {
+        requestAnimationFrame(() => this.animate());
+        const time = Date.now() * 0.001;
+
+        if (this.water && this.water.userData.animation) {
+            this.water.userData.animation(time);
+        }
+        
+        if (this.clouds) {
+            this.clouds.forEach(cloudData => {
+                const cloud = cloudData.mesh;
+                cloud.position.x += cloudData.speed * cloudData.direction * (GAME_STATE.freeCameraMode ? 0.4 : 1);
+                cloud.position.y = cloudData.baseY + Math.sin(time * 0.2 + cloudData.speed * 8) * 1.5;
+                
+                if (cloud.position.x > 100 && cloudData.direction === 1) cloud.position.x = -100;
+                if (cloud.position.x < -100 && cloudData.direction === -1) cloud.position.x = 100;
+            });
+        }
+        
+        if (this.birds) {
+            this.birds.forEach(birdData => {
+                const bird = birdData.mesh;
+                birdData.angle += birdData.speed * (GAME_STATE.freeCameraMode ? 0.4 : 1);
+                bird.position.x = Math.cos(birdData.angle) * birdData.radius;
+                bird.position.z = Math.sin(birdData.angle) * birdData.radius;
+                birdData.verticalPhase += birdData.verticalSpeed * 0.6;
+                bird.position.y += Math.sin(birdData.verticalPhase) * 0.03;
+                
+                if (bird.leftWing && bird.rightWing) {
+                    const wingBeatSpeed = 0.25;
+                    const wingAngle = Math.sin(birdData.wingPhase) * 0.5;
+                    bird.leftWing.rotation.z = wingAngle;
+                    bird.rightWing.rotation.z = -wingAngle;
+                    birdData.wingPhase += wingBeatSpeed;
+                }
+                
+                const lookAheadFactor = 12;
+                const lookAheadAngle = birdData.angle + birdData.speed * lookAheadFactor;
+                const lookAtPos = new THREE.Vector3(
+                    Math.cos(lookAheadAngle) * birdData.radius,
+                    bird.position.y - 0.3,
+                    Math.sin(lookAheadAngle) * birdData.radius
+                );
+                bird.lookAt(lookAtPos);
+            });
+        }
+
+        if (!GAME_STATE.freeCameraMode && this.isFollowingCharacter && !GAME_STATE.isAnimatingCamera) {
+            this.updateCameraFollow();
+        }
+        
+        if (GAME_STATE.freeCameraMode) {
+            this.controls.update();
+        }
+        
+        this.updateCharacterAnimations(time);
+        this.renderer.render(this.scene, this.camera);
+    }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    try {
+        if (document.getElementById('game-canvas')) {
+            window.gameBoard = new WiiPartyIsland('game-canvas');
+        } else {
+            const canvasContainer = document.getElementById('game-canvas-container');
+            if(canvasContainer) {
+                canvasContainer.innerHTML = "<p style='color:red; text-align:center; padding-top: 50px;'>Fehler: Canvas-Element konnte nicht gefunden werden.</p>";
+            }
+        }
+    } catch (error) {
+        console.error("Fehler beim Initialisieren der Insel:", error);
+        const canvasContainer = document.getElementById('game-canvas-container');
+        if(canvasContainer) {
+            canvasContainer.innerHTML = "<p style='color:red; text-align:center; padding-top: 50px;'>Fehler beim Laden des Spielbretts. Details in der Konsole.</p>";
+        }
+    }
+});
+</script>
+
+<style>
+/* CSS für Spielcontainer und Canvas - Verbesserte Version */
+.game-container {
+    position: relative;
+    width: 100%;
+    height: 88vh;
+    margin: 0 auto;
+    background: radial-gradient(ellipse at center, #B3E5FC 0%, #4FC3F7 50%, #0288D1 100%);
+    border-radius: 25px;
+    overflow: hidden;
+    box-shadow: 
+        0 15px 50px rgba(0, 0, 0, 0.25),
+        inset 0 2px 8px rgba(255, 255, 255, 0.3);
+}
+
+#game-canvas-container {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    border-radius: 25px;
+    background: linear-gradient(to bottom, #B3E5FC 0%, #4FC3F7 40%, #0288D1 100%);
+}
+
+#game-canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+    cursor: grab;
+    border-radius: 25px;
+}
+
+#game-canvas:active {
+    cursor: grabbing;
+}
+
+.game-overlay {
+    position: absolute;
+    top: 18px;
+    left: 18px;
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    max-width: 400px;
+    pointer-events: none;
+}
+
+.game-overlay > div {
+    pointer-events: auto;
+}
+
+.current-team-display {
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 255, 0.95));
+    border-radius: 15px;
+    padding: 15px 25px;
+    box-shadow: 
+        0 8px 25px rgba(0, 0, 0, 0.15),
+        0 2px 10px rgba(0, 0, 0, 0.1);
+    font-weight: bold;
+    color: #1565C0;
+    backdrop-filter: blur(12px);
+    border: 2px solid rgba(255, 255, 255, 0.5);
+}
+
+.current-team-display h4 {
+    margin: 0;
+    font-size: 1.2rem;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.team-status {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.95), rgba(245, 250, 255, 0.9));
+    padding: 18px;
+    border-radius: 15px;
+    box-shadow: 
+        0 8px 25px rgba(0, 0, 0, 0.15),
+        0 2px 10px rgba(0, 0, 0, 0.1);
+    backdrop-filter: blur(12px);
+    border: 2px solid rgba(255, 255, 255, 0.5);
+}
+
+.team-badge {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 10px 15px;
+    border-radius: 12px;
+    color: white;
+    text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.6);
+    font-weight: 700;
+    font-size: 0.9rem;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    transform: scale(1);
+    box-shadow: 
+        0 4px 12px rgba(0, 0, 0, 0.2),
+        inset 0 1px 3px rgba(255, 255, 255, 0.3);
+    animation: gentleFloat 5s ease-in-out infinite;
+    border: 2px solid rgba(255, 255, 255, 0.4);
+}
+
+.team-badge:nth-child(2) { animation-delay: -1s; }
+.team-badge:nth-child(3) { animation-delay: -2s; }
+.team-badge:nth-child(4) { animation-delay: -3s; }
+
+@keyframes gentleFloat {
+    0% { transform: translateY(0px) scale(1); }
+    50% { transform: translateY(-6px) scale(1.02); }
+    100% { transform: translateY(0px) scale(1); }
+}
+
+.team-badge:hover {
+    transform: scale(1.08) translateY(-3px);
+    box-shadow: 
+        0 12px 20px rgba(0, 0, 0, 0.35),
+        inset 0 2px 5px rgba(255, 255, 255, 0.4);
+}
+
+.team-badge.active-team {
+    border: 3px solid #FFD700;
+    transform: scale(1.15) translateY(-4px);
+    box-shadow: 
+        0 0 25px rgba(255, 215, 0, 0.7),
+        0 12px 25px rgba(0, 0, 0, 0.4),
+        inset 0 2px 8px rgba(255, 255, 255, 0.5);
+    animation: activeGlow 2.5s infinite, gentleFloat 5s ease-in-out infinite;
+}
+
+@keyframes activeGlow {
+    0% { 
+        box-shadow: 
+            0 0 25px rgba(255, 215, 0, 0.7),
+            0 12px 25px rgba(0, 0, 0, 0.4),
+            inset 0 2px 8px rgba(255, 255, 255, 0.5);
+    }
+    50% { 
+        box-shadow: 
+            0 0 35px rgba(255, 215, 0, 0.9),
+            0 15px 30px rgba(0, 0, 0, 0.5),
+            inset 0 3px 12px rgba(255, 255, 255, 0.6);
+    }
+    100% { 
+        box-shadow: 
+            0 0 25px rgba(255, 215, 0, 0.7),
+            0 12px 25px rgba(0, 0, 0, 0.4),
+            inset 0 2px 8px rgba(255, 255, 255, 0.5);
+    }
+}
+
+.team-name {
+    font-size: 0.9rem;
+    letter-spacing: 0.4px;
+}
+
+.team-position {
+    font-size: 0.8rem;
+    opacity: 0.9;
+    margin-top: 2px;
+}
+
+.admin-controls {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(240, 245, 255, 0.92));
+    padding: 18px;
+    border-radius: 15px;
+    box-shadow: 
+        0 8px 25px rgba(0, 0, 0, 0.15),
+        0 2px 10px rgba(0, 0, 0, 0.1);
+    backdrop-filter: blur(12px);
+    border: 2px solid rgba(255, 255, 255, 0.5);
+}
+
+/* Verbesserte Würfelergebnis-Anzeige */
+.dice-result-display {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0);
+    background: linear-gradient(135deg, rgba(255, 215, 0, 0.98), rgba(255, 193, 7, 0.95));
+    border-radius: 50%;
+    width: 140px;
+    height: 140px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 
+        0 0 50px rgba(255, 215, 0, 0.9),
+        0 15px 40px rgba(0, 0, 0, 0.4),
+        inset 0 3px 15px rgba(255, 255, 255, 0.5);
+    z-index: 200;
+    opacity: 0;
+    transition: all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+    border: 3px solid rgba(255, 255, 255, 0.8);
+}
+
+.dice-result-display.show {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+}
+
+.dice-result-number {
+    font-size: 4.5rem;
+    font-weight: bold;
+    color: #1A237E;
+    text-shadow: 3px 3px 6px rgba(0, 0, 0, 0.3);
+    line-height: 1;
+}
+
+.dice-result-text {
+    font-size: 1.1rem;
+    color: #3F51B5;
+    font-weight: 700;
+    text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, #1976D2, #0D47A1);
+    border-radius: 15px;
+    font-weight: 700;
+    padding: 15px 30px;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 
+        0 6px 15px rgba(0, 0, 0, 0.15),
+        inset 0 1px 3px rgba(255, 255, 255, 0.3);
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    letter-spacing: 0.6px;
+    pointer-events: auto;
+    color: white;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.btn-primary:hover {
+    transform: translateY(-4px);
+    box-shadow: 
+        0 12px 25px rgba(0, 0, 0, 0.25),
+        inset 0 2px 5px rgba(255, 255, 255, 0.4);
+    background: linear-gradient(135deg, #0D47A1, #01579B);
+}
+
+.btn-primary:active {
+    transform: translateY(-2px);
+}
+
+.btn-primary:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.help-text {
+    font-size: 0.95rem;
+    color: #37474F;
+    background: rgba(255, 255, 255, 0.9);
+    padding: 8px 12px;
+    border-radius: 8px;
+    backdrop-filter: blur(6px);
+    pointer-events: auto;
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+kbd {
+    background: linear-gradient(145deg, #263238, #37474F);
+    color: white;
+    padding: 5px 10px;
+    border-radius: 8px;
+    font-family: 'Segoe UI', monospace;
+    font-size: 0.9em;
+    box-shadow: 
+        0 3px 6px rgba(0, 0, 0, 0.3),
+        inset 0 1px 2px rgba(255, 255, 255, 0.2);
+    border: 1px solid #1A252F;
+}
+
+.status-message {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(26, 35, 47, 0.96);
+    color: white;
+    padding: 22px 40px;
+    border-radius: 15px;
+    font-size: 1.3rem;
+    font-weight: 700;
+    z-index: 1000;
+    backdrop-filter: blur(12px);
+    border: 2px solid rgba(255, 255, 255, 0.2);
+    box-shadow: 
+        0 12px 30px rgba(0, 0, 0, 0.5),
+        inset 0 1px 3px rgba(255, 255, 255, 0.1);
+    animation: statusMessageAnim 3s ease-in-out forwards;
+    text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+@keyframes statusMessageAnim {
+    0% { 
+        opacity: 0; 
+        transform: translate(-50%, -65%) scale(0.9); 
+    }
+    12% { 
+        opacity: 1; 
+        transform: translate(-50%, -50%) scale(1.05); 
+    }
+    18% { 
+        transform: translate(-50%, -50%) scale(1); 
+    }
+    82% { 
+        opacity: 1; 
+        transform: translate(-50%, -50%) scale(1); 
+    }
+    100% { 
+        opacity: 0; 
+        transform: translate(-50%, -35%) scale(0.9); 
+    }
+}
+
+@media (max-width: 768px) {
+    .game-overlay {
+        max-width: 320px;
+        gap: 12px;
+        top: 12px;
+        left: 12px;
+    }
+    
+    .team-status {
+        flex-direction: column;
+        padding: 15px;
+    }
+    
+    .team-badge {
+        flex-direction: row;
+        justify-content: space-between;
+        width: 100%;
+        padding: 8px 12px;
+    }
+    
+    .admin-controls {
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 12px;
+    }
+    
+    .dice-result-display {
+        width: 120px;
+        height: 120px;
+    }
+    
+    .dice-result-number {
+        font-size: 3.5rem;
+    }
+    
+    .dice-result-text {
+        font-size: 1rem;
+    }
+    
+    .game-container {
+        height: 82vh;
+        border-radius: 20px;
+    }
+    
+    #game-canvas-container {
+        border-radius: 20px;
+    }
+}
+
+/* Zusätzliche Animationen und Effekte */
+@keyframes shimmer {
+    0% { background-position: -200px 0; }
+    100% { background-position: 200px 0; }
+}
+
+.team-badge::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(
+        90deg,
+        transparent,
+        rgba(255, 255, 255, 0.4),
+        transparent
+    );
+    transition: left 0.5s;
+}
+
+.team-badge:hover::before {
+    left: 100%;
+}
+</style>
+{% endblock %}

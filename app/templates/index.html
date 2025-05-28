@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Home{% endblock %}
+
+{% block content %}
+<div class="jumbotron bg-primary text-white">
+    <h1 class="display-4">Willkommen bei Wii Party</h1>
+    <p class="lead">Das spannendste Gruppenspiel für eure Freizeit!</p>
+    <hr class="my-4">
+    <p>Registriere dein Team und nimm an spannenden Minispielen teil.</p>
+    <a href="{{ url_for('teams.team_register') }}" class="btn btn-light btn-lg">Team registrieren</a>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-6">
+        <div class="card mb-3">
+            <div class="card-header bg-success text-white">
+                <h5>Für Teams</h5>
+            </div>
+            <div class="card-body">
+                <p>Registriere dein Team, nimm an Spielen teil und verfolge deinen Fortschritt auf dem Spielbrett!</p>
+                <a href="{{ url_for('teams.team_login') }}" class="btn btn-outline-success">Zum Team-Login</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-warning text-dark">
+                <h5>Für Administratoren</h5>
+            </div>
+            <div class="card-body">
+                <p>Verwaltung von Teams, Minispielen und Spielstand.</p>
+                <a href="{{ url_for('admin.admin_login') }}" class="btn btn-outline-warning">Zum Admin-Portal</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,15 @@
+services:
+  web:
+    build: .
+    ports:
+      - "5001:5000"
+    volumes:
+      - ./app:/app/app
+      - ./config.py:/app/config.py
+      - ./init_db.py:/app/init_db.py
+      - ./create_admin.py:/app/create_admin.py
+      - ./app/database:/app/database
+    environment:
+      - FLASK_APP=app
+      - FLASK_DEBUG=1
+      - PYTHONPATH=/app

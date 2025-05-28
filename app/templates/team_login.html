@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Team Login{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <h2 class="mb-4">{% if action == 'login' %}Team Login{% else %}Team Registrierung{% endif %}</h2>
+        
+        <form method="POST">
+            <div class="form-group">
+                <label>Teamname</label>
+                <input type="text" name="name" class="form-control" required>
+            </div>
+
+            <div class="form-group">
+                <label>Passwort</label>
+                <input type="password" name="password" class="form-control" required>
+            </div>
+
+            {% if action == 'register' %}
+            <div class="form-group">
+                <label>Mitglieder (Komma-getrennt)</label>
+                <input type="text" name="members" class="form-control" required>
+            </div>
+            {% endif %}
+
+            <button type="submit" class="btn btn-primary">
+                {% if action == 'login' %}Login{% else %}Registrieren{% endif %}
+            </button>
+            
+            {% if action == 'login' %}
+            <a href="{{ url_for('teams.team_register') }}" class="btn btn-link">Noch kein Team?</a>
+            {% else %}
+            <a href="{{ url_for('teams.team_login') }}" class="btn btn-link">Bereits registriert?</a>
+            {% endif %}
+        </form>
+    </div>
+</div>
+{% endblock %}

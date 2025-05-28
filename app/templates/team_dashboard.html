@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Team Dashboard{% endblock %}
+
+{% block content %}
+<h2>Team Dashboard - {{ team.name }}</h2>
+<div class="card">
+    <div class="card-body">
+        <h5 class="card-title">Mitglieder</h5>
+        <p class="card-text">{{ team.members }}</p>
+        
+        <h5 class="card-title mt-4">Aktuelle Position</h5>
+        <p class="display-4">{{ team.position }}</p>
+        
+        {% if team.character %}
+        <h5 class="card-title mt-4">Dein Charakter</h5>
+        <div class="character-display">
+            <div class="card" style="border: 3px solid {{ team.character.color }}; max-width: 300px;">
+                <div class="card-header" style="background-color: {{ team.character.color }}; color: white;">
+                    <h5 class="mb-0">{{ team.character.name }}</h5>
+                </div>
+                <div class="card-body">
+                    <p>{{ team.character.description }}</p>
+                </div>
+            </div>
+        </div>
+        {% else %}
+        <div class="alert alert-info">
+            <h5>Kein Charakter zugewiesen</h5>
+            <p>Der Admin muss dir noch einen Charakter zuweisen.</p>
+        </div>
+        {% endif %}
+        
+        <a href="{{ url_for('teams.logout') }}" class="btn btn-danger mt-3">Logout</a>
+    </div>
+</div>
+{% endblock %}
