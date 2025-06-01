@@ -2,36 +2,28 @@ from flask import Flask, g
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager
 from flask_migrate import Migrate
+from flask_wtf.csrf import CSRFProtect
 from config import Config
 import os
 
-# Initialisiere die Erweiterungen außerhalb der Factory, aber ohne App-Instanz
 db = SQLAlchemy()
 login_manager = LoginManager()
 migrate = Migrate()
+csrf = CSRFProtect()
 
-# Login Manager Konfiguration
-login_manager.login_view = 'teams.team_login' # Korrigierter Endpunkt für Team-Login
-login_manager.login_message_category = 'info'
-login_manager.needs_refresh_message = (
-    "Um diese Seite zu schützen, bestätige bitte deine Identität."
-)
-login_manager.needs_refresh_message_category = "info"
+# login_manager.login_view = 'admin.login' # Setzen wir spezifischer pro Blueprint
+# login_manager.login_message_category = 'info'
 
-
-# User Loader für Flask-Login
 @login_manager.user_loader
-def load_user(user_id):
-    from app.models import Admin, Team 
-    user = Admin.query.get(int(user_id))
-    if user:
-        g.user_type = 'admin'
-        return user
+def load_user(user_id_with_prefix): # user_id kommt jetzt als String mit Präfix
+    from app.models import Admin, Team
     
-    user = Team.query.get(int(user_id))
-    if user:
-        g.user_type = 'team'
-        return user
+    if user_id_with_prefix.startswith('admin_'):
+        admin_id = int(user_id_with_prefix.split('_')[1])
+        return Admin.query.get(admin_id)
+    elif user_id_with_prefix.startswith('team_'):
+        team_id = int(user_id_with_prefix.split('_')[1])
+        return Team.query.get(team_id)
     return None
 
 def create_app(config_class=Config):
@@ -41,6 +33,17 @@ def create_app(config_class=Config):
     db.init_app(app)
     login_manager.init_app(app)
     migrate.init_app(app, db)
+    csrf.init_app(app)
+
+    # Setze die Login-Views für die Blueprints
+    # Dies ist der Ort, an den Benutzer weitergeleitet werden, wenn @login_required fehlschlägt
+    login_manager.login_view = "main.index" # Eine allgemeine Fallback-Seite, oder spezifischer
+    login_manager.blueprint_login_views = {
+        'admin': 'admin.login',
+        'teams': 'teams.team_login',
+    }
+    login_manager.login_message_category = 'info'
+
 
     from app.main.routes import main_bp
     app.register_blueprint(main_bp)
@@ -55,25 +58,25 @@ def create_app(config_class=Config):
     def inject_now_year_and_user_type():
         from datetime import datetime
         from flask_login import current_user
-        from app.models import Admin, Team # Importiere hier für isinstance
+        from app.models import Admin as AdminModel, Team as TeamModel
 
         user_type_in_context = None
         if current_user.is_authenticated:
-            if isinstance(current_user, Admin):
+            if isinstance(current_user, AdminModel):
                 user_type_in_context = 'admin'
-            elif isinstance(current_user, Team):
+            elif isinstance(current_user, TeamModel):
                 user_type_in_context = 'team'
-        return {'now_year': datetime.utcnow().year, 'user_type': user_type_in_context}
+        return {'now_year': datetime.utcnow().year, 'user_type_in_context': user_type_in_context}
 
     @app.template_filter('is_admin')
     def is_admin_filter(user):
-        from app.models import Admin
-        return isinstance(user, Admin)
+        from app.models import Admin as AdminModel
+        return isinstance(user, AdminModel)
 
     @app.template_filter('is_team')
     def is_team_filter(user):
-        from app.models import Team
-        return isinstance(user, Team)
+        from app.models import Team as TeamModel
+        return isinstance(user, TeamModel)
         
     with app.app_context():
         from app import models 

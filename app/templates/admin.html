@@ -9,36 +9,128 @@
 
     <div class="card mb-4">
         <div class="card-header bg-info text-white">
-            Aktuelles Spiel / Status
+            Aktueller Spielstatus
         </div>
         <div class="card-body">
-            <h5 class="card-title">Aktuell ausgewähltes Minispiel: {{ current_minigame_title }}</h5>
-            {% if current_minigame_is_video and current_video_filename %}
-                <p>Typ: Video-Minispiel (Datei: {{ current_video_filename }})</p>
-                <a href="{{ url_for('admin.enter_video_scores', video_filename=current_video_filename) }}" class="btn btn-warning btn-sm">Scores für Video eingeben</a>
-            {% elif current_minigame_id %}
-                <p>Typ: Datenbank-Minispiel (ID: {{ current_minigame_id }})</p>
-                <a href="{{ url_for('admin.enter_scores', minigame_id=current_minigame_id) }}" class="btn btn-warning btn-sm">Scores für DB-Spiel eingeben</a>
+            {% if active_session %}
+                <h5 class="card-title">Aktuelle Spielsitzung (ID: {{ active_session.id }})</h5>
+                <p><strong>Phase:</strong>
+                    {% if active_session.current_phase == 'SETUP_MINIGAME' %}
+                        Minispiel festlegen
+                    {% elif active_session.current_phase == 'MINIGAME_ANNOUNCED' %}
+                        Minispiel angekündigt - Warte auf Platzierungen
+                    {% elif active_session.current_phase == 'DICE_ROLLING' %}
+                        Würfelrunde aktiv
+                    {% elif active_session.current_phase == 'ROUND_OVER' %}
+                        Runde beendet - Nächstes Minispiel festlegen
+                    {% else %}
+                        {{ active_session.current_phase | replace('_', ' ') | title }}
+                    {% endif %}
+                </p>
+
+                {% if active_session.current_minigame_name %}
+                    <p><strong>Aktuelles/Nächstes Minispiel:</strong> {{ active_session.current_minigame_name }}</p>
+                    {% if active_session.current_minigame_description %}
+                        <p><em>Beschreibung: {{ active_session.current_minigame_description }}</em></p>
+                    {% endif %}
+                {% else %}
+                    <p>Noch kein Minispiel für diese Runde festgelegt.</p>
+                {% endif %}
+
+                <hr>
+
+                {% if active_session.current_phase == 'SETUP_MINIGAME' or active_session.current_phase == 'ROUND_OVER' %}
+                    <h4>Nächstes Minispiel festlegen</h4>
+                    <form method="POST" action="{{ url_for('admin.set_minigame') }}" class="mb-3 p-3 border rounded bg-light">
+                        {{ set_minigame_form.hidden_tag() }} {# CSRF Token aus dem übergebenen Formularobjekt #}
+                        
+                        <div class="form-group">
+                            {{ set_minigame_form.minigame_name.label(class="form-control-label") }}
+                            {{ set_minigame_form.minigame_name(class="form-control" + (" is-invalid" if set_minigame_form.minigame_name.errors else "")) }}
+                            {% if set_minigame_form.minigame_name.errors %}
+                                <div class="invalid-feedback">
+                                    {% for error in set_minigame_form.minigame_name.errors %}<span>{{ error }}</span>{% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                        <div class="form-group">
+                            {{ set_minigame_form.minigame_description.label(class="form-control-label") }}
+                            {{ set_minigame_form.minigame_description(class="form-control" + (" is-invalid" if set_minigame_form.minigame_description.errors else ""), rows="3") }}
+                             {% if set_minigame_form.minigame_description.errors %}
+                                <div class="invalid-feedback">
+                                    {% for error in set_minigame_form.minigame_description.errors %}<span>{{ error }}</span>{% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                        <div class="form-group">
+                            {{ set_minigame_form.selected_minigame_id.label(class="form-control-label") }}
+                            {{ set_minigame_form.selected_minigame_id(class="form-control") }}
+                            <small class="form-text text-muted">Wenn hier ein Spiel ausgewählt wird, werden Name und Beschreibung oben überschrieben.</small>
+                        </div>
+                        {{ set_minigame_form.submit(class="btn btn-success") }}
+                    </form>
+                {% endif %}
+
+                {% if active_session.current_phase == 'MINIGAME_ANNOUNCED' %}
+                    <h4>Platzierungen für "{{ active_session.current_minigame_name }}" eingeben</h4>
+                    {% if teams %}
+                        <form method="POST" action="{{ url_for('admin.record_placements') }}" class="mb-3 p-3 border rounded bg-light">
+                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/> {# Manuelles CSRF Token für dieses Formular #}
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>Team</th>
+                                        <th>Platzierung (1, 2, ...)</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for team in teams %}
+                                    <tr>
+                                        <td>{{ team.name }}</td>
+                                        <td>
+                                            <input type="number" name="placement_team_{{ team.id }}" class="form-control form-control-sm" min="1" max="{{ teams|length }}" required
+                                                   value="{{ team.minigame_placement if team.minigame_placement else '' }}">
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                            <button type="submit" class="btn btn-primary"><i class="fas fa-check-circle"></i> Platzierungen bestätigen & Würfelrunde starten</button>
+                        </form>
+                    {% else %}
+                        <p class="text-warning">Keine Teams vorhanden, um Platzierungen einzugeben.</p>
+                    {% endif %}
+                {% endif %}
+
+                {% if active_session.current_phase == 'DICE_ROLLING' %}
+                    <h4>Würfelrunde aktiv</h4>
+                    <p>Die Teams würfeln jetzt in der festgelegten Reihenfolge. Beobachte das <a href="{{ url_for('main.game_board') }}">Spielbrett</a>.</p>
+                    <p>Aktuell am Zug (laut Server):
+                        {% if active_session.current_team_turn %}
+                            <strong>{{ active_session.current_team_turn.name }}</strong>
+                        {% elif active_session.dice_roll_order and active_session.dice_roll_order.split(',') %}
+                            Warte auf erstes Team... (Team-ID: {{ active_session.dice_roll_order.split(',')[0] }})
+                        {% else %}
+                            Reihenfolge noch nicht festgelegt oder alle haben gewürfelt.
+                        {% endif %}
+                    </p>
+                    <p><small>Hinweis: Die Anzeige des aktuellen Teams hier ist nur eine serverseitige Information. Die eigentliche Steuerung des Würfelns geschieht auf dem Spielbrett.</small></p>
+                {% endif %}
+
             {% else %}
-                <p>Derzeit ist kein spezifisches Minispiel aktiv oder ausgewählt.</p>
+                <p class="text-danger">Keine aktive Spielsitzung gefunden. Das sollte nicht passieren. Versuche, die Seite neu zu laden oder das Spiel zurückzusetzen.</p>
             {% endif %}
         </div>
     </div>
 
     <div class="mb-4 p-3 border rounded">
         <h4>Spielsteuerung</h4>
-        <form method="POST" action="{{ url_for('admin.start_random_minigame') }}" class="mb-2">
-            <button type="submit" class="btn btn-success"><i class="fas fa-random"></i> Zufälliges Minispiel starten/auswählen</button>
-        </form>
-        
-
-        
-        <form method="POST" action="{{ url_for('admin.reset_game_state') }}" onsubmit="return confirm('Wirklich den gesamten Spielstatus (aktive Session beenden, aktuelles Minispiel zurücksetzen) zurücksetzen? Scores bleiben erhalten.');" class="mb-2">
+        <form method="POST" action="{{ url_for('admin.reset_game_state') }}" onsubmit="return confirm('Wirklich die aktuelle Spielsitzung und Team-Platzierungen/Boni zurücksetzen? Team-Positionen auf dem Brett bleiben erhalten. Eine neue Session wird gestartet.');" class="mb-2 d-inline-block">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
             <button type="submit" class="btn btn-danger"><i class="fas fa-power-off"></i> Spielsitzung zurücksetzen</button>
         </form>
-         <a href="{{ url_for('admin.init_chars') }}" class="btn btn-secondary btn-sm"><i class="fas fa-users-cog"></i> Charaktere initialisieren</a>
+        <a href="{{ url_for('admin.init_chars') }}" class="btn btn-secondary btn-sm d-inline-block"><i class="fas fa-users-cog"></i> Charaktere initialisieren/prüfen</a>
     </div>
-
 
     <div class="mb-4">
         <h2>Team Management</h2>
@@ -47,10 +139,25 @@
             <ul class="list-group">
                 {% for team in teams %}
                     <li class="list-group-item d-flex justify-content-between align-items-center">
-                        {{ team.name }} (Charakter: {{ team.character_name or 'Kein Charakter' }})
+                        <div>
+                            <strong>{{ team.name }}</strong> ({{ team.members if team.members else "Keine Mitglieder" }})
+                            <br>
+                            <small>
+                                Charakter: {{ team.character.name if team.character else 'Kein Charakter' }} |
+                                Position: {{ team.current_position if team.current_position is not none else 'N/A' }} |
+                                Letzte Platzierung: {{ team.minigame_placement if team.minigame_placement else 'N/A' }} |
+                                Bonus Würfel: 
+                                {% if team.bonus_dice_sides == 6 %} 1-6
+                                {% elif team.bonus_dice_sides == 4 %} 1-4
+                                {% elif team.bonus_dice_sides == 2 %} 1-2
+                                {% else %} Standard
+                                {% endif %}
+                            </small>
+                        </div>
                         <span>
                             <a href="{{ url_for('admin.edit_team', team_id=team.id) }}" class="btn btn-sm btn-outline-secondary mr-2"><i class="fas fa-edit"></i> Bearbeiten</a>
-                            <form method="POST" action="{{ url_for('admin.delete_team', team_id=team.id) }}" style="display: inline;" onsubmit="return confirm('Team {{ team.name }} wirklich löschen? Alle Scores dieses Teams gehen verloren!');">
+                            <form method="POST" action="{{ url_for('admin.delete_team', team_id=team.id) }}" style="display: inline;" onsubmit="return confirm('Team {{ team.name }} wirklich löschen? Alle zugehörigen Daten gehen verloren!');">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                                 <button type="submit" class="btn btn-sm btn-outline-danger"><i class="fas fa-trash-alt"></i> Löschen</button>
                             </form>
                         </span>
@@ -63,46 +170,35 @@
     </div>
 
     <div class="mb-4">
-        <h2>Minispiel Management (Datenbank)</h2>
-        <a href="{{ url_for('admin.create_minigame') }}" class="btn btn-primary mb-3"><i class="fas fa-plus-circle"></i> Neues DB-Minispiel erstellen</a>
+        <h2>Minispiel-Bibliothek (Datenbank)</h2>
+        <a href="{{ url_for('admin.create_minigame_db') }}" class="btn btn-primary mb-3"><i class="fas fa-plus-circle"></i> Neues DB-Minispiel erstellen</a>
         {% if minigames_db %}
             <ul class="list-group">
                 {% for minigame in minigames_db %}
-                    {% if not minigame.is_video_game %} {# Stelle sicher, dass es kein Video-Minispiel-Eintrag ist #}
-                        <li class="list-group-item d-flex justify-content-between align-items-center">
-                            {{ minigame.name }}
-                            <span>
-                                <a href="{{ url_for('admin.edit_minigame', minigame_id=minigame.id) }}" class="btn btn-sm btn-outline-secondary mr-2"><i class="fas fa-edit"></i> Bearbeiten</a>
-                                <form method="POST" action="{{ url_for('admin.delete_minigame', minigame_id=minigame.id) }}" style="display: inline;" onsubmit="return confirm('Minispiel {{ minigame.name }} wirklich löschen? Alle Scores für dieses Spiel gehen verloren!');">
-                                    <button type="submit" class="btn btn-sm btn-outline-danger"><i class="fas fa-trash-alt"></i> Löschen</button>
-                                </form>
-                            </span>
-                        </li>
-                    {% endif %}
-                {% endfor %}
-            </ul>
-        {% else %}
-            <p>Noch keine Datenbank-Minispiele erstellt.</p>
-        {% endif %}
-    </div>
-
-    <div class="mb-4">
-        <h2>Video Minispiele (aus Ordner geladen)</h2>
-        {% if video_minigames %}
-            <ul class="list-group">
-                {% for video_game in video_minigames %}
                     <li class="list-group-item d-flex justify-content-between align-items-center">
-                        {{ video_game.title }} ({{ video_game.filename }})
-                        <a href="{{ url_for('admin.enter_video_scores', video_filename=video_game.filename) }}" class="btn btn-sm btn-outline-info"><i class="fas fa-star"></i> Scores für Video</a>
+                        <div>
+                           <strong>{{ minigame.name }}</strong>
+                           {% if minigame.description %}<br><small><em>{{ minigame.description }}</em></small>{% endif %}
+                        </div>
+                        <span>
+                            <a href="{{ url_for('admin.edit_minigame_db', minigame_id=minigame.id) }}" class="btn btn-sm btn-outline-secondary mr-2"><i class="fas fa-edit"></i> Bearbeiten</a>
+                            <form method="POST" action="{{ url_for('admin.delete_minigame_db', minigame_id=minigame.id) }}" style="display: inline;" onsubmit="return confirm('Minispiel {{ minigame.name }} wirklich aus der Bibliothek löschen?');">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                <button type="submit" class="btn btn-sm btn-outline-danger"><i class="fas fa-trash-alt"></i> Löschen</button>
+                            </form>
+                        </span>
                     </li>
                 {% endfor %}
             </ul>
         {% else %}
-            <p>Keine Video-Minispiele im Ordner <code>{{ current_app.config.MINIGAME_VIDEO_FOLDER }}</code> gefunden oder Ordner existiert nicht.</p>
+            <p>Noch keine Minispiele in der Bibliothek erstellt.</p>
         {% endif %}
     </div>
 </div>
+{% endblock %} {# Ende von block content #}
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/js/all.min.js"></script>
-
+{# Font Awesome für Icons, falls noch nicht in base.html global eingebunden #}
+{% block scripts %}
+    {{ super() }}
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/js/all.min.js" xintegrity="sha512-RXf+QSDCUQs5uwRKaDoXt557hdKZNJFV/bUtnADVRTOZQlFmN3GRQ98W8MYWBN1W49qRzzryR/FAP+NRTuaAeA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 {% endblock %}

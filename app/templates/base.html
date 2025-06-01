@@ -4,12 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Wii Party U Deluxe{% endblock %}</title>
-    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-    {% block head_extra %}{% endblock %}
+    {% block styles %}{% endblock %}
 </head>
 <body>
-    <nav class="navbar navbar-expand-lg navbar-dark bg-primary fixed-top">
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
         <a class="navbar-brand" href="{{ url_for('main.index') }}">Wii Party U Deluxe</a>
         <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
             <span class="navbar-toggler-icon"></span>
@@ -17,43 +17,55 @@
         <div class="collapse navbar-collapse" id="navbarNav">
             <ul class="navbar-nav mr-auto">
                 <li class="nav-item">
-                    <a class="nav-link" href="{{ url_for('main.index') }}">Home</a>
+                    <a class="nav-link" href="{{ url_for('main.index') }}">Startseite</a>
                 </li>
                 <li class="nav-item">
                     <a class="nav-link" href="{{ url_for('main.game_board') }}">Spielbrett</a>
                 </li>
+                {% if current_user.is_authenticated and user_type_in_context == 'admin' %}
+                <li class="nav-item">
+                    <a class="nav-link" href="{{ url_for('admin.admin_dashboard') }}">Admin Dashboard</a>
+                </li>
+                {% endif %}
+                {% if current_user.is_authenticated and user_type_in_context == 'team' %}
+                <li class="nav-item">
+                    <a class="nav-link" href="{{ url_for('teams.team_dashboard') }}">Mein Team Dashboard</a>
+                </li>
+                {% endif %}
                  <li class="nav-item">
-                    <a class="nav-link" href="{{ url_for('teams.dashboard') }}">Team Dashboards</a>
+                    {# Korrigierter Link zum Team Dashboard - für alle sichtbar, leitet ggf. zum Login weiter #}
+                    <a class="nav-link" href="{{ url_for('teams.team_dashboard') }}">Team Dashboard</a>
                 </li>
             </ul>
-            <ul class="navbar-nav ml-auto">
-                {% if current_user.is_authenticated and current_user | is_admin %}
+            <ul class="navbar-nav">
+                {% if current_user.is_authenticated %}
                     <li class="nav-item">
-                        <a class="nav-link text-white" href="{{ url_for('admin.admin_dashboard') }}">Admin Dashboard</a>
+                        <span class="navbar-text mr-3">
+                            Eingeloggt als: {{ current_user.username if user_type_in_context == 'admin' else current_user.name }} ({{ user_type_in_context | title }})
+                        </span>
                     </li>
+                    {% if user_type_in_context == 'admin' %}
                     <li class="nav-item">
-                        <a class="nav-link text-white" href="{{ url_for('admin.logout') }}">Admin Logout</a>
+                        <a class="nav-link" href="{{ url_for('admin.logout') }}">Admin Logout</a>
                     </li>
-                {% elif current_user.is_authenticated and current_user | is_team %}
+                    {% elif user_type_in_context == 'team' %}
                      <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('teams.dashboard') }}">Mein Team Dashboard</a>
+                        <a class="nav-link" href="{{ url_for('teams.team_logout') }}">Team Logout</a>
                     </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('teams.logout') }}">Team Logout ({{ current_user.name }})</a>
-                    </li>
+                    {% endif %}
                 {% else %}
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('teams.team_login') }}">Team Login</a>
+                        <a class="nav-link" href="{{ url_for('admin.login') }}">Admin Login</a>
                     </li>
-                     <li class="nav-item">
-                        <a class="nav-link text-warning" href="{{ url_for('admin.login') }}">Admin Login</a>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('teams.team_login') }}">Team Login</a>
                     </li>
                 {% endif %}
             </ul>
         </div>
     </nav>
 
-    <main role="main" class="container-fluid mt-5 pt-3">
+    <div class="container mt-4">
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
                 {% for category, message in messages %}
@@ -66,13 +78,12 @@
                 {% endfor %}
             {% endif %}
         {% endwith %}
-        {% block content %}{% endblock %}
-    </main>
+    </div>
 
-    <footer class="footer mt-auto py-3 bg-light fixed-bottom">
-        <div class="container text-center">
-            <span class="text-muted">&copy; {% block year %}{{ now_year }}{% endblock %} Wii Party U Deluxe Projekt</span>
-        </div>
+    {% block content %}{% endblock %}
+
+    <footer class="text-center mt-5 mb-3">
+        <p>&copy; {{ now_year }} Wii Party U Deluxe. Alle Rechte vorbehalten.</p>
     </footer>
 
     <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>

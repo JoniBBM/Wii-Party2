@@ -1,36 +1,38 @@
 {% extends "base.html" %}
-{% block title %}Team Dashboard{% endblock %}
+
+{% block title %}Dashboard Team {{ current_user.name }}{% endblock %}
 
 {% block content %}
-<h2>Team Dashboard - {{ team.name }}</h2>
-<div class="card">
-    <div class="card-body">
-        <h5 class="card-title">Mitglieder</h5>
-        <p class="card-text">{{ team.members }}</p>
-        
-        <h5 class="card-title mt-4">Aktuelle Position</h5>
-        <p class="display-4">{{ team.position }}</p>
-        
-        {% if team.character %}
-        <h5 class="card-title mt-4">Dein Charakter</h5>
-        <div class="character-display">
-            <div class="card" style="border: 3px solid {{ team.character.color }}; max-width: 300px;">
-                <div class="card-header" style="background-color: {{ team.character.color }}; color: white;">
-                    <h5 class="mb-0">{{ team.character.name }}</h5>
-                </div>
-                <div class="card-body">
-                    <p>{{ team.character.description }}</p>
-                </div>
-            </div>
+<div class="container mt-4">
+    <h2>Team Dashboard - {{ current_user.name }}</h2>
+    <p>Willkommen im Dashboard, {{ current_user.name }}!</p>
+    <p>Hier siehst du deine Team-Statistiken und kannst Aktionen ausführen.</p>
+    
+    <div class="card mt-4">
+        <div class="card-header">
+            Team Informationen
         </div>
-        {% else %}
-        <div class="alert alert-info">
-            <h5>Kein Charakter zugewiesen</h5>
-            <p>Der Admin muss dir noch einen Charakter zuweisen.</p>
-        </div>
-        {% endif %}
-        
-        <a href="{{ url_for('teams.logout') }}" class="btn btn-danger mt-3">Logout</a>
+        <ul class="list-group list-group-flush">
+            <li class="list-group-item"><strong>Team Name:</strong> {{ current_user.name }}</li>
+            <li class="list-group-item"><strong>Mitglieder:</strong> {{ current_user.members if current_user.members else "Keine Angabe" }}</li>
+            <li class="list-group-item"><strong>Charakter:</strong> {{ current_user.character.name if current_user.character else (current_user.character_name if current_user.character_name else "Noch kein Charakter gewählt") }}</li>
+            <li class="list-group-item"><strong>Aktuelle Position:</strong> {{ current_user.current_position }}</li>
+            <li class="list-group-item"><strong>Letzte Minispiel Platzierung:</strong> {{ current_user.minigame_placement if current_user.minigame_placement else 'N/A' }}</li>
+            <li class="list-group-item"><strong>Bonus Würfel:</strong> 
+                {% if current_user.bonus_dice_sides == 6 %} 1-6
+                {% elif current_user.bonus_dice_sides == 4 %} 1-4
+                {% elif current_user.bonus_dice_sides == 2 %} 1-2
+                {% else %} Standard
+                {% endif %}
+            </li>
+            {# Hier könnten weitere Infos wie Gesamtpunkte etc. angezeigt werden #}
+            {# Beispiel: <li class="list-group-item"><strong>Gesamtpunkte:</strong> {{ current_user.get_total_score() }}</li> #}
+        </ul>
+    </div>
+
+    <div class="mt-4">
+        <a href="{{ url_for('main.game_board') }}" class="btn btn-primary">Zum Spielbrett</a>
+        <a href="{{ url_for('teams.team_logout') }}" class="btn btn-danger">Ausloggen</a>
     </div>
 </div>
 {% endblock %}

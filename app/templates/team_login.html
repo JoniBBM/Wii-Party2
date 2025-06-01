@@ -1,39 +1,54 @@
 {% extends "base.html" %}
-{% block title %}Team Login{% endblock %}
+
+{% block title %}{{ title }}{% endblock %}
 
 {% block content %}
-<div class="row justify-content-center">
-    <div class="col-md-6">
-        <h2 class="mb-4">{% if action == 'login' %}Team Login{% else %}Team Registrierung{% endif %}</h2>
-        
-        <form method="POST">
-            <div class="form-group">
-                <label>Teamname</label>
-                <input type="text" name="name" class="form-control" required>
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h3 class="mb-0">{{ title }}</h3>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('teams.team_login') }}" novalidate>
+                        {{ form.hidden_tag() }} {# WICHTIG: Für CSRF-Schutz #}
+                        
+                        <div class="form-group">
+                            {{ form.team_name.label(class="form-control-label") }}
+                            {{ form.team_name(class="form-control" + (" is-invalid" if form.team_name.errors else ""), placeholder="Teamname eingeben") }}
+                            {% if form.team_name.errors %}
+                                <div class="invalid-feedback">
+                                    {% for error in form.team_name.errors %}
+                                        <span>{{ error }}</span>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="form-group">
+                            {{ form.password.label(class="form-control-label") }}
+                            {{ form.password(class="form-control" + (" is-invalid" if form.password.errors else ""), placeholder="Passwort") }}
+                            {% if form.password.errors %}
+                                <div class="invalid-feedback">
+                                    {% for error in form.password.errors %}
+                                        <span>{{ error }}</span>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="form-group mt-4">
+                            {{ form.submit(class="btn btn-success btn-block") }}
+                        </div>
+                    </form>
+                </div>
+                <div class="card-footer text-center">
+                    <small>Noch kein Team-Account? Ein Admin muss ihn für euch anlegen.</small><br>
+                    <small><a href="{{ url_for('main.index') }}">Zurück zur Startseite</a></small>
+                </div>
             </div>
-
-            <div class="form-group">
-                <label>Passwort</label>
-                <input type="password" name="password" class="form-control" required>
-            </div>
-
-            {% if action == 'register' %}
-            <div class="form-group">
-                <label>Mitglieder (Komma-getrennt)</label>
-                <input type="text" name="members" class="form-control" required>
-            </div>
-            {% endif %}
-
-            <button type="submit" class="btn btn-primary">
-                {% if action == 'login' %}Login{% else %}Registrieren{% endif %}
-            </button>
-            
-            {% if action == 'login' %}
-            <a href="{{ url_for('teams.team_register') }}" class="btn btn-link">Noch kein Team?</a>
-            {% else %}
-            <a href="{{ url_for('teams.team_login') }}" class="btn btn-link">Bereits registriert?</a>
-            {% endif %}
-        </form>
+        </div>
     </div>
 </div>
 {% endblock %}

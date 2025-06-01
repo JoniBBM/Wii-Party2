@@ -1,91 +1,69 @@
 {% extends "base.html" %}
 
-{% block title %}Startseite - Wii Party U Deluxe{% endblock %}
-
-{% block head_extra %}
-<style>
-    .hero-section {
-        background: linear-gradient(to right, #6dd5ed, #2193b0);
-        color: white;
-        padding: 60px 20px;
-        text-align: center;
-        border-radius: 8px;
-        margin-bottom: 30px;
-    }
-    .hero-section h1 {
-        font-size: 2.8em;
-        font-weight: bold;
-        text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
-    }
-    .hero-section p {
-        font-size: 1.3em;
-        margin-bottom: 25px;
-    }
-    .btn-custom {
-        font-size: 1.1em;
-        padding: 12px 25px;
-        border-radius: 25px;
-        transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
-    }
-    .btn-custom:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 4px 8px rgba(0,0,0,0.2);
-    }
-    .btn-primary-custom {
-        background-color: #ffc107; /* Warmes Gelb */
-        border-color: #ffc107;
-        color: #333;
-    }
-    .btn-primary-custom:hover {
-        background-color: #e0a800;
-        border-color: #d39e00;
-    }
-    .btn-secondary-custom {
-        background-color: #007bff; /* Lebhaftes Blau */
-        border-color: #007bff;
-    }
-     .btn-secondary-custom:hover {
-        background-color: #0056b3;
-        border-color: #0056b3;
-    }
-</style>
-{% endblock %}
+{% block title %}Willkommen bei Wii Party U Deluxe{% endblock %}
 
 {% block content %}
-<div class="hero-section">
-    <h1>Willkommen zu Wii Party U Deluxe!</h1>
-    <p>Das ultimative Partyspiel-Erlebnis für deine nächste Feier!</p>
-    <div>
-        <a href="{{ url_for('main.game_board') }}" class="btn btn-custom btn-primary-custom mr-2">Spiel starten</a>
-        <a href="{{ url_for('admin.login') }}" class="btn btn-custom btn-outline-light">Zum Admin-Portal</a>
-    </div>
+<div class="jumbotron text-center">
+    <h1 class="display-4">Willkommen bei Wii Party U Deluxe!</h1>
+    <p class="lead">Das ultimative Partyspiel-Erlebnis, jetzt im Browser.</p>
+    <hr class="my-4">
+    <p>Bereit für den Spaß? Starte ein neues Spiel oder schau dir das Spielbrett an!</p>
+    <a class="btn btn-primary btn-lg" href="{{ url_for('main.game_board') }}" role="button">Zum Spielbrett</a>
+    {% if current_user.is_authenticated and user_type_in_context == 'admin' %}
+        <a href="{{ url_for('admin.admin_dashboard') }}" class="btn btn-info btn-lg ml-2">Admin Dashboard</a>
+    {% elif current_user.is_authenticated and user_type_in_context == 'team' %}
+        <a href="{{ url_for('teams.team_dashboard') }}" class="btn btn-info btn-lg ml-2">Mein Team Dashboard</a>
+    {% else %}
+        <a href="{{ url_for('teams.team_login') }}" class="btn btn-success btn-lg ml-2">Team Login</a>
+        <a href="{{ url_for('admin.login') }}" class="btn btn-secondary btn-lg ml-2">Admin Login</a>
+    {% endif %}
 </div>
 
-<div class="row">
-    <div class="col-md-6">
-        <div class="card mb-4 shadow-sm">
-            <div class="card-body">
-                <h5 class="card-title">Spielanleitung</h5>
-                <p class="card-text">Navigiert über das Spielbrett, meistert Minispiele und sammelt Sterne, um zu gewinnen! Jedes Team wählt einen Charakter und würfelt, um sich fortzubewegen.</p>
-                <a href="#" class="btn btn-info btn-sm">Mehr erfahren (TODO)</a>
-            </div>
+<div class="container">
+    <div class="row">
+        <div class="col-md-6">
+            <h2>Spielregeln (Beispiel)</h2>
+            <p>Sammelt die meisten Sterne, indem ihr Minispiele gewinnt und euch geschickt auf dem Brett bewegt. Aber Vorsicht vor den Fallen!</p>
+            <ul>
+                <li>Würfle, um dich zu bewegen.</li>
+                <li>Lande auf einem Minispielfeld, um ein Spiel zu starten.</li>
+                <li>Der Gewinner des Minispiels erhält einen Bonus für den nächsten Zug!
+                    <ul>
+                        <li>Platz 1: Bonuswürfel 1-6</li>
+                        <li>Platz 2: Bonuswürfel 1-4</li>
+                        <li>Platz 3: Bonuswürfel 1-2</li>
+                    </ul>
+                </li>
+                <li>Erreiche als Erster das Ziel!</li>
+            </ul>
+        </div>
+        <div class="col-md-6">
+            <h2>Features</h2>
+            <ul>
+                <li>Interaktives 3D-Spielbrett (bald!)</li>
+                <li>Verschiedene Charaktere zur Auswahl</li>
+                <li>Spannende Minispiele</li>
+                <li>Team-Modus für gemeinsamen Spaß</li>
+                <li>Admin-Dashboard zur Spielverwaltung</li>
+            </ul>
         </div>
     </div>
-    <div class="col-md-6">
-        <div class="card mb-4 shadow-sm">
-            <div class="card-body">
-                <h5 class="card-title">Team-Dashboards</h5>
-                <p class="card-text">Jedes Team kann sein eigenes Dashboard einsehen, um den Fortschritt und die aktuellen Ergebnisse zu verfolgen.</p>
-                <a href="{{ url_for('teams.dashboard') }}" class="btn btn-info btn-sm">Zu den Team-Dashboards</a>
-            </div>
-        </div>
+
+    <hr class="my-4">
+
+    <div class="text-center mb-4">
+        <h3>Spielübersicht</h3>
+        <p>Hier könnte eine dynamische Übersicht über laufende Spiele oder Highscores stehen.</p>
+        
+        {# Beispielhafter Link zum Team-Dashboard, der @login_required nutzt und ggf. zum Login weiterleitet #}
+        {% if current_user.is_authenticated and user_type_in_context == 'team' %}
+             <a href="{{ url_for('teams.team_dashboard') }}" class="btn btn-info btn-sm">Mein Team Dashboard</a>
+        {% else %}
+            {# Dieser Link führt zum Team-Login, wenn nicht eingeloggt, oder zum Dashboard, wenn eingeloggt #}
+            {# Der Text könnte angepasst werden, je nachdem ob man eingeloggt ist oder nicht #}
+             <a href="{{ url_for('teams.team_dashboard') }}" class="btn btn-info btn-sm">Zu den Team-Dashboards</a>
+        {% endif %}
     </div>
-</div>
 
-{% if current_user.is_authenticated and current_user | is_admin %}
-<div class="alert alert-info mt-4" role="alert">
-  Du bist als Admin angemeldet. <a href="{{ url_for('admin.admin_dashboard') }}" class="alert-link">Hier geht's zum Admin Dashboard</a>.
 </div>
-{% endif %}
-
 {% endblock %}
