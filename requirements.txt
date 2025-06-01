@@ -1,5 +1,7 @@
-flask
-flask-sqlalchemy
-flask-wtf
-werkzeug
-flask-login
+Flask
+Flask-SQLAlchemy
+Flask-Migrate
+Flask-Login
+Flask-WTF
+python-dotenv
+Werkzeug

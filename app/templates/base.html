@@ -3,96 +3,82 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}{% endblock %} - Wii Party</title>
-    
-    <!-- Bootstrap CSS -->
-    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
-    
-    <!-- Custom CSS -->
+    <title>{% block title %}Wii Party U Deluxe{% endblock %}</title>
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    {% block head_extra %}{% endblock %}
 </head>
-<body class="bg-light">
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
-        <div class="container">
-            <a class="navbar-brand" href="{{ url_for('main.index') }}">🎮 Wii Party</a>
-            
-            <button class="navbar-toggler" type="button" data-toggle="collapse" 
-                    data-target="#navbarNav" aria-controls="navbarNav" 
-                    aria-expanded="false" aria-label="Toggle navigation">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav ml-auto">
-                    <!-- Immer sichtbar -->
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary fixed-top">
+        <a class="navbar-brand" href="{{ url_for('main.index') }}">Wii Party U Deluxe</a>
+        <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <ul class="navbar-nav mr-auto">
+                <li class="nav-item">
+                    <a class="nav-link" href="{{ url_for('main.index') }}">Home</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="{{ url_for('main.game_board') }}">Spielbrett</a>
+                </li>
+                 <li class="nav-item">
+                    <a class="nav-link" href="{{ url_for('teams.dashboard') }}">Team Dashboards</a>
+                </li>
+            </ul>
+            <ul class="navbar-nav ml-auto">
+                {% if current_user.is_authenticated and current_user | is_admin %}
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('main.index') }}">Home</a>
+                        <a class="nav-link text-white" href="{{ url_for('admin.admin_dashboard') }}">Admin Dashboard</a>
                     </li>
-                    
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('main.game_board') }}">🏝️ Spielbrett</a>
+                        <a class="nav-link text-white" href="{{ url_for('admin.logout') }}">Admin Logout</a>
                     </li>
-
-                    <!-- Für eingeloggte Teams -->
-                    {% if current_user.is_authenticated %}
-                        <li class="nav-item">
-                            <a class="nav-link" href="{{ url_for('teams.dashboard') }}">
-                                👥 Team Dashboard
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link text-danger" href="{{ url_for('teams.logout') }}">
-                                🚪 Logout
-                            </a>
-                        </li>
-                    {% else %}
-                        <!-- Für nicht eingeloggte Benutzer -->
-                        <li class="nav-item">
-                            <a class="nav-link" href="{{ url_for('teams.team_login') }}">
-                                🔑 Team Login
-                            </a>
-                        </li>
-                    {% endif %}
-
-                    <!-- Immer sichtbarer Admin-Button -->
+                {% elif current_user.is_authenticated and current_user | is_team %}
+                     <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('teams.dashboard') }}">Mein Team Dashboard</a>
+                    </li>
                     <li class="nav-item">
-                        <a class="nav-link text-warning" href="{{ url_for('admin.admin_login') }}">
-                            ⚙️ Admin Portal
-                        </a>
+                        <a class="nav-link" href="{{ url_for('teams.logout') }}">Team Logout ({{ current_user.name }})</a>
                     </li>
-                </ul>
-            </div>
+                {% else %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('teams.team_login') }}">Team Login</a>
+                    </li>
+                     <li class="nav-item">
+                        <a class="nav-link text-warning" href="{{ url_for('admin.login') }}">Admin Login</a>
+                    </li>
+                {% endif %}
+            </ul>
         </div>
     </nav>
 
-    <main class="container mt-4">
-        <!-- Flash-Nachrichten -->
+    <main role="main" class="container-fluid mt-5 pt-3">
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
                 {% for category, message in messages %}
-                    <div class="alert alert-{{ category if category else 'info' }} alert-dismissible fade show">
+                    <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
                         {{ message }}
-                        <button type="button" class="close" data-dismiss="alert">
-                            <span>&times;</span>
+                        <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                            <span aria-hidden="true">&times;</span>
                         </button>
                     </div>
                 {% endfor %}
             {% endif %}
         {% endwith %}
-
-        <!-- Hauptinhalt -->
-        <div class="bg-white p-4 rounded shadow-sm">
-            {% block content %}{% endblock %}
-        </div>
+        {% block content %}{% endblock %}
     </main>
 
-    <!-- Bootstrap JS und Abhängigkeiten -->
+    <footer class="footer mt-auto py-3 bg-light fixed-bottom">
+        <div class="container text-center">
+            <span class="text-muted">&copy; {% block year %}{{ now_year }}{% endblock %} Wii Party U Deluxe Projekt</span>
+        </div>
+    </footer>
+
     <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.5.2/dist/js/bootstrap.bundle.min.js"></script>
-    
-    <!-- Custom JS -->
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.4/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
-    
-    {% block extra_js %}{% endblock %}
+    {% block scripts %}{% endblock %}
 </body>
 </html>

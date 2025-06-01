@@ -1,15 +1,17 @@
 services:
   web:
-    build: .
+    build: . # Baut das Image basierend auf dem Dockerfile im aktuellen Verzeichnis
     ports:
-      - "5001:5000"
+      - "5001:5000" # Mappt Port 5000 des Containers auf Port 5001 des Hosts
     volumes:
-      - ./app:/app/app
-      - ./config.py:/app/config.py
-      - ./init_db.py:/app/init_db.py
-      - ./create_admin.py:/app/create_admin.py
-      - ./app/database:/app/database
+      # Mountet das gesamte lokale Projektverzeichnis in das /app Verzeichnis im Container.
+      # Dadurch werden Code-Änderungen live übernommen und im Container erstellte Dateien
+      # (wie app.db und der migrations-Ordner, wenn sie in /app erstellt werden)
+      # bleiben auf dem Host-System erhalten.
+      - .:/app
     environment:
-      - FLASK_APP=app
+      # Überschreibt ggf. ENV-Variablen aus dem Dockerfile oder setzt sie, falls nicht im Dockerfile
+      - FLASK_APP=app:create_app # Wichtig für die Flask-Anwendungsfabrik
       - FLASK_DEBUG=1
-      - PYTHONPATH=/app
+      - PYTHONPATH=/app # Stellt sicher, dass Python Module im /app Verzeichnis findet
+      # - DATABASE_URL=sqlite:////app/app.db # Könnte explizit gesetzt werden, aber deine config.py sollte das handhaben

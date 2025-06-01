@@ -1,170 +1,108 @@
 {% extends "base.html" %}
-{% block title %}Admin Panel{% endblock %}
+
+{% block title %}Admin Dashboard - Wii Party U Deluxe{% endblock %}
 
 {% block content %}
-<h2>Teams verwalten</h2>
-<form method="POST" class="mb-4 p-3 border rounded">
-    <div class="form-row">
-        <div class="col-md-3 mb-2">
-            <input type="text" name="name" placeholder="Teamname" class="form-control" required>
+<div class="container mt-4">
+    <h1 class="mb-4">Admin Dashboard</h1>
+    <p>Willkommen im Admin-Bereich, {{ current_user.username }}!</p>
+
+    <div class="card mb-4">
+        <div class="card-header bg-info text-white">
+            Aktuelles Spiel / Status
         </div>
-        <div class="col-md-3 mb-2">
-            <input type="text" name="members" placeholder="Mitglieder (Komma-getrennt)" class="form-control" required>
-        </div>
-        <div class="col-md-2 mb-2">
-            <input type="password" name="password" placeholder="Passwort" class="form-control" required>
-        </div>
-        <div class="col-md-2 mb-2">
-            <select name="character_id" class="form-control">
-                <option value="">Charakter wählen</option>
-                {% for character in characters %}
-                <option value="{{ character.id }}">{{ character.name }}</option>
-                {% endfor %}
-            </select>
-        </div>
-        <div class="col-md-2 mb-2">
-            <button type="submit" class="btn btn-primary w-100">Team anlegen</button>
+        <div class="card-body">
+            <h5 class="card-title">Aktuell ausgewähltes Minispiel: {{ current_minigame_title }}</h5>
+            {% if current_minigame_is_video and current_video_filename %}
+                <p>Typ: Video-Minispiel (Datei: {{ current_video_filename }})</p>
+                <a href="{{ url_for('admin.enter_video_scores', video_filename=current_video_filename) }}" class="btn btn-warning btn-sm">Scores für Video eingeben</a>
+            {% elif current_minigame_id %}
+                <p>Typ: Datenbank-Minispiel (ID: {{ current_minigame_id }})</p>
+                <a href="{{ url_for('admin.enter_scores', minigame_id=current_minigame_id) }}" class="btn btn-warning btn-sm">Scores für DB-Spiel eingeben</a>
+            {% else %}
+                <p>Derzeit ist kein spezifisches Minispiel aktiv oder ausgewählt.</p>
+            {% endif %}
         </div>
     </div>
-</form>
 
-<div class="actions-panel mb-4">
-    <form method="POST" action="{{ url_for('admin.reset_positions') }}" onsubmit="return confirm('Wirklich alle Team-Positionen zurücksetzen?');">
-        <button type="submit" class="btn btn-outline-warning">Alle Positionen zurücksetzen</button>
-    </form>
-</div>
-
-<table class="table table-striped table-bordered">
-    <thead class="thead-dark">
-        <tr>
-            <th>Name</th>
-            <th>Mitglieder</th>
-            <th>Position</th>
-            <th>Charakter</th>
-            <th>Aktionen</th>
-        </tr>
-    </thead>
-    <tbody>
-        {% for team in teams %}
-        <tr>
-            <td>{{ team.name }}</td>
-            <td>{{ team.members }}</td>
-            <td>{{ team.position }}</td>
-            <td>
-                {% if team.character %}
-                <span class="badge" style="background-color: {{ team.character.color }}; color: white;">
-                    {{ team.character.name }}
-                </span>
-                {% else %}
-                <span class="text-muted">Kein Charakter</span>
-                {% endif %}
-                
-                <button type="button" class="btn btn-sm btn-info ml-2" data-toggle="modal" data-target="#characterModal{{ team.id }}">
-                    Ändern
-                </button>
-                
-                <!-- Character Modal -->
-                <div class="modal fade" id="characterModal{{ team.id }}" tabindex="-1" role="dialog" aria-labelledby="characterModalLabel{{ team.id }}" aria-hidden="true">
-                    <div class="modal-dialog" role="document">
-                        <div class="modal-content">
-                            <div class="modal-header">
-                                <h5 class="modal-title" id="characterModalLabel{{ team.id }}">Charakter für {{ team.name }} zuweisen</h5>
-                                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                                    <span aria-hidden="true">&times;</span>
-                                </button>
-                            </div>
-                            <div class="modal-body">
-                                <form method="POST" action="{{ url_for('admin.assign_character', team_id=team.id) }}">
-                                    <div class="form-group">
-                                        <label>Charakter wählen:</label>
-                                        <select name="character_id" class="form-control">
-                                            <option value="">-- Kein Charakter --</option>
-                                            {% for character in characters %}
-                                            <option value="{{ character.id }}" {% if team.character_id == character.id %}selected{% endif %}>
-                                                {{ character.name }}
-                                            </option>
-                                            {% endfor %}
-                                        </select>
-                                    </div>
-                                    <div class="character-preview mt-3">
-                                        <h5>Charakter Vorschau:</h5>
-                                        <div class="row">
-                                            {% for character in characters %}
-                                            <div class="col-md-4 mb-3 character-card" data-character-id="{{ character.id }}">
-                                                <div class="card" style="border-color: {{ character.color }};">
-                                                    <div class="card-header" style="background-color: {{ character.color }}; color: white;">
-                                                        {{ character.name }}
-                                                    </div>
-                                                    <div class="card-body">
-                                                        {{ character.description }}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            {% endfor %}
-                                        </div>
-                                    </div>
-                                    <button type="submit" class="btn btn-primary mt-3">Charakter zuweisen</button>
-                                </form>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </td>
-            <td class="d-flex">
-                <form method="POST" action="{{ url_for('admin.delete_team', team_id=team.id) }}" class="mr-2">
-                    <button type="submit" class="btn btn-sm btn-danger">Löschen</button>
-                </form>
-                <form method="POST" action="{{ url_for('admin.move_team', team_id=team.id) }}" class="d-flex">
-                    <input type="number" name="steps" value="1" min="1" max="6" class="form-control form-control-sm mr-2" style="width: 60px;">
-                    <button type="submit" class="btn btn-sm btn-success">Bewegen</button>
-                </form>
-            </td>
-        </tr>
-        {% endfor %}
-    </tbody>
-</table>
-
-<div class="mt-3">
-    <a href="{{ url_for('admin.admin_logout') }}" class="btn btn-outline-danger">Admin ausloggen</a>
-</div>
-
-<!-- JavaScript for character preview -->
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    // Hide all character cards initially
-    document.querySelectorAll('.character-card').forEach(function(card) {
-        card.style.display = 'none';
-    });
-    
-    // Show character card based on selection
-    const characterSelects = document.querySelectorAll('select[name="character_id"]');
-    characterSelects.forEach(function(select) {
-        // Show initially selected
-        const selectedId = select.value;
-        if (selectedId) {
-            select.closest('.modal-body').querySelectorAll('.character-card').forEach(function(card) {
-                if (card.dataset.characterId === selectedId) {
-                    card.style.display = 'block';
-                } else {
-                    card.style.display = 'none';
-                }
-            });
-        }
+    <div class="mb-4 p-3 border rounded">
+        <h4>Spielsteuerung</h4>
+        <form method="POST" action="{{ url_for('admin.start_random_minigame') }}" class="mb-2">
+            <button type="submit" class="btn btn-success"><i class="fas fa-random"></i> Zufälliges Minispiel starten/auswählen</button>
+        </form>
         
-        // On change
-        select.addEventListener('change', function() {
-            const characterId = this.value;
-            this.closest('.modal-body').querySelectorAll('.character-card').forEach(function(card) {
-                if (!characterId) {
-                    card.style.display = 'block'; // Show all if no selection
-                } else if (card.dataset.characterId === characterId) {
-                    card.style.display = 'block';
-                } else {
-                    card.style.display = 'none';
-                }
-            });
-        });
-    });
-});
-</script>
+
+        
+        <form method="POST" action="{{ url_for('admin.reset_game_state') }}" onsubmit="return confirm('Wirklich den gesamten Spielstatus (aktive Session beenden, aktuelles Minispiel zurücksetzen) zurücksetzen? Scores bleiben erhalten.');" class="mb-2">
+            <button type="submit" class="btn btn-danger"><i class="fas fa-power-off"></i> Spielsitzung zurücksetzen</button>
+        </form>
+         <a href="{{ url_for('admin.init_chars') }}" class="btn btn-secondary btn-sm"><i class="fas fa-users-cog"></i> Charaktere initialisieren</a>
+    </div>
+
+
+    <div class="mb-4">
+        <h2>Team Management</h2>
+        <a href="{{ url_for('admin.create_team') }}" class="btn btn-primary mb-3"><i class="fas fa-plus-circle"></i> Neues Team erstellen</a>
+        {% if teams %}
+            <ul class="list-group">
+                {% for team in teams %}
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        {{ team.name }} (Charakter: {{ team.character_name or 'Kein Charakter' }})
+                        <span>
+                            <a href="{{ url_for('admin.edit_team', team_id=team.id) }}" class="btn btn-sm btn-outline-secondary mr-2"><i class="fas fa-edit"></i> Bearbeiten</a>
+                            <form method="POST" action="{{ url_for('admin.delete_team', team_id=team.id) }}" style="display: inline;" onsubmit="return confirm('Team {{ team.name }} wirklich löschen? Alle Scores dieses Teams gehen verloren!');">
+                                <button type="submit" class="btn btn-sm btn-outline-danger"><i class="fas fa-trash-alt"></i> Löschen</button>
+                            </form>
+                        </span>
+                    </li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <p>Noch keine Teams erstellt.</p>
+        {% endif %}
+    </div>
+
+    <div class="mb-4">
+        <h2>Minispiel Management (Datenbank)</h2>
+        <a href="{{ url_for('admin.create_minigame') }}" class="btn btn-primary mb-3"><i class="fas fa-plus-circle"></i> Neues DB-Minispiel erstellen</a>
+        {% if minigames_db %}
+            <ul class="list-group">
+                {% for minigame in minigames_db %}
+                    {% if not minigame.is_video_game %} {# Stelle sicher, dass es kein Video-Minispiel-Eintrag ist #}
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            {{ minigame.name }}
+                            <span>
+                                <a href="{{ url_for('admin.edit_minigame', minigame_id=minigame.id) }}" class="btn btn-sm btn-outline-secondary mr-2"><i class="fas fa-edit"></i> Bearbeiten</a>
+                                <form method="POST" action="{{ url_for('admin.delete_minigame', minigame_id=minigame.id) }}" style="display: inline;" onsubmit="return confirm('Minispiel {{ minigame.name }} wirklich löschen? Alle Scores für dieses Spiel gehen verloren!');">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger"><i class="fas fa-trash-alt"></i> Löschen</button>
+                                </form>
+                            </span>
+                        </li>
+                    {% endif %}
+                {% endfor %}
+            </ul>
+        {% else %}
+            <p>Noch keine Datenbank-Minispiele erstellt.</p>
+        {% endif %}
+    </div>
+
+    <div class="mb-4">
+        <h2>Video Minispiele (aus Ordner geladen)</h2>
+        {% if video_minigames %}
+            <ul class="list-group">
+                {% for video_game in video_minigames %}
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        {{ video_game.title }} ({{ video_game.filename }})
+                        <a href="{{ url_for('admin.enter_video_scores', video_filename=video_game.filename) }}" class="btn btn-sm btn-outline-info"><i class="fas fa-star"></i> Scores für Video</a>
+                    </li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <p>Keine Video-Minispiele im Ordner <code>{{ current_app.config.MINIGAME_VIDEO_FOLDER }}</code> gefunden oder Ordner existiert nicht.</p>
+        {% endif %}
+    </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/js/all.min.js"></script>
+
 {% endblock %}
