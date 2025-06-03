@@ -9,6 +9,11 @@
         <canvas id="game-canvas"></canvas>
         
         <div class="game-overlay">
+            <div id="minigame-info-display" class="minigame-info-display" style="display: none;">
+                <h4 id="minigame-name"></h4>
+                <p id="minigame-description"></p>
+            </div>
+
             <div class="current-team-display">
                 <h4>Am Zug: <span id="current-team">-</span></h4>
             </div>
@@ -16,9 +21,17 @@
             <div class="team-status">
                 {% if teams %}
                     {% for team in teams %}
-                    <div class="team-badge" style="background-color: {{ team_colors[loop.index0 % team_colors|length] }};">
+                    <div class="team-badge" id="team-badge-{{ team.id }}" style="background-color: {{ team_colors[loop.index0 % team_colors|length] }};">
                         <span class="team-name">{{ team.name }}</span>
                         <span class="team-position">Position: {{ team.current_position if team.current_position is not none else 0 }}</span>
+                        <span class="team-bonus" style="font-size: 0.7em; opacity: 0.8;">
+                            Bonus: 
+                            {% if team.bonus_dice_sides == 6 %}1-6
+                            {% elif team.bonus_dice_sides == 4 %}1-4
+                            {% elif team.bonus_dice_sides == 2 %}1-2
+                            {% else %}0
+                            {% endif %}
+                        </span>
                     </div>
                     {% endfor %}
                 {% else %}
@@ -30,9 +43,10 @@
                 {% endif %}
             </div>
             
-            {% if teams and (is_admin or (current_user.is_authenticated and not current_user.is_admin)) %}
+            {# Der Würfel-Button wird nur angezeigt, wenn Teams vorhanden sind. Die Logik, wer ihn drücken darf, ist im JS. #}
+            {% if teams %} 
             <div class="admin-controls">               
-                <button id="roll-dice" class="btn btn-primary">Würfeln</button>
+                <button id="roll-dice" class="btn btn-primary" disabled>Würfeln</button>
                 <div class="help-text">
                     Drücke <kbd>M</kbd> für freie Kamera, <kbd>F</kbd> für Vollbild
                 </div>
@@ -41,7 +55,9 @@
         </div>
         
         <div id="dice-result-display" class="dice-result-display">
-            <div class="dice-result-number">6</div>
+            <div id="dice-result-standard" class="dice-result-part">Standard: <span>-</span></div>
+            <div id="dice-result-bonus" class="dice-result-part" style="display: none;">Bonus: <span>-</span></div>
+            <div class="dice-result-total">Gesamt: <span class="dice-result-number">0</span></div>
             <div class="dice-result-text">Felder</div>
         </div>
     </div>
@@ -50,10 +66,11 @@
 {% endblock %}
 
 {% block scripts %}
+{{ super() }} {# Wichtig, um main.js etc. aus base.html zu laden #}
 <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/controls/OrbitControls.js"></script>
 
-{# Pfade zu deinen Charakter-JS-Dateien #}
+{# Pfade zu deinen Charakter-JS-Dateien - Stelle sicher, dass diese existieren und korrekt sind #}
 <script src="{{ url_for('static', filename='js/characters/tungTungTungSahur.js') }}"></script>
 <script src="{{ url_for('static', filename='js/characters/ballerinaCappuccina.js') }}"></script>
 <script src="{{ url_for('static', filename='js/characters/bombardinoCrocodilo.js') }}"></script>
@@ -67,27 +84,64 @@
 const BOARD_CONFIG = { 
     fieldTypes: { start: { color: 0x4FC3F7, emission: 0x002244, name: 'Start' }, normal: { color: 0x81C784, emission: 0x001122, name: 'Normales Feld' }, bonus: { color: 0xFFD54F, emission: 0x442200, name: 'Bonusfeld' }, chance: { color: 0xAED581, emission: 0x224400, name: 'Ereignisfeld' }, trap: { color: 0xE57373, emission: 0x440000, name: 'Falle' }, minigame: { color: 0xBA68C8, emission: 0x440044, name: 'Minispiel' }, goal: { color: 0xFFB74D, emission: 0x442200, name: 'Ziel' } }, fieldSize: 1.0, fieldHeight: 0.25, fieldRadius: 0.55, pathWidth: 2.8, pathSegmentBaseDepth: 0.25, pathColor: 0xD7CCC8, pathBorderColor: 0xBCAAA4, characterElevation: 0.4, characterSize: 0.4, mountainHeight: 20, mountainBaseRadius: 17, mountainTopRadius: 2.5, spiralHeight: 18, spiralStartRadius: 20, spiralLoops: 2.6, pathDepth: 4.5, chamberSize: 7.0, cameraFollowOffset: new THREE.Vector3(0, 7, 12), cameraFrontOffset: new THREE.Vector3(0, 4, -8) };
 const islandSurfaceY = 1.8;
-const GAME_STATE = { currentTeamIndex: 0, isAnimating: false, isDiceRolling: false, isCharacterMoving: false, diceResult: 0, freeCameraMode: false, isFullscreen: false, isAnimatingCamera: false, characterTurnSpeed: 0.08, playerTurnInProgress: false, cameraMode: 'front' };
+const GAME_STATE = { 
+    isAnimating: false, 
+    isDiceRolling: false, 
+    isCharacterMoving: false, 
+    freeCameraMode: false, 
+    isFullscreen: false, 
+    isAnimatingCamera: false, 
+    cameraMode: 'front',
+    currentServerTeamTurnId: null, 
+    diceRollOrderFromServer: []    
+};
 
-const teams = [
+// Teams-Array aus dem Backend übernehmen und lokal aktuell halten
+let localTeams = [
     {% for team in teams %}
     {
         id: {{ team.id }},
         name: "{{ team.name | e }}",
         position: {{ team.current_position if team.current_position is not none else 0 }},
         color: "{{ team_colors[loop.index0 % team_colors|length] }}",
-        character_info: {% if team.character_name %}
+        character_info: {% if team.character and team.character.name and team.character.js_file %} // Prüfe character, name und js_file
         {
-            name: "{{ team.character_name | e }}",
-            image_path: "{{ team.character_image | e if team.character_image else '' }}"
+            name: "{{ team.character.name | e }}",
+            js_file: "{{ team.character.js_file | e }}"
         }
         {% else %}
-        null
-        {% endif %}
+        { 
+            name: "Default",
+            js_file: "js/characters/defaultCharacter.js"
+        }
+        {% endif %},
+        bonus_dice_sides: {{ team.bonus_dice_sides if team.bonus_dice_sides else 0 }},
+        minigame_placement: {{ team.minigame_placement if team.minigame_placement else 'null' }}
     }{% if not loop.last %},{% endif %}
     {% endfor %}
 ];
-console.log("Initial teams array from Jinja:", JSON.parse(JSON.stringify(teams)));
+console.log("Initial localTeams array from Jinja:", JSON.parse(JSON.stringify(localTeams)));
+
+// Globale Variablen für Minispiel-Status und Spielphase
+let currentMinigameName = "{{ active_session.current_minigame_name | e if active_session else '' }}";
+let currentMinigameDescription = "{{ active_session.current_minigame_description | e if active_session else '' }}";
+let currentGamePhase = "{{ active_session.current_phase | e if active_session else 'UNKNOWN' }}";
+
+// ID des eingeloggten Benutzers.
+// localPlayerTeamId ist die INTEGER ID des Teams, wenn ein Team eingeloggt ist.
+// Für Admins oder nicht eingeloggte Benutzer ist localPlayerTeamId null.
+let localPlayerTeamId = null;
+{% if current_user.is_authenticated %}
+    {% if current_user.is_team_user %}
+        {# Wenn current_user.id ein Integer ist (wie der Fehler andeutet), direkt verwenden und zu int casten #}
+        localPlayerTeamId = {{ current_user.id | int }}; 
+    {% elif current_user.is_admin_user %}
+        {# Admins haben hier keine Team-ID für die Client-Logik #}
+        localPlayerTeamId = null; 
+    {% endif %}
+{% endif %}
+const isAdmin = {{ is_admin|tojson }}; // is_admin kommt aus dem Python Routen-Kontext
+console.log("Local Player Team ID (integer):", localPlayerTeamId, "Is Admin:", isAdmin);
 
 
 class WiiPartyIsland {
@@ -99,11 +153,10 @@ class WiiPartyIsland {
             return; 
         }
 
-        // Methoden binden
         this.updateCanvasSize = this.updateCanvasSize.bind(this);
         this.animate = this.animate.bind(this);
         this.setupEventListeners = this.setupEventListeners.bind(this);
-        this.rollDice = this.rollDice.bind(this); 
+        this.rollDiceAndMove = this.rollDiceAndMove.bind(this); 
 
         this.scene = new THREE.Scene();
         this.camera = new THREE.PerspectiveCamera(50, this.canvas.clientWidth / Math.max(1, this.canvas.clientHeight), 0.1, 1000);
@@ -115,7 +168,6 @@ class WiiPartyIsland {
         this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
         this.renderer.toneMappingExposure = 1.2;
         
-        console.log("[WiiPartyIsland] Renderer und Kamera initialisiert.");
         this.updateCanvasSize(); 
         
         this.camera.position.set(25, 25, 25);
@@ -128,21 +180,18 @@ class WiiPartyIsland {
         this.controls.enabled = false;
         
         this.pathPoints = []; this.boardFields = []; this.miiCharacters = {};
-        this.activeCharacterPath = null; this.raycaster = new THREE.Raycaster();
         this.interactiveDice = null; this.island = null; this.mountainMesh = null;
         this.chamberDoor = null; this.water = null; this.clouds = []; this.birds = [];
         this.isFollowingCharacter = false; this.followTarget = null;
+        this.characterCreationFunctions = {}; 
 
         console.log("[WiiPartyIsland] Constructor: Basisinitialisierung abgeschlossen, rufe init()");
         this.init(); 
     }
-    
-    // *** VOLLSTÄNDIGE METHODENDEKLARATIONEN BEGINNEN HIER ***
-    
+        
     updateCanvasSize() {
-        console.log("[WiiPartyIsland] Methode updateCanvasSize() wird ausgeführt."); 
         const container = document.getElementById('game-canvas-container');
-        if (!container) { console.warn("[WiiPartyIsland] Canvas-Container nicht gefunden."); return; }
+        if (!container) { return; }
         const rect = container.getBoundingClientRect();
         const width = Math.max(1, rect.width); const height = Math.max(1, rect.height);
         if (this.renderer) { this.renderer.setSize(width, height, false); }
@@ -150,93 +199,75 @@ class WiiPartyIsland {
     }
 
     async init() {
-        console.log("[WiiPartyIsland] init(): Start");
         this.setupLighting();
         this.createOcean();
         this.createIslandAndMountain(); 
-        
-        console.log("[WiiPartyIsland] DEBUG: Vor Aufruf von this.createSpiralPath(). typeof this.createSpiralPath:", typeof this.createSpiralPath);
-        if (typeof this.createSpiralPath !== 'function') {
-            console.error("[WiiPartyIsland] FATAL: this.createSpiralPath ist KEINE Funktion!", this);
-            return; 
-        }
         this.createSpiralPath();
-        
         this.createVegetation();      
         this.createTreasureChamber(); 
-        if (teams && teams.length > 0) {
-            this.createMiiCharacters();   
+        
+        if (localTeams && localTeams.length > 0) {
+            await this.createMiiCharacters(); 
         }
+        
         this.createEnvironmentalDetails(); 
         this.createInteractiveDice(); 
-        
-        console.log("[WiiPartyIsland] DEBUG: Vor Aufruf von this.setupEventListeners(). typeof this.setupEventListeners:", typeof this.setupEventListeners);
-        if (typeof this.setupEventListeners !== 'function') {
-            console.error("[WiiPartyIsland] FATAL: this.setupEventListeners ist KEINE Funktion!", this);
-            return;
-        }
         this.setupEventListeners();
-
-        console.log("[WiiPartyIsland] DEBUG: Vor Aufruf von this.animate(). typeof this.animate:", typeof this.animate);
-        if (typeof this.animate !== 'function') {
-            console.error("[WiiPartyIsland] FATAL: this.animate ist KEINE Funktion!", this);
-            return;
-        }
         this.animate(); 
-
-        this.updateTeamDisplay(); 
-        
-        if (teams && teams.length > 0) {
-            this.prepareNextPlayerTurn(true); 
-        }
+        this.updateMinigameDisplay(); 
+        this.fetchBoardStatusAndUpdate(); 
+        setInterval(() => this.fetchBoardStatusAndUpdate(), 3000); 
         console.log("[WiiPartyIsland] init(): Beendet");
     }
     
     setupLighting() {
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.7); 
         this.scene.add(ambientLight);
-        const sunLight = new THREE.DirectionalLight(0xffffff, 1.5);
-        sunLight.position.set(50, 70, 40);
+        const sunLight = new THREE.DirectionalLight(0xffffff, 1.8); 
+        sunLight.position.set(60, 80, 50); 
         sunLight.castShadow = true;
-        sunLight.shadow.mapSize.width = 2048; 
-        sunLight.shadow.mapSize.height = 2048;
+        sunLight.shadow.mapSize.width = 4096; 
+        sunLight.shadow.mapSize.height = 4096;
         sunLight.shadow.camera.near = 1;
-        sunLight.shadow.camera.far = 200;
-        sunLight.shadow.camera.left = -50;
-        sunLight.shadow.camera.right = 50;
-        sunLight.shadow.camera.top = 50;
-        sunLight.shadow.camera.bottom = -50;
+        sunLight.shadow.camera.far = 250; 
+        sunLight.shadow.camera.left = -70;
+        sunLight.shadow.camera.right = 70;
+        sunLight.shadow.camera.top = 70;
+        sunLight.shadow.camera.bottom = -70;
+        sunLight.shadow.bias = -0.0005; 
         this.scene.add(sunLight);
-        this.scene.background = new THREE.Color(0x87CEEB); 
-        this.scene.fog = new THREE.Fog(0xb3d9ff, 80, 200); 
+        this.scene.background = new THREE.Color(0xADD8E6); 
+        this.scene.fog = new THREE.Fog(0xB0E0E6, 70, 220); 
     }
             
     createOcean() {
-        const oceanRadius = 120;
+        const oceanRadius = 150; 
         const waterGeometry = new THREE.PlaneGeometry(oceanRadius * 2, oceanRadius * 2, 128, 128);
         const positions = waterGeometry.attributes.position.array;
         for (let i = 0; i < positions.length; i += 3) {
             const x = positions[i];
             const z = positions[i + 2];
             const distance = Math.sqrt(x * x + z * z);
-            if (distance > 35) { 
-                positions[i + 1] = Math.sin(x * 0.06) * 0.3 + Math.sin(z * 0.08) * 0.3;
+            if (distance > 40) { 
+                positions[i + 1] = Math.sin(x * 0.05 + z * 0.02) * 0.4 + Math.cos(z * 0.06) * 0.35;
             } else { 
-                positions[i + 1] = Math.sin(x * 0.12) * 0.1 + Math.sin(z * 0.12) * 0.1;
+                positions[i + 1] = Math.sin(x * 0.1 + z*0.05) * 0.15 + Math.cos(z * 0.1) * 0.1;
             }
         }
         waterGeometry.attributes.position.needsUpdate = true;
         waterGeometry.computeVertexNormals();
+
         const waterMaterial = new THREE.MeshPhongMaterial({
-            color: 0x4DD0E1, 
-            specular: 0xB0BEC5, 
-            shininess: 80,
+            color: 0x3D99BE, 
+            specular: 0xFFFFFF, 
+            shininess: 100,
             transparent: true,
-            opacity: 0.9
+            opacity: 0.85,
+            reflectivity: 0.3
         });
         const water = new THREE.Mesh(waterGeometry, waterMaterial);
         water.rotation.x = -Math.PI / 2;
-        water.position.y = -0.4; 
+        water.position.y = -0.5; 
         water.receiveShadow = true;
         this.scene.add(water);
         water.userData = {
@@ -246,55 +277,91 @@ class WiiPartyIsland {
                     const x = positions[i];
                     const z = positions[i+2];
                     const distance = Math.sqrt(x * x + z * z);
-                    if (distance > 35) {
-                        positions[i + 1] = Math.sin(x * 0.06 + time * 0.8) * 0.3 + 
-                                         Math.sin(z * 0.08 + time * 0.6) * 0.3;
+                    if (distance > 40) {
+                        positions[i + 1] = Math.sin(x * 0.05 + z * 0.02 + time * 0.7) * 0.4 + 
+                                         Math.cos(z * 0.06 + time * 0.5) * 0.35;
                     } else {
-                        positions[i + 1] = Math.sin(x * 0.12 + time * 0.5) * 0.1 + 
-                                         Math.sin(z * 0.12 + time * 0.7) * 0.1;
+                        positions[i + 1] = Math.sin(x * 0.1 + z*0.05 + time * 0.6) * 0.15 + 
+                                         Math.cos(z * 0.1 + time * 0.8) * 0.1;
                     }
                 }
                 water.geometry.attributes.position.needsUpdate = true;
-                water.geometry.computeVertexNormals();
             }
         };
         this.water = water;
     }
 
     createIslandAndMountain() {
-        const islandGeometry = new THREE.CylinderGeometry(28, 30, 3.6, 64, 1, false);
+        const islandGeometry = new THREE.CylinderGeometry(28, 30, 3.8, 64, 8, false); 
         const islandPositions = islandGeometry.attributes.position.array;
         for (let i = 0; i < islandPositions.length; i += 3) {
             const x = islandPositions[i];
             const z = islandPositions[i + 2];
             const distance = Math.sqrt(x * x + z * z);
-            if (distance > 22) {
-                const waveHeight = Math.sin(distance * 0.4) * 0.3 + Math.cos(distance * 0.2) * 0.2;
-                islandPositions[i + 1] += waveHeight;
+            const angle = Math.atan2(z, x);
+            if (distance > 20) { 
+                const waveHeight = Math.sin(angle * 7 + distance * 0.3) * 0.4 + Math.cos(angle * 11 + distance * 0.15) * 0.3;
+                islandPositions[i + 1] += waveHeight * ( (distance - 20) / 8 ); 
             }
         }
         islandGeometry.attributes.position.needsUpdate = true;
         islandGeometry.computeVertexNormals();
-        const islandMaterial = new THREE.MeshPhongMaterial({ color: 0xF5DEB3, shininess: 5 });
+        const islandMaterial = new THREE.MeshPhongMaterial({ 
+            map: this.createIslandTexture(), 
+            shininess: 10 
+        });
         this.island = new THREE.Mesh(islandGeometry, islandMaterial);
         this.island.position.y = 0;
         this.island.receiveShadow = true;
-        this.island.castShadow = true;
+        this.island.castShadow = true; 
         this.scene.add(this.island);
-        this.createIslandVegetation();
-        this.createMountainWithPath();
+        this.createIslandVegetation(); 
+        this.createMountainWithPath(); 
+    }
+
+    createIslandTexture() {
+        const canvas = document.createElement('canvas');
+        canvas.width = 512; canvas.height = 512;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#F0E68C'; 
+        ctx.fillRect(0, 0, 512, 512);
+        for (let i = 0; i < 3000; i++) {
+            const x = Math.random() * 512;
+            const y = Math.random() * 512;
+            const radius = Math.random() * 30 + 10; 
+            const distToEdge = Math.min(x, 512 - x, y, 512 - y);
+            if (distToEdge > radius * 1.5) { 
+                 const grassShade = Math.floor(Math.random() * 50) + 100; 
+                 ctx.fillStyle = `rgb(60, ${grassShade}, 30)`;
+                 ctx.beginPath();
+                 ctx.arc(x, y, radius * (0.5 + Math.random() * 0.5), 0, Math.PI * 2);
+                 ctx.fill();
+            }
+        }
+        for (let i = 0; i < 50; i++) {
+            const x = Math.random() * 512;
+            const y = Math.random() * 512;
+            const rockShade = Math.floor(Math.random() * 50) + 100; 
+            ctx.fillStyle = `rgb(${rockShade}, ${rockShade}, ${rockShade - 10})`;
+            ctx.fillRect(x, y, Math.random() * 10 + 5, Math.random() * 10 + 5);
+        }
+        const texture = new THREE.CanvasTexture(canvas);
+        texture.wrapS = THREE.RepeatWrapping;
+        texture.wrapT = THREE.RepeatWrapping;
+        texture.repeat.set(2,2); 
+        return texture;
     }
     
     createIslandVegetation() {
         const baseIslandTopY = islandSurfaceY;
         const layers = [
-            { radius: 26, height: 0.15, color: 0x4CAF50 }, 
-            { radius: 24, height: 0.1, color: 0x66BB6A }  
+            { radius: 26, height: 0.2, color: 0x556B2F }, 
+            { radius: 24.5, height: 0.15, color: 0x6B8E23 }  
         ];
         let currentPlacementY = baseIslandTopY;
         layers.forEach((layer) => {
             const vegGeometry = new THREE.CylinderGeometry(
-                layer.radius, layer.radius + 0.2, layer.height, 32 
+                layer.radius, layer.radius + 0.3, layer.height, 48 
             );
             const vegMaterial = new THREE.MeshLambertMaterial({ color: layer.color });
             const vegetation = new THREE.Mesh(vegGeometry, vegMaterial);
@@ -310,37 +377,37 @@ class WiiPartyIsland {
         const detail = 256; 
         const mountainGeometry = new THREE.BufferGeometry();
         const vertices = []; const indices = []; const uvs = [];
-        const flatTopRadius = BOARD_CONFIG.mountainTopRadius * 0.85;
+        const flatTopRadius = BOARD_CONFIG.mountainTopRadius * 0.8; 
         const mountainFootY = islandSurfaceY;
 
         for (let i = 0; i <= detail; i++) {
             for (let j = 0; j <= detail; j++) {
-                const x = (i / detail - 0.5) * BOARD_CONFIG.mountainBaseRadius * 2.2;
-                const z = (j / detail - 0.5) * BOARD_CONFIG.mountainBaseRadius * 2.2;
+                const x = (i / detail - 0.5) * BOARD_CONFIG.mountainBaseRadius * 2.3; 
+                const z = (j / detail - 0.5) * BOARD_CONFIG.mountainBaseRadius * 2.3;
                 const distance = Math.sqrt(x * x + z * z);
                 let y_shape = 0;
                 if (distance <= BOARD_CONFIG.mountainBaseRadius) {
                     if (distance <= flatTopRadius) {
-                        y_shape = BOARD_CONFIG.mountainHeight + (Math.random() * 0.05);
+                        y_shape = BOARD_CONFIG.mountainHeight + (Math.random() * 0.1 - 0.05); 
                     } else {
                         const progress = (distance - flatTopRadius) / (BOARD_CONFIG.mountainBaseRadius - flatTopRadius);
-                        const smoothProgress = 1 - (progress * progress * (3 - 2 * progress)); 
+                        const smoothProgress = 1 - Math.pow(progress, 1.5); 
                         y_shape = BOARD_CONFIG.mountainHeight * smoothProgress;
-                        y_shape += (Math.sin(x * 1.2) * Math.cos(z * 1.2)) * 0.2 * (1 - smoothProgress);
-                        y_shape += (Math.random() - 0.5) * 0.3 * (1 - smoothProgress);
+                        y_shape += (Math.sin(x * 1.5 + z * 0.5) * Math.cos(z * 1.5 - x * 0.8)) * 0.35 * (1 - smoothProgress);
+                        y_shape += (Math.random() - 0.5) * 0.5 * (1 - smoothProgress);
                     }
                     const pathInfluence = this.getPathInfluence(x, z);
                     if (pathInfluence > 0) {
                         const pathHeightAbsolute = this.getInterpolatedPathHeight(x, z);
                         const pathHeightRelativeToMountainFoot = pathHeightAbsolute - mountainFootY;
-                        const rinnenTiefe = BOARD_CONFIG.pathDepth * pathInfluence * 0.3; 
-                        y_shape = Math.max(y_shape - rinnenTiefe, pathHeightRelativeToMountainFoot - rinnenTiefe * 0.2);
+                        const rinnenTiefe = BOARD_CONFIG.pathDepth * pathInfluence * 0.35; 
+                        y_shape = Math.max(Math.min(y_shape - rinnenTiefe, pathHeightRelativeToMountainFoot + rinnenTiefe * 0.1), pathHeightRelativeToMountainFoot - rinnenTiefe * 0.3);
                     }
-                } else if (distance <= BOARD_CONFIG.mountainBaseRadius * 1.15) { 
-                    const fadeOut = 1 - ((distance - BOARD_CONFIG.mountainBaseRadius) / (BOARD_CONFIG.mountainBaseRadius * 0.15));
-                    y_shape = fadeOut * 0.08 - 0.05; 
+                } else if (distance <= BOARD_CONFIG.mountainBaseRadius * 1.2) { 
+                    const fadeOut = 1 - ((distance - BOARD_CONFIG.mountainBaseRadius) / (BOARD_CONFIG.mountainBaseRadius * 0.2));
+                    y_shape = fadeOut * 0.1 - 0.08; 
                 } else {
-                    y_shape = -0.05; 
+                    y_shape = -0.08; 
                 }
                 vertices.push(x, mountainFootY + y_shape, z);
                 uvs.push(i / detail, j / detail);
@@ -356,23 +423,59 @@ class WiiPartyIsland {
         mountainGeometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
         mountainGeometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
         mountainGeometry.setIndex(indices);
-        mountainGeometry.computeVertexNormals();
-        const mountainMaterial = new THREE.MeshPhongMaterial({ vertexColors: true, map: null, shininess: 8 });
-        const mountainColorAttr = new Float32Array(vertices.length);
-        for (let k_color = 0; k_color < vertices.length; k_color += 3) {
-            const yPos = vertices[k_color + 1];
-            const height = Math.max(0, Math.min(1, (yPos - mountainFootY) / BOARD_CONFIG.mountainHeight));
-            let r, g, b;
-            if (height < 0.1) { r = 0.3; g = 0.4; b = 0.2; } 
-            else if (height < 0.6) { r = 0.2; g = 0.6; b = 0.1; } 
-            else if (height < 0.85) { r = 0.5; g = 0.5; b = 0.4; } 
-            else { r = 0.9; g = 0.9; b = 0.95; }
-            mountainColorAttr[k_color] = r; mountainColorAttr[k_color+1] = g; mountainColorAttr[k_color+2] = b;
-        }
-        mountainGeometry.setAttribute('color', new THREE.Float32BufferAttribute(mountainColorAttr, 3));
+        mountainGeometry.computeVertexNormals(); 
+
+        const mountainTexture = this.createMountainTexture();
+        const mountainMaterial = new THREE.MeshPhongMaterial({ 
+            map: mountainTexture, 
+            shininess: 15,
+        });
+
         const mountainMesh = new THREE.Mesh(mountainGeometry, mountainMaterial);
         mountainMesh.castShadow = true; mountainMesh.receiveShadow = true;
         this.scene.add(mountainMesh); this.mountainMesh = mountainMesh;
+    }
+
+    createMountainTexture() {
+        const canvas = document.createElement('canvas');
+        canvas.width = 1024; canvas.height = 1024; 
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#8B8070'; 
+        ctx.fillRect(0, 0, 1024, 1024);
+        for (let i = 0; i < 2000; i++) {
+            const x = Math.random() * 1024;
+            const y = Math.random() * 1024;
+            const width = Math.random() * 5 + 2;
+            const height = Math.random() * 30 + 10;
+            ctx.fillStyle = `rgba(80, 70, 60, ${Math.random() * 0.3 + 0.1})`; 
+            ctx.fillRect(x, y, width, height);
+            ctx.fillRect(y, x, height, width); 
+        }
+        for (let i = 0; i < 1000; i++) {
+            const x = Math.random() * 1024;
+            const y = Math.random() * 1024;
+            const radius = Math.random() * 8 + 3;
+            ctx.fillStyle = `rgba(220, 220, 210, ${Math.random() * 0.2 + 0.05})`; 
+            ctx.beginPath();
+            ctx.arc(x, y, radius, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        for (let i = 0; i < 1500; i++) {
+            const x = Math.random() * 1024;
+            const y = Math.random() * 1024;
+            const radius = Math.random() * 10 + 5;
+             if (y > 200 && y < 800) { 
+                ctx.fillStyle = `rgba(85, 107, 47, ${Math.random() * 0.25 + 0.1})`; 
+                ctx.beginPath();
+                ctx.arc(x, y, radius, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+        const texture = new THREE.CanvasTexture(canvas);
+        texture.wrapS = THREE.RepeatWrapping;
+        texture.wrapT = THREE.RepeatWrapping;
+        texture.repeat.set(1,1); 
+        return texture;
     }
 
     calculatePathPoints() {
@@ -381,30 +484,31 @@ class WiiPartyIsland {
         for (let i = 0; i < fieldCount; i++) {
             const progress = i / (fieldCount - 1); let x, y, z; let onFlatLand = false;
             if (i === 0) { 
-                x = BOARD_CONFIG.spiralStartRadius; z = 0; y = islandSurfaceY + 0.3; onFlatLand = true;
+                x = BOARD_CONFIG.spiralStartRadius; z = 0; y = islandSurfaceY + 0.35; onFlatLand = true;
             } else if (i === lastFieldIndex) { 
-                x = 0; y = mountainFootY + BOARD_CONFIG.mountainHeight + 0.2; z = BOARD_CONFIG.chamberSize/2 - 0.3; onFlatLand = false;
+                x = 0; y = mountainFootY + BOARD_CONFIG.mountainHeight + 0.25; z = BOARD_CONFIG.chamberSize/2 - 0.35; onFlatLand = false;
             } else if (i === lastFieldIndex - 1) { 
-                x = 0; y = mountainFootY + BOARD_CONFIG.mountainHeight + 0.3; z = BOARD_CONFIG.chamberSize/2 + 0.8; onFlatLand = false;
+                x = 0; y = mountainFootY + BOARD_CONFIG.mountainHeight + 0.35; z = BOARD_CONFIG.chamberSize/2 + 0.9; onFlatLand = false;
             } else { 
                 let radius;
-                if (progress < 0.08) { radius = BOARD_CONFIG.spiralStartRadius * (1.0 - progress * 4.5); } 
+                if (progress < 0.08) { radius = BOARD_CONFIG.spiralStartRadius * (1.0 - progress * 4.8); } 
                 else if (progress < 0.85) {
-                    const localProgress = (progress - 0.08) / 0.77; const easedProgress = Math.pow(localProgress, 0.9);
-                    radius = THREE.MathUtils.lerp(BOARD_CONFIG.mountainBaseRadius - 0.6, BOARD_CONFIG.mountainTopRadius * 1.8, easedProgress);
+                    const localProgress = (progress - 0.08) / 0.77; const easedProgress = Math.pow(localProgress, 0.85); 
+                    radius = THREE.MathUtils.lerp(BOARD_CONFIG.mountainBaseRadius - 0.5, BOARD_CONFIG.mountainTopRadius * 1.9, easedProgress);
                 } else {
-                    const gipfelProgress = (progress - 0.85) / 0.15; radius = BOARD_CONFIG.mountainTopRadius * (2.0 - gipfelProgress * 0.8);
+                    const gipfelProgress = (progress - 0.85) / 0.15; radius = BOARD_CONFIG.mountainTopRadius * (2.1 - gipfelProgress * 0.9);
                 }
-                const spiralProgress = Math.pow(progress, 0.9); const angle = spiralProgress * Math.PI * 2 * BOARD_CONFIG.spiralLoops;
+                const spiralProgress = Math.pow(progress, 0.88); const angle = spiralProgress * Math.PI * 2 * BOARD_CONFIG.spiralLoops;
                 x = Math.cos(angle) * radius; z = Math.sin(angle) * radius;
                 const distanceToCenter = Math.sqrt(x * x + z * z);
-                if (distanceToCenter > BOARD_CONFIG.mountainBaseRadius - 0.6) { 
-                    y = islandSurfaceY + 0.3; onFlatLand = true;
+                if (distanceToCenter > BOARD_CONFIG.mountainBaseRadius - 0.5) { 
+                    y = islandSurfaceY + 0.35; onFlatLand = true;
                 } else { 
-                    const mountainProgress = Math.max(0, Math.min(1, 1 - (distanceToCenter / (BOARD_CONFIG.mountainBaseRadius - 0.6))));
-                    const smoothProgress = Math.pow(mountainProgress, 0.8);
+                    const mountainProgress = Math.max(0, Math.min(1, 1 - (distanceToCenter / (BOARD_CONFIG.mountainBaseRadius - 0.5))));
+                    const smoothProgress = Math.pow(mountainProgress, 0.75); 
                     y = mountainFootY + smoothProgress * BOARD_CONFIG.mountainHeight;
-                    y += Math.sin(angle * 1.5) * 0.06; onFlatLand = false;
+                    y += Math.sin(angle * 1.8 + progress * 5) * 0.08; 
+                    onFlatLand = false;
                 }
             }
             this.pathPoints.push({ x, y, z, index: i, onFlatLand });
@@ -418,19 +522,19 @@ class WiiPartyIsland {
             const point = this.pathPoints[i];
             if (!point.onFlatLand) { 
                 const raycaster = new THREE.Raycaster();
-                const origin = new THREE.Vector3(point.x, 50, point.z); 
+                const origin = new THREE.Vector3(point.x, BOARD_CONFIG.mountainHeight * 1.5, point.z); 
                 const direction = new THREE.Vector3(0, -1, 0); 
                 raycaster.set(origin, direction);
                 const intersects = raycaster.intersectObject(this.mountainMesh, false);
                 if (intersects.length > 0) {
-                    point.y = Math.max(point.y, intersects[0].point.y + 0.1); 
+                    point.y = Math.max(point.y, intersects[0].point.y + 0.15); 
                 }
             }
         }
     }
 
     getTerrainHeightAt(x,z){
-        const raycaster = new THREE.Raycaster(new THREE.Vector3(x, 50, z), new THREE.Vector3(0, -1, 0));
+        const raycaster = new THREE.Raycaster(new THREE.Vector3(x, BOARD_CONFIG.mountainHeight * 1.5, z), new THREE.Vector3(0, -1, 0));
         const objectsToIntersect = [];
         if (this.mountainMesh) objectsToIntersect.push(this.mountainMesh);
         if (this.island) objectsToIntersect.push(this.island);
@@ -447,9 +551,9 @@ class WiiPartyIsland {
             const dx = x - point.x; const dz = z - point.z;
             minDistance = Math.min(minDistance, Math.sqrt(dx * dx + dz * dz));
         }
-        const pathWidth = BOARD_CONFIG.pathWidth * 0.8; 
+        const pathWidth = BOARD_CONFIG.pathWidth * 0.9; 
         if (minDistance < pathWidth) {
-            return Math.pow(1 - (minDistance / pathWidth), 0.4); 
+            return Math.pow(1 - (minDistance / pathWidth), 0.3); 
         }
         return 0;
     }
@@ -470,7 +574,7 @@ class WiiPartyIsland {
             }
         }
         if (closestIndex === -1) return islandSurfaceY;
-        if (closestDistance < 0.3) return this.pathPoints[closestIndex].y; 
+        if (closestDistance < 0.35) return this.pathPoints[closestIndex].y; 
         if (secondClosestIndex === -1) { 
             return this.pathPoints[closestIndex].y;
         }
@@ -483,7 +587,6 @@ class WiiPartyIsland {
     }
 
     createSpiralPath() { 
-        console.log("[WiiPartyIsland] createSpiralPath() aufgerufen.");
         this.createGameFields(); 
     }
         
@@ -495,82 +598,190 @@ class WiiPartyIsland {
             let type = 'normal'; 
             if (index === 0) type = 'start'; 
             else if (index === this.pathPoints.length - 1) type = 'goal'; 
-            else if (index % 8 === 0) type = 'bonus';
-            else if (index % 12 === 0) type = 'minigame';
-            else if (index % 15 === 0) type = 'chance';
-            else if (index % 20 === 0) type = 'trap';
+            else if (index % 7 === 0) type = 'bonus'; 
+            else if (index % 10 === 0) type = 'minigame'; 
+            else if (index % 13 === 0) type = 'chance';
+            else if (index % 18 === 0) type = 'trap'; 
             const field = this.createGameField(point, type, index); 
             this.boardFields.push({ mesh: field, originalPathPoint: new THREE.Vector3(point.x, point.y, point.z), index: index, type: type }); 
             this.scene.add(field); 
         }); 
-        console.log("[WiiPartyIsland] Game fields created:", this.boardFields.length); 
     }
 
     createGameField(point, type, index) { 
         const group = new THREE.Group(); const config = BOARD_CONFIG.fieldTypes[type];
-        const fieldGeometry = new THREE.CylinderGeometry(BOARD_CONFIG.fieldRadius * 0.9, BOARD_CONFIG.fieldRadius * 1.0, BOARD_CONFIG.fieldHeight, 12); 
-        const fieldMaterial = new THREE.MeshLambertMaterial({ color: config.color }); 
+        const fieldRadius = BOARD_CONFIG.fieldRadius * (type === 'start' || type === 'goal' ? 1.15 : 0.95); 
+        const fieldHeight = BOARD_CONFIG.fieldHeight * (type === 'start' || type === 'goal' ? 1.2 : 1.0);
+
+        const fieldGeometry = new THREE.CylinderGeometry(fieldRadius, fieldRadius * 1.05, fieldHeight, 16); 
+        const fieldMaterial = new THREE.MeshPhongMaterial({ 
+            color: config.color, 
+            shininess: type === 'bonus' || type === 'goal' ? 80 : 30,
+            specular: type === 'bonus' || type === 'goal' ? 0xffe375 : 0x555555,
+            map: this.createFieldTexture(type, config.color) 
+        }); 
         const fieldMesh = new THREE.Mesh(fieldGeometry, fieldMaterial);
-        fieldMesh.position.y = BOARD_CONFIG.fieldHeight / 2; fieldMesh.castShadow = true; fieldMesh.receiveShadow = true; group.add(fieldMesh);
-        const ringGeometry = new THREE.TorusGeometry(BOARD_CONFIG.fieldRadius * 0.9, 0.03, 6, 16);
-        const ringMaterial = new THREE.MeshLambertMaterial({ color: new THREE.Color(config.color).multiplyScalar(1.3) });
-        const ring = new THREE.Mesh(ringGeometry, ringMaterial);
-        ring.rotation.x = -Math.PI / 2; ring.position.y = BOARD_CONFIG.fieldHeight + 0.01; group.add(ring);
-        const baseGeometry = new THREE.CylinderGeometry(BOARD_CONFIG.fieldRadius * 1.1, BOARD_CONFIG.fieldRadius * 1.2, 0.1, 12);
-        const baseMaterial = new THREE.MeshLambertMaterial({ color: new THREE.Color(config.color).multiplyScalar(0.7) });
+        fieldMesh.position.y = fieldHeight / 2; fieldMesh.castShadow = true; fieldMesh.receiveShadow = true; group.add(fieldMesh);
+        
+        if (type === 'minigame' || type === 'bonus' || type === 'chance') {
+            const ringGeometry = new THREE.TorusGeometry(fieldRadius * 1.05, 0.04, 8, 24);
+            const ringMaterial = new THREE.MeshBasicMaterial({ 
+                color: new THREE.Color(config.color).multiplyScalar(1.5).lerp(new THREE.Color(0xffffff), 0.3),
+                transparent: true,
+                opacity: 0.8
+            });
+            const ring = new THREE.Mesh(ringGeometry, ringMaterial);
+            ring.rotation.x = -Math.PI / 2; ring.position.y = fieldHeight + 0.02; 
+            group.add(ring);
+            ring.userData.animation = time => {
+                ring.material.opacity = 0.6 + Math.sin(time * 3 + index) * 0.2;
+            };
+        }
+
+        const baseGeometry = new THREE.CylinderGeometry(fieldRadius * 1.15, fieldRadius * 1.25, 0.12, 16);
+        const baseMaterial = new THREE.MeshLambertMaterial({ color: new THREE.Color(config.color).multiplyScalar(0.6) });
         const base = new THREE.Mesh(baseGeometry, baseMaterial);
-        base.position.y = -0.05; base.castShadow = true; base.receiveShadow = true; group.add(base);
+        base.position.y = -0.06; base.castShadow = true; base.receiveShadow = true; group.add(base);
+        
         group.position.set(point.x, point.y, point.z);
         group.userData = { fieldIndex: index, fieldType: type }; 
         return group; 
     }
-    
-    createVegetation() {
-        for (let i = 0; i < 8; i++) {
-            const angle = (i / 8) * Math.PI * 2; const radius = 22 + Math.random() * 4;
-            const x = Math.cos(angle) * radius; const z = Math.sin(angle) * radius;
-            if (this.isPositionSafe(x, z, 2)) {
-                const palm = this.createPalmTree(); palm.position.set(x, islandSurfaceY, z);
-                palm.scale.setScalar(0.8 + Math.random() * 0.3); palm.rotation.y = Math.random() * Math.PI * 2; this.scene.add(palm);
+
+    createFieldTexture(type, baseColor) {
+        const canvas = document.createElement('canvas');
+        canvas.width = 128; canvas.height = 128;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = new THREE.Color(baseColor).getStyle();
+        ctx.fillRect(0, 0, 128, 128);
+        ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+        ctx.lineWidth = 3;
+        if (type === 'start') {
+            ctx.font = 'bold 30px Arial'; ctx.fillStyle = 'white'; ctx.textAlign = 'center';
+            ctx.fillText('S', 64, 78);
+        } else if (type === 'goal') {
+            ctx.font = 'bold 30px Arial'; ctx.fillStyle = 'gold'; ctx.textAlign = 'center';
+            ctx.fillText('★', 64, 80); 
+        } else if (type === 'minigame') {
+            ctx.beginPath(); ctx.arc(64, 64, 30, 0, Math.PI * 2); ctx.stroke();
+            ctx.font = 'bold 20px Arial'; ctx.fillStyle = 'white'; ctx.textAlign = 'center';
+            ctx.fillText('M', 64, 72);
+        } else if (type === 'bonus') {
+            ctx.fillStyle = 'rgba(255,223,0,0.5)'; 
+            for(let i=0; i<3; i++) { ctx.fillRect(Math.random()*88, Math.random()*88, 40, 40); }
+        } else if (type === 'chance') {
+            ctx.font = 'bold 40px Arial'; ctx.fillStyle = 'rgba(255,255,255,0.7)'; ctx.textAlign = 'center';
+            ctx.fillText('?', 64, 85);
+        } else if (type === 'trap') {
+            ctx.strokeStyle = 'red'; ctx.lineWidth = 5;
+            ctx.beginPath(); ctx.moveTo(30,30); ctx.lineTo(98,98); ctx.moveTo(98,30); ctx.lineTo(30,98); ctx.stroke();
+        } else { 
+             for(let i=0; i<5; i++) {
+                ctx.beginPath();
+                ctx.arc(Math.random()*128, Math.random()*128, Math.random()*10+5, 0, Math.PI*2);
+                ctx.fillStyle = `rgba(0,0,0,${Math.random()*0.1 + 0.05})`;
+                ctx.fill();
             }
         }
-        for (let i = 0; i < 12; i++) {
-            const angle = Math.random() * Math.PI * 2; const radius = 16 + Math.random() * 8;
+        const texture = new THREE.CanvasTexture(canvas);
+        return texture;
+    }
+    
+    createVegetation() {
+        for (let i = 0; i < 10; i++) { 
+            const angle = (i / 10) * Math.PI * 2 + Math.random() * 0.2; 
+            const radius = 20 + Math.random() * 6; 
             const x = Math.cos(angle) * radius; const z = Math.sin(angle) * radius;
-            if (this.isPositionSafe(x, z, 1.5)) {
-                const bush = this.createBush(); const terrainY = this.getTerrainHeightAt(x, z);
-                bush.position.set(x, terrainY, z); bush.scale.setScalar(0.5 + Math.random() * 0.4); this.scene.add(bush);
+            if (this.isPositionSafe(x, z, 2.5)) { 
+                const palm = this.createPalmTree(); 
+                const terrainY = this.getTerrainHeightAt(x,z); 
+                palm.position.set(x, terrainY, z);
+                palm.scale.setScalar(0.7 + Math.random() * 0.4); 
+                palm.rotation.y = Math.random() * Math.PI * 2; 
+                this.scene.add(palm);
+            }
+        }
+        for (let i = 0; i < 25; i++) { 
+            const angle = Math.random() * Math.PI * 2; 
+            const radius = 12 + Math.random() * 12; 
+            const x = Math.cos(angle) * radius; const z = Math.sin(angle) * radius;
+            if (this.isPositionSafe(x, z, 1.8)) {
+                const bush = this.createBush(); 
+                const terrainY = this.getTerrainHeightAt(x, z);
+                bush.position.set(x, terrainY, z); 
+                bush.scale.setScalar(0.4 + Math.random() * 0.5); 
+                this.scene.add(bush);
             }
         }
     }
 
     createPalmTree() {
         const palmGroup = new THREE.Group();
-        const trunkGeometry = new THREE.CylinderGeometry(0.25, 0.35, 5.5, 8);
-        const trunkMaterial = new THREE.MeshLambertMaterial({ color: 0x8B4513 });
+        const trunkHeight = 4.5 + Math.random() * 2;
+        const trunkTopRadius = 0.15 + Math.random() * 0.1;
+        const trunkBottomRadius = trunkTopRadius + 0.1 + Math.random() * 0.1;
+
+        const trunkGeometry = new THREE.CylinderGeometry(trunkTopRadius, trunkBottomRadius, trunkHeight, 8);
+        const trunkCanvas = document.createElement('canvas');
+        trunkCanvas.width = 64; trunkCanvas.height = 256;
+        const trunkCtx = trunkCanvas.getContext('2d');
+        trunkCtx.fillStyle = '#654321'; 
+        trunkCtx.fillRect(0,0,64,256);
+        for(let i=0; i<20; i++){
+            trunkCtx.fillStyle = `rgba(0,0,0,${Math.random()*0.2 + 0.1})`;
+            trunkCtx.fillRect(Math.random()*60, Math.random()*250, Math.random()*4+2, Math.random()*20+10);
+        }
+        const trunkTexture = new THREE.CanvasTexture(trunkCanvas);
+
+        const trunkMaterial = new THREE.MeshPhongMaterial({ map: trunkTexture, shininess: 5 });
         const trunk = new THREE.Mesh(trunkGeometry, trunkMaterial);
-        trunk.position.y = 2.75; trunk.castShadow = true; trunk.receiveShadow = true; palmGroup.add(trunk);
-        const leavesGroup = new THREE.Group(); leavesGroup.position.y = 5.5;
-        for (let i = 0; i < 8; i++) {
-            const leafGeometry = new THREE.PlaneGeometry(1.2, 2.8); leafGeometry.translate(0, 1.4, 0);
-            const leafMaterial = new THREE.MeshLambertMaterial({ color: 0x228B22, side: THREE.DoubleSide });
+        trunk.position.y = trunkHeight / 2; trunk.castShadow = true; trunk.receiveShadow = true; 
+        trunk.geometry.verticesNeedUpdate = true; 
+        for(let i=0; i < trunk.geometry.attributes.position.count; i++){
+            const yPos = trunk.geometry.attributes.position.getY(i);
+            const bendFactor = Math.sin( (yPos / trunkHeight) * Math.PI) * (0.1 + Math.random()*0.1);
+            trunk.geometry.attributes.position.setX(i, trunk.geometry.attributes.position.getX(i) + bendFactor);
+        }
+        trunk.geometry.computeVertexNormals();
+        palmGroup.add(trunk);
+
+        const leavesGroup = new THREE.Group(); leavesGroup.position.y = trunkHeight;
+        const numLeaves = 6 + Math.floor(Math.random() * 4);
+        for (let i = 0; i < numLeaves; i++) {
+            const leafLength = 1.8 + Math.random() * 0.8;
+            const leafWidth = 0.8 + Math.random() * 0.4;
+            const leafGeometry = new THREE.PlaneGeometry(leafWidth, leafLength); 
+            leafGeometry.translate(0, leafLength / 2, 0); 
+            const leafMaterial = new THREE.MeshPhongMaterial({ 
+                color: new THREE.Color(0x2E8B57).lerp(new THREE.Color(0x3CB371), Math.random()), 
+                side: THREE.DoubleSide,
+                shininess: 20
+            });
             const leaf = new THREE.Mesh(leafGeometry, leafMaterial);
-            leaf.rotation.z = Math.PI / 8 + (Math.random() - 0.5) * 0.3;
-            leaf.rotation.y = (i / 8) * Math.PI * 2; leaf.rotation.x = (Math.random() - 0.5) * 0.2;
+            leaf.rotation.z = Math.PI / 5 + (Math.random() - 0.5) * 0.4; 
+            leaf.rotation.y = (i / numLeaves) * Math.PI * 2 + (Math.random()-0.5)*0.2; 
+            leaf.rotation.x = (Math.random() - 0.5) * 0.3;
             leaf.castShadow = true; leaf.receiveShadow = true; leavesGroup.add(leaf);
         }
         palmGroup.add(leavesGroup); return palmGroup;
     }
 
     createBush() {
-        const bushGroup = new THREE.Group(); const colors = [0x2E7D32, 0x388E3C, 0x43A047, 0x4CAF50];
-        for (let i = 0; i < 3; i++) {
+        const bushGroup = new THREE.Group(); 
+        const colors = [0x228B22, 0x556B2F, 0x6B8E23, 0x8FBC8F]; 
+        const numElements = 4 + Math.floor(Math.random() * 3);
+        for (let i = 0; i < numElements; i++) {
+            const radius = 0.2 + Math.random() * 0.15;
             const bushElement = new THREE.Mesh(
-                new THREE.SphereGeometry(0.15 + Math.random() * 0.12, 8, 8),
+                new THREE.SphereGeometry(radius, 10, 8), 
                 new THREE.MeshLambertMaterial({ color: colors[Math.floor(Math.random() * colors.length)] })
             );
-            bushElement.position.set((Math.random() - 0.5) * 0.6, 0.15 + Math.random() * 0.15, (Math.random() - 0.5) * 0.6);
-            bushElement.scale.setScalar(0.7 + Math.random() * 0.6);
+            bushElement.position.set(
+                (Math.random() - 0.5) * 0.7, 
+                radius * 0.5 + (Math.random() - 0.5) * 0.1, 
+                (Math.random() - 0.5) * 0.7
+            );
+            bushElement.scale.setScalar(0.6 + Math.random() * 0.5);
             bushElement.castShadow = true; bushElement.receiveShadow = true; bushGroup.add(bushElement);
         }
         return bushGroup;
@@ -578,36 +789,54 @@ class WiiPartyIsland {
     
     createTreasureChamber() {
         const chamberGroup = new THREE.Group(); const chamberSize = BOARD_CONFIG.chamberSize;
-        const chamberHeight = chamberSize * 0.65; const chamberWallThickness = 0.25;
+        const chamberHeight = chamberSize * 0.7; const chamberWallThickness = 0.3;
         chamberGroup.position.set(0, islandSurfaceY + BOARD_CONFIG.mountainHeight, 0);
-        const floorMaterial = new THREE.MeshPhongMaterial({ color: 0xC9B037, shininess: 60, specular: 0xFFD700 });
+        
+        const stoneTexture = this.createStoneTexture();
+        const floorMaterial = new THREE.MeshPhongMaterial({ map: stoneTexture, shininess: 20 });
+        const wallMaterial = new THREE.MeshPhongMaterial({ map: stoneTexture, shininess: 20 });
+
         const floor = new THREE.Mesh(new THREE.BoxGeometry(chamberSize, chamberWallThickness, chamberSize), floorMaterial);
         floor.position.y = -chamberWallThickness/2; floor.receiveShadow = true; floor.castShadow = true; chamberGroup.add(floor);
-        const wallMaterial = new THREE.MeshPhongMaterial({ color: 0xFFF8DC, shininess: 30 });
-        const roofMaterial = new THREE.MeshPhongMaterial({ color: 0xDAA520, shininess: 80, specular: 0xFFD700 });
-        const roof = new THREE.Mesh(new THREE.BoxGeometry(chamberSize, chamberWallThickness, chamberSize), roofMaterial);
-        roof.position.y = chamberHeight + chamberWallThickness/2; roof.castShadow = true; chamberGroup.add(roof);
-        for (let i = 0; i < 4; i++) {
-            const isEntrance = (i === 2);
-            if (isEntrance) {
-                const sideWallWidth = (chamberSize - chamberSize*0.35) / 2;
+        
+        const roofMaterial = new THREE.MeshPhongMaterial({ color: 0xB8860B, shininess: 70, specular: 0xFFD700 }); 
+        const roof = new THREE.Mesh(new THREE.BoxGeometry(chamberSize * 1.1, chamberWallThickness * 1.5, chamberSize * 1.1), roofMaterial); 
+        roof.position.y = chamberHeight + chamberWallThickness * 0.75; roof.castShadow = true; chamberGroup.add(roof);
+
+        for (let i = 0; i < 4; i++) { 
+            const isEntranceSide = (i === 2); 
+            if (isEntranceSide) {
+                const entranceWidth = chamberSize * 0.4;
+                const sideWallWidth = (chamberSize - entranceWidth) / 2;
+
                 const leftWall = new THREE.Mesh(new THREE.BoxGeometry(sideWallWidth, chamberHeight, chamberWallThickness), wallMaterial);
-                leftWall.position.set(-chamberSize/2 + sideWallWidth/2, chamberHeight/2, chamberSize/2); leftWall.castShadow = true; leftWall.receiveShadow = true; chamberGroup.add(leftWall);
+                leftWall.position.set(-entranceWidth/2 - sideWallWidth/2, chamberHeight/2, chamberSize/2); 
+                leftWall.castShadow = true; leftWall.receiveShadow = true; chamberGroup.add(leftWall);
+
                 const rightWall = new THREE.Mesh(new THREE.BoxGeometry(sideWallWidth, chamberHeight, chamberWallThickness), wallMaterial);
-                rightWall.position.set(chamberSize/2 - sideWallWidth/2, chamberHeight/2, chamberSize/2); rightWall.castShadow = true; rightWall.receiveShadow = true; chamberGroup.add(rightWall);
-                const topWall = new THREE.Mesh(new THREE.BoxGeometry(chamberSize*0.35, chamberHeight*0.25, chamberWallThickness), wallMaterial);
-                topWall.position.set(0, chamberHeight - chamberHeight*0.125, chamberSize/2); topWall.castShadow = true; topWall.receiveShadow = true; chamberGroup.add(topWall);
-                const doorMaterial = new THREE.MeshPhongMaterial({ color: 0x8B4513, shininess: 40, specular: 0x654321 });
-                const door = new THREE.Mesh(new THREE.BoxGeometry(chamberSize*0.3, chamberHeight*0.65, chamberWallThickness/2), doorMaterial);
-                door.position.set(0, chamberHeight*0.325, chamberSize/2); door.castShadow = true; door.receiveShadow = true; chamberGroup.add(door); this.chamberDoor = door;
+                rightWall.position.set(entranceWidth/2 + sideWallWidth/2, chamberHeight/2, chamberSize/2); 
+                rightWall.castShadow = true; rightWall.receiveShadow = true; chamberGroup.add(rightWall);
+
+                const lintelHeight = chamberHeight * 0.2;
+                const lintel = new THREE.Mesh(new THREE.BoxGeometry(entranceWidth, lintelHeight, chamberWallThickness), wallMaterial);
+                lintel.position.set(0, chamberHeight - lintelHeight/2, chamberSize/2); 
+                lintel.castShadow = true; lintel.receiveShadow = true; chamberGroup.add(lintel);
+
+                const doorHeight = chamberHeight - lintelHeight;
+                const doorMaterial = new THREE.MeshPhongMaterial({ color: 0x654321, shininess: 30, map: this.createWoodTexture() }); 
+                const door = new THREE.Mesh(new THREE.BoxGeometry(entranceWidth * 0.9, doorHeight * 0.95, chamberWallThickness/1.5), doorMaterial);
+                door.position.set(0, doorHeight * 0.95 / 2, chamberSize/2); 
+                door.castShadow = true; door.receiveShadow = true; chamberGroup.add(door); this.chamberDoor = door;
+                
                 const handleMaterial = new THREE.MeshPhongMaterial({ color: 0xDAA520, shininess: 100, specular: 0xFFD700 });
-                const handle = new THREE.Mesh(new THREE.SphereGeometry(0.08, 12, 12), handleMaterial);
-                handle.position.set(-chamberSize*0.08, 0, chamberWallThickness/2); door.add(handle);
-            } else {
+                const handle = new THREE.Mesh(new THREE.TorusKnotGeometry(0.1, 0.03, 50, 8), handleMaterial); 
+                handle.position.set(-entranceWidth*0.35, doorHeight*0.45, chamberWallThickness/2); door.add(handle);
+
+            } else { 
                 const wall = new THREE.Mesh(new THREE.BoxGeometry(chamberSize, chamberHeight, chamberWallThickness), wallMaterial);
                 if (i === 0) { wall.position.set(0, chamberHeight/2, -chamberSize/2); } 
                 else if (i === 1) { wall.position.set(chamberSize/2, chamberHeight/2, 0); wall.rotation.y = Math.PI / 2; } 
-                else if (i === 3) { wall.position.set(-chamberSize/2, chamberHeight/2, 0); wall.rotation.y = Math.PI / 2; }
+                else if (i === 3) { wall.position.set(-chamberSize/2, chamberHeight/2, 0); wall.rotation.y = Math.PI / 2; } 
                 wall.castShadow = true; wall.receiveShadow = true; chamberGroup.add(wall);
             }
         }
@@ -615,68 +844,1123 @@ class WiiPartyIsland {
         this.scene.add(chamberGroup); this.treasureChamber = chamberGroup;
     }
 
-    createTreasure(chamberGroup, chamberSize){ /* ... (dein vollständiger Code für createTreasure) ... */ }
-    decorateChamber(chamberGroup, chamberSize){ /* ... (dein vollständiger Code für decorateChamber) ... */ }
+    createStoneTexture() {
+        const canvas = document.createElement('canvas');
+        canvas.width = 256; canvas.height = 256;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#A9A9A9'; 
+        ctx.fillRect(0,0,256,256);
+        for(let i=0; i<100; i++){
+            ctx.fillStyle = `rgba(${Math.random()*50+150}, ${Math.random()*50+150}, ${Math.random()*50+150}, ${Math.random()*0.5 + 0.3})`;
+            ctx.beginPath();
+            ctx.arc(Math.random()*256, Math.random()*256, Math.random()*20+5, 0, Math.PI*2);
+            ctx.fill();
+        }
+        ctx.strokeStyle = 'rgba(80,80,80,0.5)';
+        ctx.lineWidth = 2;
+        for(let i=0; i<8; i++){
+            ctx.beginPath(); ctx.moveTo(Math.random()*256,0); ctx.lineTo(Math.random()*256,256); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(0,Math.random()*256); ctx.lineTo(256,Math.random()*256); ctx.stroke();
+        }
+        const texture = new THREE.CanvasTexture(canvas);
+        texture.wrapS = THREE.RepeatWrapping; texture.wrapT = THREE.RepeatWrapping;
+        texture.repeat.set(2,2);
+        return texture;
+    }
+    createWoodTexture() {
+        const canvas = document.createElement('canvas');
+        canvas.width = 128; canvas.height = 256; 
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#8B4513'; 
+        ctx.fillRect(0,0,128,256);
+        for(let i=0; i<50; i++){
+            ctx.strokeStyle = `rgba(${Math.random()*40+40}, ${Math.random()*20+20}, ${Math.random()*10+5}, ${Math.random()*0.3+0.2})`;
+            ctx.lineWidth = Math.random()*3+1;
+            ctx.beginPath();
+            ctx.moveTo(Math.random()*128, 0);
+            ctx.lineTo(Math.random()*128, 256);
+            ctx.stroke();
+        }
+        const texture = new THREE.CanvasTexture(canvas);
+        texture.wrapS = THREE.RepeatWrapping; texture.wrapT = THREE.RepeatWrapping;
+        texture.repeat.set(1,1);
+        return texture;
+    }
+
+    createTreasure(chamberGroup, chamberSize){ 
+        const treasurePile = new THREE.Group();
+        const baseRadius = chamberSize * 0.2;
+        const pileHeight = chamberSize * 0.15;
+        const coinGeometry = new THREE.CylinderGeometry(0.05, 0.05, 0.01, 12);
+        const coinMaterial = new THREE.MeshPhongMaterial({color: 0xFFD700, shininess:100, specular:0xFFEC8B});
+        for(let i=0; i<200; i++){
+            const coin = new THREE.Mesh(coinGeometry, coinMaterial);
+            const r = Math.random() * baseRadius;
+            const angle = Math.random() * Math.PI * 2;
+            const h = Math.random() * pileHeight * (1 - (r/baseRadius)); 
+            coin.position.set(Math.cos(angle)*r, h, Math.sin(angle)*r);
+            coin.rotation.set(Math.random()*Math.PI, Math.random()*Math.PI, Math.random()*Math.PI);
+            coin.castShadow = true;
+            treasurePile.add(coin);
+        }
+        const gemColors = [0xFF4500, 0x4169E1, 0x32CD32, 0xDA70D6]; 
+        const gemGeometry = new THREE.OctahedronGeometry(0.08, 0); 
+        for(let i=0; i<20; i++){
+            const gemMaterial = new THREE.MeshPhongMaterial({
+                color: gemColors[Math.floor(Math.random()*gemColors.length)],
+                shininess: 150, specular: 0xffffff, transparent: true, opacity:0.8
+            });
+            const gem = new THREE.Mesh(gemGeometry, gemMaterial);
+            const r = Math.random() * baseRadius * 0.8;
+            const angle = Math.random() * Math.PI * 2;
+            const h = Math.random() * pileHeight * 1.2; 
+            gem.position.set(Math.cos(angle)*r, h, Math.sin(angle)*r);
+            gem.rotation.set(Math.random()*Math.PI, Math.random()*Math.PI, Math.random()*Math.PI);
+            gem.castShadow = true;
+            treasurePile.add(gem);
+        }
+        treasurePile.position.y = chamberSize * 0.05; 
+        chamberGroup.add(treasurePile);
+    }
+    decorateChamber(chamberGroup, chamberSize){ 
+        for(let i=0; i<2; i++){
+            const torchGroup = new THREE.Group();
+            const handleGeom = new THREE.CylinderGeometry(0.05, 0.06, 0.8, 8);
+            const handleMat = new THREE.MeshPhongMaterial({color:0x5C3317, shininess:10});
+            const handle = new THREE.Mesh(handleGeom, handleMat);
+            handle.position.y = 0.4;
+            torchGroup.add(handle);
+
+            const flameGeom = new THREE.ConeGeometry(0.15, 0.4, 12);
+            const flameMat = new THREE.MeshBasicMaterial({color:0xFF8C00, transparent:true, opacity:0.7});
+            const flame = new THREE.Mesh(flameGeom, flameMat);
+            flame.position.y = 0.8 + 0.2;
+            torchGroup.add(flame);
+            
+            const flameLight = new THREE.PointLight(0xFF4500, 1.5, 3); 
+            flameLight.position.y = 1.1;
+            flame.add(flameLight); 
+            flame.userData.light = flameLight;
+            flame.userData.animation = time => {
+                flame.scale.set(1 + Math.sin(time*15 + i)*0.1, 1 + Math.cos(time*18 + i)*0.15, 1 + Math.sin(time*12 + i)*0.1);
+                flameLight.intensity = 1.2 + Math.sin(time*20 + i*2) * 0.5;
+            };
+            torchGroup.position.set( (i===0 ? -1 : 1) * chamberSize*0.35, 0.1, -chamberSize*0.4);
+            torchGroup.rotation.x = -Math.PI/12;
+            chamberGroup.add(torchGroup);
+        }
+    }
     createEnvironmentalDetails() { this.createClouds(); this.createWildlife(); }
-    createClouds() { /* ... (dein vollständiger Code für createClouds) ... */ }
-    createWildlife() { /* ... (dein vollständiger Code für createWildlife) ... */ }
-    createBird() { /* ... (dein vollständiger Code für createBird) ... */ }
-    isPositionSafe(x,z,md) { /* ... (dein vollständiger Code für isPositionSafe) ... */ return true; }
+    createClouds() { 
+        const cloudMaterial = new THREE.MeshPhongMaterial({
+            color: 0xFFFFFF,
+            transparent: true,
+            opacity: 0.85,
+            shininess: 10
+        });
+        for(let i=0; i<12; i++){
+            const cloudGroup = new THREE.Group();
+            const numPuffs = 5 + Math.floor(Math.random()*5);
+            for(let j=0; j<numPuffs; j++){
+                const puff = new THREE.Mesh(
+                    new THREE.SphereGeometry(0.8 + Math.random()*0.7, 10, 8),
+                    cloudMaterial
+                );
+                puff.position.set(
+                    (Math.random()-0.5) * 3, 
+                    (Math.random()-0.5) * 1, 
+                    (Math.random()-0.5) * 1.5
+                );
+                puff.castShadow = true; 
+                cloudGroup.add(puff);
+            }
+            const angle = Math.random() * Math.PI * 2;
+            const radius = 40 + Math.random() * 30; 
+            cloudGroup.position.set(
+                Math.cos(angle) * radius,
+                BOARD_CONFIG.mountainHeight + 10 + Math.random()*15, 
+                Math.sin(angle) * radius
+            );
+            cloudGroup.scale.setScalar(1.5 + Math.random());
+            cloudGroup.userData = {
+                speed: 0.005 + Math.random() * 0.01,
+                direction: new THREE.Vector3(Math.random()-0.5, 0, Math.random()-0.5).normalize()
+            };
+            cloudGroup.userData.animation = function(time) { 
+                this.parentMesh.position.addScaledVector(this.direction, this.speed); 
+                if(this.parentMesh.position.length() > 100){
+                    const newAngle = Math.random() * Math.PI * 2;
+                    this.parentMesh.position.set(
+                        Math.cos(newAngle) * 90,
+                        BOARD_CONFIG.mountainHeight + 10 + Math.random()*15,
+                        Math.sin(newAngle) * 90
+                    );
+                }
+            };
+            cloudGroup.userData.parentMesh = cloudGroup; 
+            this.clouds.push(cloudGroup);
+            this.scene.add(cloudGroup);
+        }
+    }
+    createWildlife() { 
+        for(let i=0; i<3; i++){ 
+            const bird = this.createBird();
+            const startRadius = 30 + Math.random()*20;
+            const startAngle = Math.random()*Math.PI*2;
+            bird.position.set(
+                Math.cos(startAngle)*startRadius,
+                BOARD_CONFIG.mountainHeight + 5 + Math.random()*10,
+                Math.sin(startAngle)*startRadius
+            );
+            bird.userData = {
+                center: new THREE.Vector3(0, bird.position.y, 0),
+                radius: startRadius,
+                angle: startAngle,
+                speed: 0.01 + Math.random()*0.005,
+                animation: function(time){ 
+                    this.angle += this.speed;
+                    this.parentMesh.position.x = Math.cos(this.angle) * this.radius;
+                    this.parentMesh.position.z = Math.sin(this.angle) * this.radius;
+                    this.parentMesh.rotation.y = -this.angle + Math.PI/2; 
+                    this.parentMesh.children.forEach(child => {
+                        if(child.name === "wing"){
+                            child.rotation.z = Math.sin(time * 25 + this.angle) * 0.8;
+                        }
+                    });
+                }
+            };
+            bird.userData.parentMesh = bird;
+            this.birds.push(bird);
+            this.scene.add(bird);
+        }
+    }
+    createBird() { 
+        const birdGroup = new THREE.Group();
+        const bodyGeom = new THREE.SphereGeometry(0.15, 8, 6);
+        bodyGeom.scale(1, 0.7, 1.5); 
+        const bodyMat = new THREE.MeshPhongMaterial({color:0x4A4A4A, shininess:20});
+        const body = new THREE.Mesh(bodyGeom, bodyMat);
+        birdGroup.add(body);
+
+        const wingGeom = new THREE.BoxGeometry(0.6, 0.03, 0.2);
+        const wingMat = new THREE.MeshPhongMaterial({color:0x333333, shininess:15});
+        for(let i=0; i<2; i++){
+            const wing = new THREE.Mesh(wingGeom, wingMat);
+            wing.name = "wing";
+            wing.position.set(i===0 ? -0.3 : 0.3, 0, 0);
+            wing.rotation.x = Math.PI/12; 
+            body.add(wing);
+        }
+        birdGroup.scale.setScalar(0.8 + Math.random()*0.4);
+        return birdGroup;
+    }
+    isPositionSafe(x,z,minDist) { 
+        if (!this.pathPoints || this.pathPoints.length === 0) return true; 
+        for(const point of this.pathPoints){
+            const dx = x - point.x;
+            const dz = z - point.z;
+            if(Math.sqrt(dx*dx + dz*dz) < minDist) return false;
+        }
+        if(Math.sqrt(x*x + z*z) < BOARD_CONFIG.mountainBaseRadius * 0.8 && this.getTerrainHeightAt(x,z) > islandSurfaceY + 2) {
+            if (this.getPathInfluence(x,z) < 0.1) return false; 
+        }
+        return true; 
+    }
     
     setupEventListeners() {
-        console.log("[WiiPartyIsland] setupEventListeners aufgerufen. typeof this.boundUpdateCanvasSize:", typeof this.boundUpdateCanvasSize);
-        window.addEventListener('resize', this.boundUpdateCanvasSize); 
+        window.addEventListener('resize', this.updateCanvasSize); 
         
         document.addEventListener('keydown', (event) => {
             if (event.key.toLowerCase() === 'm') {
                 GAME_STATE.freeCameraMode = !GAME_STATE.freeCameraMode;
                 this.controls.enabled = GAME_STATE.freeCameraMode;
                 this.showStatusMessage(GAME_STATE.freeCameraMode ? 'Freie Kamera aktiviert' : 'Freie Kamera deaktiviert');
-                if (!GAME_STATE.freeCameraMode && teams && teams.length > 0) {
-                    GAME_STATE.isAnimating = false; GAME_STATE.isAnimatingCamera = false; GAME_STATE.playerTurnInProgress = false;
+                if (!GAME_STATE.freeCameraMode && localTeams && localTeams.length > 0) {
                     this.stopCameraFollow(); 
-                    this.prepareNextPlayerTurn(false);
+                    this.focusCameraOnCurrentTeam(false); 
                 }
             } else if (event.key.toLowerCase() === 'f') { this.toggleFullscreen(); }
         });
         const rollDiceButton = document.getElementById('roll-dice');
         if (rollDiceButton) {
-            rollDiceButton.addEventListener('click', this.rollDice); 
+            rollDiceButton.addEventListener('click', this.rollDiceAndMove); 
         }
     }
     
-    showStatusMessage(message) { const existingMessage = document.querySelector('.status-message'); if (existingMessage) existingMessage.remove(); const statusDiv = document.createElement('div'); statusDiv.className = 'status-message'; statusDiv.textContent = message; document.body.appendChild(statusDiv); setTimeout(() => { statusDiv.remove(); }, 3000); }
-    getCurrentTeam() { if (teams && teams.length > 0) return teams[GAME_STATE.currentTeamIndex]; return null; }
-    prepareNextPlayerTurn(immediate = false) { if (!this.getCurrentTeam()) return; console.log("Nächster Zug für:", this.getCurrentTeam().name); GAME_STATE.playerTurnInProgress = false; this.updateTeamDisplay(); /* Vollständige Logik hier */ }
-    nextTeam() { if (!teams || teams.length === 0) return; GAME_STATE.currentTeamIndex = (GAME_STATE.currentTeamIndex + 1) % teams.length; this.updateTeamDisplay(); if (!GAME_STATE.freeCameraMode) { this.prepareNextPlayerTurn(false); } }
-    updateTeamDisplay() { const currentTeam = this.getCurrentTeam(); if (currentTeam) { const el = document.getElementById('current-team'); if(el) el.textContent = currentTeam.name; document.querySelectorAll('.team-badge').forEach(badge => badge.classList.remove('active-team')); const teamBadges = document.querySelectorAll('.team-badge'); if (teamBadges[GAME_STATE.currentTeamIndex]) { teamBadges[GAME_STATE.currentTeamIndex].classList.add('active-team'); } } else { const el = document.getElementById('current-team'); if(el) el.textContent = '-';}}
-    focusCameraOnCurrentTeam(immediate = false, callback) { if (callback) callback(); /* Vollständige Logik hier */ }
-    startCameraFollow(character) { /* Vollständige Logik hier */ }
-    stopCameraFollow() { /* Vollständige Logik hier */ }
-    updateCameraFollow(immediate = false) { /* Vollständige Logik hier */ }
-    animateCameraToPosition(targetCamPos, targetLookAtPos, duration = 1200, callback) { if (callback) callback(); /* Vollständige Logik hier */ }
+    showStatusMessage(message, duration = 3000, type = 'info') { 
+        const existingMessage = document.querySelector('.status-message'); 
+        if (existingMessage) existingMessage.remove(); 
+        const statusDiv = document.createElement('div'); 
+        statusDiv.className = `status-message status-${type}`; 
+        statusDiv.textContent = message; 
+        document.body.appendChild(statusDiv); 
+        setTimeout(() => { statusDiv.remove(); }, duration); 
+    }
+    
+    getCurrentTeam() { 
+        if (localTeams && localTeams.length > 0 && GAME_STATE.currentServerTeamTurnId != null) { // Explizit auf null prüfen
+            return localTeams.find(t => t.id === GAME_STATE.currentServerTeamTurnId);
+        }
+        // Fallback, wenn currentServerTeamTurnId null ist (z.B. Rundenbeginn, vor erstem Wurf)
+        // und eine Würfelreihenfolge existiert.
+        if (localTeams && localTeams.length > 0 && GAME_STATE.diceRollOrderFromServer && GAME_STATE.diceRollOrderFromServer.length > 0) {
+            const firstTeamIdInOrder = parseInt(GAME_STATE.diceRollOrderFromServer[0]);
+             if (!isNaN(firstTeamIdInOrder)) {
+                return localTeams.find(t => t.id === firstTeamIdInOrder);
+            }
+        }
+        return null; 
+    }
+    
+    updateTeamDisplay() { 
+        const currentTeam = this.getCurrentTeam(); 
+        const currentTeamDisplayEl = document.getElementById('current-team');
+        const rollDiceButton = document.getElementById('roll-dice');
+
+        if (currentTeamDisplayEl) {
+            currentTeamDisplayEl.textContent = currentTeam ? currentTeam.name : '-';
+        }
+
+        document.querySelectorAll('.team-badge').forEach(badge => badge.classList.remove('active-team'));
+        if (currentTeam) {
+            const teamBadgeEl = document.getElementById(`team-badge-${currentTeam.id}`);
+            if (teamBadgeEl) {
+                teamBadgeEl.classList.add('active-team');
+            }
+        }
+        
+        if (rollDiceButton) {
+            if (currentGamePhase === 'DICE_ROLLING' && currentTeam) {
+                if (isAdmin || (localPlayerTeamId != null && localPlayerTeamId === currentTeam.id)) {
+                    rollDiceButton.disabled = GAME_STATE.isAnimating || GAME_STATE.isDiceRolling;
+                } else {
+                    rollDiceButton.disabled = true;
+                }
+            } else {
+                rollDiceButton.disabled = true;
+            }
+        }
+    }
+
+    focusCameraOnCurrentTeam(immediate = false, callback) { 
+        const currentTeam = this.getCurrentTeam();
+        if (!currentTeam || !this.miiCharacters[currentTeam.id] || GAME_STATE.freeCameraMode) {
+            if (callback) callback();
+            return;
+        }
+        const character = this.miiCharacters[currentTeam.id];
+        this.startCameraFollow(character, immediate, callback);
+    }
+
+    startCameraFollow(character, immediate = false, callback) { 
+        if (!character) { if(callback) callback(); return; }
+        this.isFollowingCharacter = true;
+        this.followTarget = character;
+        this.updateCameraFollow(immediate, callback);
+    }
+
+    stopCameraFollow() { 
+        this.isFollowingCharacter = false;
+        this.followTarget = null;
+        if (!GAME_STATE.freeCameraMode) {
+            this.animateCameraToPosition(new THREE.Vector3(0, 25, 35), new THREE.Vector3(0, 5, 0));
+        }
+    }
+
+    updateCameraFollow(immediate = false, callback) { 
+        if (!this.isFollowingCharacter || !this.followTarget || GAME_STATE.freeCameraMode) {
+            if(callback) callback();
+            return;
+        }
+        const targetPos = this.followTarget.position.clone();
+        let camOffset;
+        if (GAME_STATE.cameraMode === 'front') {
+            camOffset = BOARD_CONFIG.cameraFrontOffset.clone();
+            const charDirection = new THREE.Vector3();
+            this.followTarget.getWorldDirection(charDirection); 
+            charDirection.y = 0; 
+            charDirection.normalize();
+            const behindOffset = charDirection.clone().multiplyScalar(-camOffset.z); 
+            const upOffset = new THREE.Vector3(0, camOffset.y, 0); 
+            camOffset = behindOffset.add(upOffset);
+        } else { 
+            camOffset = BOARD_CONFIG.cameraFollowOffset.clone();
+        }
+
+        const desiredCamPos = targetPos.clone().add(camOffset);
+        const lookAtPos = targetPos.clone().add(new THREE.Vector3(0, 1.5, 0)); 
+
+        if (immediate) {
+            this.camera.position.copy(desiredCamPos);
+            this.camera.lookAt(lookAtPos);
+            this.controls.target.copy(lookAtPos);
+            if(callback) callback();
+        } else {
+            this.animateCameraToPosition(desiredCamPos, lookAtPos, 800, callback);
+        }
+    }
+    
+    animateCameraToPosition(targetCamPos, targetLookAtPos, duration = 1200, callback) {
+        if (GAME_STATE.isAnimatingCamera && !callback) return; 
+        GAME_STATE.isAnimatingCamera = true;
+
+        const startCamPos = this.camera.position.clone();
+        const startLookAt = this.controls.target.clone(); 
+        let startTime = null;
+
+        const animate = (timestamp) => {
+            if (!startTime) startTime = timestamp;
+            const progress = Math.min((timestamp - startTime) / duration, 1);
+            const easedProgress = this.easeInOutCubic(progress);
+
+            this.camera.position.lerpVectors(startCamPos, targetCamPos, easedProgress);
+            const currentLookAt = new THREE.Vector3().lerpVectors(startLookAt, targetLookAtPos, easedProgress);
+            this.camera.lookAt(currentLookAt);
+            this.controls.target.copy(currentLookAt); 
+
+            if (progress < 1) {
+                requestAnimationFrame(animate);
+            } else {
+                GAME_STATE.isAnimatingCamera = false;
+                if (callback) callback();
+            }
+        };
+        requestAnimationFrame(animate);
+    }
+
     easeInOutCubic(t) { return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; }
-    createDiceFaceTexture(number) { const canvas = document.createElement('canvas'); canvas.width=256; canvas.height=256; const ctx = canvas.getContext('2d'); const gradient = ctx.createLinearGradient(0,0,256,256); gradient.addColorStop(0,'#fff'); gradient.addColorStop(0.5,'#f8f8f8'); gradient.addColorStop(1,'#eee'); ctx.fillStyle=gradient; ctx.fillRect(0,0,256,256); ctx.strokeStyle='#ccc'; ctx.lineWidth=256/20; ctx.strokeRect(ctx.lineWidth/2,ctx.lineWidth/2,256-ctx.lineWidth,256-ctx.lineWidth); ctx.strokeStyle='#e0e0e0'; ctx.lineWidth=256/32; ctx.strokeRect(256/16,256/16,256-256/8,256-256/8); ctx.fillStyle='#2c2c2c'; const dotRadius=256/12; const padding=256/4.5; const positions={1:[[256/2,256/2]],2:[[padding,padding],[256-padding,256-padding]],3:[[padding,padding],[256/2,256/2],[256-padding,256-padding]],4:[[padding,padding],[256-padding,padding],[padding,256-padding],[256-padding,256-padding]],5:[[padding,padding],[256-padding,padding],[256/2,256/2],[padding,256-padding],[256-padding,256-padding]],6:[[padding,padding],[256-padding,padding],[padding,256/2],[256-padding,256/2],[padding,256-padding],[256-padding,256-padding]],}; if(positions[number]){positions[number].forEach(pos=>{ctx.fillStyle='#1a1a1a';ctx.beginPath();ctx.arc(pos[0]+2,pos[1]+2,dotRadius,0,Math.PI*2);ctx.fill();const dotGradient=ctx.createRadialGradient(pos[0]-dotRadius/3,pos[1]-dotRadius/3,0,pos[0],pos[1],dotRadius);dotGradient.addColorStop(0,'#444');dotGradient.addColorStop(0.7,'#2c2c2c');dotGradient.addColorStop(1,'#1a1a1a');ctx.fillStyle=dotGradient;ctx.beginPath();ctx.arc(pos[0],pos[1],dotRadius,0,Math.PI*2);ctx.fill();ctx.fillStyle='#666';ctx.beginPath();ctx.arc(pos[0]-dotRadius/4,pos[1]-dotRadius/4,dotRadius/4,0,Math.PI*2);ctx.fill();});} const texture=new THREE.CanvasTexture(canvas);texture.needsUpdate=true;return texture;}
-    createInteractiveDice() { const diceSize=0.5; const geometry=new THREE.BoxGeometry(diceSize,diceSize,diceSize); geometry.parameters.widthSegments=2; geometry.parameters.heightSegments=2; geometry.parameters.depthSegments=2; const materials=[]; for(let i=1;i<=6;i++){materials.push(new THREE.MeshPhongMaterial({map:this.createDiceFaceTexture(i),shininess:120,specular:0xffffff,bumpScale:0.02}));} const orderedMaterials=[materials[0],materials[5],materials[1],materials[4],materials[2],materials[3]]; this.interactiveDice=new THREE.Mesh(geometry,orderedMaterials); this.interactiveDice.castShadow=true; this.interactiveDice.receiveShadow=true; this.interactiveDice.visible=false; this.interactiveDice.userData.isDice=true; this.scene.add(this.interactiveDice); this.createDiceResultNumber(); }
-    createDiceResultNumber() { /* Vollständige Logik hier */ }
-    animateCharacterTurn(character, targetLookAtPosition, callback, duration = 600) { if (callback) callback(); /* Vollständige Logik hier */ }
-    rollDice() { if (GAME_STATE.isAnimating || GAME_STATE.isDiceRolling || !this.getCurrentTeam()) return; GAME_STATE.isAnimating = true; GAME_STATE.isDiceRolling = true; const diceResult = Math.floor(Math.random() * 6) + 1; console.log("Würfel:", diceResult); this.showDiceResult(diceResult); setTimeout(() => { this.hideDiceResult(); const currentTeam = this.getCurrentTeam(); const mii = this.miiCharacters[currentTeam.id]; this.actuallyMoveCharacter(currentTeam, mii, diceResult, currentTeam.position); GAME_STATE.isDiceRolling = false; }, 1000); }
-    showDiceResult(result) { const display = document.getElementById('dice-result-display'); const number = display.querySelector('.dice-result-number'); if (display && number) { number.textContent = result; display.classList.add('show'); } }
+    
+    createDiceFaceTexture(number) { 
+        const canvas = document.createElement('canvas'); canvas.width=256; canvas.height=256; 
+        const ctx = canvas.getContext('2d'); 
+        const gradient = ctx.createLinearGradient(0,0,256,256); gradient.addColorStop(0,'#fdfdfd'); gradient.addColorStop(0.5,'#f5f5f5'); gradient.addColorStop(1,'#efefef'); 
+        ctx.fillStyle=gradient; ctx.fillRect(0,0,256,256); 
+        ctx.strokeStyle='#bbb'; ctx.lineWidth=256/18; ctx.strokeRect(ctx.lineWidth/2,ctx.lineWidth/2,256-ctx.lineWidth,256-ctx.lineWidth); 
+        ctx.strokeStyle='#d8d8d8'; ctx.lineWidth=256/28; ctx.strokeRect(256/14,256/14,256-256/7,256-256/7); 
+        ctx.fillStyle='#222'; const dotRadius=256/11; const padding=256/4.2; 
+        const positions={1:[[256/2,256/2]],2:[[padding,padding],[256-padding,256-padding]],3:[[padding,padding],[256/2,256/2],[256-padding,256-padding]],4:[[padding,padding],[256-padding,padding],[padding,256-padding],[256-padding,256-padding]],5:[[padding,padding],[256-padding,padding],[256/2,256/2],[padding,256-padding],[256-padding,256-padding]],6:[[padding,padding],[256-padding,padding],[padding,256/2],[256-padding,256/2],[padding,256-padding],[256-padding,256-padding]],}; 
+        if(positions[number]){positions[number].forEach(pos=>{ctx.fillStyle='#111';ctx.beginPath();ctx.arc(pos[0]+2.5,pos[1]+2.5,dotRadius,0,Math.PI*2);ctx.fill();const dotGradient=ctx.createRadialGradient(pos[0]-dotRadius/3.5,pos[1]-dotRadius/3.5,0,pos[0],pos[1],dotRadius);dotGradient.addColorStop(0,'#3a3a3a');dotGradient.addColorStop(0.7,'#222');dotGradient.addColorStop(1,'#111');ctx.fillStyle=dotGradient;ctx.beginPath();ctx.arc(pos[0],pos[1],dotRadius,0,Math.PI*2);ctx.fill();ctx.fillStyle='#555';ctx.beginPath();ctx.arc(pos[0]-dotRadius/4.5,pos[1]-dotRadius/4.5,dotRadius/4.5,0,Math.PI*2);ctx.fill();});} 
+        const texture=new THREE.CanvasTexture(canvas);texture.needsUpdate=true;return texture;
+    }
+
+    createInteractiveDice() { 
+        const diceSize=0.6; const geometry=new THREE.BoxGeometry(diceSize,diceSize,diceSize); 
+        const materials=[]; 
+        for(let i=1;i<=6;i++){
+            const faceTexture = this.createDiceFaceTexture(i);
+            materials.push(
+                new THREE.MeshPhongMaterial({
+                    map: faceTexture,
+                    shininess:100,
+                    specular:0xf0f0f0
+                    // bumpMap: faceTexture, // Entfernt, um Warning zu beheben
+                    // bumpScale:0.015
+                })
+            );
+        } 
+        const orderedMaterials=[materials[0],materials[5],materials[1],materials[4],materials[2],materials[3]]; 
+        this.interactiveDice=new THREE.Mesh(geometry,orderedMaterials); 
+        this.interactiveDice.castShadow=true; this.interactiveDice.receiveShadow=true; this.interactiveDice.visible=false; this.interactiveDice.userData.isDice=true; 
+        this.scene.add(this.interactiveDice); 
+    }
+    
+    animateCharacterTurn(character, targetLookAtPosition, callback, duration = 500) {
+        if (!character) { if (callback) callback(); return; }
+        const startRotation = character.quaternion.clone();
+        const tempObject = new THREE.Object3D();
+        tempObject.position.copy(character.position);
+        tempObject.lookAt(targetLookAtPosition);
+        const endRotation = tempObject.quaternion.clone();
+
+        let startTime = null;
+        const animateTurn = (timestamp) => {
+            if (!startTime) startTime = timestamp;
+            const progress = Math.min((timestamp - startTime) / duration, 1);
+            const easedProgress = this.easeInOutCubic(progress);
+            THREE.Quaternion.slerp(startRotation, endRotation, character.quaternion, easedProgress);
+            if (progress < 1) {
+                requestAnimationFrame(animateTurn);
+            } else {
+                if (callback) callback();
+            }
+        };
+        requestAnimationFrame(animateTurn);
+    }
+
+    rollDiceAndMove() {
+        const currentTeamToRoll = this.getCurrentTeam(); 
+        if (GAME_STATE.isAnimating || GAME_STATE.isDiceRolling || !currentTeamToRoll || currentGamePhase !== 'DICE_ROLLING') {
+            console.warn("Würfeln nicht möglich:", {isAnimating: GAME_STATE.isAnimating, isDiceRolling: GAME_STATE.isDiceRolling, currentTeamToRoll, currentGamePhase});
+            return;
+        }
+        
+        if (!isAdmin && (localPlayerTeamId == null || localPlayerTeamId !== currentTeamToRoll.id)) {
+            this.showStatusMessage("Du bist nicht am Zug!", 3000, 'error');
+            console.log("Blockiertes Würfeln: localPlayerTeamId", localPlayerTeamId, "currentTeamToRoll.id", currentTeamToRoll.id);
+            return;
+        }
+        console.log("Würfeln erlaubt für:", currentTeamToRoll.name, "Admin:", isAdmin, "LocalPlayer:", localPlayerTeamId);
+
+
+        GAME_STATE.isAnimating = true;
+        GAME_STATE.isDiceRolling = true;
+        document.getElementById('roll-dice').disabled = true;
+
+        this.focusCameraOnCurrentTeam(false, () => {
+            this.animateInteractiveDiceRoll(currentTeamToRoll, (standardRoll, bonusRoll) => {
+                const totalRoll = standardRoll + bonusRoll;
+                this.showDiceResult(standardRoll, bonusRoll, totalRoll);
+
+                setTimeout(() => {
+                    this.hideDiceResult();
+                    // Die Bewegung wird durch die Server-Antwort in fetchBoardStatusAndUpdate ausgelöst.
+                    // Der Server aktualisiert die Position und den nächsten Spieler.
+                    // fetchBoardStatusAndUpdate wird diese Änderungen dann visualisieren.
+                    GAME_STATE.isDiceRolling = false; 
+                }, 1800); 
+            });
+        });
+    }
+
+    showDiceResult(standard, bonus, total) {
+        const display = document.getElementById('dice-result-display');
+        const standardEl = document.getElementById('dice-result-standard').querySelector('span');
+        const bonusElGroup = document.getElementById('dice-result-bonus');
+        const bonusEl = bonusElGroup.querySelector('span');
+        const totalEl = display.querySelector('.dice-result-number');
+
+        if (display && standardEl && bonusElGroup && bonusEl && totalEl) {
+            standardEl.textContent = standard;
+            if (bonus > 0) {
+                bonusEl.textContent = bonus;
+                bonusElGroup.style.display = 'block';
+            } else {
+                bonusElGroup.style.display = 'none';
+            }
+            totalEl.textContent = total;
+            display.classList.add('show');
+        }
+    }
     hideDiceResult() { const display = document.getElementById('dice-result-display'); if (display) { display.classList.remove('show'); } }
-    animateInteractiveDiceRoll(callback) { if (callback) callback(Math.floor(Math.random() * 6) + 1); /* Vollständige Logik hier */ }
-    actuallyMoveCharacter(currentTeam, mii, diceRoll, startPositionIndex) { console.log(`Bewege ${currentTeam.name} um ${diceRoll} von ${startPositionIndex}`); const endPositionIndex = Math.min(startPositionIndex + diceRoll, this.boardFields.length - 1); currentTeam.position = endPositionIndex; if (this.boardFields[endPositionIndex] && this.boardFields[endPositionIndex].mesh && mii) { const fieldPos = this.boardFields[endPositionIndex].mesh.position; mii.position.set(fieldPos.x, fieldPos.y + BOARD_CONFIG.characterElevation, fieldPos.z); } this.handleMovementCompletion(currentTeam, mii, endPositionIndex); }
-    handleMovementCompletion(currentTeam, mii, finalPositionIndex) { console.log(`${currentTeam.name} ist auf Feld ${finalPositionIndex}`); this.updateTeamBadge(GAME_STATE.currentTeamIndex, finalPositionIndex); this.saveTeamPosition(currentTeam.id, finalPositionIndex); GAME_STATE.isCharacterMoving = false; GAME_STATE.isAnimating = false; this.nextTeam(); }
-    showFieldEffect(position, color) { /* Vollständige Logik hier */ }
-    animateCharacterMove(character, targetPosition, callback, totalDuration = 400) { if (callback) callback(); /* Vollständige Logik hier */ }
-    animateCharacterAlongPath(character, pathCurve, onComplete) { if (onComplete) onComplete(); /* Vollständige Logik hier */ }
-    openTreasureChamberDoor(callback) { if (callback) callback(); /* Vollständige Logik hier */ }
-    moveCharacterIntoChamber(character, callback) { if (callback) callback(); /* Vollständige Logik hier */ }
-    animateVictory(character, team) { /* Vollständige Logik hier */ }
-    showVictoryEffect() { /* Vollständige Logik hier */ }
-    updateTeamBadge(teamIndex, position) { const teamBadges = document.querySelectorAll('.team-badge'); if (teamIndex < teamBadges.length) { const positionSpan = teamBadges[teamIndex].querySelector('.team-position'); if (positionSpan) positionSpan.textContent = `Position: ${position}`; } }
-    saveTeamPosition(teamId, position) { fetch('/api/update-position', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ team_id: teamId, position: position }) }); }
-    toggleFullscreen() { console.log("Toggle Fullscreen"); /* Vollständige Logik hier */ }
-    updateCharacterAnimations(time) { /* Vollständige Logik hier */ }
+    
+    animateInteractiveDiceRoll(team, callback) {
+        if (!this.interactiveDice || !team || !this.miiCharacters[team.id]) {
+            if(callback) callback(Math.floor(Math.random() * 6) + 1, 0); 
+            return;
+        }
+        const character = this.miiCharacters[team.id];
+        this.interactiveDice.position.copy(character.position).add(new THREE.Vector3(0, 2, 0)); 
+        this.interactiveDice.rotation.set(Math.random()*Math.PI*2, Math.random()*Math.PI*2, Math.random()*Math.PI*2);
+        this.interactiveDice.visible = true;
+
+        let startTime = null;
+        const duration = 1200; 
+        const rollSpeed = 25;
+        const jumpHeight = 0.8;
+
+        const animateRoll = (timestamp) => {
+            if(!startTime) startTime = timestamp;
+            const progress = Math.min((timestamp - startTime) / duration, 1);
+            
+            this.interactiveDice.rotation.x += rollSpeed * 0.02 * (1-progress);
+            this.interactiveDice.rotation.y += rollSpeed * 0.02 * (1-progress);
+            this.interactiveDice.position.y = character.position.y + 2 + Math.sin(progress * Math.PI) * jumpHeight;
+
+            if(progress < 1){
+                requestAnimationFrame(animateRoll);
+            } else {
+                this.interactiveDice.visible = false;
+                fetch("{{ url_for('main.roll_dice_action') }}", {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json', 
+                        'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '{{ csrf_token() }}' // CSRF Token holen
+                    },
+                    body: JSON.stringify({ team_id: team.id })
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        // Versuche, Fehlerdetails aus der JSON-Antwort zu lesen, falls vorhanden
+                        return response.json().then(errData => {
+                            throw new Error(errData.error || `Serverfehler: ${response.status}`);
+                        }).catch(() => { // Falls Fehler-JSON nicht parsebar ist
+                            throw new Error(`Serverfehler: ${response.status}`);
+                        });
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.success) {
+                        if (callback) callback(data.standard_roll, data.bonus_roll);
+                        this.fetchBoardStatusAndUpdate(); 
+                    } else {
+                        this.showStatusMessage(`Würfelfehler: ${data.error || 'Unbekannter Fehler'}`, 4000, 'error');
+                        if (callback) callback(1, 0); 
+                        GAME_STATE.isAnimating = false; GAME_STATE.isDiceRolling = false;
+                        this.updateTeamDisplay(); 
+                    }
+                })
+                .catch(error => {
+                    console.error("Fehler beim Würfeln (API-Call):", error);
+                    this.showStatusMessage(`Netzwerkfehler oder Serverproblem: ${error.message}`, 4000, 'error');
+                    if (callback) callback(1, 0); 
+                    GAME_STATE.isAnimating = false; GAME_STATE.isDiceRolling = false;
+                    this.updateTeamDisplay(); 
+                });
+            }
+        };
+        requestAnimationFrame(animateRoll);
+    }
+
+    animateCharacterToNewPosition(team, newPositionIndex) {
+        const mii = this.miiCharacters[team.id];
+        const oldPositionIndex = team.position; // Die Position *vor* der Aktualisierung durch den Server
+
+        if (!mii || oldPositionIndex === newPositionIndex) {
+             this.handleMovementCompletion(team, mii, newPositionIndex);
+            return;
+        }
+        
+        console.log(`AnimCharacterToNewPos: ${team.name} von ${oldPositionIndex} zu ${newPositionIndex}`);
+        GAME_STATE.isCharacterMoving = true;
+        GAME_STATE.isAnimating = true; 
+        document.getElementById('roll-dice').disabled = true;
+
+        const pointsToMove = [];
+        const startIdx = oldPositionIndex; 
+        const endIdx = newPositionIndex;
+
+        if (startIdx < endIdx) {
+            for (let i = startIdx; i <= endIdx; i++) {
+                if (this.boardFields[i] && this.boardFields[i].mesh) {
+                    const fieldPos = this.boardFields[i].mesh.position.clone();
+                    fieldPos.y += BOARD_CONFIG.characterElevation;
+                    pointsToMove.push(fieldPos);
+                } else { console.warn(`Feld ${i} nicht gefunden für Pfad.`);}
+            }
+        } else if (startIdx > endIdx) { 
+            for (let i = startIdx; i >= endIdx; i--) {
+                 if (this.boardFields[i] && this.boardFields[i].mesh) {
+                    const fieldPos = this.boardFields[i].mesh.position.clone();
+                    fieldPos.y += BOARD_CONFIG.characterElevation;
+                    pointsToMove.push(fieldPos);
+                } else { console.warn(`Feld ${i} nicht gefunden für Pfad.`);}
+            }
+        } else { 
+             this.handleMovementCompletion(team, mii, newPositionIndex);
+            return;
+        }
+
+        if (pointsToMove.length === 0 ) { 
+            console.warn("Keine Bewegungspunkte für animateCharacterToNewPosition", team.name, oldPositionIndex, newPositionIndex);
+            this.handleMovementCompletion(team, mii, newPositionIndex);
+            return;
+        }
+        // Wenn Start und Ziel gleich sind, aber pointsToMove generiert wurde (z.B. nur ein Punkt),
+        // dann direkt zur Completion.
+        if (pointsToMove.length === 1 && oldPositionIndex === newPositionIndex) {
+            this.handleMovementCompletion(team, mii, newPositionIndex);
+            return;
+        }
+        
+        this.focusCameraOnCurrentTeam(false, () => {
+            this.animateCharacterAlongPath(mii, pointsToMove, () => {
+                this.handleMovementCompletion(team, mii, newPositionIndex);
+            }, Math.abs(endIdx - startIdx)); 
+        });
+    }
+    
+    handleMovementCompletion(currentTeam, mii, finalPositionIndex) {
+        console.log(`${currentTeam.name} ist auf Feld ${finalPositionIndex} (Index) gelandet.`);
+        // Die Position im localTeams Array sollte bereits durch fetchBoardStatusAndUpdate aktuell sein.
+        this.updateTeamBadgeForTeam(currentTeam.id, finalPositionIndex);
+        
+        GAME_STATE.isCharacterMoving = false;
+        GAME_STATE.isAnimating = false; 
+
+        if (currentGamePhase === 'ROUND_OVER') {
+            this.showStatusMessage("Alle Teams haben gewürfelt. Admin kann nächstes Minispiel setzen.", 4000, 'success');
+        } else if (GAME_STATE.currentServerTeamTurnId) {
+            const nextTeam = localTeams.find(t => t.id === GAME_STATE.currentServerTeamTurnId);
+            if (nextTeam) {
+                this.showStatusMessage(`${nextTeam.name} ist dran.`, 3000, 'info');
+                this.focusCameraOnCurrentTeam(false); 
+            }
+        } else if (currentGamePhase !== 'DICE_ROLLING' && currentGamePhase !== 'MINIGAME_ANNOUNCED') {
+            // Wenn kein Team dran ist und es nicht die Würfel- oder Ankündigungsphase ist,
+            // könnte das Spiel beendet sein oder in einem Wartezustand.
+            this.showStatusMessage("Warte auf nächste Aktion vom Admin.", 3000, 'info');
+        }
+        this.updateTeamDisplay(); 
+    }
+
+    showFieldEffect(position, color, duration = 800) { 
+        const effectMaterial = new THREE.MeshBasicMaterial({
+            color: color,
+            transparent: true,
+            opacity: 0.7,
+            depthWrite: false 
+        });
+        const effectGeometry = new THREE.SphereGeometry(BOARD_CONFIG.fieldRadius * 1.3, 16, 12);
+        const effectMesh = new THREE.Mesh(effectGeometry, effectMaterial);
+        effectMesh.position.copy(position);
+        effectMesh.position.y += BOARD_CONFIG.fieldHeight * 0.5; 
+        this.scene.add(effectMesh);
+
+        let startTime = null;
+        const animateEffect = (timestamp) => {
+            if(!startTime) startTime = timestamp;
+            const progress = (timestamp - startTime) / duration;
+            if(progress < 1){
+                effectMesh.scale.setScalar(1 + progress * 0.5); 
+                effectMesh.material.opacity = 0.7 * (1 - progress); 
+                requestAnimationFrame(animateEffect);
+            } else {
+                this.scene.remove(effectMesh);
+                effectMesh.geometry.dispose();
+                effectMesh.material.dispose();
+            }
+        };
+        requestAnimationFrame(animateEffect);
+    }
+    
+    animateCharacterAlongPath(character, pathPoints, onComplete, steps) {
+        if (!character || pathPoints.length === 0) {
+            if (onComplete) onComplete();
+            return;
+        }
+        let currentPointIndex = 0; 
+        const totalDurationPerStep = 350; 
+        const turnDuration = 150; 
+        
+        const moveToNextPoint = () => {
+            if (currentPointIndex >= pathPoints.length -1 ) { 
+                if (onComplete) onComplete();
+                return;
+            }
+            
+            const startPosition = character.position.clone(); 
+            const endPosition = pathPoints[currentPointIndex + 1]; 
+            const lookAtTarget = (currentPointIndex + 2 < pathPoints.length) ? pathPoints[currentPointIndex + 2] : endPosition;
+
+            this.animateCharacterTurn(character, lookAtTarget, () => {
+                let startTime = null;
+                const animateMove = (timestamp) => {
+                    if(!startTime) startTime = timestamp;
+                    const progress = Math.min((timestamp - startTime) / totalDurationPerStep, 1);
+                    character.position.lerpVectors(startPosition, endPosition, this.easeInOutCubic(progress));
+                    
+                    const jumpProgress = Math.sin(progress * Math.PI); 
+                    character.position.y = endPosition.y + jumpProgress * 0.3;
+
+
+                    if (progress < 1) {
+                        requestAnimationFrame(animateMove);
+                    } else {
+                        currentPointIndex++; 
+                        this.showFieldEffect(character.position, 0x88dd88, 400); 
+                        moveToNextPoint();
+                    }
+                };
+                requestAnimationFrame(animateMove);
+            }, turnDuration);
+        };
+        if (pathPoints.length > 1) { // Nur bewegen, wenn es mehr als den Startpunkt gibt
+             moveToNextPoint();
+        } else {
+            if(onComplete) onComplete();
+        }
+    }
+
+    openTreasureChamberDoor(callback) { 
+        if(!this.chamberDoor) { if(callback) callback(); return; }
+        const startRotationY = this.chamberDoor.rotation.y;
+        const endRotationY = startRotationY - Math.PI / 2.2; 
+        const duration = 1500;
+        let startTime = null;
+
+        const animateDoor = (timestamp) => {
+            if(!startTime) startTime = timestamp;
+            const progress = Math.min((timestamp - startTime) / duration, 1);
+            this.chamberDoor.rotation.y = THREE.MathUtils.lerp(startRotationY, endRotationY, this.easeInOutCubic(progress));
+            if(progress < 1){
+                requestAnimationFrame(animateDoor);
+            } else {
+                if(callback) callback();
+            }
+        };
+        requestAnimationFrame(animateDoor);
+    }
+
+    moveCharacterIntoChamber(character, callback) { 
+        if(!character || !this.treasureChamber) { if(callback) callback(); return; }
+        const chamberCenter = this.treasureChamber.position.clone();
+        const targetPos = chamberCenter.add(new THREE.Vector3(0, BOARD_CONFIG.characterElevation, BOARD_CONFIG.chamberSize * 0.2)); 
+        
+        this.animateCharacterAlongPath(character, [character.position.clone(), targetPos], () => {
+            this.animateCharacterTurn(character, chamberCenter.add(new THREE.Vector3(0,1, -5)), callback); 
+        }, 1); 
+    }
+
+    animateVictory(character, team) { 
+        this.showStatusMessage(`${team.name} hat gewonnen!`, 8000, 'success');
+        this.showVictoryEffect();
+        if(character.userData.animationVictory) {
+            character.userData.animationVictoryActive = true;
+        } else { 
+            let startTime = null; const duration = 5000;
+            const initialY = character.position.y;
+            const animateJubel = (timestamp) => {
+                if(!startTime) startTime = timestamp;
+                const elapsed = timestamp - startTime;
+                if(elapsed < duration){
+                    character.rotation.y += 0.1;
+                    character.position.y = initialY + Math.abs(Math.sin(elapsed * 0.005)) * 0.3;
+                    requestAnimationFrame(animateJubel);
+                } else {
+                    character.position.y = initialY; 
+                }
+            };
+            requestAnimationFrame(animateJubel);
+        }
+    }
+    showVictoryEffect() { /* (Logik für Konfetti, Feuerwerk etc.) */ }
+    
+    updateTeamBadgeForTeam(teamId, position) {
+        const teamIndex = localTeams.findIndex(t => t.id === teamId);
+        if (teamIndex !== -1) {
+            const teamBadge = document.getElementById(`team-badge-${teamId}`);
+            if (teamBadge) {
+                const positionSpan = teamBadge.querySelector('.team-position');
+                if (positionSpan) positionSpan.textContent = `Position: ${position}`;
+                
+                const team = localTeams[teamIndex]; 
+                const bonusSpan = teamBadge.querySelector('.team-bonus');
+                if (bonusSpan && team) {
+                    let bonusText = "0";
+                    if (team.bonus_dice_sides == 6) bonusText = "1-6";
+                    else if (team.bonus_dice_sides == 4) bonusText = "1-4";
+                    else if (team.bonus_dice_sides == 2) bonusText = "1-2";
+                    bonusSpan.innerHTML = `Bonus: ${bonusText}`;
+                }
+            }
+        }
+    }
+        
+    toggleFullscreen() { 
+        if (!document.fullscreenElement) {
+            this.canvas.requestFullscreen().catch(err => {
+                alert(`Error attempting to enable full-screen mode: ${err.message} (${err.name})`);
+            });
+            GAME_STATE.isFullscreen = true;
+        } else {
+            document.exitFullscreen();
+            GAME_STATE.isFullscreen = false;
+        }
+    }
+    
+    updateCharacterAnimations(time) { 
+        for (const teamId in this.miiCharacters) {
+            const character = this.miiCharacters[teamId];
+            if (character && character.userData && typeof character.userData.animation === 'function' && !character.userData.animationVictoryActive) {
+                character.userData.animation(time);
+            }
+            if(character && character.userData && typeof character.userData.animationVictory === 'function' && character.userData.animationVictoryActive){
+                character.userData.animationVictory(time);
+            }
+        }
+        if(this.treasureChamber){
+            this.treasureChamber.children.forEach(child => {
+                if(child.type === "Group"){ 
+                    child.children.forEach(part => {
+                        if(part.userData.animation) part.userData.animation(time);
+                    });
+                }
+            });
+        }
+        this.clouds.forEach(cloud => { if(cloud.userData.animation) cloud.userData.animation(time); });
+        this.birds.forEach(bird => { if(bird.userData.animation) bird.userData.animation(time); });
+        this.boardFields.forEach(fieldData => {
+            if(fieldData.mesh){
+                fieldData.mesh.children.forEach(child => {
+                    if(child.userData && child.userData.animation) child.userData.animation(time);
+                });
+            }
+        });
+    }
+
+    updateMinigameDisplay() {
+        const nameEl = document.getElementById('minigame-name');
+        const descEl = document.getElementById('minigame-description');
+        const displayEl = document.getElementById('minigame-info-display');
+
+        if (nameEl && descEl && displayEl) {
+            if (currentMinigameName && (currentGamePhase === 'MINIGAME_ANNOUNCED' || currentGamePhase === 'DICE_ROLLING')) {
+                nameEl.textContent = currentMinigameName;
+                descEl.textContent = currentMinigameDescription || "Macht euch bereit!"; 
+                displayEl.style.display = 'block';
+            } else {
+                displayEl.style.display = 'none';
+            }
+        }
+    }
+    
+    fetchBoardStatusAndUpdate() {
+        fetch("{{ url_for('main.board_status') }}")
+            .then(response => {
+                if (!response.ok) {
+                    // Versuche, Fehlerdetails aus der JSON-Antwort zu lesen, falls vorhanden
+                    return response.json().then(errData => {
+                        console.error("Server error JSON:", errData);
+                        throw new Error(errData.error || errData.details || `Serverfehler: ${response.status}`);
+                    }).catch(() => { // Falls Fehler-JSON nicht parsebar ist oder response.json() selbst fehlschlägt
+                        throw new Error(`Serverfehler: ${response.status} - ${response.statusText}`);
+                    });
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.error) { // Falls der Server einen JSON-Fehler zurückgibt (durch unser try-except)
+                    console.error("Server-Fehler (API):", data.error, data.details);
+                    this.showStatusMessage(`Serverproblem: ${data.error}`, 5000, 'error');
+                    if (data.details) console.error("Server-Traceback:", data.details);
+                    return; // Verarbeite nicht weiter, wenn ein bekannter Fehler vom Server kam
+                }
+
+                if (data.game_session) {
+                    let minigameInfoChanged = false;
+                    if (currentMinigameName !== data.game_session.current_minigame_name ||
+                        currentMinigameDescription !== data.game_session.current_minigame_description ||
+                        currentGamePhase !== data.game_session.current_phase) {
+                        minigameInfoChanged = true;
+                    }
+                    currentMinigameName = data.game_session.current_minigame_name;
+                    currentMinigameDescription = data.game_session.current_minigame_description;
+                    currentGamePhase = data.game_session.current_phase;
+                    
+                    if(minigameInfoChanged) {
+                        this.updateMinigameDisplay();
+                    }
+
+                    GAME_STATE.currentServerTeamTurnId = data.game_session.current_team_turn_id;
+                    GAME_STATE.diceRollOrderFromServer = data.game_session.dice_roll_order || [];
+                                        
+                    if (data.teams && Array.isArray(data.teams)) {
+                        let teamWhosePositionChanged = null;
+                        let newPositionForAnimation = 0;
+                        let oldPositionForAnimation = 0; // Wichtig für die Animation
+
+                        data.teams.forEach(serverTeam => {
+                            const localTeam = localTeams.find(t => t.id === serverTeam.id);
+                            if (localTeam) {
+                                if (localTeam.position !== serverTeam.position && 
+                                    !GAME_STATE.isCharacterMoving && 
+                                    (!this.activeMovementAnimation || this.activeMovementAnimation.teamId !== localTeam.id) 
+                                ) {
+                                    console.log(`Position für Team ${localTeam.name} geändert: Alt=${localTeam.position}, Neu=${serverTeam.position}. Animation wird vorbereitet.`);
+                                    teamWhosePositionChanged = localTeam; 
+                                    oldPositionForAnimation = localTeam.position; // Alte Position für Animation merken
+                                    newPositionForAnimation = serverTeam.position;
+                                }
+                                // Aktualisiere immer die lokalen Daten
+                                localTeam.position = serverTeam.position;
+                                localTeam.bonus_dice_sides = serverTeam.bonus_dice_sides;
+                                localTeam.minigame_placement = serverTeam.minigame_placement;
+                            }
+                        });
+                        
+                        this.updateAllTeamBadges(); 
+
+                        if (teamWhosePositionChanged && this.miiCharacters[teamWhosePositionChanged.id]) {
+                            this.activeMovementAnimation = { teamId: teamWhosePositionChanged.id };
+                            // Übergebe die alte Position an die Animationsfunktion
+                            this.animateCharacterToNewPosition(teamWhosePositionChanged, oldPositionForAnimation, newPositionForAnimation);
+                        } else if (teamWhosePositionChanged) {
+                            console.warn("Charakter-Mesh für Bewegung nicht gefunden:", teamWhosePositionChanged.name);
+                        }
+                    }
+                    this.updateTeamDisplay(); 
+                } else {
+                    console.warn("Keine game_session Daten vom Server empfangen bei fetchBoardStatusAndUpdate.");
+                    currentGamePhase = 'UNKNOWN_NO_SESSION';
+                    currentMinigameName = null;
+                    currentMinigameDescription = null;
+                    this.updateMinigameDisplay();
+                    this.updateTeamDisplay();
+                }
+            })
+            .catch(error => {
+                console.error("Fehler beim Abrufen/Verarbeiten des Board-Status:", error.message);
+                this.showStatusMessage(`Verbindungsproblem: ${error.message}`, 3000, "error");
+                currentGamePhase = 'ERROR_FETCH'; 
+                this.updateMinigameDisplay();
+                this.updateTeamDisplay();
+            });
+    }
+
+    updateAllTeamBadges() {
+        localTeams.forEach(team => {
+            this.updateTeamBadgeForTeam(team.id, team.position);
+        });
+    }
+    
+    async loadCharacterScript(jsPath) {
+        const functionName = jsPath.split('/').pop().replace('.js', ''); 
+        if (this.characterCreationFunctions[functionName]) {
+            return this.characterCreationFunctions[functionName];
+        }
+        // Fallback, falls ein Charakter-Skript nicht geladen werden kann
+        const fallbackCreateFunction = window.createDefaultCharacter;
+
+        return new Promise((resolve) => { // Nicht mehr rejecten, immer Default anbieten
+            if (!jsPath || jsPath.trim() === "") {
+                console.warn("Leerer jsPath, verwende Default Charakter.");
+                resolve(fallbackCreateFunction);
+                return;
+            }
+            const script = document.createElement('script');
+            script.src = `{{ url_for('static', filename='') }}${jsPath}`; 
+            script.onload = () => {
+                if (typeof window[functionName] === 'function') {
+                    this.characterCreationFunctions[functionName] = window[functionName];
+                    resolve(window[functionName]);
+                } else {
+                    console.error(`Charakter-Erstellungsfunktion ${functionName} nicht gefunden nach Laden von ${jsPath}. Verwende Default.`);
+                    resolve(fallbackCreateFunction); 
+                }
+            };
+            script.onerror = (e) => {
+                console.error(`Fehler beim Laden des Charakter-Skripts ${jsPath}:`, e, ". Verwende Default.");
+                resolve(fallbackCreateFunction); 
+            };
+            document.head.appendChild(script);
+        });
+    }
+
+    async createMiiCharacters() {
+        console.log("[WiiPartyIsland] createMiiCharacters: Start");
+        for (const team of localTeams) { 
+            let createFunction;
+            if (team.character_info && team.character_info.js_file) {
+                try {
+                    console.log(`Versuche Charakter-Skript zu laden: ${team.character_info.js_file} für Team ${team.name}`);
+                    createFunction = await this.loadCharacterScript(team.character_info.js_file);
+                } catch (error) {
+                    console.error(`Fehler beim Laden des Skripts ${team.character_info.js_file} für Team ${team.name}:`, error);
+                    createFunction = window.createDefaultCharacter; // Fallback
+                }
+            } else {
+                 console.warn(`Keine Charakter-Info (js_file) für Team ${team.name}, verwende Default-Charakter.`);
+                 createFunction = window.createDefaultCharacter;
+            }
+
+            if (typeof createFunction !== 'function') {
+                console.error(`createFunction für Team ${team.name} ist keine Funktion, verwende Default. Erhalten:`, createFunction);
+                createFunction = window.createDefaultCharacter; 
+            }
+            
+            // Sicherstellen, dass createDefaultCharacter verfügbar ist, falls alles andere fehlschlägt
+            if (typeof createFunction !== 'function' && typeof window.createDefaultCharacter === 'function') {
+                 console.warn("Fallback zu window.createDefaultCharacter, da primäre Funktion nicht valide war.");
+                 createFunction = window.createDefaultCharacter;
+            } else if (typeof createFunction !== 'function') {
+                console.error(`FATAL: Auch window.createDefaultCharacter ist keine Funktion. Kann keine Charaktere erstellen für Team ${team.name}.`);
+                continue; // Nächstes Team versuchen
+            }
+
+
+            const characterMesh = createFunction(team.color || '#CCCCCC'); 
+            characterMesh.scale.setScalar(BOARD_CONFIG.characterSize);
+            characterMesh.castShadow = true;
+            characterMesh.receiveShadow = true;
+            
+            const startField = this.boardFields[team.position];
+            if (startField && startField.mesh) {
+                characterMesh.position.copy(startField.mesh.position);
+                characterMesh.position.y += BOARD_CONFIG.characterElevation;
+            } else {
+                characterMesh.position.set(BOARD_CONFIG.spiralStartRadius + (Math.random()-0.5)*2, islandSurfaceY + BOARD_CONFIG.characterElevation, (Math.random()-0.5)*2);
+                console.warn(`Startfeld für Team ${team.name} (Position ${team.position}) nicht gefunden. Setze auf Default-Position.`);
+            }
+            this.scene.add(characterMesh);
+            this.miiCharacters[team.id] = characterMesh;
+            console.log(`Charakter für Team ${team.name} (Funktion: ${createFunction.name}) erstellt und zu Szene hinzugefügt.`);
+        }
+        this.updateTeamDisplay(); 
+        if(!GAME_STATE.freeCameraMode) this.focusCameraOnCurrentTeam(true); 
+        console.log("[WiiPartyIsland] createMiiCharacters: Beendet. Mii-Charaktere:", this.miiCharacters);
+    }
+
+    // animateCharacterToNewPosition benötigt die alte Position als Startpunkt für die Animation
+    animateCharacterToNewPosition(team, oldPositionIndex, newPositionIndex) {
+        const mii = this.miiCharacters[team.id];
+
+        if (!mii || oldPositionIndex === newPositionIndex) {
+            this.handleMovementCompletion(team, mii, newPositionIndex); // Stellt sicher, dass der Zustand korrekt ist
+            this.activeMovementAnimation = null; // Animation beendet
+            return;
+        }
+        
+        console.log(`AnimCharacterToNewPos: ${team.name} von ${oldPositionIndex} zu ${newPositionIndex}`);
+        GAME_STATE.isCharacterMoving = true;
+        GAME_STATE.isAnimating = true; 
+        document.getElementById('roll-dice').disabled = true;
+
+        const pointsToMove = [];
+        const startIdx = oldPositionIndex; 
+        const endIdx = newPositionIndex;
+
+        if (startIdx < endIdx) {
+            for (let i = startIdx; i <= endIdx; i++) {
+                if (this.boardFields[i] && this.boardFields[i].mesh) {
+                    const fieldPos = this.boardFields[i].mesh.position.clone();
+                    fieldPos.y += BOARD_CONFIG.characterElevation;
+                    pointsToMove.push(fieldPos);
+                } else { console.warn(`Feld ${i} nicht gefunden für Pfad.`);}
+            }
+        } else if (startIdx > endIdx) { 
+            for (let i = startIdx; i >= endIdx; i--) {
+                 if (this.boardFields[i] && this.boardFields[i].mesh) {
+                    const fieldPos = this.boardFields[i].mesh.position.clone();
+                    fieldPos.y += BOARD_CONFIG.characterElevation;
+                    pointsToMove.push(fieldPos);
+                } else { console.warn(`Feld ${i} nicht gefunden für Pfad.`);}
+            }
+        } else { 
+             this.handleMovementCompletion(team, mii, newPositionIndex);
+             this.activeMovementAnimation = null; // Animation beendet
+            return;
+        }
+
+        if (pointsToMove.length === 0 ) { 
+            console.warn("Keine Bewegungspunkte für animateCharacterToNewPosition", team.name, oldPositionIndex, newPositionIndex);
+            this.handleMovementCompletion(team, mii, newPositionIndex);
+            this.activeMovementAnimation = null; // Animation beendet
+            return;
+        }
+        
+        if (pointsToMove.length === 1 && oldPositionIndex === newPositionIndex) {
+            this.handleMovementCompletion(team, mii, newPositionIndex);
+            this.activeMovementAnimation = null; // Animation beendet
+            return;
+        }
+        
+        // Wichtig: Setze die Startposition des Mii auf den ersten Punkt des Pfades,
+        // falls er nicht schon dort ist (z.B. durch vorherige direkte Setzung).
+        // Der erste Punkt in `pointsToMove` ist das Feld, auf dem der Charakter *starten* soll.
+        if (pointsToMove.length > 0) {
+            mii.position.copy(pointsToMove[0]);
+        }
+
+
+        this.focusCameraOnCurrentTeam(false, () => {
+            this.animateCharacterAlongPath(mii, pointsToMove, () => {
+                this.handleMovementCompletion(team, mii, newPositionIndex);
+                this.activeMovementAnimation = null; // Animation beendet
+            }, Math.abs(endIdx - startIdx)); 
+        });
+    }
+
 
     animate() {
         requestAnimationFrame(this.animate); 
@@ -687,7 +1971,35 @@ class WiiPartyIsland {
         }
         if (GAME_STATE.freeCameraMode && this.controls) {
             this.controls.update();
+        } else if (this.isFollowingCharacter && this.followTarget && !GAME_STATE.isAnimatingCamera) {
+            const targetPos = this.followTarget.position.clone();
+            let camOffset = BOARD_CONFIG.cameraFollowOffset.clone();
+            // Kameraausrichtung basierend auf Charakter-Blickrichtung (vereinfacht)
+            const charDirection = new THREE.Vector3();
+            this.followTarget.getWorldDirection(charDirection);
+            charDirection.y = 0; // Nur horizontale Ausrichtung
+            charDirection.normalize();
+
+            if(GAME_STATE.cameraMode === 'front') {
+                // Positioniere Kamera leicht hinter und über dem Charakter, in seine Blickrichtung
+                const behindOffset = charDirection.clone().multiplyScalar(-BOARD_CONFIG.cameraFrontOffset.z);
+                const upOffset = new THREE.Vector3(0, BOARD_CONFIG.cameraFrontOffset.y, 0);
+                camOffset = behindOffset.add(upOffset);
+            } else { // 'follow'
+                 camOffset = BOARD_CONFIG.cameraFollowOffset.clone();
+            }
+
+
+            const desiredCamPos = targetPos.clone().add(camOffset);
+            this.camera.position.lerp(desiredCamPos, 0.05); 
+            
+            const lookAtTargetPos = this.followTarget.position.clone().add(new THREE.Vector3(0,1.5,0));
+            this.camera.lookAt(lookAtTargetPos);
+            this.controls.target.copy(lookAtTargetPos); // Wichtig für OrbitControls, falls es doch mal aktiviert wird
         }
+
+        this.updateCharacterAnimations(time); 
+
         if (this.renderer && this.scene && this.camera) {
             this.renderer.render(this.scene, this.camera);
         }
@@ -696,29 +2008,39 @@ class WiiPartyIsland {
 
 document.addEventListener('DOMContentLoaded', function() {
     console.log("[DOMContentLoaded] Event gefeuert.");
-    const isAdminFromTemplate = {{ is_admin|tojson }};
-    console.log("[DOMContentLoaded] Teams-Daten aus Template:", JSON.parse(JSON.stringify(teams)));
-    console.log("[DOMContentLoaded] is_admin aus Template:", isAdminFromTemplate);
     
+    // CSRF Token für AJAX POST Requests (wie Würfeln)
+    // Es ist besser, dies serverseitig in ein Meta-Tag zu rendern und von dort zu lesen,
+    // aber für den Moment verwenden wir das, was Flask-WTF mit {{ csrf_token() }} bereitstellt,
+    // wenn es in einem Formular wäre. Da wir es hier nicht haben, muss es anders geholt werden.
+    // Eine Möglichkeit ist, es in einem Meta-Tag im base.html zu speichern:
+    // <meta name="csrf-token" content="{{ csrf_token() }}">
+    // Und dann hier auszulesen:
+    // const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+    // Wenn kein Meta-Tag da ist, wird der Fallback '{{ csrf_token() }}' verwendet, der im JS-Kontext
+    // nicht direkt funktioniert, aber der fetch in animateInteractiveDiceRoll hat einen Fallback.
+
     const canvasElement = document.getElementById('game-canvas');
     const canvasContainer = document.getElementById('game-canvas-container');
 
     if (canvasElement && canvasContainer) {
-        if (teams && teams.length > 0) { 
+        if (localTeams && localTeams.length > 0) { 
             console.log("[DOMContentLoaded] Teams vorhanden, initialisiere WiiPartyIsland.");
             try {
-                window.gameBoard = new WiiPartyIsland('game-canvas');
+                window.gameBoardInstance = new WiiPartyIsland('game-canvas'); 
             } catch (e) {
                 console.error("[DOMContentLoaded] Kritischer Fehler bei 'new WiiPartyIsland':", e);
                 canvasContainer.innerHTML = "<p style='color:red; text-align:center; padding-top: 50px;'>Kritischer Fehler beim Erstellen des Spielbretts. Details in der Konsole.</p>";
             }
         } else {
             console.log("[DOMContentLoaded] Keine Teams vorhanden.");
-            if (isAdminFromTemplate) {
-                canvasContainer.innerHTML = "<p style='color:#333; text-align:center; padding-top: 50px; font-size:1.2em;'>Noch keine Teams angelegt. Bitte im <a href='{{ url_for('admin.admin_dashboard') }}'>Admin Dashboard</a> Teams erstellen, um das Spielbrett zu sehen.</p>";
+            let message = "";
+            if (isAdmin) { 
+                message = "Noch keine Teams angelegt. Bitte im <a href='{{ url_for('admin.admin_dashboard') }}'>Admin Dashboard</a> Teams erstellen, um das Spielbrett zu sehen.";
             } else {
-                 canvasContainer.innerHTML = "<p style='color:#333; text-align:center; padding-top: 50px; font-size:1.2em;'>Warte auf Spieler oder starte ein neues Spiel. Das Spielbrett wird angezeigt, sobald Teams vorhanden sind.</p>";
+                 message = "Warte auf Spieler oder starte ein neues Spiel. Das Spielbrett wird angezeigt, sobald Teams vorhanden sind.";
             }
+             canvasContainer.innerHTML = `<p style='color:#333; text-align:center; padding-top: 50px; font-size:1.2em;'>${message}</p>`;
         }
     } else {
         console.error("[DOMContentLoaded] Canvas-Element ('game-canvas') oder Container ('game-canvas-container') nicht gefunden.");
@@ -771,17 +2093,45 @@ document.addEventListener('DOMContentLoaded', function() {
     position: absolute;
     top: 18px;
     left: 18px;
+    right: 18px; /* Damit es sich bei Bedarf ausdehnen kann */
     z-index: 100; 
     display: flex;
     flex-direction: column;
     gap: 15px; 
-    max-width: 400px; 
+    /* max-width: 400px; */ /* Entfernt, damit Minispiel-Info mehr Platz hat */
     pointer-events: none; 
 }
 
 .game-overlay > div {
     pointer-events: auto; 
 }
+
+/* NEU: Styling für Minispiel-Anzeige */
+.minigame-info-display {
+    background: linear-gradient(135deg, rgba(255, 235, 59, 0.95), rgba(251, 192, 45, 0.92)); /* Gelbliche Töne */
+    border-radius: 15px;
+    padding: 15px 25px;
+    box-shadow: 0 8px 25px rgba(0,0,0,0.15), 0 2px 10px rgba(0,0,0,0.1);
+    color: #424242; /* Dunkelgrauer Text für besseren Kontrast */
+    backdrop-filter: blur(10px);
+    border: 2px solid rgba(255, 255, 255, 0.6);
+    margin-bottom: 10px; /* Abstand zu anderen Elementen */
+    max-width: 500px; /* Begrenzung der Breite */
+}
+.minigame-info-display h4 {
+    margin-top: 0;
+    margin-bottom: 8px;
+    font-size: 1.3rem;
+    font-weight: bold;
+    color: #BF360C; /* Dunkelorange für Titel */
+    text-shadow: 1px 1px 2px rgba(255,255,255,0.5);
+}
+.minigame-info-display p {
+    margin-bottom: 0;
+    font-size: 0.95rem;
+    line-height: 1.4;
+}
+
 
 .current-team-display {
     background: linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 255, 0.95));
@@ -794,6 +2144,8 @@ document.addEventListener('DOMContentLoaded', function() {
     color: #1565C0; 
     backdrop-filter: blur(12px); 
     border: 2px solid rgba(255, 255, 255, 0.5);
+    align-self: flex-start; /* Damit es nicht die volle Breite einnimmt */
+    max-width: 300px;
 }
 
 .current-team-display h4 {
@@ -814,6 +2166,8 @@ document.addEventListener('DOMContentLoaded', function() {
         0 2px 10px rgba(0, 0, 0, 0.1);
     backdrop-filter: blur(12px);
     border: 2px solid rgba(255, 255, 255, 0.5);
+    align-self: flex-start; /* Damit es nicht die volle Breite einnimmt */
+    max-width: fit-content; /* Passt sich der Breite der Badges an */
 }
 
 .team-badge {
@@ -892,22 +2246,31 @@ document.addEventListener('DOMContentLoaded', function() {
     padding: 18px; border-radius: 15px;
     box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15), 0 2px 10px rgba(0, 0, 0, 0.1);
     backdrop-filter: blur(12px); border: 2px solid rgba(255, 255, 255, 0.5);
+    align-self: flex-start; /* Damit es nicht die volle Breite einnimmt */
 }
 
 .dice-result-display {
     position: absolute; top: 50%; left: 50%;
     transform: translate(-50%, -50%) scale(0); 
     background: linear-gradient(135deg, rgba(255, 215, 0, 0.98), rgba(255, 193, 7, 0.95)); 
-    border-radius: 50%; width: 140px; height: 140px;
+    border-radius: 20px; /* Etwas eckiger */
+    width: 180px; /* Breiter für mehr Info */
+    min-height: 140px;
+    padding: 15px;
     display: flex; flex-direction: column; align-items: center; justify-content: center;
     box-shadow: 0 0 50px rgba(255, 215, 0, 0.9), 0 15px 40px rgba(0, 0, 0, 0.4), inset 0 3px 15px rgba(255, 255, 255, 0.5);
     z-index: 200; opacity: 0;
     transition: all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55); 
     border: 3px solid rgba(255, 255, 255, 0.8);
+    text-align: center;
 }
 .dice-result-display.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
-.dice-result-number { font-size: 4.5rem; font-weight: bold; color: #1A237E; text-shadow: 3px 3px 6px rgba(0, 0, 0, 0.3); line-height: 1; }
-.dice-result-text { font-size: 1.1rem; color: #3F51B5; font-weight: 700; text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.2); }
+.dice-result-part { font-size: 1rem; color: #5D4037; margin-bottom: 5px; }
+.dice-result-part span { font-weight: bold; }
+.dice-result-total { font-size: 1.1rem; font-weight: bold; color: #BF360C; margin-top: 5px; }
+.dice-result-number { font-size: 3rem; font-weight: bold; color: #1A237E; text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.25); line-height: 1; margin-left: 5px;}
+.dice-result-text { font-size: 1rem; color: #3F51B5; font-weight: 600; text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.15); margin-top: 3px; }
+
 
 .btn-primary {
     background: linear-gradient(135deg, #1976D2, #0D47A1); border-radius: 15px; font-weight: 700;
@@ -916,13 +2279,20 @@ document.addEventListener('DOMContentLoaded', function() {
     border: 2px solid rgba(255, 255, 255, 0.3); letter-spacing: 0.6px;
     pointer-events: auto; color: white; text-shadow: 1px 1px 2px rgba(0,0,0,0.3);
 }
-.btn-primary:hover {
+.btn-primary:hover:not(:disabled) { /* Hover-Effekt nur wenn nicht deaktiviert */
     transform: translateY(-4px); 
     box-shadow: 0 12px 25px rgba(0, 0, 0, 0.25), inset 0 2px 5px rgba(255, 255, 255, 0.4);
     background: linear-gradient(135deg, #0D47A1, #01579B);
 }
-.btn-primary:active { transform: translateY(-2px); }
-.btn-primary:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+.btn-primary:active:not(:disabled) { transform: translateY(-2px); }
+.btn-primary:disabled { 
+    opacity: 0.5; 
+    cursor: not-allowed; 
+    transform: none;
+    background: #9E9E9E; /* Grauer Hintergrund für deaktiviert */
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
 
 .help-text {
     font-size: 0.95rem; color: #37474F; background: rgba(255, 255, 255, 0.9);
@@ -942,7 +2312,11 @@ kbd {
     backdrop-filter: blur(12px); border: 2px solid rgba(255, 255, 255, 0.2);
     box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5), inset 0 1px 3px rgba(255, 255, 255, 0.1);
     animation: statusMessageAnim 3s ease-in-out forwards; text-shadow: 1px 1px 3px rgba(0,0,0,0.5);
+    text-align: center;
 }
+.status-message.status-error { background: rgba(200, 50, 50, 0.96); }
+.status-message.status-success { background: rgba(50, 180, 50, 0.96); }
+
 @keyframes statusMessageAnim {
     0% { opacity: 0; transform: translate(-50%, -65%) scale(0.9); }
     12% { opacity: 1; transform: translate(-50%, -50%) scale(1.05); }
@@ -951,15 +2325,21 @@ kbd {
     100% { opacity: 0; transform: translate(-50%, -35%) scale(0.9); }
 }
 @media (max-width: 768px) {
-    .game-overlay { max-width: 320px; gap: 12px; top: 12px; left: 12px; }
-    .team-status { flex-direction: column; padding: 15px; }
-    .team-badge { flex-direction: row; justify-content: space-between; width: 100%; padding: 8px 12px; }
-    .admin-controls { flex-wrap: wrap; justify-content: center; gap: 12px; }
-    .dice-result-display { width: 120px; height: 120px; }
-    .dice-result-number { font-size: 3.5rem; }
-    .dice-result-text { font-size: 1rem; }
-    .game-container { height: 82vh; border-radius: 20px; }
+    .game-overlay { max-width: calc(100% - 24px); gap: 10px; top: 12px; left: 12px; right: 12px; }
+    .minigame-info-display { max-width: 100%; padding: 12px 18px; }
+    .minigame-info-display h4 { font-size: 1.1rem; }
+    .minigame-info-display p { font-size: 0.85rem; }
+    .current-team-display { padding: 10px 15px; max-width: 100%; }
+    .current-team-display h4 { font-size: 1rem; }
+    .team-status { flex-direction: row; /* Wieder nebeneinander, wenn Platz ist */ padding: 12px; max-width: 100%; }
+    .team-badge { flex-direction: column; padding: 8px 10px; font-size: 0.8rem;}
+    .admin-controls { flex-wrap: wrap; justify-content: center; gap: 10px; padding: 12px; max-width: 100%;}
+    .dice-result-display { width: 150px; min-height: 120px; }
+    .dice-result-number { font-size: 2.5rem; }
+    .dice-result-text { font-size: 0.9rem; }
+    .game-container { height: 85vh; border-radius: 20px; }
     #game-canvas-container { border-radius: 20px; }
+    .btn-primary { padding: 12px 20px; font-size: 0.9rem;}
 }
 @keyframes shimmer { 0% { background-position: -200px 0; } 100% { background-position: 200px 0; } }
 .team-badge::before {
