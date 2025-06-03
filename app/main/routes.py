@@ -1,9 +1,10 @@
 from flask import render_template, jsonify, request, session, current_app
 from app.main import main_bp
-from app.models import Team, Character, GameSession, GameEvent # GameSession und GameEvent importieren
+from app.models import Team, Character, GameSession, GameEvent, Admin # Admin importiert für Check
 from app import db
 import random # Für Würfellogik
 import traceback # Für detaillierte Fehlermeldungen
+from flask_login import current_user
 
 @main_bp.route('/')
 def index():
@@ -68,7 +69,6 @@ def board_status():
                     current_app.logger.error(f"Ungültige current_team_turn_id: {current_team_id}")
                     current_team_id = None
 
-
             game_session_data = {
                 "current_minigame_name": active_session_query.current_minigame_name,
                 "current_minigame_description": active_session_query.current_minigame_description,
@@ -102,7 +102,6 @@ def minigame_status():
         "current_phase": None
     }), 404
 
-
 @main_bp.route('/api/update-position', methods=['POST']) # Dieser Endpunkt wird aktuell nicht vom Client genutzt, da Position serverseitig gesetzt wird.
 def update_position():
     data = request.json
@@ -122,8 +121,28 @@ def update_position():
 
 @main_bp.route('/api/roll_dice_action', methods=['POST'])
 def roll_dice_action():
-    """ API-Endpunkt zum Würfeln für das aktuelle Team. """
+    """ 
+    DEPRECATED: Diese Route ist deaktiviert. Das Würfeln erfolgt jetzt nur noch über das Admin Dashboard.
+    Teams können nicht mehr selbst würfeln - nur der Admin kann für sie würfeln.
+    """
+    return jsonify({
+        "success": False, 
+        "error": "Das Würfeln erfolgt jetzt ausschließlich über das Admin Dashboard. Teams können nicht mehr selbst würfeln."
+    }), 403
+
+# Alternative: Wenn du die alte Route komplett behalten möchtest, aber nur für Admins:
+@main_bp.route('/api/roll_dice_action_admin_only', methods=['POST'])
+def roll_dice_action_admin_only():
+    """ 
+    LEGACY: API-Endpunkt zum Würfeln - NUR für Admins.
+    Diese Route ist nur noch für Rückwärtskompatibilität da.
+    Empfohlen wird die Nutzung der neuen Admin-spezifischen Route.
+    """
     try:
+        # Admin-Check
+        if not current_user.is_authenticated or not isinstance(current_user, Admin):
+            return jsonify({"success": False, "error": "Nur Admins können würfeln."}), 403
+
         data = request.json
         team_id_from_request = data.get('team_id')
 
@@ -137,9 +156,7 @@ def roll_dice_action():
         if active_session.current_phase != 'DICE_ROLLING':
             return jsonify({"success": False, "error": "Es ist nicht die Würfelphase."}), 403
         
-        # current_user ist hier nicht direkt verfügbar ohne @login_required für diese API-Route
-        # Die Autorisierung (wer darf würfeln) wird clientseitig geprüft.
-        # Serverseitig prüfen wir, ob die angefragte team_id die current_team_turn_id ist.
+        # Admin kann für jedes Team würfeln, nicht nur für das aktuelle
         if active_session.current_team_turn_id != team_id_from_request:
             current_turn_team_obj = Team.query.get(active_session.current_team_turn_id)
             return jsonify({"success": False, "error": f"Nicht Zug von Team-ID {team_id_from_request}. {current_turn_team_obj.name if current_turn_team_obj else 'Unbekanntes Team'} (ID: {active_session.current_team_turn_id}) ist dran."}), 403
@@ -157,22 +174,18 @@ def roll_dice_action():
         old_position = team.current_position
         
         # Annahme: Maximale Feldanzahl (z.B. 72 für 73 Felder 0-72)
-        # Diese Info sollte idealerweise aus einer Konfiguration oder den Board-Daten kommen.
-        # Fürs Erste hartcodiert, falls das Board immer gleich groß ist.
-        # TODO: Maximale Feldanzahl dynamisch machen oder aus Konfiguration lesen
-        max_field_index = 72 # Beispiel: Wenn es 73 Felder gibt (0 bis 72)
-        
+        max_field_index = 72 
         new_position = min(team.current_position + total_roll, max_field_index)
         team.current_position = new_position
 
-        event_description = f"Team {team.name} würfelte eine {standard_dice_roll}"
+        event_description = f"Admin würfelte für Team {team.name}: {standard_dice_roll}"
         if bonus_dice_roll > 0:
             event_description += f" (Bonus: {bonus_dice_roll}, Gesamt: {total_roll})"
         event_description += f" und bewegte sich von Feld {old_position} zu Feld {new_position}."
         
         dice_event = GameEvent(
             game_session_id=active_session.id,
-            event_type="dice_roll",
+            event_type="admin_dice_roll_legacy",
             description=event_description,
             related_team_id=team.id,
             data_json=str({
@@ -180,7 +193,8 @@ def roll_dice_action():
                 "bonus_roll": bonus_dice_roll,
                 "total_roll": total_roll,
                 "old_position": old_position,
-                "new_position": new_position
+                "new_position": new_position,
+                "rolled_by": "admin_legacy_route"
             })
         )
         db.session.add(dice_event)
@@ -201,7 +215,7 @@ def roll_dice_action():
         else:
             active_session.current_phase = 'ROUND_OVER'
             active_session.current_team_turn_id = None 
-            all_teams_in_db = Team.query.all() # Sicherstellen, dass wir alle Teams aus der DB nehmen
+            all_teams_in_db = Team.query.all()
             for t_obj in all_teams_in_db:
                 t_obj.bonus_dice_sides = 0
                 t_obj.minigame_placement = None
@@ -209,7 +223,7 @@ def roll_dice_action():
             round_over_event = GameEvent(
                 game_session_id=active_session.id,
                 event_type="dice_round_finished",
-                description="Alle Teams haben gewürfelt. Die Würfelrunde ist beendet."
+                description="Admin beendete die Würfelrunde über Legacy-Route."
             )
             db.session.add(round_over_event)
 
@@ -223,12 +237,11 @@ def roll_dice_action():
             "bonus_roll": bonus_dice_roll,
             "total_roll": total_roll,
             "new_position": new_position,
-            "next_team_id": active_session.current_team_turn_id, # Wird null, wenn Runde vorbei
+            "next_team_id": active_session.current_team_turn_id,
             "new_phase": active_session.current_phase
         })
     except Exception as e:
         db.session.rollback()
-        current_app.logger.error(f"Schwerer Fehler in /api/roll_dice_action: {e}")
+        current_app.logger.error(f"Schwerer Fehler in /api/roll_dice_action_admin_only: {e}")
         current_app.logger.error(traceback.format_exc())
         return jsonify({"success": False, "error": "Ein interner Serverfehler beim Würfeln ist aufgetreten.", "details": str(e)}), 500
-

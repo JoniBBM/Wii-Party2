@@ -46,13 +46,6 @@
                     {% endif %}
                 {% endif %}
             </div>
-            
-            {% if teams %} 
-            <div class="admin-controls">            
-                <button id="roll-dice" class="btn btn-primary" disabled>Würfeln</button>
-                {# Hinweistext entfernt #}
-            </div>
-            {% endif %}
         </div>
         
         <div id="dice-result-display" class="dice-result-display">
@@ -70,8 +63,7 @@
 {{ super() }}
 <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/controls/OrbitControls.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.9.1/gsap.min.js"></script> {# GSAP für sanfte Animationen hinzugefügt #}
-
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.9.1/gsap.min.js"></script>
 
 {# Pfade zu deinen Charakter-JS-Dateien #}
 <script src="{{ url_for('static', filename='js/characters/tungTungTungSahur.js') }}"></script>
@@ -93,18 +85,19 @@ const BOARD_CONFIG = {
     pathSegmentBaseDepth: 0.25, 
     pathColor: 0xD7CCC8, 
     pathBorderColor: 0xBCAAA4, 
-    characterElevation: 0.45, // Leicht erhöht für bessere Sichtbarkeit auf Feldern
-    characterSize: 0.6, // Figuren vergrößert
-    mountainHeight: 18, // Etwas niedriger für weicheres Aussehen
-    mountainBaseRadius: 19, // Etwas breiter
-    mountainTopRadius: 3.5, // Breiteres Plateau
+    characterElevation: 0.45,
+    characterSize: 0.6,
+    mountainHeight: 18,
+    mountainBaseRadius: 19,
+    mountainTopRadius: 3.5,
     spiralHeight: 16, 
-    spiralStartRadius: 22, // Angepasst an breitere Basis
+    spiralStartRadius: 22,
     spiralLoops: 2.7, 
-    pathDepth: 4.0, // Pfadtiefe leicht reduziert
+    pathDepth: 4.0,
     chamberSize: 7.0, 
-    cameraFollowOffset: new THREE.Vector3(0, 9, 16), // Kamera etwas höher und weiter weg für bessere Übersicht
-    cameraFrontOffset: new THREE.Vector3(0, 6, -9) 
+    // Verbesserte Kamera-Offsets
+    cameraFollowOffset: new THREE.Vector3(0, 12, 20), // Weiter weg und höher für bessere Übersicht
+    cameraFrontOffset: new THREE.Vector3(0, 8, -12) // Sanftere Frontkamera
 };
 const islandSurfaceY = 1.8;
 const GAME_STATE = { 
@@ -114,7 +107,7 @@ const GAME_STATE = {
     freeCameraMode: false, 
     isFullscreen: false, 
     isAnimatingCamera: false, 
-    cameraMode: 'front',
+    cameraMode: 'overview', // Geändert zu 'overview' als Standard
     currentServerTeamTurnId: null, 
     diceRollOrderFromServer: []   
 };
@@ -142,23 +135,12 @@ let localTeams = [
     }{% if not loop.last %},{% endif %}
     {% endfor %}
 ];
-console.log("Initial localTeams array from Jinja:", JSON.parse(JSON.stringify(localTeams)));
 
 let currentMinigameName = "{{ active_session.current_minigame_name | e if active_session else '' }}";
 let currentMinigameDescription = "{{ active_session.current_minigame_description | e if active_session else '' }}";
 let currentGamePhase = "{{ active_session.current_phase | e if active_session else 'UNKNOWN' }}";
 
-let localPlayerTeamId = null;
-{% if current_user.is_authenticated %}
-    {% if current_user.is_team_user %}
-        localPlayerTeamId = {{ current_user.id | int }}; 
-    {% elif current_user.is_admin_user %}
-        localPlayerTeamId = null; 
-    {% endif %}
-{% endif %}
 const isAdmin = {{ is_admin|tojson }};
-console.log("Local Player Team ID (integer):", localPlayerTeamId, "Is Admin:", isAdmin);
-
 
 class WiiPartyIsland {
     constructor(canvasId) {
@@ -172,31 +154,32 @@ class WiiPartyIsland {
         this.updateCanvasSize = this.updateCanvasSize.bind(this);
         this.animate = this.animate.bind(this);
         this.setupEventListeners = this.setupEventListeners.bind(this);
-        this.rollDiceAndMove = this.rollDiceAndMove.bind(this); 
 
         this.scene = new THREE.Scene();
         this.camera = new THREE.PerspectiveCamera(50, this.canvas.clientWidth / Math.max(1, this.canvas.clientHeight), 0.1, 1000);
         this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas, antialias: true, alpha: true });
         
-        this.renderer.setPixelRatio(window.devicePixelRatio); // Für schärfere Darstellung
+        this.renderer.setPixelRatio(window.devicePixelRatio);
         this.renderer.shadowMap.enabled = true;
         this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         this.renderer.outputEncoding = THREE.sRGBEncoding;
         this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        this.renderer.toneMappingExposure = 1.0; // Belichtung leicht reduziert für weichere Optik
+        this.renderer.toneMappingExposure = 1.0;
         
         this.updateCanvasSize(); 
         
-        this.camera.position.set(0, BOARD_CONFIG.mountainHeight * 1.3, BOARD_CONFIG.spiralStartRadius * 2.0); 
-        this.camera.lookAt(0, BOARD_CONFIG.mountainHeight * 0.2, 0); 
+        // Sanftere Standard-Kameraposition
+        this.camera.position.set(0, BOARD_CONFIG.mountainHeight * 1.2, BOARD_CONFIG.spiralStartRadius * 1.8); 
+        this.camera.lookAt(0, BOARD_CONFIG.mountainHeight * 0.3, 0); 
         
         this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
-        this.controls.enableDamping = true; this.controls.dampingFactor = 0.04; // Sanfteres Damping
-        this.controls.minDistance = 8; // Etwas weiter weg minimal
-        this.controls.maxDistance = 120;
-        this.controls.maxPolarAngle = Math.PI / 1.85; 
+        this.controls.enableDamping = true; 
+        this.controls.dampingFactor = 0.08; // Sanfteres Damping
+        this.controls.minDistance = 12; // Weiter weg minimal
+        this.controls.maxDistance = 100;
+        this.controls.maxPolarAngle = Math.PI / 1.9; 
         this.controls.target.set(0, BOARD_CONFIG.mountainHeight * 0.3, 0); 
-        this.controls.enabled = false;
+        this.controls.enabled = false; // Standardmäßig deaktiviert für bessere Kontrolle
         
         this.pathPoints = []; this.boardFields = []; this.miiCharacters = {};
         this.interactiveDice = null; this.island = null; this.mountainMesh = null;
@@ -204,6 +187,7 @@ class WiiPartyIsland {
         this.isFollowingCharacter = false; this.followTarget = null;
         this.characterCreationFunctions = {}; 
         this.activeMovementAnimation = null;
+        this.lastCameraUpdate = 0; // Für sanftere Kamera-Updates
 
         console.log("[WiiPartyIsland] Constructor: Basisinitialisierung abgeschlossen, rufe init()");
         this.init(); 
@@ -214,7 +198,7 @@ class WiiPartyIsland {
         if (!container) { return; }
         const rect = container.getBoundingClientRect();
         const width = Math.max(1, rect.width); const height = Math.max(1, rect.height);
-        this.renderer.setSize(width, height, false); // false als dritter Parameter ist wichtig für setPixelRatio
+        this.renderer.setSize(width, height, false);
         if (this.camera) { this.camera.aspect = width / height; this.camera.updateProjectionMatrix(); }
     }
 
@@ -241,13 +225,13 @@ class WiiPartyIsland {
     }
     
     setupLighting() {
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.9); // Etwas stärker für hellere Szene
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.9);
         this.scene.add(ambientLight);
 
-        const sunLight = new THREE.DirectionalLight(0xffffff, 1.2); // Weniger intensiv für weichere Schatten
+        const sunLight = new THREE.DirectionalLight(0xffffff, 1.2);
         sunLight.position.set(80, 120, 70); 
         sunLight.castShadow = true;
-        sunLight.shadow.mapSize.width = 2048; // Reduziert für Performance, kann bei Bedarf erhöht werden
+        sunLight.shadow.mapSize.width = 2048;
         sunLight.shadow.mapSize.height = 2048;
         sunLight.shadow.camera.near = 1;
         sunLight.shadow.camera.far = 350;
@@ -259,21 +243,20 @@ class WiiPartyIsland {
         sunLight.shadow.bias = -0.001; 
         this.scene.add(sunLight);
 
-        this.scene.background = new THREE.Color(0x90d8f0); // Helleres Himmelsblau
+        this.scene.background = new THREE.Color(0x90d8f0);
         this.scene.fog = new THREE.Fog(0x90d8f0, 90, 280); 
     }
             
     createOcean() {
-        // Ozean-Logik bleibt im Wesentlichen gleich, ggf. Farb-/Wellenanpassung
         const oceanRadius = 150; 
-        const waterGeometry = new THREE.PlaneGeometry(oceanRadius * 2, oceanRadius * 2, 64, 64); // Weniger Segmente für Performance
+        const waterGeometry = new THREE.PlaneGeometry(oceanRadius * 2, oceanRadius * 2, 64, 64);
         const positions = waterGeometry.attributes.position.array;
         for (let i = 0; i < positions.length; i += 3) {
             const x = positions[i];
             const z = positions[i + 2];
             const distance = Math.sqrt(x * x + z * z);
             if (distance > 40) { 
-                positions[i + 1] = Math.sin(x * 0.04 + z * 0.015) * 0.35 + Math.cos(z * 0.05) * 0.3; // Sanftere Wellen
+                positions[i + 1] = Math.sin(x * 0.04 + z * 0.015) * 0.35 + Math.cos(z * 0.05) * 0.3;
             } else { 
                 positions[i + 1] = Math.sin(x * 0.08 + z*0.04) * 0.12 + Math.cos(z * 0.08) * 0.08;
             }
@@ -282,7 +265,7 @@ class WiiPartyIsland {
         waterGeometry.computeVertexNormals();
 
         const waterMaterial = new THREE.MeshPhongMaterial({
-            color: 0x4da6ff, // Helleres Blau
+            color: 0x4da6ff,
             specular: 0xaaaaaa, 
             shininess: 80,
             transparent: true,
@@ -316,7 +299,6 @@ class WiiPartyIsland {
     }
 
     createIslandAndMountain() {
-        // Insel-Logik bleibt ähnlich
         const islandGeometry = new THREE.CylinderGeometry(BOARD_CONFIG.mountainBaseRadius + 8, BOARD_CONFIG.mountainBaseRadius + 10, 3.8, 64, 8, false); 
         const islandPositions = islandGeometry.attributes.position.array;
         for (let i = 0; i < islandPositions.length; i += 3) {
@@ -341,14 +323,14 @@ class WiiPartyIsland {
         this.island.castShadow = true; 
         this.scene.add(this.island);
         this.createIslandVegetation(); 
-        this.createMountainWithPath(true); // Parameter für weicheres Design
+        this.createMountainWithPath(true);
     }
 
     createIslandTexture(enhanced = false) {
         const canvas = document.createElement('canvas');
         canvas.width = 512; canvas.height = 512;
         const ctx = canvas.getContext('2d');
-        ctx.fillStyle = enhanced ? '#E8D8B0' : '#F0E68C'; // Noch natürlicherer Sand
+        ctx.fillStyle = enhanced ? '#E8D8B0' : '#F0E68C';
         ctx.fillRect(0, 0, 512, 512);
 
         for (let i = 0; i < (enhanced ? 3500 : 3000); i++) {
@@ -362,7 +344,7 @@ class WiiPartyIsland {
                 const grassShade = Math.floor(Math.random() * grassShadeVariation) + grassShadeBase; 
                 ctx.fillStyle = `rgb(${enhanced ? 30 : 60}, ${grassShade}, ${enhanced ? 15 : 30})`; 
                 ctx.beginPath();
-                ctx.arc(x, y, radius * (0.6 + Math.random() * 0.4), 0, Math.PI * 2); // Etwas kleinere, dichtere Flecken
+                ctx.arc(x, y, radius * (0.6 + Math.random() * 0.4), 0, Math.PI * 2);
                 ctx.fill();
             }
         }
@@ -383,7 +365,6 @@ class WiiPartyIsland {
     }
     
     createIslandVegetation() {
-        // Vegetationslogik bleibt ähnlich
         const baseIslandTopY = islandSurfaceY;
         const layers = [
             { radius: BOARD_CONFIG.mountainBaseRadius + 6, height: 0.2, color: 0x556B2F }, 
@@ -403,9 +384,9 @@ class WiiPartyIsland {
         });
     }
 
-    createMountainWithPath(softDesign = false) { // Neuer Parameter
+    createMountainWithPath(softDesign = false) {
         this.calculatePathPoints(); 
-        const detail = softDesign ? 128 : 256; // Weniger Details für weicheres Design
+        const detail = softDesign ? 128 : 256;
         const mountainGeometry = new THREE.BufferGeometry();
         const vertices = []; const indices = []; const uvs = [];
         const flatTopRadius = BOARD_CONFIG.mountainTopRadius * (softDesign ? 0.9 : 0.8); 
@@ -422,13 +403,13 @@ class WiiPartyIsland {
                         y_shape = BOARD_CONFIG.mountainHeight + (Math.random() * (softDesign ? 0.05 : 0.1) - (softDesign ? 0.025 : 0.05)); 
                     } else {
                         const progress = (distance - flatTopRadius) / (BOARD_CONFIG.mountainBaseRadius - flatTopRadius);
-                        const smoothProgress = 1 - Math.pow(progress, softDesign ? 1.2 : 1.5); // Weichere Kurve
+                        const smoothProgress = 1 - Math.pow(progress, softDesign ? 1.2 : 1.5);
                         y_shape = BOARD_CONFIG.mountainHeight * smoothProgress;
-                        if (!softDesign) { // Weniger Noise für weicheres Design
+                        if (!softDesign) {
                             y_shape += (Math.sin(x * 1.5 + z * 0.5) * Math.cos(z * 1.5 - x * 0.8)) * 0.35 * (1 - smoothProgress);
                             y_shape += (Math.random() - 0.5) * 0.5 * (1 - smoothProgress);
                         } else {
-                             y_shape += (Math.sin(x * 0.8 + z * 0.3) * Math.cos(z * 0.8 - x * 0.4)) * 0.15 * (1 - smoothProgress); // Sanfterer Noise
+                             y_shape += (Math.sin(x * 0.8 + z * 0.3) * Math.cos(z * 0.8 - x * 0.4)) * 0.15 * (1 - smoothProgress);
                         }
                     }
                     const pathInfluence = this.getPathInfluence(x, z);
@@ -570,7 +551,7 @@ class WiiPartyIsland {
                 raycaster.set(origin, direction);
                 const intersects = raycaster.intersectObject(this.mountainMesh, false);
                 if (intersects.length > 0) {
-                    point.y = Math.max(point.y, intersects[0].point.y + 0.20); // Etwas höher für bessere Sichtbarkeit des Pfades
+                    point.y = Math.max(point.y, intersects[0].point.y + 0.20);
                 }
             }
         }
@@ -791,7 +772,6 @@ class WiiPartyIsland {
     }
 
     createPalmTree() {
-        // Palm Tree Logik bleibt
         const palmGroup = new THREE.Group();
         const trunkHeight = 4.5 + Math.random() * 2;
         const trunkTopRadius = 0.15 + Math.random() * 0.1;
@@ -843,7 +823,6 @@ class WiiPartyIsland {
     }
 
     createBush() {
-        // Bush Logik bleibt
         const bushGroup = new THREE.Group(); 
         const colors = [0x228B22, 0x556B2F, 0x6B8E23, 0x8FBC8F]; 
         const numElements = 4 + Math.floor(Math.random() * 3);
@@ -865,7 +844,6 @@ class WiiPartyIsland {
     }
     
     createTreasureChamber() {
-        // Schatzkammer Logik bleibt
         const chamberGroup = new THREE.Group(); const chamberSize = BOARD_CONFIG.chamberSize;
         const chamberHeight = chamberSize * 0.7; const chamberWallThickness = 0.3;
         chamberGroup.position.set(0, islandSurfaceY + BOARD_CONFIG.mountainHeight, 0);
@@ -923,7 +901,6 @@ class WiiPartyIsland {
     }
 
     createStoneTexture() {
-        // Steinstruktur Logik bleibt
         const canvas = document.createElement('canvas');
         canvas.width = 256; canvas.height = 256;
         const ctx = canvas.getContext('2d');
@@ -947,7 +924,6 @@ class WiiPartyIsland {
         return texture;
     }
     createWoodTexture() {
-        // Holzstruktur Logik bleibt
         const canvas = document.createElement('canvas');
         canvas.width = 128; canvas.height = 256; 
         const ctx = canvas.getContext('2d');
@@ -968,7 +944,6 @@ class WiiPartyIsland {
     }
 
     createTreasure(chamberGroup, chamberSize){ 
-        // Schatz Logik bleibt
         const treasurePile = new THREE.Group();
         const baseRadius = chamberSize * 0.2;
         const pileHeight = chamberSize * 0.15;
@@ -1004,7 +979,6 @@ class WiiPartyIsland {
         chamberGroup.add(treasurePile);
     }
     decorateChamber(chamberGroup, chamberSize){ 
-        // Kammerdekoration Logik bleibt
         for(let i=0; i<2; i++){
             const torchGroup = new THREE.Group();
             const handleGeom = new THREE.CylinderGeometry(0.05, 0.06, 0.8, 8);
@@ -1034,7 +1008,6 @@ class WiiPartyIsland {
     }
     createEnvironmentalDetails() { this.createClouds(); this.createWildlife(); }
     createClouds() { 
-        // Wolken Logik bleibt
         const cloudMaterial = new THREE.MeshPhongMaterial({
             color: 0xFFFFFF,
             transparent: true,
@@ -1086,7 +1059,6 @@ class WiiPartyIsland {
         }
     }
     createWildlife() { 
-        // Vögel Logik bleibt
         for(let i=0; i<3; i++){ 
             const bird = this.createBird();
             const startRadius = 30 + Math.random()*20;
@@ -1119,7 +1091,6 @@ class WiiPartyIsland {
         }
     }
     createBird() { 
-        // Vogel-Modell Logik bleibt
         const birdGroup = new THREE.Group();
         const bodyGeom = new THREE.SphereGeometry(0.15, 8, 6);
         bodyGeom.scale(1, 0.7, 1.5); 
@@ -1140,7 +1111,6 @@ class WiiPartyIsland {
         return birdGroup;
     }
     isPositionSafe(x,z,minDist) { 
-        // isPositionSafe Logik bleibt
         if (!this.pathPoints || this.pathPoints.length === 0) return true; 
         for(const point of this.pathPoints){
             const dx = x - point.x;
@@ -1160,17 +1130,26 @@ class WiiPartyIsland {
             if (event.key.toLowerCase() === 'm') {
                 GAME_STATE.freeCameraMode = !GAME_STATE.freeCameraMode;
                 this.controls.enabled = GAME_STATE.freeCameraMode;
-                this.showStatusMessage(GAME_STATE.freeCameraMode ? 'Freie Kamera aktiviert' : 'Freie Kamera deaktiviert');
+                this.showStatusMessage(GAME_STATE.freeCameraMode ? 'Freie Kamera aktiviert (M zum Deaktivieren)' : 'Kameraführung aktiviert');
                 if (!GAME_STATE.freeCameraMode && localTeams && localTeams.length > 0) {
                     this.stopCameraFollow(); 
-                    this.focusCameraOnCurrentTeam(false); 
+                    this.setOverviewCamera(); 
                 }
-            } else if (event.key.toLowerCase() === 'f') { this.toggleFullscreen(); }
+            } else if (event.key.toLowerCase() === 'f') { 
+                this.toggleFullscreen(); 
+            } else if (event.key.toLowerCase() === 'c' && !GAME_STATE.freeCameraMode) {
+                // Kameramodus wechseln zwischen overview und follow
+                if (GAME_STATE.cameraMode === 'overview') {
+                    GAME_STATE.cameraMode = 'follow';
+                    this.focusCameraOnCurrentTeam(false);
+                    this.showStatusMessage('Folgemodus aktiviert');
+                } else {
+                    GAME_STATE.cameraMode = 'overview';
+                    this.setOverviewCamera();
+                    this.showStatusMessage('Übersichtsmodus aktiviert');
+                }
+            }
         });
-        const rollDiceButton = document.getElementById('roll-dice');
-        if (rollDiceButton) {
-            rollDiceButton.addEventListener('click', this.rollDiceAndMove); 
-        }
     }
     
     showStatusMessage(message, duration = 3000, type = 'info') { 
@@ -1199,7 +1178,6 @@ class WiiPartyIsland {
     updateTeamDisplay() { 
         const currentTeam = this.getCurrentTeam(); 
         const currentTeamDisplayEl = document.getElementById('current-team');
-        const rollDiceButton = document.getElementById('roll-dice');
 
         if (currentTeamDisplayEl) {
             currentTeamDisplayEl.textContent = currentTeam ? currentTeam.name : '-';
@@ -1212,21 +1190,23 @@ class WiiPartyIsland {
                 teamBadgeEl.classList.add('active-team');
             }
         }
+    }
+
+    // Verbesserte Kameraführung
+    setOverviewCamera(immediate = false, callback) {
+        const targetPos = new THREE.Vector3(0, BOARD_CONFIG.mountainHeight * 1.2, BOARD_CONFIG.spiralStartRadius * 1.6);
+        const lookAtPos = new THREE.Vector3(0, BOARD_CONFIG.mountainHeight * 0.3, 0);
         
-        if (rollDiceButton) {
-            if (currentGamePhase === 'DICE_ROLLING' && currentTeam) {
-                if (isAdmin || (localPlayerTeamId != null && localPlayerTeamId === currentTeam.id)) {
-                    rollDiceButton.disabled = GAME_STATE.isAnimating || GAME_STATE.isDiceRolling;
-                } else {
-                    rollDiceButton.disabled = true;
-                }
-            } else {
-                rollDiceButton.disabled = true;
-            }
-        }
+        this.stopCameraFollow();
+        this.animateCameraToPosition(targetPos, lookAtPos, immediate ? 0 : 1500, callback);
     }
 
     focusCameraOnCurrentTeam(immediate = false, callback) { 
+        if (GAME_STATE.cameraMode !== 'follow') {
+            if (callback) callback();
+            return;
+        }
+        
         const currentTeam = this.getCurrentTeam();
         if (!currentTeam || !this.miiCharacters[currentTeam.id] || GAME_STATE.freeCameraMode) {
             if (callback) callback();
@@ -1237,7 +1217,10 @@ class WiiPartyIsland {
     }
 
     startCameraFollow(character, immediate = false, callback) { 
-        if (!character) { if(callback) callback(); return; }
+        if (!character || GAME_STATE.freeCameraMode) { 
+            if(callback) callback(); 
+            return; 
+        }
         this.isFollowingCharacter = true;
         this.followTarget = character;
         this.updateCameraFollow(immediate, callback);
@@ -1246,9 +1229,6 @@ class WiiPartyIsland {
     stopCameraFollow() { 
         this.isFollowingCharacter = false;
         this.followTarget = null;
-        if (!GAME_STATE.freeCameraMode) {
-            this.animateCameraToPosition(new THREE.Vector3(0, BOARD_CONFIG.mountainHeight * 1.3, BOARD_CONFIG.spiralStartRadius * 2.0), new THREE.Vector3(0, BOARD_CONFIG.mountainHeight * 0.2, 0), 1000);
-        }
     }
 
     updateCameraFollow(immediate = false, callback) { 
@@ -1256,23 +1236,11 @@ class WiiPartyIsland {
             if(callback) callback();
             return;
         }
+        
         const targetPos = this.followTarget.position.clone();
-        let camOffset;
-        if (GAME_STATE.cameraMode === 'front') {
-            camOffset = BOARD_CONFIG.cameraFrontOffset.clone();
-            const charDirection = new THREE.Vector3();
-            this.followTarget.getWorldDirection(charDirection); 
-            charDirection.y = 0; 
-            charDirection.normalize();
-            const behindOffset = charDirection.clone().multiplyScalar(-camOffset.z); 
-            const upOffset = new THREE.Vector3(0, camOffset.y, 0); 
-            camOffset = behindOffset.add(upOffset);
-        } else { 
-            camOffset = BOARD_CONFIG.cameraFollowOffset.clone();
-        }
-
+        const camOffset = BOARD_CONFIG.cameraFollowOffset.clone();
         const desiredCamPos = targetPos.clone().add(camOffset);
-        const lookAtPos = targetPos.clone().add(new THREE.Vector3(0, 1.5, 0)); 
+        const lookAtPos = targetPos.clone().add(new THREE.Vector3(0, 2, 0));
 
         if (immediate) {
             this.camera.position.copy(desiredCamPos);
@@ -1280,55 +1248,31 @@ class WiiPartyIsland {
             this.controls.target.copy(lookAtPos);
             if(callback) callback();
         } else {
-            // Sanftere Animation mit GSAP falls verfügbar, sonst LERP
-            if (typeof gsap !== 'undefined') {
-                GAME_STATE.isAnimatingCamera = true;
-                gsap.to(this.camera.position, {
-                    duration: 0.8,
-                    x: desiredCamPos.x,
-                    y: desiredCamPos.y,
-                    z: desiredCamPos.z,
-                    ease: "power2.inOut"
-                });
-                gsap.to(this.controls.target, {
-                    duration: 0.8,
-                    x: lookAtPos.x,
-                    y: lookAtPos.y,
-                    z: lookAtPos.z,
-                    ease: "power2.inOut",
-                    onUpdate: () => this.camera.lookAt(this.controls.target),
-                    onComplete: () => {
-                        GAME_STATE.isAnimatingCamera = false;
-                        if(callback) callback();
-                    }
-                });
-            } else {
-                 this.animateCameraToPosition(desiredCamPos, lookAtPos, 800, callback);
-            }
+            this.animateCameraToPosition(desiredCamPos, lookAtPos, 1200, callback);
         }
     }
     
     animateCameraToPosition(targetCamPos, targetLookAtPos, duration = 1200, callback) {
-        if (GAME_STATE.isAnimatingCamera && !callback && duration > 0) return; 
+        if (GAME_STATE.isAnimatingCamera && duration > 0) return; 
         GAME_STATE.isAnimatingCamera = true;
 
         if (typeof gsap !== 'undefined' && duration > 0) {
             gsap.to(this.camera.position, {
                 duration: duration / 1000,
                 x: targetCamPos.x, y: targetCamPos.y, z: targetCamPos.z,
-                ease: "sine.inOut"
+                ease: "power2.inOut"
             });
             gsap.to(this.controls.target, {
                 duration: duration / 1000,
                 x: targetLookAtPos.x, y: targetLookAtPos.y, z: targetLookAtPos.z,
-                ease: "sine.inOut",
+                ease: "power2.inOut",
                 onUpdate: () => this.camera.lookAt(this.controls.target),
                 onComplete: () => {
                     GAME_STATE.isAnimatingCamera = false;
                     if (callback) callback();
                 }
             });
-        } else { // Fallback zu requestAnimationFrame
+        } else {
             const startCamPos = this.camera.position.clone();
             const startLookAt = this.controls.target.clone(); 
             let startTime = null;
@@ -1346,7 +1290,7 @@ class WiiPartyIsland {
                 if (progress < 1 && duration > 0) {
                     requestAnimationFrame(animate);
                 } else {
-                    this.camera.position.copy(targetCamPos); // Sicherstellen, dass Endposition erreicht wird
+                    this.camera.position.copy(targetCamPos);
                     this.controls.target.copy(targetLookAtPos);
                     this.camera.lookAt(this.controls.target);
                     GAME_STATE.isAnimatingCamera = false;
@@ -1410,7 +1354,7 @@ class WiiPartyIsland {
                     if (callback) callback();
                 }
             });
-        } else { // Fallback
+        } else {
             let startTime = null;
             const animateTurn = (timestamp) => {
                 if (!startTime) startTime = timestamp;
@@ -1425,38 +1369,6 @@ class WiiPartyIsland {
             };
             requestAnimationFrame(animateTurn);
         }
-    }
-
-    rollDiceAndMove() {
-        const currentTeamToRoll = this.getCurrentTeam(); 
-        if (GAME_STATE.isAnimating || GAME_STATE.isDiceRolling || !currentTeamToRoll || currentGamePhase !== 'DICE_ROLLING') {
-            console.warn("Würfeln nicht möglich:", {isAnimating: GAME_STATE.isAnimating, isDiceRolling: GAME_STATE.isDiceRolling, currentTeamToRoll, currentGamePhase});
-            return;
-        }
-        
-        if (!isAdmin && (localPlayerTeamId == null || localPlayerTeamId !== currentTeamToRoll.id)) {
-            this.showStatusMessage("Du bist nicht am Zug!", 3000, 'error');
-            console.log("Blockiertes Würfeln: localPlayerTeamId", localPlayerTeamId, "currentTeamToRoll.id", currentTeamToRoll.id);
-            return;
-        }
-        console.log("Würfeln erlaubt für:", currentTeamToRoll.name, "Admin:", isAdmin, "LocalPlayer:", localPlayerTeamId);
-
-
-        GAME_STATE.isAnimating = true;
-        GAME_STATE.isDiceRolling = true;
-        document.getElementById('roll-dice').disabled = true;
-
-        this.focusCameraOnCurrentTeam(false, () => {
-            this.animateInteractiveDiceRoll(currentTeamToRoll, (standardRoll, bonusRoll) => {
-                const totalRoll = standardRoll + bonusRoll;
-                this.showDiceResult(standardRoll, bonusRoll, totalRoll);
-
-                setTimeout(() => {
-                    this.hideDiceResult();
-                    GAME_STATE.isDiceRolling = false; 
-                }, 1800); 
-            });
-        });
     }
 
     showDiceResult(standard, bonus, total) {
@@ -1478,94 +1390,11 @@ class WiiPartyIsland {
             display.classList.add('show');
         }
     }
-    hideDiceResult() { const display = document.getElementById('dice-result-display'); if (display) { display.classList.remove('show'); } }
     
-    animateInteractiveDiceRoll(team, callback) {
-        if (!this.interactiveDice || !team || !this.miiCharacters[team.id]) {
-            if(callback) callback(Math.floor(Math.random() * 6) + 1, 0); 
-            return;
-        }
-        const character = this.miiCharacters[team.id];
-        this.interactiveDice.position.copy(character.position).add(new THREE.Vector3(0, 2, 0)); 
-        this.interactiveDice.rotation.set(Math.random()*Math.PI*2, Math.random()*Math.PI*2, Math.random()*Math.PI*2);
-        this.interactiveDice.visible = true;
-
-        // GSAP für Würfelanimation
-        if (typeof gsap !== 'undefined') {
-            const tl = gsap.timeline();
-            tl.to(this.interactiveDice.rotation, {
-                x: "+=" + (Math.random() * 10 + 10), // Mehr Umdrehungen
-                y: "+=" + (Math.random() * 10 + 10),
-                z: "+=" + (Math.random() * 10 + 10),
-                duration: 1.0, // Kürzere, intensivere Rollphase
-                ease: "power1.inOut"
-            })
-            .to(this.interactiveDice.position, {
-                y: character.position.y + 2 + 0.8, // Sprunghöhe
-                duration: 0.5,
-                ease: "power1.out"
-            }, "-=1.0")
-            .to(this.interactiveDice.position, {
-                y: character.position.y + 2,
-                duration: 0.5,
-                ease: "bounce.out", // Bounce-Effekt
-                onComplete: () => {
-                    this.interactiveDice.visible = false;
-                    this.triggerDiceRollAPI(team, callback);
-                }
-            }, "-=0.5");
-        } else { // Fallback
-            let startTime = null;
-            const duration = 1200; 
-            const rollSpeed = 25;
-            const jumpHeight = 0.8;
-            const animateRoll = (timestamp) => {
-                if(!startTime) startTime = timestamp;
-                const progress = Math.min((timestamp - startTime) / duration, 1);
-                this.interactiveDice.rotation.x += rollSpeed * 0.02 * (1-progress);
-                this.interactiveDice.rotation.y += rollSpeed * 0.02 * (1-progress);
-                this.interactiveDice.position.y = character.position.y + 2 + Math.sin(progress * Math.PI) * jumpHeight;
-                if(progress < 1){ requestAnimationFrame(animateRoll); } 
-                else { this.interactiveDice.visible = false; this.triggerDiceRollAPI(team, callback); }
-            };
-            requestAnimationFrame(animateRoll);
-        }
+    hideDiceResult() { 
+        const display = document.getElementById('dice-result-display'); 
+        if (display) { display.classList.remove('show'); } 
     }
-
-    triggerDiceRollAPI(team, callback) {
-        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
-        fetch("{{ url_for('main.roll_dice_action') }}", {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken || '{{ csrf_token() }}' },
-            body: JSON.stringify({ team_id: team.id })
-        })
-        .then(response => {
-            if (!response.ok) {
-                return response.json().then(errData => { throw new Error(errData.error || `Serverfehler: ${response.status}`); })
-                                 .catch(() => { throw new Error(`Serverfehler: ${response.status}`); });
-            }
-            return response.json();
-        })
-        .then(data => {
-            if (data.success) {
-                if (callback) callback(data.standard_roll, data.bonus_roll);
-                this.fetchBoardStatusAndUpdate(); 
-            } else {
-                this.showStatusMessage(`Würfelfehler: ${data.error || 'Unbekannter Fehler'}`, 4000, 'error');
-                if (callback) callback(1, 0); 
-                GAME_STATE.isAnimating = false; GAME_STATE.isDiceRolling = false;
-                this.updateTeamDisplay(); 
-            }
-        })
-        .catch(error => {
-            console.error("Fehler beim Würfeln (API-Call):", error);
-            this.showStatusMessage(`Netzwerkfehler oder Serverproblem: ${error.message}`, 4000, 'error');
-            if (callback) callback(1, 0); 
-            GAME_STATE.isAnimating = false; GAME_STATE.isDiceRolling = false;
-            this.updateTeamDisplay(); 
-        });
-    }
-
 
     handleMovementCompletion(currentTeam, mii, finalPositionIndex) {
         console.log(`${currentTeam.name} ist auf Feld ${finalPositionIndex} (Index) gelandet.`);
@@ -1575,13 +1404,31 @@ class WiiPartyIsland {
         GAME_STATE.isAnimating = false; 
         this.activeMovementAnimation = null;
 
+        // Kamera-Update nach Bewegung
+        if (GAME_STATE.cameraMode === 'follow' && !GAME_STATE.freeCameraMode) {
+            this.updateCameraFollow(false);
+        } else {
+            // Sanfter Übergang zurück zur Übersicht
+            setTimeout(() => {
+                if (GAME_STATE.cameraMode === 'overview' && !GAME_STATE.freeCameraMode) {
+                    this.setOverviewCamera(false);
+                }
+            }, 500);
+        }
+
         if (currentGamePhase === 'ROUND_OVER') {
             this.showStatusMessage("Alle Teams haben gewürfelt. Admin kann nächstes Minispiel setzen.", 4000, 'success');
         } else if (GAME_STATE.currentServerTeamTurnId) {
             const nextTeam = localTeams.find(t => t.id === GAME_STATE.currentServerTeamTurnId);
             if (nextTeam) {
-                this.showStatusMessage(`${nextTeam.name} ist dran.`, 3000, 'info');
-                this.focusCameraOnCurrentTeam(false); 
+                this.showStatusMessage(`${nextTeam.name} ist am Zug.`, 3000, 'info');
+                
+                // Kamera folgt neuem Team wenn im Follow-Modus
+                if (GAME_STATE.cameraMode === 'follow' && !GAME_STATE.freeCameraMode) {
+                    setTimeout(() => {
+                        this.focusCameraOnCurrentTeam(false);
+                    }, 1000);
+                }
             }
         } else if (currentGamePhase !== 'DICE_ROLLING' && currentGamePhase !== 'MINIGAME_ANNOUNCED') {
             this.showStatusMessage("Warte auf nächste Aktion vom Admin.", 3000, 'info');
@@ -1611,7 +1458,7 @@ class WiiPartyIsland {
                     effectMesh.material.dispose();
                 }
             });
-        } else { // Fallback
+        } else {
             let startTime = null;
             const animateEffect = (timestamp) => {
                 if(!startTime) startTime = timestamp;
@@ -1635,11 +1482,11 @@ class WiiPartyIsland {
             if (onComplete) onComplete();
             return;
         }
-        GAME_STATE.isAnimating = true; // Sicherstellen, dass isAnimating gesetzt ist
+        GAME_STATE.isAnimating = true;
         GAME_STATE.isCharacterMoving = true;
 
         let currentPointIndex = 0; 
-        const durationPerStep = 450; // Etwas langsamer für deutlichere Schritte
+        const durationPerStep = 450;
         const turnDuration = 200; 
         
         const moveToNextPoint = () => {
@@ -1661,17 +1508,16 @@ class WiiPartyIsland {
                         duration: durationPerStep / 1000,
                         ease: "power1.inOut"
                     })
-                    .to(character.position, { // Sprunganimation
-                        y: endPosition.y + 0.3, // Sprunghöhe
+                    .to(character.position, {
+                        y: endPosition.y + 0.3,
                         duration: (durationPerStep / 1000) / 2,
                         ease: "power1.out"
-                    }, "<") // Gleichzeitig mit X/Z Bewegung starten
+                    }, "<")
                     .to(character.position, {
                         y: endPosition.y,
                         duration: (durationPerStep / 1000) / 2,
                         ease: "power1.in"
-                    }, ">", // Nach dem Hochspringen
-                    {
+                    }, ">", {
                         onComplete: () => {
                             currentPointIndex++; 
                             this.showFieldEffect(character.position, 0x88dd88, 400); 
@@ -1679,7 +1525,7 @@ class WiiPartyIsland {
                         }
                     });
 
-                } else { // Fallback
+                } else {
                     let startTime = null;
                     const animateMove = (timestamp) => {
                         if(!startTime) startTime = timestamp;
@@ -1705,7 +1551,6 @@ class WiiPartyIsland {
         }
     }
 
-
     openTreasureChamberDoor(callback) { 
         if(!this.chamberDoor) { if(callback) callback(); return; }
         const startRotationY = this.chamberDoor.rotation.y;
@@ -1723,7 +1568,7 @@ class WiiPartyIsland {
                     if(callback) callback();
                 }
             });
-        } else { // Fallback
+        } else {
             let startTime = null;
             const animateDoor = (timestamp) => {
                 if(!startTime) startTime = timestamp;
@@ -1758,7 +1603,7 @@ class WiiPartyIsland {
                 tl.to(character.position, { y: "+=0.8", duration: 0.3, ease: "power1.out" })
                   .to(character.rotation, { y: "+=" + Math.PI * 0.5, duration: 0.3, ease: "none" }, "<")
                   .to(character.position, { y: "-=0.8", duration: 0.3, ease: "power1.in" });
-            } else { // Fallback
+            } else {
                 let startTime = null; const duration = 5000;
                 const initialY = character.position.y;
                 const animateJubel = (timestamp) => {
@@ -1774,7 +1619,7 @@ class WiiPartyIsland {
             }
         }
     }
-    showVictoryEffect() { /* Logik bleibt */ }
+    showVictoryEffect() { }
     
     updateTeamBadgeForTeam(teamId, position) {
         const teamIndex = localTeams.findIndex(t => t.id === teamId);
@@ -2019,12 +1864,10 @@ class WiiPartyIsland {
                 continue; 
             }
 
-
             const characterMesh = createFunction(team.color || '#CCCCCC'); 
             characterMesh.scale.setScalar(BOARD_CONFIG.characterSize);
             characterMesh.castShadow = true;
             characterMesh.receiveShadow = true;
-            // Sicherstellen, dass alle Kind-Meshes auch Schatten werfen/empfangen
             characterMesh.traverse(node => {
                 if (node.isMesh) {
                     node.castShadow = true;
@@ -2045,7 +1888,7 @@ class WiiPartyIsland {
             console.log(`Charakter für Team ${team.name} (Funktion: ${createFunction.name}) erstellt und zu Szene hinzugefügt.`);
         }
         this.updateTeamDisplay(); 
-        if(!GAME_STATE.freeCameraMode) this.focusCameraOnCurrentTeam(true); 
+        if(!GAME_STATE.freeCameraMode) this.setOverviewCamera(true); 
         console.log("[WiiPartyIsland] createMiiCharacters: Beendet. Mii-Charaktere:", this.miiCharacters);
     }
 
@@ -2060,7 +1903,6 @@ class WiiPartyIsland {
         console.log(`AnimCharacterToNewPos: ${team.name} von ${oldPositionIndex} zu ${newPositionIndex}`);
         GAME_STATE.isCharacterMoving = true;
         GAME_STATE.isAnimating = true; 
-        document.getElementById('roll-dice').disabled = true;
 
         const pointsToMove = [];
         const startIdx = oldPositionIndex; 
@@ -2099,25 +1941,27 @@ class WiiPartyIsland {
         }
         
         if (pointsToMove.length > 0) {
-            // Setze die Startposition der Animation auf die aktuelle Position des Charakters,
-            // nicht unbedingt auf pointsToMove[0], falls es Abweichungen gab.
-            // Die Animation startet von der *aktuellen* visuellen Position.
-            // pointsToMove[0] ist das erste *Ziel*-Feld der Sequenz.
             const animationPath = [mii.position.clone()].concat(pointsToMove);
-            // Wenn die aktuelle Position sehr nah am ersten Zielpunkt ist, können wir diesen überspringen.
             if (animationPath.length > 1 && mii.position.distanceTo(animationPath[1]) < 0.1) {
-                animationPath.shift(); // Entferne den ersten Punkt (aktuelle Position), wenn er dem nächsten Ziel zu ähnlich ist.
+                animationPath.shift();
             }
-             this.focusCameraOnCurrentTeam(false, () => {
+            
+            // Kamera folgt der Bewegung wenn im Follow-Modus
+            if (GAME_STATE.cameraMode === 'follow' && !GAME_STATE.freeCameraMode) {
+                this.focusCameraOnCurrentTeam(false, () => {
+                    this.animateCharacterAlongPath(mii, animationPath, () => {
+                        this.handleMovementCompletion(team, mii, newPositionIndex);
+                    }, Math.abs(endIdx - startIdx)); 
+                });
+            } else {
                 this.animateCharacterAlongPath(mii, animationPath, () => {
                     this.handleMovementCompletion(team, mii, newPositionIndex);
                 }, Math.abs(endIdx - startIdx)); 
-            });
+            }
         } else {
              this.handleMovementCompletion(team, mii, newPositionIndex);
         }
     }
-
 
     animate() {
         requestAnimationFrame(this.animate); 
@@ -2126,16 +1970,25 @@ class WiiPartyIsland {
         if (this.water && this.water.userData && this.water.userData.animation) { 
             this.water.userData.animation(time); 
         }
+        
+        // Verbesserte Kamera-Updates
         if (GAME_STATE.freeCameraMode && this.controls) {
             this.controls.update();
         } else if (this.isFollowingCharacter && this.followTarget && !GAME_STATE.isAnimatingCamera) {
-            // Sanfte Kameraverfolgung ohne LERP, wenn GSAP nicht da ist, da LERP in animate() zu Ruckeln führen kann.
-            // Die Kamera wird stattdessen in updateCameraFollow (mit GSAP oder LERP über Zeit) aktualisiert.
-            // Hier nur das LookAt Ziel für OrbitControls aktuell halten, falls freeCameraMode schnell gewechselt wird.
-            const lookAtTargetPos = this.followTarget.position.clone().add(new THREE.Vector3(0,1.5,0));
-            if(!this.controls.target.equals(lookAtTargetPos)){ // Nur updaten wenn nötig
-                 this.controls.target.lerp(lookAtTargetPos, 0.1); // Sanftes Anpassen des OrbitControl-Ziels
-                 this.camera.lookAt(this.controls.target);
+            // Sanfte kontinuierliche Kameraverfolgung nur alle 100ms
+            const now = Date.now();
+            if (now - this.lastCameraUpdate > 100) {
+                const targetPos = this.followTarget.position.clone();
+                const camOffset = BOARD_CONFIG.cameraFollowOffset.clone();
+                const desiredCamPos = targetPos.clone().add(camOffset);
+                const lookAtPos = targetPos.clone().add(new THREE.Vector3(0, 2, 0));
+                
+                // Sanfte LERP-Bewegung für flüssige Verfolgung
+                this.camera.position.lerp(desiredCamPos, 0.02);
+                this.controls.target.lerp(lookAtPos, 0.02);
+                this.camera.lookAt(this.controls.target);
+                
+                this.lastCameraUpdate = now;
             }
         }
 
@@ -2145,7 +1998,7 @@ class WiiPartyIsland {
             this.renderer.render(this.scene, this.camera);
         }
     }
-} // Ende der WiiPartyIsland Klasse
+}
 
 document.addEventListener('DOMContentLoaded', function() {
     console.log("[DOMContentLoaded] Event gefeuert.");
@@ -2184,7 +2037,6 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 <style>
-/* Globale Schriftart für bessere Lesbarkeit */
 body {
     font-family: 'Segoe UI', Arial, sans-serif;
 }
@@ -2262,7 +2114,6 @@ body {
     font-size: 0.95rem;
     line-height: 1.4;
 }
-
 
 .current-team-display {
     background: linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 255, 0.95));
@@ -2371,15 +2222,6 @@ body {
 .team-name { font-size: 0.9rem; letter-spacing: 0.4px; }
 .team-position { font-size: 0.8rem; opacity: 0.9; margin-top: 2px; }
 
-.admin-controls {
-    display: flex; align-items: center; gap: 18px;
-    background: linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(240, 245, 255, 0.92));
-    padding: 18px; border-radius: 15px;
-    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15), 0 2px 10px rgba(0, 0, 0, 0.1);
-    backdrop-filter: blur(12px); border: 2px solid rgba(255, 255, 255, 0.5);
-    align-self: flex-start; 
-}
-
 .dice-result-display {
     position: absolute; top: 50%; left: 50%;
     transform: translate(-50%, -50%) scale(0); 
@@ -2402,34 +2244,6 @@ body {
 .dice-result-number { font-size: 3rem; font-weight: bold; color: #1A237E; text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.25); line-height: 1; margin-left: 5px;}
 .dice-result-text { font-size: 1rem; color: #3F51B5; font-weight: 600; text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.15); margin-top: 3px; }
 
-
-.btn-primary {
-    background: linear-gradient(135deg, #1976D2, #0D47A1); border-radius: 15px; font-weight: 700;
-    padding: 15px 30px; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    box-shadow: 0 6px 15px rgba(0, 0, 0, 0.15), inset 0 1px 3px rgba(255, 255, 255, 0.3);
-    border: 2px solid rgba(255, 255, 255, 0.3); letter-spacing: 0.6px;
-    pointer-events: auto; color: white; text-shadow: 1px 1px 2px rgba(0,0,0,0.3);
-}
-.btn-primary:hover:not(:disabled) { 
-    transform: translateY(-4px); 
-    box-shadow: 0 12px 25px rgba(0, 0, 0, 0.25), inset 0 2px 5px rgba(255, 255, 255, 0.4);
-    background: linear-gradient(135deg, #0D47A1, #01579B);
-}
-.btn-primary:active:not(:disabled) { transform: translateY(-2px); }
-.btn-primary:disabled { 
-    opacity: 0.5; 
-    cursor: not-allowed; 
-    transform: none;
-    background: #9E9E9E; 
-    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-}
-
-
-.help-text {
-    font-size: 0.95rem; color: #37474F; background: rgba(255, 255, 255, 0.9);
-    padding: 8px 12px; border-radius: 8px; backdrop-filter: blur(6px);
-    pointer-events: auto; border: 1px solid rgba(255,255,255,0.5); box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-}
 kbd {
     background: linear-gradient(145deg, #263238, #37474F); color: white;
     padding: 5px 10px; border-radius: 8px; 
@@ -2455,6 +2269,7 @@ kbd {
     82% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
     100% { opacity: 0; transform: translate(-50%, -35%) scale(0.9); }
 }
+
 @media (max-width: 768px) {
     .game-overlay { max-width: calc(100% - 24px); gap: 10px; top: 12px; left: 12px; right: 12px; }
     .minigame-info-display { max-width: 100%; padding: 12px 18px; }
@@ -2464,14 +2279,27 @@ kbd {
     .current-team-display h4 { font-size: 1rem; }
     .team-status { flex-direction: row; padding: 12px; max-width: 100%; }
     .team-badge { flex-direction: column; padding: 8px 10px; font-size: 0.8rem;}
-    .admin-controls { flex-wrap: wrap; justify-content: center; gap: 10px; padding: 12px; max-width: 100%;}
     .dice-result-display { width: 150px; min-height: 120px; }
     .dice-result-number { font-size: 2.5rem; }
     .dice-result-text { font-size: 0.9rem; }
     .game-container { height: 85vh; border-radius: 20px; }
     #game-canvas-container { border-radius: 20px; }
-    .btn-primary { padding: 12px 20px; font-size: 0.9rem;}
 }
+
+.game-overlay::after {
+    content: 'Steuerung: M = Freie Kamera • C = Kameramodus • F = Vollbild';
+    position: absolute;
+    bottom: -35px;
+    left: 0;
+    font-size: 0.8rem;
+    color: rgba(255, 255, 255, 0.8);
+    background: rgba(0, 0, 0, 0.3);
+    padding: 5px 12px;
+    border-radius: 8px;
+    backdrop-filter: blur(5px);
+    pointer-events: none;
+}
+
 @keyframes shimmer { 0% { background-position: -200px 0; } 100% { background-position: 200px 0; } }
 .team-badge::before {
     content: ''; position: absolute; top: 0; left: -100%; width: 100%; height: 100%;
@@ -2479,6 +2307,5 @@ kbd {
     transition: left 0.5s;
 }
 .team-badge:hover::before { left: 100%; }
-
 </style>
 {% endblock %}

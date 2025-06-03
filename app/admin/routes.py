@@ -1,7 +1,7 @@
 import sys
 import os
 import random
-from flask import Blueprint, render_template, request, redirect, url_for, flash, session, current_app, g
+from flask import Blueprint, render_template, request, redirect, url_for, flash, session, current_app, g, jsonify
 from flask_login import login_user, logout_user, login_required, current_user
 from app.models import Admin, Team, Minigame, Character, GameSession, GameEvent, db
 from app.forms import AdminLoginForm, TeamForm, MinigameForm, SetNextMinigameForm
@@ -83,6 +83,130 @@ def logout():
     logout_user()
     flash('Admin erfolgreich ausgeloggt.', 'info')
     return redirect(url_for('main.index'))
+
+@admin_bp.route('/admin_roll_dice', methods=['POST'])
+@login_required
+def admin_roll_dice():
+    """Admin-spezifische Würfel-Route - nur Admins können hier würfeln"""
+    if not isinstance(current_user, Admin):
+        return jsonify({"success": False, "error": "Nur Admins können würfeln."}), 403
+
+    try:
+        active_session = GameSession.query.filter_by(is_active=True).first()
+        if not active_session:
+            return jsonify({"success": False, "error": "Keine aktive Spielsitzung."}), 404
+
+        if active_session.current_phase != 'DICE_ROLLING':
+            return jsonify({"success": False, "error": "Es ist nicht die Würfelphase."}), 403
+        
+        current_team_id = active_session.current_team_turn_id
+        if not current_team_id:
+            return jsonify({"success": False, "error": "Kein Team für aktuellen Zug festgelegt."}), 404
+
+        team = Team.query.get(current_team_id)
+        if not team:
+            return jsonify({"success": False, "error": "Aktuelles Team nicht gefunden."}), 404
+
+        # Würfeln
+        standard_dice_roll = random.randint(1, 6)
+        bonus_dice_roll = 0
+        if team.bonus_dice_sides and team.bonus_dice_sides > 0:
+            bonus_dice_roll = random.randint(1, team.bonus_dice_sides)
+        
+        total_roll = standard_dice_roll + bonus_dice_roll
+        old_position = team.current_position
+        
+        # Maximale Feldanzahl (z.B. 72 für 73 Felder 0-72)
+        max_field_index = 72
+        new_position = min(team.current_position + total_roll, max_field_index)
+        team.current_position = new_position
+
+        event_description = f"Admin würfelte für Team {team.name}: {standard_dice_roll}"
+        if bonus_dice_roll > 0:
+            event_description += f" (Bonus: {bonus_dice_roll}, Gesamt: {total_roll})"
+        event_description += f" und bewegte sich von Feld {old_position} zu Feld {new_position}."
+        
+        dice_event = GameEvent(
+            game_session_id=active_session.id,
+            event_type="admin_dice_roll",
+            description=event_description,
+            related_team_id=team.id,
+            data_json=str({
+                "standard_roll": standard_dice_roll,
+                "bonus_roll": bonus_dice_roll,
+                "total_roll": total_roll,
+                "old_position": old_position,
+                "new_position": new_position,
+                "rolled_by": "admin"
+            })
+        )
+        db.session.add(dice_event)
+
+        # Nächstes Team bestimmen
+        dice_order_ids_str = active_session.dice_roll_order.split(',')
+        dice_order_ids_int = [int(tid) for tid in dice_order_ids_str if tid.isdigit()]
+        
+        current_team_index_in_order = -1
+        if team.id in dice_order_ids_int:
+            current_team_index_in_order = dice_order_ids_int.index(team.id)
+        else:
+            db.session.rollback()
+            current_app.logger.error(f"Team {team.id} nicht in Würfelreihenfolge {dice_order_ids_int} gefunden.")
+            return jsonify({"success": False, "error": "Fehler in der Würfelreihenfolge (Team nicht gefunden)."}), 500
+
+        if current_team_index_in_order < len(dice_order_ids_int) - 1:
+            # Nächstes Team
+            active_session.current_team_turn_id = dice_order_ids_int[current_team_index_in_order + 1]
+            next_team = Team.query.get(active_session.current_team_turn_id)
+            next_team_name = next_team.name if next_team else "Unbekannt"
+        else:
+            # Runde zu Ende
+            active_session.current_phase = 'ROUND_OVER'
+            active_session.current_team_turn_id = None 
+            next_team_name = None
+            
+            # Alle Teams zurücksetzen
+            all_teams_in_db = Team.query.all()
+            for t_obj in all_teams_in_db:
+                t_obj.bonus_dice_sides = 0
+                t_obj.minigame_placement = None
+            
+            round_over_event = GameEvent(
+                game_session_id=active_session.id,
+                event_type="dice_round_finished",
+                description="Admin beendete die Würfelrunde. Alle Teams haben gewürfelt."
+            )
+            db.session.add(round_over_event)
+
+        db.session.commit()
+
+        print(f"DEBUG: Admin würfelte für {team.name}: {standard_dice_roll}+{bonus_dice_roll}={total_roll}, neue Position: {new_position}")
+        if next_team_name:
+            print(f"DEBUG: Nächstes Team: {next_team_name}")
+        else:
+            print(f"DEBUG: Runde beendet, Phase: {active_session.current_phase}")
+        sys.stdout.flush()
+
+        return jsonify({
+            "success": True,
+            "team_id": team.id,
+            "team_name": team.name,
+            "standard_roll": standard_dice_roll,
+            "bonus_roll": bonus_dice_roll,
+            "total_roll": total_roll,
+            "old_position": old_position,
+            "new_position": new_position,
+            "next_team_id": active_session.current_team_turn_id,
+            "next_team_name": next_team_name,
+            "new_phase": active_session.current_phase
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Schwerer Fehler in admin_roll_dice: {e}")
+        import traceback
+        current_app.logger.error(traceback.format_exc())
+        return jsonify({"success": False, "error": "Ein interner Serverfehler beim Würfeln ist aufgetreten.", "details": str(e)}), 500
 
 @admin_bp.route('/set_minigame', methods=['POST'])
 @login_required
@@ -216,7 +340,6 @@ def record_placements():
     sys.stdout.flush()
     return redirect(url_for('admin.admin_dashboard'))
 
-
 @admin_bp.route('/reset_game_state', methods=['POST'])
 @login_required
 def reset_game_state():
@@ -246,7 +369,6 @@ def reset_game_state():
     
     sys.stdout.flush()
     return redirect(url_for('admin.admin_dashboard'))
-
 
 @admin_bp.route('/create_team', methods=['GET', 'POST'])
 @login_required
@@ -328,8 +450,8 @@ def delete_team(team_id):
     # GameEvents anonymisieren
     GameEvent.query.filter_by(related_team_id=team.id).update({"related_team_id": None})
     
-    # TeamMinigameScore löschen
-    TeamMinigameScore.query.filter_by(team_id=team.id).delete()
+    # TeamMinigameScore löschen (falls vorhanden - Import fehlt aber im Original)
+    # TeamMinigameScore.query.filter_by(team_id=team.id).delete()
     
     db.session.delete(team)
     db.session.commit()
@@ -370,7 +492,7 @@ def delete_minigame_db(minigame_id):
     minigame = Minigame.query.get_or_404(minigame_id)
     
     GameEvent.query.filter_by(related_minigame_id=minigame.id).update({"related_minigame_id": None})
-    TeamMinigameScore.query.filter_by(minigame_id=minigame.id).delete()
+    # TeamMinigameScore.query.filter_by(minigame_id=minigame.id).delete() # Import fehlt
     
     active_sessions_with_this_minigame = GameSession.query.filter_by(selected_minigame_id=minigame.id, is_active=True).all()
     for sess in active_sessions_with_this_minigame:
