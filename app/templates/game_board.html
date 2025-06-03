@@ -66,13 +66,11 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.9.1/gsap.min.js"></script>
 
 {# Pfade zu deinen Charakter-JS-Dateien #}
-<script src="{{ url_for('static', filename='js/characters/tungTungTungSahur.js') }}"></script>
-<script src="{{ url_for('static', filename='js/characters/ballerinaCappuccina.js') }}"></script>
-<script src="{{ url_for('static', filename='js/characters/bombardinoCrocodilo.js') }}"></script>
-<script src="{{ url_for('static', filename='js/characters/liriliLarila.js') }}"></script>
-<script src="{{ url_for('static', filename='js/characters/tralaleroTralala.js') }}"></script>
-<script src="{{ url_for('static', filename='js/characters/trippiTroppi.js') }}"></script>
+{# Diese werden jetzt dynamisch in loadCharacterScript geladen, falls benötigt #}
+{# <script src="{{ url_for('static', filename='js/characters/tungTungTungSahur.js') }}"></script> #}
+{# ... andere Charakter-Skripte ... #}
 <script src="{{ url_for('static', filename='js/characters/defaultCharacter.js') }}"></script>
+
 
 <script>
 // Spielbrett-Konfiguration
@@ -95,9 +93,8 @@ const BOARD_CONFIG = {
     spiralLoops: 2.7, 
     pathDepth: 4.0,
     chamberSize: 7.0, 
-    // Verbesserte Kamera-Offsets
-    cameraFollowOffset: new THREE.Vector3(0, 12, 20), // Weiter weg und höher für bessere Übersicht
-    cameraFrontOffset: new THREE.Vector3(0, 8, -12) // Sanftere Frontkamera
+    cameraFollowOffset: new THREE.Vector3(0, 12, 20), 
+    cameraFrontOffset: new THREE.Vector3(0, 8, -12)
 };
 const islandSurfaceY = 1.8;
 const GAME_STATE = { 
@@ -107,9 +104,9 @@ const GAME_STATE = {
     freeCameraMode: false, 
     isFullscreen: false, 
     isAnimatingCamera: false, 
-    cameraMode: 'overview', // Geändert zu 'overview' als Standard
+    cameraMode: 'overview', 
     currentServerTeamTurnId: null, 
-    diceRollOrderFromServer: []   
+    diceRollOrderFromServer: [] 
 };
 
 let localTeams = [
@@ -122,7 +119,7 @@ let localTeams = [
         character_info: {% if team.character and team.character.name and team.character.js_file %}
         {
             name: "{{ team.character.name | e }}",
-            js_file: "{{ team.character.js_file | e }}"
+            js_file: "{{ team.character.js_file | e }}" // z.B. "js/characters/bombardinoCrocodilo.js"
         }
         {% else %}
         { 
@@ -168,26 +165,25 @@ class WiiPartyIsland {
         
         this.updateCanvasSize(); 
         
-        // Sanftere Standard-Kameraposition
         this.camera.position.set(0, BOARD_CONFIG.mountainHeight * 1.2, BOARD_CONFIG.spiralStartRadius * 1.8); 
         this.camera.lookAt(0, BOARD_CONFIG.mountainHeight * 0.3, 0); 
         
         this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
         this.controls.enableDamping = true; 
-        this.controls.dampingFactor = 0.08; // Sanfteres Damping
-        this.controls.minDistance = 12; // Weiter weg minimal
+        this.controls.dampingFactor = 0.08; 
+        this.controls.minDistance = 12; 
         this.controls.maxDistance = 100;
         this.controls.maxPolarAngle = Math.PI / 1.9; 
         this.controls.target.set(0, BOARD_CONFIG.mountainHeight * 0.3, 0); 
-        this.controls.enabled = false; // Standardmäßig deaktiviert für bessere Kontrolle
+        this.controls.enabled = false; 
         
         this.pathPoints = []; this.boardFields = []; this.miiCharacters = {};
         this.interactiveDice = null; this.island = null; this.mountainMesh = null;
         this.chamberDoor = null; this.water = null; this.clouds = []; this.birds = [];
         this.isFollowingCharacter = false; this.followTarget = null;
         this.characterCreationFunctions = {}; 
-        this.activeMovementAnimation = null;
-        this.lastCameraUpdate = 0; // Für sanftere Kamera-Updates
+        this.activeMovementAnimation = null; 
+        this.lastCameraUpdate = 0;
 
         console.log("[WiiPartyIsland] Constructor: Basisinitialisierung abgeschlossen, rufe init()");
         this.init(); 
@@ -220,7 +216,7 @@ class WiiPartyIsland {
         this.animate(); 
         this.updateMinigameDisplay(); 
         this.fetchBoardStatusAndUpdate(); 
-        setInterval(() => this.fetchBoardStatusAndUpdate(), 3000); 
+        setInterval(() => this.fetchBoardStatusAndUpdate(), 3500);
         console.log("[WiiPartyIsland] init(): Beendet");
     }
     
@@ -286,10 +282,10 @@ class WiiPartyIsland {
                     const distance = Math.sqrt(x * x + z * z);
                     if (distance > 40) {
                         positions[i + 1] = Math.sin(x * 0.04 + z * 0.015 + time * 0.6) * 0.35 + 
-                                          Math.cos(z * 0.05 + time * 0.4) * 0.3;
+                                         Math.cos(z * 0.05 + time * 0.4) * 0.3;
                     } else {
                         positions[i + 1] = Math.sin(x * 0.08 + z*0.04 + time * 0.5) * 0.12 + 
-                                          Math.cos(z * 0.08 + time * 0.7) * 0.08;
+                                         Math.cos(z * 0.08 + time * 0.7) * 0.08;
                     }
                 }
                 water.geometry.attributes.position.needsUpdate = true;
@@ -368,7 +364,7 @@ class WiiPartyIsland {
         const baseIslandTopY = islandSurfaceY;
         const layers = [
             { radius: BOARD_CONFIG.mountainBaseRadius + 6, height: 0.2, color: 0x556B2F }, 
-            { radius: BOARD_CONFIG.mountainBaseRadius + 4.5, height: 0.15, color: 0x6B8E23 }  
+            { radius: BOARD_CONFIG.mountainBaseRadius + 4.5, height: 0.15, color: 0x6B8E23 } 
         ];
         let currentPlacementY = baseIslandTopY;
         layers.forEach((layer) => {
@@ -691,24 +687,27 @@ class WiiPartyIsland {
         const shadowOffsetX = 2;
         const shadowOffsetY = 2;
 
+        ctx.textAlign = 'center'; 
+        ctx.textBaseline = 'middle'; 
+
         if (type === 'start') {
             ctx.font = `bold ${enhanced ? 36 : 30}px Arial`; 
             ctx.fillStyle = shadowColor;
-            ctx.fillText('S', 64 + shadowOffsetX, 78 + shadowOffsetY);
+            ctx.fillText('S', 64 + shadowOffsetX, 64 + shadowOffsetY); 
             ctx.fillStyle = symbolColor; 
-            ctx.fillText('S', 64, 78);
+            ctx.fillText('S', 64, 64); 
         } else if (type === 'goal') {
             ctx.font = `bold ${enhanced ? 40 : 30}px Arial`; 
             ctx.fillStyle = shadowColor;
-            ctx.fillText('★', 64 + shadowOffsetX, 80 + shadowOffsetY);
+            ctx.fillText('★', 64 + shadowOffsetX, 64 + shadowOffsetY); 
             ctx.fillStyle = 'gold'; 
-            ctx.fillText('★', 64, 80); 
+            ctx.fillText('★', 64, 64); 
         } else if (type === 'minigame') {
             ctx.font = `bold ${enhanced ? 24 : 20}px Arial`; 
             ctx.fillStyle = shadowColor;
-            ctx.fillText('M', 64 + shadowOffsetX, 72 + shadowOffsetY);
+            ctx.fillText('M', 64 + shadowOffsetX, 64 + shadowOffsetY); 
             ctx.fillStyle = symbolColor; 
-            ctx.fillText('M', 64, 72);
+            ctx.fillText('M', 64, 64); 
             if (enhanced) { 
                 ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 2;
                 ctx.beginPath(); ctx.arc(64, 64, 35, 0, Math.PI * 2); ctx.stroke();
@@ -725,9 +724,9 @@ class WiiPartyIsland {
         } else if (type === 'chance') {
             ctx.font = `bold ${enhanced ? 48 : 40}px Arial`; 
             ctx.fillStyle = shadowColor;
-            ctx.fillText('?', 64 + shadowOffsetX, 85 + shadowOffsetY);
+            ctx.fillText('?', 64 + shadowOffsetX, 64 + shadowOffsetY); 
             ctx.fillStyle = 'rgba(255,255,255,0.8)'; 
-            ctx.fillText('?', 64, 85);
+            ctx.fillText('?', 64, 64); 
         } else if (type === 'trap') {
             ctx.strokeStyle = 'red'; ctx.lineWidth = enhanced ? 6 : 5;
             ctx.beginPath(); ctx.moveTo(30,30); ctx.lineTo(98,98); ctx.moveTo(98,30); ctx.lineTo(30,98); ctx.stroke();
@@ -1138,7 +1137,6 @@ class WiiPartyIsland {
             } else if (event.key.toLowerCase() === 'f') { 
                 this.toggleFullscreen(); 
             } else if (event.key.toLowerCase() === 'c' && !GAME_STATE.freeCameraMode) {
-                // Kameramodus wechseln zwischen overview und follow
                 if (GAME_STATE.cameraMode === 'overview') {
                     GAME_STATE.cameraMode = 'follow';
                     this.focusCameraOnCurrentTeam(false);
@@ -1192,7 +1190,6 @@ class WiiPartyIsland {
         }
     }
 
-    // Verbesserte Kameraführung
     setOverviewCamera(immediate = false, callback) {
         const targetPos = new THREE.Vector3(0, BOARD_CONFIG.mountainHeight * 1.2, BOARD_CONFIG.spiralStartRadius * 1.6);
         const lookAtPos = new THREE.Vector3(0, BOARD_CONFIG.mountainHeight * 0.3, 0);
@@ -1253,7 +1250,10 @@ class WiiPartyIsland {
     }
     
     animateCameraToPosition(targetCamPos, targetLookAtPos, duration = 1200, callback) {
-        if (GAME_STATE.isAnimatingCamera && duration > 0) return; 
+        if (GAME_STATE.isAnimatingCamera && duration > 0) {
+            if (callback) callback(); 
+            return; 
+        }
         GAME_STATE.isAnimatingCamera = true;
 
         if (typeof gsap !== 'undefined' && duration > 0) {
@@ -1272,32 +1272,12 @@ class WiiPartyIsland {
                     if (callback) callback();
                 }
             });
-        } else {
-            const startCamPos = this.camera.position.clone();
-            const startLookAt = this.controls.target.clone(); 
-            let startTime = null;
-
-            const animate = (timestamp) => {
-                if (!startTime) startTime = timestamp;
-                const progress = duration > 0 ? Math.min((timestamp - startTime) / duration, 1) : 1;
-                const easedProgress = this.easeInOutCubic(progress);
-
-                this.camera.position.lerpVectors(startCamPos, targetCamPos, easedProgress);
-                const currentLookAt = new THREE.Vector3().lerpVectors(startLookAt, targetLookAtPos, easedProgress);
-                this.camera.lookAt(currentLookAt);
-                this.controls.target.copy(currentLookAt); 
-
-                if (progress < 1 && duration > 0) {
-                    requestAnimationFrame(animate);
-                } else {
-                    this.camera.position.copy(targetCamPos);
-                    this.controls.target.copy(targetLookAtPos);
-                    this.camera.lookAt(this.controls.target);
-                    GAME_STATE.isAnimatingCamera = false;
-                    if (callback) callback();
-                }
-            };
-            requestAnimationFrame(animate);
+        } else { 
+            this.camera.position.copy(targetCamPos);
+            this.controls.target.copy(targetLookAtPos);
+            this.camera.lookAt(this.controls.target);
+            GAME_STATE.isAnimatingCamera = false;
+            if (callback) callback();
         }
     }
 
@@ -1343,31 +1323,19 @@ class WiiPartyIsland {
         tempObject.lookAt(targetLookAtPosition);
         const endRotation = tempObject.quaternion.clone();
 
-        if (typeof gsap !== 'undefined') {
-            GAME_STATE.isAnimating = true;
+        if (typeof gsap !== 'undefined' && duration > 0) {
+            GAME_STATE.isAnimating = true; 
             gsap.to(character.quaternion, {
                 _w: endRotation.w, _x: endRotation.x, _y: endRotation.y, _z: endRotation.z,
                 duration: duration / 1000,
                 ease: "power1.inOut",
                 onComplete: () => {
-                    GAME_STATE.isAnimating = false;
                     if (callback) callback();
                 }
             });
-        } else {
-            let startTime = null;
-            const animateTurn = (timestamp) => {
-                if (!startTime) startTime = timestamp;
-                const progress = Math.min((timestamp - startTime) / duration, 1);
-                const easedProgress = this.easeInOutCubic(progress);
-                THREE.Quaternion.slerp(startRotation, endRotation, character.quaternion, easedProgress);
-                if (progress < 1) {
-                    requestAnimationFrame(animateTurn);
-                } else {
-                    if (callback) callback();
-                }
-            };
-            requestAnimationFrame(animateTurn);
+        } else { 
+            character.quaternion.copy(endRotation);
+            if (callback) callback();
         }
     }
 
@@ -1397,18 +1365,18 @@ class WiiPartyIsland {
     }
 
     handleMovementCompletion(currentTeam, mii, finalPositionIndex) {
-        console.log(`${currentTeam.name} ist auf Feld ${finalPositionIndex} (Index) gelandet.`);
+        console.log(`[handleMovementCompletion] ${currentTeam.name} ist auf Feld ${finalPositionIndex} gelandet.`);
         this.updateTeamBadgeForTeam(currentTeam.id, finalPositionIndex);
         
         GAME_STATE.isCharacterMoving = false;
         GAME_STATE.isAnimating = false; 
-        this.activeMovementAnimation = null;
+        this.activeMovementAnimation = null; 
+        console.log(`[handleMovementCompletion] GAME_STATE flags zurückgesetzt für ${currentTeam.name}`);
 
-        // Kamera-Update nach Bewegung
+
         if (GAME_STATE.cameraMode === 'follow' && !GAME_STATE.freeCameraMode) {
             this.updateCameraFollow(false);
         } else {
-            // Sanfter Übergang zurück zur Übersicht
             setTimeout(() => {
                 if (GAME_STATE.cameraMode === 'overview' && !GAME_STATE.freeCameraMode) {
                     this.setOverviewCamera(false);
@@ -1423,7 +1391,6 @@ class WiiPartyIsland {
             if (nextTeam) {
                 this.showStatusMessage(`${nextTeam.name} ist am Zug.`, 3000, 'info');
                 
-                // Kamera folgt neuem Team wenn im Follow-Modus
                 if (GAME_STATE.cameraMode === 'follow' && !GAME_STATE.freeCameraMode) {
                     setTimeout(() => {
                         this.focusCameraOnCurrentTeam(false);
@@ -1458,7 +1425,7 @@ class WiiPartyIsland {
                     effectMesh.material.dispose();
                 }
             });
-        } else {
+        } else { 
             let startTime = null;
             const animateEffect = (timestamp) => {
                 if(!startTime) startTime = timestamp;
@@ -1478,19 +1445,20 @@ class WiiPartyIsland {
     }
     
     animateCharacterAlongPath(character, pathPoints, onComplete, steps) {
+        console.log(`[animateCharacterAlongPath] Animating ${character.uuid} along ${pathPoints.length} points.`);
         if (!character || pathPoints.length === 0) {
+            console.warn("[animateCharacterAlongPath] Charakter oder Pfadpunkte fehlen.");
             if (onComplete) onComplete();
             return;
         }
-        GAME_STATE.isAnimating = true;
-        GAME_STATE.isCharacterMoving = true;
 
         let currentPointIndex = 0; 
-        const durationPerStep = 450;
+        const durationPerStep = 450; 
         const turnDuration = 200; 
-        
+
         const moveToNextPoint = () => {
             if (currentPointIndex >= pathPoints.length -1 ) { 
+                console.log(`[animateCharacterAlongPath] Animation für ${character.uuid} beendet.`);
                 if (onComplete) onComplete();
                 return;
             }
@@ -1498,6 +1466,7 @@ class WiiPartyIsland {
             const startPosition = character.position.clone(); 
             const endPosition = pathPoints[currentPointIndex + 1]; 
             const lookAtTarget = (currentPointIndex + 2 < pathPoints.length) ? pathPoints[currentPointIndex + 2] : endPosition;
+            console.log(`[animateCharacterAlongPath] Schritt ${currentPointIndex + 1}/${pathPoints.length-1}: Von ${startPosition.x.toFixed(1)},${startPosition.z.toFixed(1)} zu ${endPosition.x.toFixed(1)},${endPosition.z.toFixed(1)}`);
 
             this.animateCharacterTurn(character, lookAtTarget, () => {
                 if (typeof gsap !== 'undefined') {
@@ -1508,33 +1477,32 @@ class WiiPartyIsland {
                         duration: durationPerStep / 1000,
                         ease: "power1.inOut"
                     })
-                    .to(character.position, {
-                        y: endPosition.y + 0.3,
+                    .to(character.position, { 
+                        y: endPosition.y + 0.3, 
                         duration: (durationPerStep / 1000) / 2,
                         ease: "power1.out"
-                    }, "<")
-                    .to(character.position, {
+                    }, "<") 
+                    .to(character.position, { 
                         y: endPosition.y,
                         duration: (durationPerStep / 1000) / 2,
-                        ease: "power1.in"
-                    }, ">", {
+                        ease: "power1.in",
                         onComplete: () => {
                             currentPointIndex++; 
                             this.showFieldEffect(character.position, 0x88dd88, 400); 
                             moveToNextPoint();
                         }
                     });
-
-                } else {
+                } else { 
                     let startTime = null;
                     const animateMove = (timestamp) => {
                         if(!startTime) startTime = timestamp;
                         const progress = Math.min((timestamp - startTime) / durationPerStep, 1);
                         character.position.lerpVectors(startPosition, endPosition, this.easeInOutCubic(progress));
                         const jumpProgress = Math.sin(progress * Math.PI); 
-                        character.position.y = endPosition.y + jumpProgress * 0.3;
+                        character.position.y = THREE.MathUtils.lerp(startPosition.y, endPosition.y, this.easeInOutCubic(progress)) + jumpProgress * 0.3;
                         if (progress < 1) { requestAnimationFrame(animateMove); } 
                         else {
+                            character.position.copy(endPosition); 
                             currentPointIndex++; 
                             this.showFieldEffect(character.position, 0x88dd88, 400); 
                             moveToNextPoint();
@@ -1544,9 +1512,11 @@ class WiiPartyIsland {
                 }
             }, turnDuration);
         };
-        if (pathPoints.length > 1) {
+
+        if (pathPoints.length > 1) { 
              moveToNextPoint();
-        } else {
+        } else { 
+            console.log(`[animateCharacterAlongPath] Pfad hat nur ${pathPoints.length} Punkte, keine Bewegung.`);
             if(onComplete) onComplete();
         }
     }
@@ -1568,7 +1538,7 @@ class WiiPartyIsland {
                     if(callback) callback();
                 }
             });
-        } else {
+        } else { 
             let startTime = null;
             const animateDoor = (timestamp) => {
                 if(!startTime) startTime = timestamp;
@@ -1603,7 +1573,7 @@ class WiiPartyIsland {
                 tl.to(character.position, { y: "+=0.8", duration: 0.3, ease: "power1.out" })
                   .to(character.rotation, { y: "+=" + Math.PI * 0.5, duration: 0.3, ease: "none" }, "<")
                   .to(character.position, { y: "-=0.8", duration: 0.3, ease: "power1.in" });
-            } else {
+            } else { 
                 let startTime = null; const duration = 5000;
                 const initialY = character.position.y;
                 const animateJubel = (timestamp) => {
@@ -1619,7 +1589,7 @@ class WiiPartyIsland {
             }
         }
     }
-    showVictoryEffect() { }
+    showVictoryEffect() { /* Placeholder für komplexere Siegeseffekte */ }
     
     updateTeamBadgeForTeam(teamId, position) {
         const teamIndex = localTeams.findIndex(t => t.id === teamId);
@@ -1701,7 +1671,12 @@ class WiiPartyIsland {
     }
     
     fetchBoardStatusAndUpdate() {
-        fetch("{{ url_for('main.board_status') }}")
+        if (GAME_STATE.isCharacterMoving) {
+            // console.log("[fetchBoardStatusAndUpdate] Character is moving, skipping fetch.");
+            // return; 
+        }
+
+        fetch("{{ url_for('main.board_status') }}?t=" + new Date().getTime()) 
             .then(response => {
                 if (!response.ok) {
                     return response.json().then(errData => {
@@ -1737,8 +1712,15 @@ class WiiPartyIsland {
                     }
 
                     GAME_STATE.currentServerTeamTurnId = data.game_session.current_team_turn_id;
-                    GAME_STATE.diceRollOrderFromServer = data.game_session.dice_roll_order || [];
-                                            
+                    // Safely handle dice_roll_order
+                    if (typeof data.game_session.dice_roll_order === 'string' && data.game_session.dice_roll_order.length > 0) {
+                        GAME_STATE.diceRollOrderFromServer = data.game_session.dice_roll_order.split(',');
+                    } else if (Array.isArray(data.game_session.dice_roll_order)) { // If it's already an array
+                        GAME_STATE.diceRollOrderFromServer = data.game_session.dice_roll_order;
+                    } else {
+                        GAME_STATE.diceRollOrderFromServer = []; // Default to empty array if null, undefined, or empty string
+                    }
+                                                
                     if (data.teams && Array.isArray(data.teams)) {
                         let teamWhosePositionChanged = null;
                         let newPositionForAnimation = 0;
@@ -1751,7 +1733,7 @@ class WiiPartyIsland {
                                     !GAME_STATE.isCharacterMoving && 
                                     (!this.activeMovementAnimation || this.activeMovementAnimation.teamId !== localTeam.id) 
                                 ) {
-                                    console.log(`Position für Team ${localTeam.name} geändert: Alt=${localTeam.position}, Neu=${serverTeam.position}. Animation wird vorbereitet.`);
+                                    console.log(`[fetchBoardStatusAndUpdate] Position für Team ${localTeam.name} geändert: Alt=${localTeam.position}, Neu=${serverTeam.position}. Animation wird vorbereitet.`);
                                     teamWhosePositionChanged = localTeam; 
                                     oldPositionForAnimation = localTeam.position; 
                                     newPositionForAnimation = serverTeam.position;
@@ -1766,20 +1748,23 @@ class WiiPartyIsland {
 
                         if (teamWhosePositionChanged && this.miiCharacters[teamWhosePositionChanged.id]) {
                              if (this.activeMovementAnimation && this.activeMovementAnimation.teamId === teamWhosePositionChanged.id) {
-                                console.log("Bewegungsanimation für Team", teamWhosePositionChanged.name, "läuft bereits oder ist gerade beendet. Überspringe erneute Animation.");
-                            } else {
-                                this.activeMovementAnimation = { teamId: teamWhosePositionChanged.id };
-                                this.animateCharacterToNewPosition(teamWhosePositionChanged, oldPositionForAnimation, newPositionForAnimation);
-                            }
+                                 console.log("[fetchBoardStatusAndUpdate] Bewegungsanimation für Team", teamWhosePositionChanged.name, "läuft bereits oder ist gerade beendet. Überspringe erneute Animation.");
+                             } else if (!GAME_STATE.isCharacterMoving) { 
+                                 console.log(`[fetchBoardStatusAndUpdate] Starte Animation für ${teamWhosePositionChanged.name}.`);
+                                 this.activeMovementAnimation = { teamId: teamWhosePositionChanged.id }; 
+                                 this.animateCharacterToNewPosition(teamWhosePositionChanged, oldPositionForAnimation, newPositionForAnimation);
+                             } else {
+                                 console.log(`[fetchBoardStatusAndUpdate] Animation für ${teamWhosePositionChanged.name} nicht gestartet, da GAME_STATE.isCharacterMoving=true.`);
+                             }
                         } else if (teamWhosePositionChanged) {
-                            console.warn("Charakter-Mesh für Bewegung nicht gefunden:", teamWhosePositionChanged.name);
+                            console.warn("[fetchBoardStatusAndUpdate] Charakter-Mesh für Bewegung nicht gefunden:", teamWhosePositionChanged.name);
                             this.activeMovementAnimation = null; 
-                            this.handleMovementCompletion(teamWhosePositionChanged, null, newPositionForAnimation);
+                            this.handleMovementCompletion(teamWhosePositionChanged, null, newPositionForAnimation); 
                         }
                     }
                     this.updateTeamDisplay(); 
                 } else {
-                    console.warn("Keine game_session Daten vom Server empfangen bei fetchBoardStatusAndUpdate.");
+                    console.warn("[fetchBoardStatusAndUpdate] Keine game_session Daten vom Server empfangen.");
                     currentGamePhase = 'UNKNOWN_NO_SESSION';
                     currentMinigameName = null;
                     currentMinigameDescription = null;
@@ -1788,7 +1773,7 @@ class WiiPartyIsland {
                 }
             })
             .catch(error => {
-                console.error("Fehler beim Abrufen/Verarbeiten des Board-Status:", error.message);
+                console.error("[fetchBoardStatusAndUpdate] Fehler beim Abrufen/Verarbeiten des Board-Status:", error.message, error);
                 this.showStatusMessage(`Verbindungsproblem: ${error.message}`, 3000, "error");
                 currentGamePhase = 'ERROR_FETCH'; 
                 this.updateMinigameDisplay();
@@ -1803,31 +1788,49 @@ class WiiPartyIsland {
     }
     
     async loadCharacterScript(jsPath) {
-        const functionName = jsPath.split('/').pop().replace('.js', ''); 
+        const functionName = jsPath.split('/').pop().replace(/\.js$/, ''); // Entfernt .js sicher
+        console.log(`[loadCharacterScript] Lade Skript: ${jsPath}, erwarte Funktion: ${functionName}`);
+
         if (this.characterCreationFunctions[functionName]) {
+            console.log(`[loadCharacterScript] Funktion ${functionName} bereits geladen.`);
             return this.characterCreationFunctions[functionName];
         }
+        
+        // Stelle sicher, dass die Default-Funktion global verfügbar ist, bevor andere geladen werden.
+        // Das defaultCharacter.js Skript sollte bereits durch den <script>-Tag im HTML geladen sein.
         const fallbackCreateFunction = window.createDefaultCharacter;
+        if (typeof fallbackCreateFunction !== 'function') {
+            console.error("[loadCharacterScript] FATAL: window.createDefaultCharacter ist nicht global verfügbar! Stelle sicher, dass defaultCharacter.js korrekt geladen wird und die Funktion global definiert.");
+            // return () => new THREE.Mesh(new THREE.BoxGeometry(0.5,1,0.5), new THREE.MeshBasicMaterial({color:0xff0000})); // Notlösung
+        }
+
 
         return new Promise((resolve) => { 
             if (!jsPath || jsPath.trim() === "") {
-                console.warn("Leerer jsPath, verwende Default Charakter.");
+                console.warn("[loadCharacterScript] Leerer jsPath, verwende Default Charakter.");
                 resolve(fallbackCreateFunction);
                 return;
             }
             const script = document.createElement('script');
-            script.src = `{{ url_for('static', filename='') }}${jsPath}`; 
+            // Der Pfad aus team.character_info.js_file ist relativ zu 'static', z.B. "js/characters/meinChar.js"
+            // url_for generiert den korrekten Basispfad zu 'static'.
+            script.src = `{{ url_for('static', filename='') }}${jsPath}?v=${new Date().getTime()}`; // Cache buster
+            console.log(`[loadCharacterScript] Setze script.src zu: ${script.src}`);
+
             script.onload = () => {
+                console.log(`[loadCharacterScript] Skript ${jsPath} geladen. Prüfe auf window.${functionName}`);
                 if (typeof window[functionName] === 'function') {
+                    console.log(`[loadCharacterScript] Funktion ${functionName} erfolgreich gefunden.`);
                     this.characterCreationFunctions[functionName] = window[functionName];
                     resolve(window[functionName]);
                 } else {
-                    console.error(`Charakter-Erstellungsfunktion ${functionName} nicht gefunden nach Laden von ${jsPath}. Verwende Default.`);
+                    console.error(`[loadCharacterScript] Charakter-Erstellungsfunktion ${functionName} NICHT im window-Objekt gefunden nach Laden von ${jsPath}. Verwende Default.`);
+                    console.log(`[loadCharacterScript] Verfügbare Funktionen im window-Objekt, die mit "create" beginnen:`, Object.keys(window).filter(k => k.startsWith("create")));
                     resolve(fallbackCreateFunction); 
                 }
             };
             script.onerror = (e) => {
-                console.error(`Fehler beim Laden des Charakter-Skripts ${jsPath}:`, e, ". Verwende Default.");
+                console.error(`[loadCharacterScript] Fehler beim Laden des Charakter-Skripts ${jsPath}:`, e, ". Verwende Default.");
                 resolve(fallbackCreateFunction); 
             };
             document.head.appendChild(script);
@@ -1836,31 +1839,48 @@ class WiiPartyIsland {
 
     async createMiiCharacters() {
         console.log("[WiiPartyIsland] createMiiCharacters: Start");
+        // Sicherstellen, dass die Default-Funktion zuerst geladen und verfügbar ist
+        if (typeof window.createDefaultCharacter !== 'function') {
+            console.warn('[createMiiCharacters] window.createDefaultCharacter nicht sofort verfügbar. Versuche, es explizit zu laden.');
+            try {
+                await this.loadCharacterScript('js/characters/defaultCharacter.js');
+                if (typeof window.createDefaultCharacter !== 'function') {
+                     console.error('[createMiiCharacters] Konnte window.createDefaultCharacter auch nach explizitem Laden nicht finden. Breche Charaktererstellung ab.');
+                     return;
+                }
+            } catch (e) {
+                 console.error('[createMiiCharacters] Fehler beim Laden von defaultCharacter.js:', e);
+                 return;
+            }
+        }
+
+
         for (const team of localTeams) { 
             let createFunction;
-            if (team.character_info && team.character_info.js_file) {
-                try {
-                    console.log(`Versuche Charakter-Skript zu laden: ${team.character_info.js_file} für Team ${team.name}`);
-                    createFunction = await this.loadCharacterScript(team.character_info.js_file);
-                } catch (error) {
-                    console.error(`Fehler beim Laden des Skripts ${team.character_info.js_file} für Team ${team.name}:`, error);
-                    createFunction = window.createDefaultCharacter; 
-                }
-            } else {
-                 console.warn(`Keine Charakter-Info (js_file) für Team ${team.name}, verwende Default-Charakter.`);
-                 createFunction = window.createDefaultCharacter;
-            }
+            let characterJsFile = "js/characters/defaultCharacter.js"; // Standardpfad
 
-            if (typeof createFunction !== 'function') {
-                console.error(`createFunction für Team ${team.name} ist keine Funktion, verwende Default. Erhalten:`, createFunction);
+            if (team.character_info && team.character_info.js_file) {
+                characterJsFile = team.character_info.js_file;
+            } else {
+                 console.warn(`[createMiiCharacters] Keine Charakter-Info (js_file) für Team ${team.name}, verwende Default-Charakter-Skript: ${characterJsFile}`);
+            }
+            
+            console.log(`[createMiiCharacters] Lade Charakter für Team ${team.name} mit Skript: ${characterJsFile}`);
+            try {
+                createFunction = await this.loadCharacterScript(characterJsFile);
+            } catch (error) {
+                console.error(`[createMiiCharacters] Fehler beim Laden des Skripts ${characterJsFile} für Team ${team.name}:`, error);
                 createFunction = window.createDefaultCharacter; 
             }
             
-            if (typeof createFunction !== 'function' && typeof window.createDefaultCharacter === 'function') {
-                 console.warn("Fallback zu window.createDefaultCharacter, da primäre Funktion nicht valide war.");
-                 createFunction = window.createDefaultCharacter;
-            } else if (typeof createFunction !== 'function') {
-                console.error(`FATAL: Auch window.createDefaultCharacter ist keine Funktion. Kann keine Charaktere erstellen für Team ${team.name}.`);
+
+            if (typeof createFunction !== 'function') {
+                console.error(`[createMiiCharacters] createFunction für Team ${team.name} ist keine Funktion (nach await this.loadCharacterScript), verwende Default. Erhalten:`, createFunction, `Erwartet von Skript: ${characterJsFile}`);
+                createFunction = window.createDefaultCharacter; 
+            }
+            
+            if (typeof createFunction !== 'function') { // Letzte Sicherheitsprüfung
+                console.error(`[createMiiCharacters] FATAL: Auch window.createDefaultCharacter ist keine Funktion. Kann keine Charaktere erstellen für Team ${team.name}.`);
                 continue; 
             }
 
@@ -1881,11 +1901,11 @@ class WiiPartyIsland {
                 characterMesh.position.y += BOARD_CONFIG.characterElevation;
             } else {
                 characterMesh.position.set(BOARD_CONFIG.spiralStartRadius + (Math.random()-0.5)*2, islandSurfaceY + BOARD_CONFIG.characterElevation, (Math.random()-0.5)*2);
-                console.warn(`Startfeld für Team ${team.name} (Position ${team.position}) nicht gefunden. Setze auf Default-Position.`);
+                console.warn(`[createMiiCharacters] Startfeld für Team ${team.name} (Position ${team.position}) nicht gefunden. Setze auf Default-Position.`);
             }
             this.scene.add(characterMesh);
             this.miiCharacters[team.id] = characterMesh;
-            console.log(`Charakter für Team ${team.name} (Funktion: ${createFunction.name}) erstellt und zu Szene hinzugefügt.`);
+            console.log(`[createMiiCharacters] Charakter für Team ${team.name} (Funktion: ${createFunction.name}) erstellt und zu Szene hinzugefügt.`);
         }
         this.updateTeamDisplay(); 
         if(!GAME_STATE.freeCameraMode) this.setOverviewCamera(true); 
@@ -1894,19 +1914,34 @@ class WiiPartyIsland {
 
     animateCharacterToNewPosition(team, oldPositionIndex, newPositionIndex) {
         const mii = this.miiCharacters[team.id];
+        console.log(`[animateCharacterToNewPosition] Aufgerufen für ${team.name} von ${oldPositionIndex} zu ${newPositionIndex}. Mii vorhanden: ${!!mii}`);
 
-        if (!mii || oldPositionIndex === newPositionIndex) {
+        if (!mii) {
+            console.warn(`[animateCharacterToNewPosition] Kein Mii-Objekt für Team ${team.name} (ID: ${team.id}) gefunden.`);
+            this.handleMovementCompletion(team, null, newPositionIndex); 
+            return;
+        }
+        if (oldPositionIndex === newPositionIndex) {
+            console.log(`[animateCharacterToNewPosition] ${team.name} ist bereits auf Position ${newPositionIndex}. Keine Bewegung.`);
+            const targetField = this.boardFields[newPositionIndex];
+            if (targetField && targetField.mesh) {
+                mii.position.copy(targetField.mesh.position);
+                mii.position.y += BOARD_CONFIG.characterElevation;
+            }
             this.handleMovementCompletion(team, mii, newPositionIndex); 
             return;
         }
         
-        console.log(`AnimCharacterToNewPos: ${team.name} von ${oldPositionIndex} zu ${newPositionIndex}`);
-        GAME_STATE.isCharacterMoving = true;
+        console.log(`[animateCharacterToNewPosition] Starte Animation für ${team.name} von ${oldPositionIndex} zu ${newPositionIndex}`);
+        GAME_STATE.isCharacterMoving = true; 
         GAME_STATE.isAnimating = true; 
+        console.log(`[animateCharacterToNewPosition] GAME_STATE.isCharacterMoving set to true for ${team.name}`);
+
 
         const pointsToMove = [];
-        const startIdx = oldPositionIndex; 
-        const endIdx = newPositionIndex;
+        const startIdx = Math.min(this.boardFields.length - 1, Math.max(0, oldPositionIndex)); 
+        const endIdx = Math.min(this.boardFields.length - 1, Math.max(0, newPositionIndex));
+
 
         if (startIdx < endIdx) {
             for (let i = startIdx; i <= endIdx; i++) {
@@ -1914,7 +1949,7 @@ class WiiPartyIsland {
                     const fieldPos = this.boardFields[i].mesh.position.clone();
                     fieldPos.y += BOARD_CONFIG.characterElevation;
                     pointsToMove.push(fieldPos);
-                } else { console.warn(`Feld ${i} nicht gefunden für Pfad.`);}
+                } else { console.warn(`[animateCharacterToNewPosition] Feld ${i} nicht gefunden für Pfad.`);}
             }
         } else if (startIdx > endIdx) { 
             for (let i = startIdx; i >= endIdx; i--) {
@@ -1922,43 +1957,43 @@ class WiiPartyIsland {
                     const fieldPos = this.boardFields[i].mesh.position.clone();
                     fieldPos.y += BOARD_CONFIG.characterElevation;
                     pointsToMove.push(fieldPos);
-                } else { console.warn(`Feld ${i} nicht gefunden für Pfad.`);}
+                } else { console.warn(`[animateCharacterToNewPosition] Feld ${i} nicht gefunden für Pfad.`);}
             }
         } else { 
+             console.log(`[animateCharacterToNewPosition] Start- und Endindex sind gleich (${startIdx}), keine Bewegungspunkte generiert.`);
              this.handleMovementCompletion(team, mii, newPositionIndex);
             return;
         }
 
         if (pointsToMove.length === 0 ) { 
-            console.warn("Keine Bewegungspunkte für animateCharacterToNewPosition", team.name, oldPositionIndex, newPositionIndex);
+            console.warn("[animateCharacterToNewPosition] Keine Bewegungspunkte für Animation generiert.", team.name, oldPositionIndex, newPositionIndex);
             this.handleMovementCompletion(team, mii, newPositionIndex);
             return;
         }
         
-        if (pointsToMove.length === 1 && oldPositionIndex === newPositionIndex) {
-            this.handleMovementCompletion(team, mii, newPositionIndex);
-            return;
+        let animationPath = [];
+        if (mii.position.distanceTo(pointsToMove[0]) > 0.1) { 
+            animationPath.push(mii.position.clone());
         }
-        
-        if (pointsToMove.length > 0) {
-            const animationPath = [mii.position.clone()].concat(pointsToMove);
-            if (animationPath.length > 1 && mii.position.distanceTo(animationPath[1]) < 0.1) {
-                animationPath.shift();
-            }
-            
-            // Kamera folgt der Bewegung wenn im Follow-Modus
+        animationPath = animationPath.concat(pointsToMove);
+
+
+        if (animationPath.length > 0) {
+            console.log(`[animateCharacterToNewPosition] Animationpfad für ${team.name} hat ${animationPath.length} Punkte.`);
+            const onMovementComplete = () => {
+                console.log(`[animateCharacterToNewPosition] Bewegung für ${team.name} abgeschlossen. Rufe handleMovementCompletion.`);
+                this.handleMovementCompletion(team, mii, newPositionIndex);
+            };
+
             if (GAME_STATE.cameraMode === 'follow' && !GAME_STATE.freeCameraMode) {
-                this.focusCameraOnCurrentTeam(false, () => {
-                    this.animateCharacterAlongPath(mii, animationPath, () => {
-                        this.handleMovementCompletion(team, mii, newPositionIndex);
-                    }, Math.abs(endIdx - startIdx)); 
+                this.focusCameraOnCurrentTeam(false, () => { 
+                    this.animateCharacterAlongPath(mii, animationPath, onMovementComplete, Math.abs(endIdx - startIdx)); 
                 });
             } else {
-                this.animateCharacterAlongPath(mii, animationPath, () => {
-                    this.handleMovementCompletion(team, mii, newPositionIndex);
-                }, Math.abs(endIdx - startIdx)); 
+                this.animateCharacterAlongPath(mii, animationPath, onMovementComplete, Math.abs(endIdx - startIdx)); 
             }
         } else {
+             console.warn(`[animateCharacterToNewPosition] Leerer Animationspfad für ${team.name}.`);
              this.handleMovementCompletion(team, mii, newPositionIndex);
         }
     }
@@ -1971,21 +2006,18 @@ class WiiPartyIsland {
             this.water.userData.animation(time); 
         }
         
-        // Verbesserte Kamera-Updates
         if (GAME_STATE.freeCameraMode && this.controls) {
             this.controls.update();
         } else if (this.isFollowingCharacter && this.followTarget && !GAME_STATE.isAnimatingCamera) {
-            // Sanfte kontinuierliche Kameraverfolgung nur alle 100ms
             const now = Date.now();
-            if (now - this.lastCameraUpdate > 100) {
+            if (now - this.lastCameraUpdate > 100) { 
                 const targetPos = this.followTarget.position.clone();
                 const camOffset = BOARD_CONFIG.cameraFollowOffset.clone();
                 const desiredCamPos = targetPos.clone().add(camOffset);
                 const lookAtPos = targetPos.clone().add(new THREE.Vector3(0, 2, 0));
                 
-                // Sanfte LERP-Bewegung für flüssige Verfolgung
-                this.camera.position.lerp(desiredCamPos, 0.02);
-                this.controls.target.lerp(lookAtPos, 0.02);
+                this.camera.position.lerp(desiredCamPos, 0.05); 
+                this.controls.target.lerp(lookAtPos, 0.05);
                 this.camera.lookAt(this.controls.target);
                 
                 this.lastCameraUpdate = now;
@@ -2289,7 +2321,7 @@ kbd {
 .game-overlay::after {
     content: 'Steuerung: M = Freie Kamera • C = Kameramodus • F = Vollbild';
     position: absolute;
-    bottom: -35px;
+    bottom: -35px; 
     left: 0;
     font-size: 0.8rem;
     color: rgba(255, 255, 255, 0.8);
@@ -2297,7 +2329,7 @@ kbd {
     padding: 5px 12px;
     border-radius: 8px;
     backdrop-filter: blur(5px);
-    pointer-events: none;
+    pointer-events: none; 
 }
 
 @keyframes shimmer { 0% { background-position: -200px 0; } 100% { background-position: 200px 0; } }
