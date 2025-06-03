@@ -261,35 +261,43 @@
         <h2>Team Management</h2>
         <a href="{{ url_for('admin.create_team') }}" class="btn btn-primary mb-3"><i class="fas fa-plus-circle"></i> Neues Team erstellen</a>
         {% if teams %}
-            <ul class="list-group">
+            <div class="row">
                 {% for team in teams %}
-                    <li class="list-group-item d-flex justify-content-between align-items-center flex-wrap">
-                        <div class="team-info mb-2 mb-md-0">
-                            <strong>{{ team.name }}</strong> 
-                            {% if team.members %}({{ team.members }}){% endif %}
-                            <br>
-                            <small>
-                                Charakter: {{ team.character.name if team.character else 'Kein Charakter' }} |
-                                Position: {{ team.current_position if team.current_position is not none else 'N/A' }} |
-                                Letzte Platzierung: {{ team.minigame_placement if team.minigame_placement else 'N/A' }} |
-                                Bonus Würfel: 
+                <div class="col-md-6 col-lg-4 mb-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">{{ team.name }}</h5>
+                            {% if team.members %}
+                                <p class="card-text"><small class="text-muted">Mitglieder: {{ team.members }}</small></p>
+                            {% endif %}
+                            <p class="card-text">
+                                <strong>Charakter:</strong> {{ team.character.name if team.character else 'Kein Charakter' }}<br>
+                                <strong>Position:</strong> {{ team.current_position if team.current_position is not none else 'N/A' }}<br>
+                                <strong>Letzte Platzierung:</strong> {{ team.minigame_placement if team.minigame_placement else 'N/A' }}<br>
+                                <strong>Bonus Würfel:</strong> 
                                 {% if team.bonus_dice_sides == 6 %} 1-6
                                 {% elif team.bonus_dice_sides == 4 %} 1-4
                                 {% elif team.bonus_dice_sides == 2 %} 1-2
                                 {% else %} Standard
                                 {% endif %}
-                            </small>
+                            </p>
+                            <div class="btn-group w-100" role="group">
+                                <a href="{{ url_for('admin.edit_team', team_id=team.id) }}" class="btn btn-outline-primary btn-sm">
+                                    <i class="fas fa-edit"></i> Bearbeiten
+                                </a>
+                                <form method="POST" action="{{ url_for('admin.delete_team', team_id=team.id) }}" style="display: inline;" 
+                                      onsubmit="return confirm('Team {{ team.name }} wirklich löschen? Alle zugehörigen Daten gehen verloren!');" class="w-50">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                    <button type="submit" class="btn btn-outline-danger btn-sm w-100">
+                                        <i class="fas fa-trash-alt"></i> Löschen
+                                    </button>
+                                </form>
+                            </div>
                         </div>
-                        <div class="team-actions">
-                            <a href="{{ url_for('admin.edit_team', team_id=team.id) }}" class="btn btn-sm btn-outline-secondary mr-2"><i class="fas fa-edit"></i></a>
-                            <form method="POST" action="{{ url_for('admin.delete_team', team_id=team.id) }}" style="display: inline;" onsubmit="return confirm('Team {{ team.name }} wirklich löschen? Alle zugehörigen Daten gehen verloren!');">
-                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                                <button type="submit" class="btn btn-sm btn-outline-danger"><i class="fas fa-trash-alt"></i></button>
-                            </form>
-                        </div>
-                    </li>
+                    </div>
+                </div>
                 {% endfor %}
-            </ul>
+            </div>
         {% else %}
             <p>Noch keine Teams erstellt.</p>
         {% endif %}
@@ -299,23 +307,37 @@
         <h2>Minispiel-Bibliothek (Datenbank)</h2>
         <a href="{{ url_for('admin.create_minigame_db') }}" class="btn btn-primary mb-3"><i class="fas fa-plus-circle"></i> Neues DB-Minispiel erstellen</a>
         {% if minigames_db %}
-            <ul class="list-group">
+            <div class="row">
                 {% for minigame in minigames_db %}
-                    <li class="list-group-item d-flex justify-content-between align-items-center flex-wrap">
-                        <div class="minigame-info mb-2 mb-md-0">
-                           <strong>{{ minigame.name }}</strong> (Typ: {{ minigame.type | title }})
-                           {% if minigame.description %}<br><small><em>{{ minigame.description }}</em></small>{% endif %}
+                <div class="col-md-6 col-lg-4 mb-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">{{ minigame.name }}</h5>
+                            <p class="card-text">
+                                <span class="badge badge-{{ 'primary' if minigame.type == 'game' else 'info' }}">
+                                    {{ minigame.type | title }}
+                                </span>
+                            </p>
+                            {% if minigame.description %}
+                                <p class="card-text"><small class="text-muted">{{ minigame.description }}</small></p>
+                            {% endif %}
+                            <div class="btn-group w-100" role="group">
+                                <a href="{{ url_for('admin.edit_minigame_db', minigame_id=minigame.id) }}" class="btn btn-outline-primary btn-sm">
+                                    <i class="fas fa-edit"></i> Bearbeiten
+                                </a>
+                                <form method="POST" action="{{ url_for('admin.delete_minigame_db', minigame_id=minigame.id) }}" style="display: inline;" 
+                                      onsubmit="return confirm('Minispiel {{ minigame.name }} wirklich aus der Bibliothek löschen?');" class="w-50">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                    <button type="submit" class="btn btn-outline-danger btn-sm w-100">
+                                        <i class="fas fa-trash-alt"></i> Löschen
+                                    </button>
+                                </form>
+                            </div>
                         </div>
-                        <div class="minigame-actions">
-                            <a href="{{ url_for('admin.edit_minigame_db', minigame_id=minigame.id) }}" class="btn btn-sm btn-outline-secondary mr-2"><i class="fas fa-edit"></i></a>
-                            <form method="POST" action="{{ url_for('admin.delete_minigame_db', minigame_id=minigame.id) }}" style="display: inline;" onsubmit="return confirm('Minispiel {{ minigame.name }} wirklich aus der Bibliothek löschen?');">
-                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                                <button type="submit" class="btn btn-sm btn-outline-danger"><i class="fas fa-trash-alt"></i></button>
-                            </form>
-                        </div>
-                    </li>
+                    </div>
+                </div>
                 {% endfor %}
-            </ul>
+            </div>
         {% else %}
             <p>Noch keine Minispiele in der Bibliothek erstellt.</p>
         {% endif %}
@@ -403,14 +425,16 @@
             .then(data => {
                 if (data.success) {
                     showDiceResult(data);
-                    // Die Seite wird jetzt nicht mehr automatisch neu geladen hier,
-                    // stattdessen wird updateGameStatus den Zustand aktualisieren.
-                    // Wenn die Phase wechselt (z.B. ROUND_OVER), wird ein Reload durch updateGameStatus ausgelöst.
-                    // Wir rufen updateGameStatus nach einer kurzen Verzögerung auf, um dem Server Zeit zu geben.
-                    setTimeout(updateGameStatus, 1500); 
+                    // Sofortiges Update des Game Status nach erfolgreichem Würfeln
+                    setTimeout(() => {
+                        updateGameStatus();
+                    }, 500); // Kurze Verzögerung, damit Server Zeit hat zu aktualisieren
                 } else {
                     showFlashMessage('Fehler beim Würfeln: ' + (data.error || data.details || 'Unbekannter Fehler'), 'danger');
-                    // Button Zustand wird durch updateGameStatus() wiederhergestellt oder bei Phasenwechsel
+                    // Button wieder aktivieren bei Fehler
+                    isRollingDice = false;
+                    rollDiceBtn.disabled = false;
+                    rollDiceBtn.innerHTML = '<i class="fas fa-dice"></i> Für aktuelles Team würfeln';
                 }
             })
             .catch(error => {
@@ -419,22 +443,10 @@
                 if (error && error.error) errorMsg = error.error;
                 if (error && error.details) errorMsg += ` Details: ${error.details}`;
                 showFlashMessage(errorMsg, 'danger');
-            })
-            .finally(() => {
-                // Der Button-Zustand wird durch updateGameStatus() oder Seiten-Reload bei Phasenwechsel gehandhabt.
-                // isRollingDice wird in updateGameStatus() oder bei Phasenwechsel zurückgesetzt.
-                // Hier setzen wir es nach einer Verzögerung zurück, falls updateGameStatus nicht schnell genug ist
-                // oder fehlschlägt, um den Button nicht dauerhaft blockiert zu lassen.
-                setTimeout(() => { 
-                    isRollingDice = false; 
-                    // Wenn der Button immer noch deaktiviert ist und nicht lädt,
-                    // und die Phase immer noch DICE_ROLLING ist, dann aktivieren.
-                    const currentPhaseSpan = document.querySelector('[data-phase]');
-                    if (currentPhaseSpan && currentPhaseSpan.dataset.phase === 'DICE_ROLLING' && rollDiceBtn.disabled && !rollDiceBtn.innerHTML.includes('fa-spinner')) {
-                         rollDiceBtn.disabled = false;
-                         rollDiceBtn.innerHTML = '<i class="fas fa-dice"></i> Für aktuelles Team würfeln';
-                    }
-                }, 2500); 
+                // Button wieder aktivieren bei Fehler
+                isRollingDice = false;
+                rollDiceBtn.disabled = false;
+                rollDiceBtn.innerHTML = '<i class="fas fa-dice"></i> Für aktuelles Team würfeln';
             });
         }
         
@@ -458,9 +470,6 @@
         }
         
         function updateGameStatus() {
-            // Verhindere Update, wenn gerade gewürfelt wird
-            if (isRollingDice) return;
-
             const currentPhaseSpan = document.querySelector('[data-phase]');
             const initialPhase = currentPhaseSpan ? currentPhaseSpan.dataset.phase : null;
 
@@ -491,25 +500,29 @@
                                     ${currentTeamData.name}
                                 </span>
                                 <small class="d-block mt-1">
-                                    Position: ${currentTeamData.current_position} | Bonus: ${bonusText}
+                                    Position: ${currentTeamData.position} | Bonus: ${bonusText}
                                 </small>
                             `;
-                            // Würfelbutton aktivieren, wenn er es nicht ist und nicht gerade geladen wird
-                            if (rollDiceBtn && rollDiceBtn.disabled && !rollDiceBtn.innerHTML.includes('fa-spinner')) {
+                            
+                            // Würfelbutton aktivieren, wenn ein Team dran ist
+                            if (rollDiceBtn) {
                                 rollDiceBtn.disabled = false;
                                 rollDiceBtn.innerHTML = '<i class="fas fa-dice"></i> Für aktuelles Team würfeln';
-                                isRollingDice = false; // Sicherstellen, dass Flag zurückgesetzt ist
+                                isRollingDice = false; // Flag zurücksetzen
                             }
-                        } else { // Kein Team dran (z.B. direkt nach Rundenende, vor Phasenwechsel-Reload)
+                        } else { // Kein Team dran
                              currentTurnInfo.innerHTML = `<span class="text-muted">Warte auf Team...</span>`;
-                             if (rollDiceBtn) rollDiceBtn.disabled = true;
+                             if (rollDiceBtn) {
+                                 rollDiceBtn.disabled = true;
+                                 isRollingDice = false;
+                             }
                         }
-                    } else if (rollDiceBtn) { // Wenn nicht DICE_ROLLING phase
+                    } else if (rollDiceBtn && newPhase !== 'DICE_ROLLING') { // Wenn nicht DICE_ROLLING phase
                         rollDiceBtn.disabled = true;
-                         isRollingDice = false; // Sicherstellen, dass Flag zurückgesetzt ist
+                        isRollingDice = false;
                     }
 
-                    // Würfelreihenfolge aktualisieren (vereinfacht, ggf. detaillierter)
+                    // Würfelreihenfolge aktualisieren
                     const orderListDiv = document.querySelector('.team-order-list');
                     if (orderListDiv && data.game_session.dice_roll_order) {
                         const orderIds = data.game_session.dice_roll_order.split(',');
@@ -529,7 +542,10 @@
 
 
                 } else { // Keine game_session Daten
-                     if (rollDiceBtn) rollDiceBtn.disabled = true;
+                     if (rollDiceBtn) {
+                         rollDiceBtn.disabled = true;
+                         isRollingDice = false;
+                     }
                      if (currentTurnInfo) currentTurnInfo.innerHTML = `<span class="text-muted">Keine aktive Session.</span>`;
                 }
             })
@@ -539,12 +555,12 @@
             });
         }
 
-        // Starte das Intervall nur, wenn der Würfelbutton existiert (also in DICE_ROLLING Phase)
-        // oder wenn wir generell den Status pollen wollen
-        // Das Intervall wird jetzt immer gestartet, aber die Aktionen darin sind konditional
-        if (typeof gameStatusInterval !== 'undefined') clearInterval(gameStatusInterval); // Altes Intervall löschen
-        gameStatusInterval = setInterval(updateGameStatus, 7000); // Poll-Intervall (z.B. alle 7 Sekunden)
-        updateGameStatus(); // Initialer Aufruf, um den Zustand sofort zu laden
+        // Starte das Intervall für regelmäßige Updates
+        if (typeof gameStatusInterval !== 'undefined') clearInterval(gameStatusInterval);
+        gameStatusInterval = setInterval(updateGameStatus, 5000); // Poll alle 5 Sekunden
+        
+        // Initiales Update
+        updateGameStatus();
     });
     </script>
     
@@ -602,20 +618,28 @@
         box-shadow: none;
     }
 
-    /* Styling für bessere Lesbarkeit der Team- und Minispiel-Listen */
-    .team-info, .minigame-info {
-        flex-grow: 1;
+    /* Bessere Darstellung der Team- und Minispiel-Cards */
+    .card {
+        transition: transform 0.2s ease-in-out;
+        border: 1px solid rgba(0,0,0,.125);
     }
-    .team-actions, .minigame-actions {
-        white-space: nowrap; /* Verhindert Umbruch der Buttons */
+    
+    .card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.15);
     }
-    .list-group-item {
-        align-items: flex-start; /* Bessere Ausrichtung bei mehrzeiligem Text */
+    
+    .btn-group .btn {
+        flex: 1;
     }
-    @media (min-width: 768px) { /* md Breakpoint */
-        .list-group-item {
-            align-items: center; /* Standardausrichtung für größere Bildschirme */
-        }
+    
+    .card-title {
+        color: #495057;
+        font-weight: 600;
+    }
+    
+    .badge {
+        font-size: 0.8em;
     }
     </style>
 {% endblock %}
