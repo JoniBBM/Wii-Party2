@@ -4,10 +4,14 @@ import os
 import random
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session, current_app, g, jsonify
 from flask_login import login_user, logout_user, login_required, current_user
-from app.models import Admin, Team, Minigame, Character, GameSession, GameEvent, db # TeamMinigameScore ggf. importieren
-from app.forms import AdminLoginForm, CreateTeamForm, EditTeamForm, MinigameForm, SetNextMinigameForm, AdminConfirmPasswordForm # TeamForm wurde zu CreateTeamForm/EditTeamForm
+# Korrigierte Importe basierend auf der Nutzung und der ursprünglichen Datei des Benutzers:
+from ..models import Admin, Team, Minigame, Character, GameSession, GameEvent, db
+from ..forms import AdminLoginForm, CreateTeamForm, EditTeamForm, MinigameForm, SetNextMinigameForm, AdminConfirmPasswordForm
+# Importiere init_characters, wenn es verwendet wird (z.B. in init_chars Route)
+from .init_characters import initialize_characters
 
-admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
+admin_bp = Blueprint('admin', __name__, template_folder='../templates/admin', url_prefix='/admin')
+
 
 # Hilfsfunktion, um die aktive oder eine neue GameSession zu bekommen
 def get_or_create_active_session():
@@ -31,7 +35,7 @@ def get_or_create_active_session():
 def admin_dashboard():
     if not isinstance(current_user, Admin):
         flash('Zugriff verweigert. Nur Admins können das Admin Dashboard sehen.', 'danger')
-        return redirect(url_for('main.index'))
+        return redirect(url_for('main.index')) # Annahme: 'main.index' ist die Hauptseite
 
     active_session = get_or_create_active_session()
     teams = Team.query.order_by(Team.name).all()
@@ -43,10 +47,6 @@ def admin_dashboard():
     
     confirm_reset_form = AdminConfirmPasswordForm() # Formular für Passwortbestätigung
 
-    # Das reset_game_state Formular wird jetzt hier gehandhabt, wenn es per POST kommt
-    # Aber die Logik ist in einer eigenen Route, um es sauber zu halten.
-    # Hier wird es nur für die Anzeige im Template benötigt.
-
     template_data = {
         "teams": teams,
         "minigames_db": minigames_db,
@@ -55,12 +55,9 @@ def admin_dashboard():
         "current_minigame_description": active_session.current_minigame_description,
         "current_phase": active_session.current_phase,
         "set_minigame_form": set_minigame_form,
-        "confirm_reset_form": confirm_reset_form # Passwortbestätigungsformular an Template übergeben
+        "confirm_reset_form": confirm_reset_form 
     }
     
-    # current_app.logger.debug(f"Admin Dashboard - Session ID: {active_session.id}, Phase: {active_session.current_phase}")
-    # current_app.logger.debug(f"Aktuelles Minispiel: Name='{active_session.current_minigame_name}', Beschreibung='{active_session.current_minigame_description}'")
-
     return render_template('admin.html', **template_data)
 
 @admin_bp.route('/login', methods=['GET', 'POST'])
@@ -84,10 +81,10 @@ def login():
 def logout():
     if not isinstance(current_user, Admin):
         flash('Nur Admins können sich hier ausloggen.', 'warning')
-        return redirect(url_for('main.index'))
+        return redirect(url_for('main.index')) 
     logout_user()
     flash('Admin erfolgreich ausgeloggt.', 'info')
-    return redirect(url_for('main.index'))
+    return redirect(url_for('main.index')) 
 
 @admin_bp.route('/admin_roll_dice', methods=['POST'])
 @login_required
@@ -119,7 +116,7 @@ def admin_roll_dice():
         total_roll = standard_dice_roll + bonus_dice_roll
         old_position = team.current_position
         
-        max_field_index = current_app.config.get('MAX_BOARD_FIELDS', 72) # Aus Config laden
+        max_field_index = current_app.config.get('MAX_BOARD_FIELDS', 72) 
         new_position = min(team.current_position + total_roll, max_field_index)
         team.current_position = new_position
 
@@ -145,7 +142,7 @@ def admin_roll_dice():
         db.session.add(dice_event)
 
         dice_order_ids_str = active_session.dice_roll_order
-        if not dice_order_ids_str: # Fallback, falls die Reihenfolge leer ist
+        if not dice_order_ids_str: 
             db.session.rollback()
             current_app.logger.error("Würfelreihenfolge ist leer in der aktiven Session.")
             return jsonify({"success": False, "error": "Fehler: Würfelreihenfolge nicht gesetzt."}), 500
@@ -160,7 +157,7 @@ def admin_roll_dice():
             current_app.logger.error(f"Team {team.id} nicht in Würfelreihenfolge {dice_order_ids_int} gefunden.")
             return jsonify({"success": False, "error": "Fehler in der Würfelreihenfolge (Team nicht gefunden)."}), 500
 
-        next_team_name = None # Initialisieren
+        next_team_name = None 
         if current_team_index_in_order < len(dice_order_ids_int) - 1:
             active_session.current_team_turn_id = dice_order_ids_int[current_team_index_in_order + 1]
             next_team = Team.query.get(active_session.current_team_turn_id)
@@ -172,7 +169,6 @@ def admin_roll_dice():
             all_teams_in_db = Team.query.all()
             for t_obj in all_teams_in_db:
                 t_obj.bonus_dice_sides = 0
-                # t_obj.minigame_placement = None # Platzierung wird erst beim nächsten Minispiel neu gesetzt
             
             round_over_event = GameEvent(
                 game_session_id=active_session.id,
@@ -182,12 +178,6 @@ def admin_roll_dice():
             db.session.add(round_over_event)
 
         db.session.commit()
-
-        # current_app.logger.debug(f"Admin würfelte für {team.name}: {standard_dice_roll}+{bonus_dice_roll}={total_roll}, neue Position: {new_position}")
-        # if next_team_name:
-        #     current_app.logger.debug(f"Nächstes Team: {next_team_name}")
-        # else:
-        #     current_app.logger.debug(f"Runde beendet, Phase: {active_session.current_phase}")
 
         return jsonify({
             "success": True,
@@ -199,7 +189,7 @@ def admin_roll_dice():
             "old_position": old_position,
             "new_position": new_position,
             "next_team_id": active_session.current_team_turn_id,
-            "next_team_name": next_team_name, # Wird gesendet, auch wenn None
+            "next_team_name": next_team_name, 
             "new_phase": active_session.current_phase
         })
 
@@ -213,7 +203,7 @@ def admin_roll_dice():
 def set_minigame():
     if not isinstance(current_user, Admin):
         flash('Aktion nicht erlaubt.', 'danger')
-        return redirect(url_for('main.index'))
+        return redirect(url_for('main.index')) 
 
     active_session = get_or_create_active_session()
     form = SetNextMinigameForm(request.form)
@@ -227,28 +217,28 @@ def set_minigame():
     selected_id = form.selected_minigame_id.data
     
     minigame_chosen_from_db = False
-    if selected_id and selected_id != 0:
+    if selected_id and selected_id != 0: # 0 ist der Platzhalter für manuelle Eingabe
         minigame_from_db = Minigame.query.get(selected_id)
         if minigame_from_db:
             active_session.current_minigame_name = minigame_from_db.name
             active_session.current_minigame_description = minigame_from_db.description
-            active_session.selected_minigame_id = minigame_from_db.id
+            active_session.selected_minigame_id = minigame_from_db.id # Speichere die ID des ausgewählten DB-Minispiels
             flash(f"Minispiel '{minigame_from_db.name}' aus Bibliothek ausgewählt.", 'info')
             minigame_chosen_from_db = True
         else:
             flash('Ausgewähltes Minispiel nicht gefunden.', 'warning')
             return redirect(url_for('admin.admin_dashboard'))
     
-    if not minigame_chosen_from_db:
-        if manual_name and manual_description: # Nur wenn Name UND Beschreibung da sind
+    if not minigame_chosen_from_db: # Wenn kein Spiel aus DB gewählt wurde, prüfe manuelle Eingaben
+        if manual_name and manual_description: 
             active_session.current_minigame_name = manual_name
             active_session.current_minigame_description = manual_description
-            active_session.selected_minigame_id = None 
+            active_session.selected_minigame_id = None # Kein DB-Minispiel ausgewählt
             flash(f"Minispiel '{manual_name}' manuell gesetzt.", 'info')
-        elif manual_name and not manual_description: # Nur Name gegeben
+        elif manual_name and not manual_description: 
              flash('Bitte auch eine Beschreibung für das manuelle Minispiel angeben.', 'warning')
              return redirect(url_for('admin.admin_dashboard'))
-        elif not manual_name and manual_description: # Nur Beschreibung gegeben
+        elif not manual_name and manual_description: 
              flash('Bitte auch einen Namen für das manuelle Minispiel angeben.', 'warning')
              return redirect(url_for('admin.admin_dashboard'))
         else: # Beides leer und nichts ausgewählt
@@ -256,22 +246,19 @@ def set_minigame():
             return redirect(url_for('admin.admin_dashboard'))
 
     active_session.current_phase = 'MINIGAME_ANNOUNCED'
-    # Alte Platzierungen der Teams zurücksetzen, wenn ein neues Minispiel gesetzt wird
     teams_to_reset = Team.query.all()
     for t in teams_to_reset:
         t.minigame_placement = None
-        # Bonuswürfel bleiben bis nach der Würfelrunde des vorherigen Minispiels erhalten
 
     event = GameEvent(
         game_session_id=active_session.id,
         event_type="minigame_set",
         description=f"Minispiel '{active_session.current_minigame_name}' wurde festgelegt. Platzierungen zurückgesetzt.",
-        related_minigame_id=active_session.selected_minigame_id,
+        related_minigame_id=active_session.selected_minigame_id, # Kann None sein
         data_json=f'{{"name": "{active_session.current_minigame_name}", "description": "{active_session.current_minigame_description}"}}'
     )
     db.session.add(event)
     db.session.commit()
-    # current_app.logger.debug(f"Minispiel gesetzt - Name: {active_session.current_minigame_name}, Phase: {active_session.current_phase}")
     return redirect(url_for('admin.admin_dashboard'))
 
 @admin_bp.route('/record_placements', methods=['POST'])
@@ -279,7 +266,7 @@ def set_minigame():
 def record_placements():
     if not isinstance(current_user, Admin):
         flash('Aktion nicht erlaubt.', 'danger')
-        return redirect(url_for('main.index'))
+        return redirect(url_for('main.index')) 
 
     active_session = GameSession.query.filter_by(is_active=True).first()
     if not active_session or active_session.current_phase != 'MINIGAME_ANNOUNCED':
@@ -294,7 +281,7 @@ def record_placements():
     placements = {} 
     
     valid_placements = True
-    for team_obj_iter in teams: # Umbenannt, um Konflikt mit team-Variable unten zu vermeiden
+    for team_obj_iter in teams: 
         placement_str = request.form.get(f'placement_team_{team_obj_iter.id}')
         if placement_str and placement_str.isdigit():
             placements[team_obj_iter.id] = int(placement_str)
@@ -319,12 +306,9 @@ def record_placements():
         team_obj.minigame_placement = placement
         dice_roll_order_ids.append(str(team_obj.id))
 
-        # Bonuswürfel basierend auf Platzierung
         bonus_config = current_app.config.get('PLACEMENT_BONUS_DICE', {1: 6, 2: 4, 3: 2})
         team_obj.bonus_dice_sides = bonus_config.get(placement, 0)
         
-        # current_app.logger.debug(f"Team {team_obj.name} - Platz: {placement}, Bonus: {team_obj.bonus_dice_sides}")
-
     active_session.dice_roll_order = ",".join(dice_roll_order_ids)
     active_session.current_team_turn_id = int(dice_roll_order_ids[0]) if dice_roll_order_ids else None
     active_session.current_phase = 'DICE_ROLLING'
@@ -341,42 +325,30 @@ def record_placements():
     db.session.commit()
     
     flash('Platzierungen erfolgreich gespeichert. Würfelrunde beginnt.', 'success')
-    # current_app.logger.debug(f"Platzierungen gespeichert. Phase: {active_session.current_phase}, Nächstes Team: {active_session.current_team_turn_id}")
     return redirect(url_for('admin.admin_dashboard'))
 
 
-@admin_bp.route('/reset_game_state_confirmed', methods=['POST']) # Eigene Route für den bestätigten Reset
+@admin_bp.route('/reset_game_state_confirmed', methods=['POST']) 
 @login_required
 def reset_game_state_confirmed():
     if not isinstance(current_user, Admin):
         flash('Aktion nicht erlaubt.', 'danger')
-        return redirect(url_for('main.index'))
+        return redirect(url_for('main.index')) 
 
     form = AdminConfirmPasswordForm(request.form)
-    admin_user = Admin.query.get(current_user.id) # Admin-Objekt frisch laden
+    admin_user = Admin.query.get(current_user.id) 
 
     if form.validate_on_submit():
         if admin_user and admin_user.check_password(form.password.data):
             try:
-                # 1. Alle GameEvents löschen (oder zumindest die der aktiven Sessions)
-                # Um sicherzugehen, dass wir keine Foreign Key Constraints verletzen,
-                # löschen wir Events, bevor wir Sessions löschen.
-                # Wenn es viele Sessions gäbe, könnte man das auf aktive beschränken.
-                GameEvent.query.delete() # Löscht alle Events
+                GameEvent.query.delete() 
+                GameSession.query.delete() 
 
-                # 2. Alle GameSessions löschen (oder zumindest die aktive)
-                GameSession.query.delete() # Löscht alle Sessions
-
-                # 3. Alle Teams zurücksetzen
                 teams = Team.query.all()
                 for team in teams:
                     team.minigame_placement = None
                     team.bonus_dice_sides = 0
-                    team.current_position = 0  # Position auch zurücksetzen
-
-                # Ggf. TeamMinigameScore löschen, falls diese Tabelle existiert und genutzt wird
-                # from app.models import TeamMinigameScore # Sicherstellen, dass Import existiert
-                # TeamMinigameScore.query.delete()
+                    team.current_position = 0  
 
                 db.session.commit()
                 flash('Spiel komplett zurückgesetzt (inkl. Positionen, Events, Session). Eine neue Session wird beim nächsten Aufruf gestartet.', 'success')
@@ -388,9 +360,11 @@ def reset_game_state_confirmed():
         else:
             flash('Falsches Admin-Passwort. Spiel nicht zurückgesetzt.', 'danger')
     else:
-        flash('Passworteingabe für Reset ungültig.', 'warning')
-        # Bei Fehlern im Formular (z.B. leeres Passwort) zurück zum Dashboard, wo das Formular angezeigt wird.
-        # Die Fehler werden dann vom Formular selbst angezeigt, wenn es im Template richtig eingebunden ist.
+        # Fehler aus dem Formular sollten automatisch durch WTForms im Template angezeigt werden,
+        # wenn das Formular korrekt gerendert wird. Eine zusätzliche Flash-Nachricht hier
+        # könnte hilfreich sein, ist aber oft redundant.
+        flash('Passworteingabe für Reset ungültig oder fehlend.', 'warning')
+
 
     return redirect(url_for('admin.admin_dashboard'))
 
@@ -398,9 +372,8 @@ def reset_game_state_confirmed():
 @admin_bp.route('/create_team', methods=['GET', 'POST'])
 @login_required
 def create_team():
-    if not isinstance(current_user, Admin): return redirect(url_for('main.index'))
-    form = CreateTeamForm() # Verwendet das neue Formular
-    # Character choices werden jetzt im Formular __init__ gesetzt
+    if not isinstance(current_user, Admin): return redirect(url_for('main.index')) 
+    form = CreateTeamForm() # Nutzt Character Choices aus Form __init__
 
     if form.validate_on_submit():
         existing_team = Team.query.filter_by(name=form.team_name.data).first()
@@ -408,31 +381,43 @@ def create_team():
             flash('Ein Team mit diesem Namen existiert bereits.', 'warning')
         else:
             team = Team(name=form.team_name.data)
-            team.set_password(form.password.data) # Passwort ist jetzt Pflicht
+            team.set_password(form.password.data) 
             
             selected_character_id = form.character_id.data
-            char = Character.query.get(selected_character_id) # character_id ist jetzt Pflicht
+            # Da character_id ein Pflichtfeld im Formular ist (Required()),
+            # können wir davon ausgehen, dass es hier einen Wert hat.
+            char = Character.query.get(selected_character_id) 
             if char:
-                if char.is_selected:
+                if char.is_selected: # Diese Prüfung ist wichtig
                     flash(f'Charakter {char.name} ist bereits ausgewählt. Bitte einen anderen wählen.', 'warning')
-                    # Formular erneut anzeigen mit Fehlermeldung (kein redirect)
+                    # Formular erneut anzeigen, damit der Benutzer korrigieren kann
                     return render_template('create_team.html', title='Team erstellen', form=form)
                 
                 team.character_id = char.id
-                team.character_name = char.name
-                char.is_selected = True # Charakter als ausgewählt markieren
+                # Stelle sicher, dass das Team-Modell ein Feld 'character_name' hat, wenn du es hier setzt.
+                # Alternativ kann der Name über die Beziehung team.character.name abgerufen werden.
+                team.character_name = char.name 
+                char.is_selected = True 
                 db.session.add(char)
-            # Kein else nötig, da character_id ein Pflichtfeld ist und validiert wird
-
+            # Kein else für "char nicht gefunden", da SelectField normalerweise gültige IDs liefert.
+            
             db.session.add(team)
             db.session.commit()
             flash('Team erfolgreich erstellt.', 'success')
             return redirect(url_for('admin.admin_dashboard'))
     else:
-        # Fehler ausgeben, falls die Formularvalidierung fehlschlägt
-        for field, errors in form.errors.items():
-            for error in errors:
-                flash(f"Fehler im Feld '{getattr(form, field).label.text}': {error}", 'danger')
+        # Fehler ausgeben, falls die Formularvalidierung fehlschlägt (z.B. Passwort zu kurz)
+        if request.method == 'POST': # Nur bei fehlgeschlagenem POST die Fehler anzeigen
+            for fieldName, errorMessages in form.errors.items():
+                for err in errorMessages:
+                    # Versuch, das Label des Feldes zu bekommen, falls vorhanden
+                    field_label = fieldName
+                    try:
+                        field_label = getattr(form, fieldName).label.text
+                    except AttributeError:
+                        pass # Feld hat kein Label-Attribut oder .text
+                    flash(f"Fehler im Feld '{field_label}': {err}", 'danger')
+
 
     return render_template('create_team.html', title='Team erstellen', form=form)
 
@@ -440,41 +425,36 @@ def create_team():
 @admin_bp.route('/edit_team/<int:team_id>', methods=['GET', 'POST'])
 @login_required
 def edit_team(team_id):
-    if not isinstance(current_user, Admin): return redirect(url_for('main.index'))
+    if not isinstance(current_user, Admin): return redirect(url_for('main.index')) 
     team = Team.query.get_or_404(team_id)
     
-    # Holen des aktuellen Charakters, bevor das Formular instanziiert wird
-    current_char_id_for_form = team.character_id if team.character_id else 0
-
-    form = EditTeamForm(original_team_name=team.name, current_character_id=current_char_id_for_form, obj=team)
-    # Character choices werden jetzt im Formular __init__ gesetzt,
-    # inklusive Logik, um den aktuell ausgewählten Charakter des Teams verfügbar zu machen.
-
-    if request.method == 'GET':
-        # Setze den aktuellen Charakter des Teams im Formular vorausgewählt
-        form.character_id.data = team.character_id if team.character_id else None
+    # current_char_id_for_form wird an EditTeamForm übergeben, um die Logik
+    # für die Charakterauswahl im Formular zu unterstützen.
+    current_char_id_for_form = team.character_id if team.character_id else 0 
+                                                                          # (oder None, je nachdem was das Formular erwartet)
+    
+    # Bei POST-Request werden die Daten aus request.form genommen,
+    # bei GET aus dem obj=team (falls vorhanden und gewünscht)
+    form = EditTeamForm(original_team_name=team.name, current_character_id=current_char_id_for_form, obj=team if request.method == 'GET' else None)
 
 
     if form.validate_on_submit():
-        # Prüfen, ob das aktuelle Admin-Passwort korrekt ist, falls Änderungen vorgenommen werden sollen
-        # die es erfordern (z.B. Passwortänderung des Teams). Hier nicht explizit implementiert,
-        # aber `form.current_password.data` wäre der Ort dafür.
-        # Fürs Erste gehen wir davon aus, dass der Admin berechtigt ist.
-
         # Name-Validierung: Sicherstellen, dass der neue Name nicht von einem *anderen* Team verwendet wird
-        if form.team_name.data != team.name: # Nur prüfen, wenn der Name geändert wurde
-            existing_team = Team.query.filter(Team.id != team_id, Team.name == form.team_name.data).first()
-            if existing_team:
+        if form.team_name.data != team.name: 
+            existing_team_check = Team.query.filter(Team.id != team_id, Team.name == form.team_name.data).first()
+            if existing_team_check:
                 flash('Ein anderes Team mit diesem Namen existiert bereits.', 'warning')
-                return render_template('edit_team.html', title='Team bearbeiten', form=form, team=team)
+                # Wichtig: Formular erneut mit den aktuellen (fehlerhaften) Eingaben rendern,
+                # nicht das leere Formular oder die alten Daten.
+                return render_template('edit_team.html', title='Team bearbeiten', form=form, team=team) # team wird für Template-Infos benötigt
         
         team.name = form.team_name.data
         
         if form.password.data: # Wenn ein neues Passwort eingegeben wurde
             team.set_password(form.password.data)
 
-        new_character_id = form.character_id.data
-        old_character_id = team.character_id
+        new_character_id = form.character_id.data # Dies ist die ID des neu ausgewählten Charakters
+        old_character_id = team.character_id    # Dies ist die ID des alten Charakters des Teams
 
         if new_character_id != old_character_id:
             # Alten Charakter als nicht ausgewählt markieren, falls vorhanden
@@ -485,20 +465,24 @@ def edit_team(team_id):
                     db.session.add(old_char)
             
             # Neuen Charakter als ausgewählt markieren und dem Team zuweisen
-            if new_character_id: # new_character_id könnte auch None sein, wenn "kein Charakter" gewählt wird
+            if new_character_id: 
                 new_char = Character.query.get(new_character_id)
                 if new_char:
-                    if new_char.is_selected: # Darf nicht passieren, wenn Formularlogik stimmt
-                        flash(f"Charakter {new_char.name} ist bereits von einem anderen Team ausgewählt.", "warning")
+                    # Zusätzliche Prüfung, falls die Formularlogik umgangen wurde oder Race Condition:
+                    # Der Charakter darf nicht bereits von einem *anderen* Team ausgewählt sein.
+                    # Die Formularlogik sollte dies bereits handhaben, indem nur verfügbare Chars + der eigene alte Char zur Auswahl stehen.
+                    if new_char.is_selected and new_char.id != old_character_id : # Diese Bedingung sollte eigentlich nie eintreten, wenn Formularlogik stimmt
+                        flash(f"Charakter {new_char.name} ist bereits von einem anderen Team ausgewählt. Dies sollte nicht passieren.", "danger")
                         return render_template('edit_team.html', title='Team bearbeiten', form=form, team=team)
+                    
                     team.character_id = new_char.id
-                    team.character_name = new_char.name
+                    team.character_name = new_char.name # Siehe Kommentar in create_team
                     new_char.is_selected = True
                     db.session.add(new_char)
                 else: # Sollte nicht passieren, wenn character_id aus gültigen Choices kommt
                     team.character_id = None
                     team.character_name = None
-            else: # "Kein Charakter" wurde explizit ausgewählt
+            else: # "Kein Charakter" wurde explizit ausgewählt (falls das Formular das erlaubt)
                 team.character_id = None
                 team.character_name = None
         
@@ -506,11 +490,21 @@ def edit_team(team_id):
         flash('Team erfolgreich aktualisiert.', 'success')
         return redirect(url_for('admin.admin_dashboard'))
     else:
-        # Fehler ausgeben, falls die Formularvalidierung fehlschlägt (z.B. bei GET oder invalid POST)
+        # Fehler ausgeben, falls die Formularvalidierung fehlschlägt (z.B. bei initialem GET oder invalid POST)
         if request.method == 'POST': # Nur bei fehlgeschlagenem POST die Fehler anzeigen
-            for field, errors in form.errors.items():
-                for error in errors:
-                    flash(f"Fehler im Feld '{getattr(form, field).label.text}': {error}", 'danger')
+            for fieldName, errorMessages in form.errors.items():
+                for err in errorMessages:
+                    field_label = fieldName
+                    try:
+                        field_label = getattr(form, fieldName).label.text
+                    except AttributeError:
+                        pass
+                    flash(f"Fehler im Feld '{field_label}': {err}", 'danger')
+        elif request.method == 'GET':
+            # Formular mit den aktuellen Daten des Teams vorbefüllen
+            form.team_name.data = team.name
+            form.character_id.data = team.character_id
+
 
     return render_template('edit_team.html', title='Team bearbeiten', form=form, team=team)
 
@@ -518,37 +512,29 @@ def edit_team(team_id):
 @admin_bp.route('/delete_team/<int:team_id>', methods=['POST'])
 @login_required
 def delete_team(team_id):
-    if not isinstance(current_user, Admin): return redirect(url_for('main.index'))
+    if not isinstance(current_user, Admin): return redirect(url_for('main.index')) 
     team = Team.query.get_or_404(team_id)
     
-    # Charakter des Teams als nicht mehr ausgewählt markieren
     if team.character_id:
         char = Character.query.get(team.character_id)
         if char:
             char.is_selected = False
             db.session.add(char)
 
-    # Sessions aktualisieren, wo dieses Team am Zug war
     GameSession.query.filter_by(current_team_turn_id=team.id).update({"current_team_turn_id": None})
-    
-    # GameEvents anonymisieren
     GameEvent.query.filter_by(related_team_id=team.id).update({"related_team_id": None})
     
-    # TeamMinigameScore löschen (falls vorhanden)
-    # from app.models import TeamMinigameScore # Sicherstellen, dass Import existiert
-    # TeamMinigameScore.query.filter_by(team_id=team.id).delete()
-    
-    # Würfelreihenfolge in aktiven Sessions anpassen
-    active_sessions = GameSession.query.filter(GameSession.dice_roll_order.like(f"%{team.id}%")).all()
+    active_sessions = GameSession.query.filter(GameSession.dice_roll_order.like(f"%{str(team.id)}%")).all() # Wichtig: team.id zu str konvertieren für LIKE
     for sess in active_sessions:
         order_list = sess.dice_roll_order.split(',')
-        if str(team.id) in order_list:
-            order_list.remove(str(team.id))
+        # Sicherstellen, dass wir Strings vergleichen
+        team_id_str = str(team.id)
+        if team_id_str in order_list:
+            order_list.remove(team_id_str)
             sess.dice_roll_order = ",".join(order_list)
-            if not order_list and sess.current_phase == 'DICE_ROLLING': # Wenn letztes Team gelöscht wurde
-                sess.current_phase = 'ROUND_OVER' # Oder eine andere passende Phase
+            if not order_list and sess.current_phase == 'DICE_ROLLING': 
+                sess.current_phase = 'ROUND_OVER' 
                 sess.current_team_turn_id = None
-
 
     db.session.delete(team)
     db.session.commit()
@@ -558,8 +544,8 @@ def delete_team(team_id):
 @admin_bp.route('/create_minigame_db', methods=['GET', 'POST'])
 @login_required
 def create_minigame_db():
-    if not isinstance(current_user, Admin): return redirect(url_for('main.index'))
-    form = MinigameForm()
+    if not isinstance(current_user, Admin): return redirect(url_for('main.index')) 
+    form = MinigameForm() 
     if form.validate_on_submit():
         minigame = Minigame(name=form.name.data, description=form.description.data, type=form.type.data)
         db.session.add(minigame)
@@ -571,9 +557,9 @@ def create_minigame_db():
 @admin_bp.route('/edit_minigame_db/<int:minigame_id>', methods=['GET', 'POST'])
 @login_required
 def edit_minigame_db(minigame_id):
-    if not isinstance(current_user, Admin): return redirect(url_for('main.index'))
+    if not isinstance(current_user, Admin): return redirect(url_for('main.index')) 
     minigame = Minigame.query.get_or_404(minigame_id)
-    form = MinigameForm(obj=minigame)
+    form = MinigameForm(obj=minigame) 
     if form.validate_on_submit():
         minigame.name = form.name.data
         minigame.description = form.description.data
@@ -581,31 +567,29 @@ def edit_minigame_db(minigame_id):
         db.session.commit()
         flash('Datenbank-Minispiel erfolgreich aktualisiert.', 'success')
         return redirect(url_for('admin.admin_dashboard'))
+    # Bei GET-Request das Formular mit den Minigame-Daten füllen (passiert durch obj=minigame)
+    # oder explizit:
+    # form.name.data = minigame.name
+    # form.description.data = minigame.description
+    # form.type.data = minigame.type
     return render_template('edit_minigame.html', title='DB-Minispiel bearbeiten', form=form, minigame=minigame)
 
 @admin_bp.route('/delete_minigame_db/<int:minigame_id>', methods=['POST'])
 @login_required
 def delete_minigame_db(minigame_id):
-    if not isinstance(current_user, Admin): return redirect(url_for('main.index'))
-    minigame_to_delete = Minigame.query.get_or_404(minigame_id) # Umbenannt, um Konflikt zu vermeiden
+    if not isinstance(current_user, Admin): return redirect(url_for('main.index')) 
+    minigame_to_delete = Minigame.query.get_or_404(minigame_id) 
     
-    # GameEvents anonymisieren, die sich auf dieses Minispiel beziehen
     GameEvent.query.filter_by(related_minigame_id=minigame_to_delete.id).update({"related_minigame_id": None})
     
-    # TeamMinigameScore löschen, die sich auf dieses Minispiel beziehen (falls vorhanden)
-    # from app.models import TeamMinigameScore # Sicherstellen, dass Import existiert
-    # TeamMinigameScore.query.filter_by(minigame_id=minigame_to_delete.id).delete()
-    
-    # Aktive Sessions aktualisieren, die dieses Minispiel ausgewählt haben
     active_sessions_with_this_minigame = GameSession.query.filter_by(selected_minigame_id=minigame_to_delete.id).all()
     for sess in active_sessions_with_this_minigame:
         sess.selected_minigame_id = None
-        # Wenn das gelöschte Minispiel das aktuell im Textfeld stehende ist, neutralen Text setzen
         if sess.current_minigame_name == minigame_to_delete.name:
-             sess.current_minigame_name = "N/A" # Oder leer lassen
+             sess.current_minigame_name = "N/A" 
              sess.current_minigame_description = "Minispiel wurde gelöscht."
-             if sess.current_phase == 'MINIGAME_ANNOUNCED': # Wenn das gelöschte Spiel gerade aktiv war
-                 sess.current_phase = 'SETUP_MINIGAME' # Zurück zur Minispielauswahl
+             if sess.current_phase == 'MINIGAME_ANNOUNCED': 
+                 sess.current_phase = 'SETUP_MINIGAME' 
 
     db.session.delete(minigame_to_delete)
     db.session.commit()
@@ -617,18 +601,12 @@ def delete_minigame_db(minigame_id):
 def init_chars():
     if not isinstance(current_user, Admin):
         flash('Nur Admins können auf diese Seite zugreifen.', 'warning')
-        return redirect(url_for('main.index'))
-    
-    # Pfad zur init_characters.py anpassen, falls es direkt im admin-Ordner liegt
-    # from .init_characters import initialize_characters # Wenn es im gleichen Ordner ist
-    # Wenn es in app/admin/init_characters.py liegt und admin_bp von app importiert wird:
-    from app.admin.init_characters import initialize_characters
+        return redirect(url_for('main.index')) 
     
     try:
         initialize_characters() 
         flash("Charaktere initialisiert/überprüft.", "info")
     except Exception as e:
         current_app.logger.error(f"Fehler bei der Charakterinitialisierung: {e}", exc_info=True)
-        flash("Fehler bei der Charakterinitialisierung.", "danger")
+        flash(f"Fehler bei der Charakterinitialisierung: {str(e)}", "danger")
     return redirect(url_for('admin.admin_dashboard'))
-

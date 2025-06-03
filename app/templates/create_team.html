@@ -1,51 +1,68 @@
 {% extends "base.html" %}
+{% import "bootstrap/wtf.html" as wtf %}
 
-{% block title %}{{ title }} - Admin Dashboard{% endblock %}
+{% block title %}Create Team - {{ super() }}{% endblock %}
 
 {% block content %}
 <div class="container mt-4">
-    <h2>{{ title }}</h2>
-    <form method="POST" action="" novalidate>
+    <h2>Neues Team erstellen</h2>
+    <form method="POST" action="{{ url_for('admin.create_team') }}" novalidate>
         {{ form.hidden_tag() }}
         <div class="form-group">
-            {{ form.name.label(class="form-control-label") }}
-            {{ form.name(class="form-control" + (" is-invalid" if form.name.errors else ""), placeholder="Teamname") }}
-            {% if form.name.errors %}
+            <!-- Korrigiert: form.team_name statt form.name -->
+            {{ form.team_name.label(class="form-control-label") }}
+            {% if form.team_name.errors %}
+                {{ form.team_name(class="form-control form-control-lg is-invalid") }}
                 <div class="invalid-feedback">
-                    {% for error in form.name.errors %}<span>{{ error }}</span>{% endfor %}
+                    {% for error in form.team_name.errors %}
+                        <span>{{ error }}</span>
+                    {% endfor %}
                 </div>
-            {% endif %}
-        </div>
-        <div class="form-group">
-            {{ form.members.label(class="form-control-label") }}
-            {{ form.members(class="form-control" + (" is-invalid" if form.members.errors else ""), placeholder="Mitglieder, Komma-getrennt") }}
-            {% if form.members.errors %}
-                <div class="invalid-feedback">
-                    {% for error in form.members.errors %}<span>{{ error }}</span>{% endfor %}
-                </div>
+            {% else %}
+                {{ form.team_name(class="form-control form-control-lg") }}
             {% endif %}
         </div>
         <div class="form-group">
             {{ form.password.label(class="form-control-label") }}
-            {{ form.password(class="form-control" + (" is-invalid" if form.password.errors else ""), placeholder="Passwort für Team-Login (optional)") }}
             {% if form.password.errors %}
+                {{ form.password(class="form-control form-control-lg is-invalid") }}
                 <div class="invalid-feedback">
-                    {% for error in form.password.errors %}<span>{{ error }}</span>{% endfor %}
+                    {% for error in form.password.errors %}
+                        <span>{{ error }}</span>
+                    {% endfor %}
                 </div>
+            {% else %}
+                {{ form.password(class="form-control form-control-lg") }}
+            {% endif %}
+        </div>
+        <div class="form-group">
+            {{ form.confirm_password.label(class="form-control-label") }}
+            {% if form.confirm_password.errors %}
+                {{ form.confirm_password(class="form-control form-control-lg is-invalid") }}
+                <div class="invalid-feedback">
+                    {% for error in form.confirm_password.errors %}
+                        <span>{{ error }}</span>
+                    {% endfor %}
+                </div>
+            {% else %}
+                {{ form.confirm_password(class="form-control form-control-lg") }}
             {% endif %}
         </div>
         <div class="form-group">
             {{ form.character_id.label(class="form-control-label") }}
-            {{ form.character_id(class="form-control" + (" is-invalid" if form.character_id.errors else "")) }}
             {% if form.character_id.errors %}
+                {{ form.character_id(class="form-control form-control-lg is-invalid") }}
                 <div class="invalid-feedback">
-                    {% for error in form.character_id.errors %}<span>{{ error }}</span>{% endfor %}
+                    {% for error in form.character_id.errors %}
+                        <span>{{ error }}</span>
+                    {% endfor %}
                 </div>
+            {% else %}
+                {{ form.character_id(class="form-control form-control-lg") }}
             {% endif %}
         </div>
         <div class="form-group">
             {{ form.submit(class="btn btn-primary") }}
-            <a href="{{ url_for('admin.admin_dashboard') }}" class="btn btn-secondary ml-2">Abbrechen</a>
         </div>
     </form>
 </div>
