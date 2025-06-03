@@ -11,6 +11,13 @@
       "type": "challenge",
       "id": "584ea1f9",
       "created_at": "2025-06-03T18:11:44.308266"
+    },
+    {
+      "name": "Memory",
+      "description": "Wir spielen Memory",
+      "type": "game",
+      "id": "4b86952e",
+      "created_at": "2025-06-03T18:53:30.169468"
     }
   ]
 }
