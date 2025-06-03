@@ -228,7 +228,7 @@
                 <!-- ERWEITERTE MINIGAME-AUSWAHL -->
                 {% if active_session.current_phase == 'SETUP_MINIGAME' or active_session.current_phase == 'ROUND_OVER' %}
                     <h4>Nächstes Minispiel festlegen</h4>
-                    <form method="POST" action="{{ url_for('admin.set_minigame') }}" class="mb-3 p-3 border rounded bg-light">
+                    <form method="POST" action="{{ url_for('admin.set_minigame') }}" class="mb-3 p-3 border rounded bg-light" id="minigame-form">
                         {{ set_minigame_form.hidden_tag() }}
                         
                         <!-- Minigame-Quelle auswählen -->
@@ -240,7 +240,7 @@
                                     <div class="custom-control custom-radio">
                                         <input type="radio" class="custom-control-input" 
                                                id="source_{{ value }}" name="minigame_source" value="{{ value }}"
-                                               {% if set_minigame_form.minigame_source.data == value or (not set_minigame_form.minigame_source.data and value == 'manual') %}checked{% endif %}>
+                                               {% if set_minigame_form.minigame_source.data == value %}checked{% endif %}>
                                         <label class="custom-control-label" for="source_{{ value }}">
                                             {% if value == 'manual' %}
                                                 <i class="fas fa-keyboard text-primary"></i> {{ label }}
@@ -325,7 +325,7 @@
                 {% if active_session.current_phase == 'MINIGAME_ANNOUNCED' %}
                     <h4>Platzierungen für "{{ active_session.current_minigame_name }}" eingeben</h4>
                     {% if teams %}
-                        <form method="POST" action="{{ url_for('admin.record_placements') }}" class="mb-3 p-3 border rounded bg-light">
+                        <form method="POST" action="{{ url_for('admin.record_placements') }}" class="mb-3 p-3 border rounded bg-light" id="placements-form">
                              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                             <table class="table table-sm">
                                 <thead>
@@ -374,7 +374,7 @@
     <div class="modal fade" id="confirmFullResetModal" tabindex="-1" role="dialog" aria-labelledby="confirmFullResetModalLabel" aria-hidden="true">
         <div class="modal-dialog" role="document">
             <div class="modal-content">
-                <form method="POST" action="{{ url_for('admin.reset_game_state_confirmed') }}">
+                <form method="POST" action="{{ url_for('admin.reset_game_state_confirmed') }}" id="reset-form">
                     {{ confirm_reset_form.hidden_tag() }} <!-- CSRF Token etc. -->
                     <div class="modal-header">
                         <h5 class="modal-title" id="confirmFullResetModalLabel">Spiel komplett zurücksetzen bestätigen</h5>
@@ -504,10 +504,53 @@
         const diceResultDiv = document.getElementById('dice-result-admin');
         const csrfToken = "{{ csrf_token() }}";
 
-        // Minigame-Source Radio Buttons Handler
+        // ===== SCROLL-POSITION SPEICHERN UND WIEDERHERSTELLEN =====
+        function saveScrollPosition() {
+            localStorage.setItem('adminDashboardScrollY', window.scrollY.toString());
+        }
+
+        function restoreScrollPosition() {
+            const savedScrollY = localStorage.getItem('adminDashboardScrollY');
+            if (savedScrollY) {
+                // Kleiner Delay um sicherzustellen dass DOM vollständig geladen ist
+                setTimeout(() => {
+                    window.scrollTo(0, parseInt(savedScrollY));
+                    // Entferne nach dem Wiederherstellen, damit normale Navigation nicht beeinträchtigt wird
+                    localStorage.removeItem('adminDashboardScrollY');
+                }, 50);
+            }
+        }
+
+        // Stelle Scroll-Position nach Page-Load wieder her
+        restoreScrollPosition();
+
+        // Speichere Scroll-Position vor allen Form-Submits
+        const forms = document.querySelectorAll('form');
+        forms.forEach(form => {
+            form.addEventListener('submit', saveScrollPosition);
+        });
+
+        // ===== MINIGAME-SOURCE AUSWAHL SPEICHERN UND WIEDERHERSTELLEN =====
         const sourceRadios = document.querySelectorAll('input[name="minigame_source"]');
         const sections = document.querySelectorAll('.minigame-section');
         
+        function saveMinigameSource(value) {
+            localStorage.setItem('adminMinigameSource', value);
+        }
+
+        function loadSavedMinigameSource() {
+            const savedSource = localStorage.getItem('adminMinigameSource');
+            if (savedSource) {
+                const savedRadio = document.getElementById('source_' + savedSource);
+                if (savedRadio) {
+                    savedRadio.checked = true;
+                    showMinigameSection(savedSource);
+                    return true;
+                }
+            }
+            return false;
+        }
+
         function showMinigameSection(selectedValue) {
             // Hide all sections
             sections.forEach(section => {
@@ -525,22 +568,28 @@
             radio.addEventListener('change', function() {
                 if (this.checked) {
                     showMinigameSection(this.value);
+                    saveMinigameSource(this.value);
                 }
             });
         });
         
-        // Initialize with default selection
-        const checkedRadio = document.querySelector('input[name="minigame_source"]:checked');
-        if (checkedRadio) {
-            showMinigameSection(checkedRadio.value);
-        } else {
-            // Default to manual if none selected
-            const manualRadio = document.getElementById('source_manual');
-            if (manualRadio) {
-                manualRadio.checked = true;
-                showMinigameSection('manual');
+        // Lade gespeicherte Auswahl oder setze Default
+        if (!loadSavedMinigameSource()) {
+            // Fallback: Default zu manual oder der ersten checked Option
+            const checkedRadio = document.querySelector('input[name="minigame_source"]:checked');
+            if (checkedRadio) {
+                showMinigameSection(checkedRadio.value);
+            } else {
+                // Default zu manual
+                const manualRadio = document.getElementById('source_manual');
+                if (manualRadio) {
+                    manualRadio.checked = true;
+                    showMinigameSection('manual');
+                }
             }
         }
+
+        // ===== EXISTIERENDE FUNKTIONALITÄT (unverändert) =====
 
         // Funktion, um Flash-Nachrichten dynamisch hinzuzufügen
         function showFlashMessage(message, category) {
@@ -659,6 +708,8 @@
                     const newTeamId = data.game_session.current_team_turn_id;
 
                     if (initialPhase && initialPhase !== newPhase) {
+                        // Speichere Scroll-Position vor Reload
+                        saveScrollPosition();
                         location.reload();
                         return;
                     }
