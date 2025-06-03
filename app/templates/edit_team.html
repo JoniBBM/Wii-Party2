@@ -8,20 +8,11 @@
     <form method="POST" action="" novalidate>
         {{ form.hidden_tag() }}
         <div class="form-group">
-            {{ form.name.label(class="form-control-label") }}
-            {{ form.name(class="form-control" + (" is-invalid" if form.name.errors else ""), placeholder="Teamname") }}
-            {% if form.name.errors %}
+            {{ form.team_name.label(class="form-control-label") }}
+            {{ form.team_name(class="form-control" + (" is-invalid" if form.team_name.errors else ""), placeholder="Teamname") }}
+            {% if form.team_name.errors %}
                 <div class="invalid-feedback">
-                    {% for error in form.name.errors %}<span>{{ error }}</span>{% endfor %}
-                </div>
-            {% endif %}
-        </div>
-        <div class="form-group">
-            {{ form.members.label(class="form-control-label") }}
-            {{ form.members(class="form-control" + (" is-invalid" if form.members.errors else ""), placeholder="Mitglieder, Komma-getrennt") }}
-            {% if form.members.errors %}
-                <div class="invalid-feedback">
-                    {% for error in form.members.errors %}<span>{{ error }}</span>{% endfor %}
+                    {% for error in form.team_name.errors %}<span>{{ error }}</span>{% endfor %}
                 </div>
             {% endif %}
         </div>
@@ -31,6 +22,15 @@
             {% if form.password.errors %}
                 <div class="invalid-feedback">
                     {% for error in form.password.errors %}<span>{{ error }}</span>{% endfor %}
+                </div>
+            {% endif %}
+        </div>
+        <div class="form-group">
+            {{ form.confirm_password.label(class="form-control-label") }}
+            {{ form.confirm_password(class="form-control" + (" is-invalid" if form.confirm_password.errors else ""), placeholder="Passwort bestätigen") }}
+            {% if form.confirm_password.errors %}
+                <div class="invalid-feedback">
+                    {% for error in form.confirm_password.errors %}<span>{{ error }}</span>{% endfor %}
                 </div>
             {% endif %}
         </div>
