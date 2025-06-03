@@ -92,6 +92,59 @@ class Minigame(db.Model):
     def __repr__(self):
         return f'<Minigame {self.name}>'
 
+# NEUE MODELS FÜR MINIGAME-ORDNER & SPIELRUNDEN
+
+class MinigameFolder(db.Model):
+    """Verwaltet persistente Minigame-Ordner im Static-Verzeichnis"""
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), unique=True, nullable=False)  # z.B. "Sommer2025"
+    description = db.Column(db.String(500), nullable=True)
+    folder_path = db.Column(db.String(200), nullable=False)  # Relativer Pfad z.B. "Sommer2025"
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Beziehung zu GameRounds die diesen Ordner verwenden
+    game_rounds = db.relationship('GameRound', backref='minigame_folder', lazy='dynamic')
+
+    def get_minigames_count(self):
+        """Gibt die Anzahl der Minispiele in diesem Ordner zurück"""
+        from app.admin.minigame_utils import get_minigames_from_folder
+        try:
+            minigames = get_minigames_from_folder(self.folder_path)
+            return len(minigames)
+        except:
+            return 0
+
+    def __repr__(self):
+        return f'<MinigameFolder {self.name}>'
+
+class GameRound(db.Model):
+    """Verwaltet Spielrunden mit zugewiesenem Minigame-Ordner"""
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), unique=True, nullable=False)  # z.B. "Sommer2025-Turnier"
+    description = db.Column(db.String(500), nullable=True)
+    minigame_folder_id = db.Column(db.Integer, db.ForeignKey('minigame_folder.id'), nullable=False)
+    is_active = db.Column(db.Boolean, default=False, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Beziehung zu GameSessions die zu dieser Runde gehören
+    game_sessions = db.relationship('GameSession', backref='game_round', lazy='dynamic')
+
+    def activate(self):
+        """Aktiviert diese Runde und deaktiviert alle anderen"""
+        # Alle anderen Runden deaktivieren
+        GameRound.query.update({'is_active': False})
+        # Diese Runde aktivieren
+        self.is_active = True
+        db.session.commit()
+
+    @classmethod
+    def get_active_round(cls):
+        """Gibt die aktuell aktive Runde zurück"""
+        return cls.query.filter_by(is_active=True).first()
+
+    def __repr__(self):
+        return f'<GameRound {self.name} (Active: {self.is_active})>'
+
 class TeamMinigameScore(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     team_id = db.Column(db.Integer, db.ForeignKey('team.id'), nullable=False)
@@ -126,10 +179,17 @@ class GameSession(db.Model):
     end_time = db.Column(db.DateTime, nullable=True)
     is_active = db.Column(db.Boolean, default=True, nullable=False)
 
+    # ERWEITERT: Verknüpfung zu GameRound
+    game_round_id = db.Column(db.Integer, db.ForeignKey('game_round.id'), nullable=True)
+
     current_minigame_name = db.Column(db.String(200), nullable=True)
     current_minigame_description = db.Column(db.Text, nullable=True)
     selected_minigame_id = db.Column(db.Integer, db.ForeignKey('minigame.id'), nullable=True)
     selected_minigame = db.relationship('Minigame', foreign_keys=[selected_minigame_id])
+
+    # ERWEITERT: Zusätzliche Felder für Minigame-Auswahl
+    selected_folder_minigame_id = db.Column(db.String(100), nullable=True)  # ID aus JSON-Datei
+    minigame_source = db.Column(db.String(50), default='manual')  # 'manual', 'database', 'folder_random', 'folder_selected'
 
     current_phase = db.Column(db.String(50), default='SETUP_MINIGAME') # z.B. SETUP_MINIGAME, MINIGAME_ANNOUNCED, DICE_ROLLING, ROUND_OVER
     dice_roll_order = db.Column(db.String(255), nullable=True) # Komma-separierte Team-IDs
@@ -139,7 +199,7 @@ class GameSession(db.Model):
     events = db.relationship('GameEvent', backref='game_session', lazy='dynamic', cascade="all, delete-orphan")
 
     def __repr__(self):
-        return f'<GameSession {self.id} Active: {self.is_active} Phase: {self.current_phase}>'
+        return f'<GameSession {self.id} Round: {self.game_round_id} Active: {self.is_active} Phase: {self.current_phase}>'
 
 class GameEvent(db.Model):
     id = db.Column(db.Integer, primary_key=True)

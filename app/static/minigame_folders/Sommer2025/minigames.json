@@ -1,0 +1,16 @@
+{
+  "folder_info": {
+    "name": "Sommer2025",
+    "description": "Test",
+    "created_at": "2025-06-03T18:08:05.809842"
+  },
+  "minigames": [
+    {
+      "name": "Wasser Ballon Wurf",
+      "description": "Test",
+      "type": "challenge",
+      "id": "584ea1f9",
+      "created_at": "2025-06-03T18:11:44.308266"
+    }
+  ]
+}

@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+
+{% block title %}Runde löschen: {{ round.name }} - Admin Dashboard{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card border-danger">
+                <div class="card-header bg-danger text-white">
+                    <h3 class="mb-0">
+                        <i class="fas fa-exclamation-triangle"></i> Runde löschen: {{ round.name }}
+                        {% if round.is_active %}
+                            <span class="badge badge-warning text-dark ml-2">AKTIV</span>
+                        {% endif %}
+                    </h3>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-warning">
+                        <h5><i class="fas fa-warning"></i> Achtung!</h5>
+                        <p>Du bist dabei, die Spielrunde <strong>"{{ round.name }}"</strong> permanent zu löschen.</p>
+                        {% if round.is_active %}
+                            <p><strong>Diese Runde ist derzeit aktiv!</strong> Eine andere Runde wird automatisch aktiviert.</p>
+                        {% endif %}
+                        <p class="mb-0"><strong>Diese Aktion kann nicht rückgängig gemacht werden!</strong></p>
+                    </div>
+
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <h6><i class="fas fa-gamepad"></i> Runden-Details:</h6>
+                            <ul>
+                                <li><strong>Name:</strong> {{ round.name }}</li>
+                                <li><strong>Status:</strong> {{ "Aktiv" if round.is_active else "Inaktiv" }}</li>
+                                <li><strong>Erstellt:</strong> {{ round.created_at.strftime('%d.%m.%Y %H:%M') }}</li>
+                                <li><strong>Minigame-Ordner:</strong> {{ round.minigame_folder.name }}</li>
+                            </ul>
+                        </div>
+                        <div class="col-md-6">
+                            <h6><i class="fas fa-info-circle"></i> Was passiert:</h6>
+                            <ul>
+                                <li>Spielrunde wird gelöscht</li>
+                                <li>Zugehörige GameSessions werden aktualisiert</li>
+                                <li>Der Minigame-Ordner bleibt erhalten</li>
+                                {% if round.is_active %}
+                                    <li class="text-warning"><strong>Eine andere Runde wird aktiviert</strong></li>
+                                {% endif %}
+                            </ul>
+                        </div>
+                    </div>
+
+                    {% if round.description %}
+                        <div class="mb-4">
+                            <h6><i class="fas fa-file-alt"></i> Beschreibung:</h6>
+                            <p class="text-muted border-left pl-3">{{ round.description }}</p>
+                        </div>
+                    {% endif %}
+
+                    <form method="POST" action="{{ url_for('admin.delete_round', round_id=round.id) }}" novalidate>
+                        {{ form.hidden_tag() }}
+                        
+                        <div class="form-check mb-3">
+                            {{ form.confirm(class="form-check-input" + (" is-invalid" if form.confirm.errors else ""), id="confirmCheck") }}
+                            {{ form.confirm.label(class="form-check-label", for="confirmCheck") }}
+                            {% if form.confirm.errors %}
+                                <div class="invalid-feedback">
+                                    {% for error in form.confirm.errors %}
+                                        <span>{{ error }}</span>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="text-center">
+                            {{ form.submit(class="btn btn-danger btn-lg", onclick="return confirm('Spielrunde wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden!')") }}
+                            <a href="{{ url_for('admin.manage_rounds') }}" class="btn btn-secondary btn-lg ml-2">
+                                <i class="fas fa-times"></i> Abbrechen
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.card.border-danger {
+    border-width: 2px;
+}
+
+.btn-lg {
+    padding: 0.75rem 1.5rem;
+    font-size: 1.1rem;
+}
+
+.form-check-input.is-invalid ~ .form-check-label {
+    color: #dc3545;
+}
+
+.border-left {
+    border-left: 3px solid #dee2e6;
+}
+
+.badge {
+    font-size: 0.8rem;
+}
+</style>
+{% endblock %}

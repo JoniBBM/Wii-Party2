@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+
+{% block title %}Runde bearbeiten: {{ round.name }} - Admin Dashboard{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header bg-warning text-dark">
+                    <h3 class="mb-0">
+                        <i class="fas fa-edit"></i> Runde bearbeiten: {{ round.name }}
+                        {% if round.is_active %}
+                            <span class="badge badge-success ml-2">AKTIV</span>
+                        {% endif %}
+                    </h3>
+                </div>
+                <div class="card-body">
+                    {% if round.is_active %}
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle"></i> 
+                            Diese Runde ist derzeit aktiv. Änderungen wirken sich sofort auf das laufende Spiel aus.
+                        </div>
+                    {% endif %}
+
+                    <form method="POST" action="{{ url_for('admin.edit_round', round_id=round.id) }}" novalidate>
+                        {{ form.hidden_tag() }}
+                        
+                        <div class="form-group">
+                            {{ form.name.label(class="form-control-label") }}
+                            {{ form.name(class="form-control" + (" is-invalid" if form.name.errors else "")) }}
+                            {% if form.name.errors %}
+                                <div class="invalid-feedback">
+                                    {% for error in form.name.errors %}
+                                        <span>{{ error }}</span>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="form-group">
+                            {{ form.description.label(class="form-control-label") }}
+                            {{ form.description(class="form-control" + (" is-invalid" if form.description.errors else ""), 
+                                               rows="3") }}
+                            {% if form.description.errors %}
+                                <div class="invalid-feedback">
+                                    {% for error in form.description.errors %}
+                                        <span>{{ error }}</span>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="form-group">
+                            {{ form.minigame_folder_id.label(class="form-control-label") }}
+                            {{ form.minigame_folder_id(class="form-control" + (" is-invalid" if form.minigame_folder_id.errors else "")) }}
+                            {% if form.minigame_folder_id.errors %}
+                                <div class="invalid-feedback">
+                                    {% for error in form.minigame_folder_id.errors %}
+                                        <span>{{ error }}</span>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                            <small class="form-text text-muted">
+                                <i class="fas fa-info-circle"></i> 
+                                Der Minigame-Ordner bestimmt, welche Spiele für diese Runde verfügbar sind.
+                            </small>
+                        </div>
+                        
+                        <hr>
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6><i class="fas fa-info-circle"></i> Runden-Info:</h6>
+                                <small class="text-muted">
+                                    <strong>Erstellt:</strong> {{ round.created_at.strftime('%d.%m.%Y %H:%M') }}<br>
+                                    <strong>Status:</strong> {{ "Aktiv" if round.is_active else "Inaktiv" }}<br>
+                                    <strong>Aktueller Ordner:</strong> {{ round.minigame_folder.name }}
+                                </small>
+                            </div>
+                            <div class="col-md-6">
+                                <h6><i class="fas fa-gamepad"></i> Verfügbare Spiele:</h6>
+                                <small class="text-muted">
+                                    Im aktuellen Ordner: <strong>{{ round.minigame_folder.get_minigames_count() }} Spiele</strong><br>
+                                    <a href="{{ url_for('admin.edit_folder', folder_id=round.minigame_folder.id) }}">
+                                        Ordner verwalten <i class="fas fa-external-link-alt"></i>
+                                    </a>
+                                </small>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group mt-4">
+                            {{ form.submit(class="btn btn-warning btn-lg") }}
+                            <a href="{{ url_for('admin.manage_rounds') }}" class="btn btn-secondary btn-lg ml-2">
+                                Abbrechen
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.card {
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+}
+
+.btn-lg {
+    padding: 0.75rem 1.5rem;
+    font-size: 1.1rem;
+}
+
+.form-control {
+    border-radius: 0.5rem;
+}
+
+.form-control:focus {
+    border-color: #ffc107;
+    box-shadow: 0 0 0 0.2rem rgba(255, 193, 7, 0.25);
+}
+
+.badge {
+    font-size: 0.8rem;
+}
+</style>
+{% endblock %}

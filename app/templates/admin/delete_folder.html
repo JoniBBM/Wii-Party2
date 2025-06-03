@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+
+{% block title %}Ordner löschen: {{ folder.name }} - Admin Dashboard{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card border-danger">
+                <div class="card-header bg-danger text-white">
+                    <h3 class="mb-0">
+                        <i class="fas fa-exclamation-triangle"></i> Ordner löschen: {{ folder.name }}
+                    </h3>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-warning">
+                        <h5><i class="fas fa-warning"></i> Achtung!</h5>
+                        <p>Du bist dabei, den Minigame-Ordner <strong>"{{ folder.name }}"</strong> permanent zu löschen.</p>
+                        <p class="mb-0"><strong>Diese Aktion kann nicht rückgängig gemacht werden!</strong></p>
+                    </div>
+
+                    {% if using_rounds %}
+                        <div class="alert alert-danger">
+                            <h5><i class="fas fa-ban"></i> Löschen nicht möglich</h5>
+                            <p>Dieser Ordner kann nicht gelöscht werden, da er von folgenden Spielrunden verwendet wird:</p>
+                            <ul class="mb-0">
+                                {% for round in using_rounds %}
+                                    <li><strong>{{ round.name }}</strong>{% if round.is_active %} <span class="badge badge-success">AKTIV</span>{% endif %}</li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                        
+                        <div class="mt-4 text-center">
+                            <a href="{{ url_for('admin.manage_folders') }}" class="btn btn-secondary btn-lg">
+                                <i class="fas fa-arrow-left"></i> Zurück zur Übersicht
+                            </a>
+                        </div>
+                    {% else %}
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6><i class="fas fa-folder"></i> Was wird gelöscht:</h6>
+                                <ul>
+                                    <li>Ordner "{{ folder.name }}"</li>
+                                    <li>{{ minigames|length }} Minispiel(e)</li>
+                                    <li>Alle zugehörigen Dateien</li>
+                                </ul>
+                            </div>
+                            <div class="col-md-6">
+                                <h6><i class="fas fa-list"></i> Minispiele in diesem Ordner:</h6>
+                                {% if minigames %}
+                                    <ul>
+                                        {% for minigame in minigames %}
+                                            <li>{{ minigame.name }} ({{ minigame.type|title }})</li>
+                                        {% endfor %}
+                                    </ul>
+                                {% else %}
+                                    <p class="text-muted">Keine Minispiele vorhanden</p>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <hr>
+
+                        <form method="POST" action="{{ url_for('admin.delete_folder', folder_id=folder.id) }}" novalidate>
+                            {{ form.hidden_tag() }}
+                            
+                            <div class="form-check mb-3">
+                                {{ form.confirm(class="form-check-input" + (" is-invalid" if form.confirm.errors else ""), id="confirmCheck") }}
+                                {{ form.confirm.label(class="form-check-label", for="confirmCheck") }}
+                                {% if form.confirm.errors %}
+                                    <div class="invalid-feedback">
+                                        {% for error in form.confirm.errors %}
+                                            <span>{{ error }}</span>
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                            
+                            <div class="text-center">
+                                {{ form.submit(class="btn btn-danger btn-lg", onclick="return confirm('Bist du dir absolut sicher? Dieser Vorgang kann NICHT rückgängig gemacht werden!')") }}
+                                <a href="{{ url_for('admin.manage_folders') }}" class="btn btn-secondary btn-lg ml-2">
+                                    <i class="fas fa-times"></i> Abbrechen
+                                </a>
+                            </div>
+                        </form>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.card.border-danger {
+    border-width: 2px;
+}
+
+.btn-lg {
+    padding: 0.75rem 1.5rem;
+    font-size: 1.1rem;
+}
+
+.form-check-input.is-invalid ~ .form-check-label {
+    color: #dc3545;
+}
+</style>
+{% endblock %}

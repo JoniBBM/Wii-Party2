@@ -14,5 +14,14 @@ class Config:
     ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD') or '1234qwer!' 
     MINIGAME_VIDEO_FOLDER = os.path.join(basedir, 'app', 'static', 'minigame_videos')
 
+    # NEUE KONFIGURATION FÜR MINIGAME-ORDNER
+    MINIGAME_FOLDERS_PATH = os.path.join(basedir, 'app', 'static', 'minigame_folders')
+    
+    # Konfiguration für Standardordner
+    DEFAULT_MINIGAME_FOLDER = 'Default'
+    
+    # Maximale Anzahl an Minispielen pro Ordner (optional)
+    MAX_MINIGAMES_PER_FOLDER = 100
+
     # Logging Konfiguration (optional, aber hilfreich für Debugging)
     LOG_TO_STDOUT = os.environ.get('LOG_TO_STDOUT')

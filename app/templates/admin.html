@@ -21,9 +21,80 @@
         {% endif %}
     {% endwith %}
 
+    <!-- NEUE SEKTION: Runden & Ordner Management -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card border-success">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-gamepad"></i> Aktuelle Spielrunde
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if active_round %}
+                        <h6 class="card-title">{{ active_round.name }}</h6>
+                        {% if active_round.description %}
+                            <p class="card-text">{{ active_round.description }}</p>
+                        {% endif %}
+                        <div class="mb-2">
+                            <strong>Minigame-Ordner:</strong> 
+                            <span class="badge badge-info">{{ active_round.minigame_folder.name }}</span>
+                            <small class="text-muted">({{ active_round.minigame_folder.get_minigames_count() }} Spiele)</small>
+                        </div>
+                        <a href="{{ url_for('admin.manage_rounds') }}" class="btn btn-outline-success btn-sm">
+                            <i class="fas fa-cog"></i> Runden verwalten
+                        </a>
+                    {% else %}
+                        <p class="text-warning">⚠️ Keine aktive Runde!</p>
+                        <a href="{{ url_for('admin.create_round') }}" class="btn btn-warning btn-sm">
+                            <i class="fas fa-plus"></i> Erste Runde erstellen
+                        </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-6">
+            <div class="card border-primary">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-folder"></i> Minigame-Ordner
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <p class="card-text">
+                        <strong>{{ available_folders|length }}</strong> Ordner verfügbar
+                    </p>
+                    <div class="mb-2">
+                        {% for folder in available_folders[:3] %}
+                            <span class="badge badge-secondary mr-1">{{ folder.name }} ({{ folder.get_minigames_count() }})</span>
+                        {% endfor %}
+                        {% if available_folders|length > 3 %}
+                            <span class="text-muted">... und {{ available_folders|length - 3 }} weitere</span>
+                        {% endif %}
+                    </div>
+                    <div class="btn-group" role="group">
+                        <a href="{{ url_for('admin.manage_folders') }}" class="btn btn-outline-primary btn-sm">
+                            <i class="fas fa-cog"></i> Verwalten
+                        </a>
+                        <a href="{{ url_for('admin.create_folder') }}" class="btn btn-outline-primary btn-sm">
+                            <i class="fas fa-plus"></i> Neu
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Spielstatus-Card (erweitert) -->
     <div class="card mb-4">
         <div class="card-header bg-info text-white">
-            Aktueller Spielstatus
+            <div class="d-flex justify-content-between align-items-center">
+                <span>Aktueller Spielstatus</span>
+                {% if active_round %}
+                    <small>Runde: {{ active_round.name }}</small>
+                {% endif %}
+            </div>
         </div>
         <div class="card-body">
             {% if active_session %}
@@ -48,6 +119,17 @@
                     <p><strong>Aktuelles/Nächstes Minispiel:</strong> {{ active_session.current_minigame_name }}</p>
                     {% if active_session.current_minigame_description %}
                         <p><em>Beschreibung: {{ active_session.current_minigame_description }}</em></p>
+                    {% endif %}
+                    {% if active_session.minigame_source %}
+                        <small class="text-muted">
+                            Quelle: 
+                            {% if active_session.minigame_source == 'manual' %}Manuell eingegeben
+                            {% elif active_session.minigame_source == 'database' %}Aus Datenbank-Bibliothek
+                            {% elif active_session.minigame_source == 'folder_random' %}Zufällig aus Ordner
+                            {% elif active_session.minigame_source == 'folder_selected' %}Aus Ordner ausgewählt
+                            {% else %}{{ active_session.minigame_source }}
+                            {% endif %}
+                        </small>
                     {% endif %}
                 {% else %}
                     <p>Noch kein Minispiel für diese Runde festgelegt.</p>
@@ -143,35 +225,100 @@
                     </div>
                 {% endif %}
 
+                <!-- ERWEITERTE MINIGAME-AUSWAHL -->
                 {% if active_session.current_phase == 'SETUP_MINIGAME' or active_session.current_phase == 'ROUND_OVER' %}
                     <h4>Nächstes Minispiel festlegen</h4>
                     <form method="POST" action="{{ url_for('admin.set_minigame') }}" class="mb-3 p-3 border rounded bg-light">
                         {{ set_minigame_form.hidden_tag() }}
                         
+                        <!-- Minigame-Quelle auswählen -->
                         <div class="form-group">
-                            {{ set_minigame_form.minigame_name.label(class="form-control-label") }}
-                            {{ set_minigame_form.minigame_name(class="form-control" + (" is-invalid" if set_minigame_form.minigame_name.errors else ""), placeholder="Manuelle Eingabe Name") }}
-                            {% if set_minigame_form.minigame_name.errors %}
-                                <div class="invalid-feedback">
-                                    {% for error in set_minigame_form.minigame_name.errors %}<span>{{ error }}</span>{% endfor %}
+                            <label class="form-control-label"><strong>Minigame-Quelle auswählen:</strong></label>
+                            <div class="row">
+                                {% for value, label in set_minigame_form.minigame_source.choices %}
+                                <div class="col-md-6 mb-2">
+                                    <div class="custom-control custom-radio">
+                                        <input type="radio" class="custom-control-input" 
+                                               id="source_{{ value }}" name="minigame_source" value="{{ value }}"
+                                               {% if set_minigame_form.minigame_source.data == value or (not set_minigame_form.minigame_source.data and value == 'manual') %}checked{% endif %}>
+                                        <label class="custom-control-label" for="source_{{ value }}">
+                                            {% if value == 'manual' %}
+                                                <i class="fas fa-keyboard text-primary"></i> {{ label }}
+                                            {% elif value == 'database' %}
+                                                <i class="fas fa-database text-info"></i> {{ label }}
+                                            {% elif value == 'folder_random' %}
+                                                <i class="fas fa-random text-success"></i> {{ label }}
+                                            {% elif value == 'folder_selected' %}
+                                                <i class="fas fa-hand-pointer text-warning"></i> {{ label }}
+                                            {% endif %}
+                                        </label>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        
+                        <!-- Manuelle Eingabe Bereich -->
+                        <div id="manual-section" class="minigame-section" style="display: none;">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        {{ set_minigame_form.minigame_name.label(class="form-control-label") }}
+                                        {{ set_minigame_form.minigame_name(class="form-control", placeholder="Name des Minispiels") }}
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        {{ set_minigame_form.minigame_description.label(class="form-control-label") }}
+                                        {{ set_minigame_form.minigame_description(class="form-control", rows="2", placeholder="Beschreibung") }}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Datenbank-Auswahl Bereich -->
+                        <div id="database-section" class="minigame-section" style="display: none;">
+                            <div class="form-group">
+                                {{ set_minigame_form.selected_minigame_id.label(class="form-control-label") }}
+                                {{ set_minigame_form.selected_minigame_id(class="form-control") }}
+                            </div>
+                        </div>
+                        
+                        <!-- Ordner-Zufällig Bereich -->
+                        <div id="folder_random-section" class="minigame-section" style="display: none;">
+                            {% if active_round and active_round.minigame_folder %}
+                                <div class="alert alert-success">
+                                    <i class="fas fa-dice"></i> 
+                                    <strong>Zufallsauswahl aus Ordner "{{ active_round.minigame_folder.name }}"</strong><br>
+                                    <small>{{ active_round.minigame_folder.get_minigames_count() }} Spiele verfügbar</small>
+                                </div>
+                            {% else %}
+                                <div class="alert alert-warning">
+                                    <i class="fas fa-exclamation-triangle"></i> 
+                                    Keine aktive Runde oder Minigame-Ordner zugewiesen!
                                 </div>
                             {% endif %}
                         </div>
-                        <div class="form-group">
-                            {{ set_minigame_form.minigame_description.label(class="form-control-label") }}
-                            {{ set_minigame_form.minigame_description(class="form-control" + (" is-invalid" if set_minigame_form.minigame_description.errors else ""), rows="3", placeholder="Manuelle Eingabe Beschreibung") }}
-                             {% if set_minigame_form.minigame_description.errors %}
-                                <div class="invalid-feedback">
-                                    {% for error in set_minigame_form.minigame_description.errors %}<span>{{ error }}</span>{% endfor %}
+                        
+                        <!-- Ordner-Auswahl Bereich -->
+                        <div id="folder_selected-section" class="minigame-section" style="display: none;">
+                            {% if active_round and active_round.minigame_folder %}
+                                <div class="form-group">
+                                    {{ set_minigame_form.selected_folder_minigame_id.label(class="form-control-label") }}
+                                    {{ set_minigame_form.selected_folder_minigame_id(class="form-control") }}
+                                    <small class="form-text text-muted">
+                                        Aus Ordner: <strong>{{ active_round.minigame_folder.name }}</strong>
+                                    </small>
+                                </div>
+                            {% else %}
+                                <div class="alert alert-warning">
+                                    <i class="fas fa-exclamation-triangle"></i> 
+                                    Keine aktive Runde oder Minigame-Ordner zugewiesen!
                                 </div>
                             {% endif %}
                         </div>
-                        <div class="form-group">
-                            {{ set_minigame_form.selected_minigame_id.label(class="form-control-label") }}
-                            {{ set_minigame_form.selected_minigame_id(class="form-control") }}
-                            <small class="form-text text-muted">Wenn hier ein Spiel ausgewählt wird, werden Name und Beschreibung oben überschrieben.</small>
-                        </div>
-                        {{ set_minigame_form.submit(class="btn btn-success") }}
+                        
+                        {{ set_minigame_form.submit(class="btn btn-success btn-lg") }}
                     </form>
                 {% endif %}
 
@@ -212,6 +359,7 @@
         </div>
     </div>
 
+    <!-- Spielsteuerung -->
     <div class="mb-4 p-3 border rounded">
         <h4>Spielsteuerung</h4>
         <!-- Button zum Öffnen des Modals für kompletten Reset -->
@@ -256,7 +404,7 @@
         </div>
     </div>
 
-
+    <!-- Team Management -->
     <div class="mb-4">
         <h2>Team Management</h2>
         <a href="{{ url_for('admin.create_team') }}" class="btn btn-primary mb-3"><i class="fas fa-plus-circle"></i> Neues Team erstellen</a>
@@ -303,6 +451,7 @@
         {% endif %}
     </div>
 
+    <!-- Minispiel-Bibliothek (Datenbank) -->
     <div class="mb-4">
         <h2>Minispiel-Bibliothek (Datenbank)</h2>
         <a href="{{ url_for('admin.create_minigame_db') }}" class="btn btn-primary mb-3"><i class="fas fa-plus-circle"></i> Neues DB-Minispiel erstellen</a>
@@ -347,19 +496,55 @@
 
 {% block scripts %}
     {{ super() }}
-    {# Font Awesome ist bereits in base.html, falls nicht, hier einfügen:
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/js/all.min.js" crossorigin="anonymous"></script> #}
     
     <script>
     document.addEventListener('DOMContentLoaded', function() {
         const rollDiceBtn = document.getElementById('admin-roll-dice');
         const currentTurnInfo = document.getElementById('current-turn-info');
         const diceResultDiv = document.getElementById('dice-result-admin');
-        const csrfToken = "{{ csrf_token() }}"; // Store CSRF token
+        const csrfToken = "{{ csrf_token() }}";
 
-        // Funktion, um Flash-Nachrichten dynamisch hinzuzufügen (optional, aber gut für SPA-ähnliches Verhalten)
+        // Minigame-Source Radio Buttons Handler
+        const sourceRadios = document.querySelectorAll('input[name="minigame_source"]');
+        const sections = document.querySelectorAll('.minigame-section');
+        
+        function showMinigameSection(selectedValue) {
+            // Hide all sections
+            sections.forEach(section => {
+                section.style.display = 'none';
+            });
+            
+            // Show selected section
+            const targetSection = document.getElementById(selectedValue + '-section');
+            if (targetSection) {
+                targetSection.style.display = 'block';
+            }
+        }
+        
+        sourceRadios.forEach(radio => {
+            radio.addEventListener('change', function() {
+                if (this.checked) {
+                    showMinigameSection(this.value);
+                }
+            });
+        });
+        
+        // Initialize with default selection
+        const checkedRadio = document.querySelector('input[name="minigame_source"]:checked');
+        if (checkedRadio) {
+            showMinigameSection(checkedRadio.value);
+        } else {
+            // Default to manual if none selected
+            const manualRadio = document.getElementById('source_manual');
+            if (manualRadio) {
+                manualRadio.checked = true;
+                showMinigameSection('manual');
+            }
+        }
+
+        // Funktion, um Flash-Nachrichten dynamisch hinzuzufügen
         function showFlashMessage(message, category) {
-            const container = document.querySelector('.container.mt-4'); // Hauptcontainer
+            const container = document.querySelector('.container.mt-4');
             if (!container) return;
 
             const alertDiv = document.createElement('div');
@@ -371,26 +556,22 @@
                     <span aria-hidden="true">&times;</span>
                 </button>
             `;
-            // Füge die Nachricht am Anfang des Containers ein
             if (container.firstChild) {
                 container.insertBefore(alertDiv, container.firstChild);
             } else {
                 container.appendChild(alertDiv);
             }
-            // Automatisches Ausblenden nach 5 Sekunden
             setTimeout(() => {
-                // Bootstrap's alert close method
                 if (typeof(bootstrap) !== 'undefined' && bootstrap.Alert) {
                      const alertInstance = bootstrap.Alert.getInstance(alertDiv);
                      if (alertInstance) alertInstance.close();
-                } else if (typeof($) !== 'undefined' && $.fn.alert) { // Fallback für jQuery Bootstrap
+                } else if (typeof($) !== 'undefined' && $.fn.alert) {
                     $(alertDiv).alert('close');
                 } else {
-                    alertDiv.remove(); // Fallback, falls Bootstrap JS nicht richtig geladen ist
+                    alertDiv.remove();
                 }
             }, 7000);
         }
-
 
         if (rollDiceBtn) {
             rollDiceBtn.addEventListener('click', function() {
@@ -398,11 +579,11 @@
             });
         }
         
-        let isRollingDice = false; // Flag, um mehrfaches Würfeln zu verhindern
-        let gameStatusInterval; // Variable für das Interval
+        let isRollingDice = false;
+        let gameStatusInterval;
 
         function adminRollDice() {
-            if (isRollingDice) return; // Verhindere Doppelklick/mehrfaches Ausführen
+            if (isRollingDice) return;
             isRollingDice = true;
             
             rollDiceBtn.disabled = true;
@@ -414,10 +595,10 @@
                     'Content-Type': 'application/json',
                     'X-CSRFToken': csrfToken 
                 },
-                body: JSON.stringify({}) // Leerer Body, da keine Daten gesendet werden
+                body: JSON.stringify({})
             })
             .then(response => {
-                if (!response.ok) { // Fehler im HTTP-Status
+                if (!response.ok) {
                     return response.json().then(err => { throw err; });
                 }
                 return response.json();
@@ -425,13 +606,11 @@
             .then(data => {
                 if (data.success) {
                     showDiceResult(data);
-                    // Sofortiges Update des Game Status nach erfolgreichem Würfeln
                     setTimeout(() => {
                         updateGameStatus();
-                    }, 500); // Kurze Verzögerung, damit Server Zeit hat zu aktualisieren
+                    }, 500);
                 } else {
                     showFlashMessage('Fehler beim Würfeln: ' + (data.error || data.details || 'Unbekannter Fehler'), 'danger');
-                    // Button wieder aktivieren bei Fehler
                     isRollingDice = false;
                     rollDiceBtn.disabled = false;
                     rollDiceBtn.innerHTML = '<i class="fas fa-dice"></i> Für aktuelles Team würfeln';
@@ -443,7 +622,6 @@
                 if (error && error.error) errorMsg = error.error;
                 if (error && error.details) errorMsg += ` Details: ${error.details}`;
                 showFlashMessage(errorMsg, 'danger');
-                // Button wieder aktivieren bei Fehler
                 isRollingDice = false;
                 rollDiceBtn.disabled = false;
                 rollDiceBtn.innerHTML = '<i class="fas fa-dice"></i> Für aktuelles Team würfeln';
@@ -464,7 +642,7 @@
             
             diceResultDiv.style.display = 'block';
             
-            setTimeout(function() { // Ergebnis nach 4 Sek. ausblenden
+            setTimeout(function() {
                 diceResultDiv.style.display = 'none';
             }, 4000);
         }
@@ -473,20 +651,18 @@
             const currentPhaseSpan = document.querySelector('[data-phase]');
             const initialPhase = currentPhaseSpan ? currentPhaseSpan.dataset.phase : null;
 
-            fetch("{{ url_for('main.board_status') }}?t=" + new Date().getTime()) // Cache umgehen
+            fetch("{{ url_for('main.board_status') }}?t=" + new Date().getTime())
             .then(response => response.json())
             .then(data => {
                 if (data.game_session) {
                     const newPhase = data.game_session.current_phase;
                     const newTeamId = data.game_session.current_team_turn_id;
 
-                    // Wenn sich die Phase geändert hat, Seite neu laden, um die UI komplett zu aktualisieren
                     if (initialPhase && initialPhase !== newPhase) {
                         location.reload();
-                        return; // Verhindert weitere Verarbeitung nach dem Reload-Befehl
+                        return;
                     }
 
-                    // Team-Info im Würfelbereich aktualisieren
                     if (currentTurnInfo && newPhase === 'DICE_ROLLING') {
                         const currentTeamData = data.teams.find(t => t.id === newTeamId);
                         if (currentTeamData) {
@@ -504,25 +680,23 @@
                                 </small>
                             `;
                             
-                            // Würfelbutton aktivieren, wenn ein Team dran ist
                             if (rollDiceBtn) {
                                 rollDiceBtn.disabled = false;
                                 rollDiceBtn.innerHTML = '<i class="fas fa-dice"></i> Für aktuelles Team würfeln';
-                                isRollingDice = false; // Flag zurücksetzen
+                                isRollingDice = false;
                             }
-                        } else { // Kein Team dran
+                        } else {
                              currentTurnInfo.innerHTML = `<span class="text-muted">Warte auf Team...</span>`;
                              if (rollDiceBtn) {
                                  rollDiceBtn.disabled = true;
                                  isRollingDice = false;
                              }
                         }
-                    } else if (rollDiceBtn && newPhase !== 'DICE_ROLLING') { // Wenn nicht DICE_ROLLING phase
+                    } else if (rollDiceBtn && newPhase !== 'DICE_ROLLING') {
                         rollDiceBtn.disabled = true;
                         isRollingDice = false;
                     }
 
-                    // Würfelreihenfolge aktualisieren
                     const orderListDiv = document.querySelector('.team-order-list');
                     if (orderListDiv && data.game_session.dice_roll_order) {
                         const orderIds = data.game_session.dice_roll_order.split(',');
@@ -539,9 +713,7 @@
                         });
                         orderListDiv.innerHTML = newOrderHtml || '<span class="text-muted">Reihenfolge noch nicht festgelegt</span>';
                     }
-
-
-                } else { // Keine game_session Daten
+                } else {
                      if (rollDiceBtn) {
                          rollDiceBtn.disabled = true;
                          isRollingDice = false;
@@ -551,15 +723,11 @@
             })
             .catch(error => {
                 console.warn('Status-Update fehlgeschlagen (Admin-Panel):', error);
-                // Hier keine Flash-Message, um die UI nicht zu überfluten bei temporären Netzwerkproblemen
             });
         }
 
-        // Starte das Intervall für regelmäßige Updates
         if (typeof gameStatusInterval !== 'undefined') clearInterval(gameStatusInterval);
-        gameStatusInterval = setInterval(updateGameStatus, 5000); // Poll alle 5 Sekunden
-        
-        // Initiales Update
+        gameStatusInterval = setInterval(updateGameStatus, 5000);
         updateGameStatus();
     });
     </script>
@@ -567,7 +735,7 @@
     <style>
     .dice-control-section {
         background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-        border-left: 4px solid #28a745; /* Bootstrap success green */
+        border-left: 4px solid #28a745;
     }
     
     .current-turn-display {
@@ -576,10 +744,10 @@
     }
     
     .dice-result-admin {
-        background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%); /* Bootstrap warning yellow */
+        background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
         border-radius: 8px;
         padding: 15px;
-        border: 2px solid #ffc107; /* Bootstrap warning yellow */
+        border: 2px solid #ffc107;
     }
     
     .result-part {
@@ -589,11 +757,11 @@
     .result-number {
         font-size: 2rem;
         font-weight: bold;
-        color: #495057; /* Bootstrap dark gray */
+        color: #495057;
     }
     
     .result-number.total {
-        color: #28a745; /* Bootstrap success green */
+        color: #28a745;
         font-size: 2.5rem;
     }
     
@@ -618,7 +786,6 @@
         box-shadow: none;
     }
 
-    /* Bessere Darstellung der Team- und Minispiel-Cards */
     .card {
         transition: transform 0.2s ease-in-out;
         border: 1px solid rgba(0,0,0,.125);
@@ -640,6 +807,23 @@
     
     .badge {
         font-size: 0.8em;
+    }
+
+    .minigame-section {
+        border: 1px solid #dee2e6;
+        border-radius: 0.375rem;
+        padding: 1rem;
+        margin-top: 0.5rem;
+        background-color: #f8f9fa;
+    }
+
+    .custom-control-label {
+        font-weight: 500;
+    }
+
+    .custom-radio .custom-control-input:checked ~ .custom-control-label::before {
+        border-color: #007bff;
+        background-color: #007bff;
     }
     </style>
 {% endblock %}

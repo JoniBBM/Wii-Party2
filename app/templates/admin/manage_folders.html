@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+
+{% block title %}Minigame-Ordner verwalten - Admin Dashboard{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="fas fa-folder"></i> Minigame-Ordner verwalten</h2>
+        <div>
+            <a href="{{ url_for('admin.create_folder') }}" class="btn btn-primary">
+                <i class="fas fa-plus-circle"></i> Neuen Ordner erstellen
+            </a>
+            <a href="{{ url_for('admin.admin_dashboard') }}" class="btn btn-secondary ml-2">
+                <i class="fas fa-arrow-left"></i> Zurück zum Dashboard
+            </a>
+        </div>
+    </div>
+
+    {% if folders %}
+        <div class="row">
+            {% for folder in folders %}
+            <div class="col-md-6 col-lg-4 mb-4">
+                <div class="card h-100">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">
+                            <i class="fas fa-folder-open text-primary"></i> 
+                            {{ folder.name }}
+                        </h5>
+                        <span class="badge badge-info">{{ folder.get_minigames_count() }} Spiele</span>
+                    </div>
+                    <div class="card-body">
+                        {% if folder.description %}
+                            <p class="card-text">{{ folder.description }}</p>
+                        {% else %}
+                            <p class="card-text text-muted">Keine Beschreibung</p>
+                        {% endif %}
+                        
+                        <small class="text-muted">
+                            <i class="fas fa-calendar-alt"></i> 
+                            Erstellt: {{ folder.created_at.strftime('%d.%m.%Y %H:%M') }}
+                        </small>
+                    </div>
+                    <div class="card-footer">
+                        <div class="btn-group w-100" role="group">
+                            <a href="{{ url_for('admin.edit_folder', folder_id=folder.id) }}" 
+                               class="btn btn-outline-primary btn-sm">
+                                <i class="fas fa-edit"></i> Bearbeiten
+                            </a>
+                            {% set is_default = folder.name == config.get('DEFAULT_MINIGAME_FOLDER', 'Default') %}
+                            {% if not is_default %}
+                                <a href="{{ url_for('admin.delete_folder', folder_id=folder.id) }}" 
+                                   class="btn btn-outline-danger btn-sm">
+                                    <i class="fas fa-trash-alt"></i> Löschen
+                                </a>
+                            {% else %}
+                                <button class="btn btn-outline-secondary btn-sm" disabled title="Standard-Ordner kann nicht gelöscht werden">
+                                    <i class="fas fa-lock"></i> Standard
+                                </button>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="alert alert-info text-center">
+            <h4><i class="fas fa-folder-plus"></i> Noch keine Minigame-Ordner vorhanden</h4>
+            <p>Erstelle deinen ersten Ordner, um Minispiele zu organisieren.</p>
+            <a href="{{ url_for('admin.create_folder') }}" class="btn btn-primary">
+                <i class="fas fa-plus-circle"></i> Ersten Ordner erstellen
+            </a>
+        </div>
+    {% endif %}
+</div>
+
+<style>
+.card {
+    transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+}
+
+.card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+}
+
+.badge {
+    font-size: 0.8rem;
+}
+
+.btn-group .btn {
+    flex: 1;
+}
+</style>
+{% endblock %}

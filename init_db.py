@@ -7,7 +7,7 @@ sys.path.insert(0, PROJECT_ROOT)
 
 # Importiere create_app und db zuerst
 from app import create_app, db 
-from app.models import Admin, Team, Minigame, TeamMinigameScore, Character, GameSession, GameEvent
+from app.models import Admin, Team, Minigame, TeamMinigameScore, Character, GameSession, GameEvent, MinigameFolder, GameRound
 
 app_instance = create_app()
 
@@ -39,7 +39,6 @@ with app_instance.app_context():
         print(f"Admin-Benutzer '{admin_username}' existiert bereits.")
 
     # Charaktere initialisieren
-    # Importiere initialize_characters erst HIER, direkt vor dem Aufruf.
     try:
         from app.admin.init_characters import initialize_characters
         print("Charaktere werden initialisiert/überprüft...")
@@ -51,5 +50,62 @@ with app_instance.app_context():
     except Exception as char_e:
         print(f"Ein anderer Fehler ist bei der Charakter-Initialisierung aufgetreten: {char_e}")
 
+    # NEUE SEKTION: Minigame-Ordner und Spielrunden initialisieren
+    print("\n--- Minigame-Ordner und Spielrunden werden initialisiert ---")
+    
+    try:
+        from app.admin.minigame_utils import ensure_minigame_folders_exist, create_minigame_folder_if_not_exists
+        
+        # Erstelle grundlegende Ordnerstruktur
+        print("Erstelle Minigame-Ordner-Struktur...")
+        ensure_minigame_folders_exist()
+        
+        # Erstelle Default-Minigame-Ordner in der Datenbank falls nicht vorhanden
+        default_folder_name = app_instance.config.get('DEFAULT_MINIGAME_FOLDER', 'Default')
+        default_folder = MinigameFolder.query.filter_by(name=default_folder_name).first()
+        
+        if not default_folder:
+            default_folder = MinigameFolder(
+                name=default_folder_name,
+                description="Standard-Minispiele für allgemeine Verwendung",
+                folder_path=default_folder_name
+            )
+            db.session.add(default_folder)
+            print(f"Standard-Minigame-Ordner '{default_folder_name}' in DB erstellt.")
+        else:
+            print(f"Standard-Minigame-Ordner '{default_folder_name}' existiert bereits in DB.")
+        
+        # Erstelle Default-Spielrunde falls nicht vorhanden
+        default_round = GameRound.query.filter_by(name="Standard-Spiel").first()
+        
+        if not default_round:
+            default_round = GameRound(
+                name="Standard-Spiel",
+                description="Standard-Spielrunde für allgemeine Verwendung",
+                minigame_folder_id=default_folder.id,
+                is_active=True  # Als aktive Runde setzen
+            )
+            db.session.add(default_round)
+            print("Standard-Spielrunde 'Standard-Spiel' erstellt und als aktiv gesetzt.")
+        else:
+            # Sicherstellen, dass mindestens eine Runde aktiv ist
+            if not GameRound.query.filter_by(is_active=True).first():
+                default_round.is_active = True
+                print("Standard-Spielrunde als aktiv gesetzt (keine andere aktive Runde gefunden).")
+            else:
+                print("Standard-Spielrunde existiert bereits.")
+        
+        db.session.commit()
+        print("Minigame-Ordner und Spielrunden erfolgreich initialisiert.")
+        
+    except ImportError as ie:
+        print(f"ImportFehler beim Laden der Minigame-Utils: {ie}")
+        print("Stelle sicher, dass app/admin/minigame_utils.py existiert und korrekt implementiert ist.")
+    except Exception as minigame_e:
+        print(f"Fehler bei der Minigame-Ordner-Initialisierung: {minigame_e}")
+        print("Die Grundfunktionalität sollte trotzdem funktionieren.")
 
-    print("Datenbank-Initialisierung abgeschlossen.")
+    print("\nDatenbank-Initialisierung abgeschlossen.")
+    print("\n📁 Minigame-Ordner-System ist bereit!")
+    print("🎮 Standard-Spielrunde wurde erstellt und aktiviert.")
+    print("👨‍💼 Admin kann jetzt über das Dashboard weitere Ordner und Runden erstellen.")

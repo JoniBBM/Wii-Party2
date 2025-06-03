@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+
+{% block title %}Spielrunde erstellen - Admin Dashboard{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header bg-success text-white">
+                    <h3 class="mb-0">
+                        <i class="fas fa-gamepad"></i> Neue Spielrunde erstellen
+                    </h3>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('admin.create_round') }}" novalidate>
+                        {{ form.hidden_tag() }}
+                        
+                        <div class="form-group">
+                            {{ form.name.label(class="form-control-label") }}
+                            {{ form.name(class="form-control" + (" is-invalid" if form.name.errors else ""), 
+                                         placeholder="z.B. Sommer2025-Turnier, Weihnachtsparty, Kindergeburtstag") }}
+                            {% if form.name.errors %}
+                                <div class="invalid-feedback">
+                                    {% for error in form.name.errors %}
+                                        <span>{{ error }}</span>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="form-group">
+                            {{ form.description.label(class="form-control-label") }}
+                            {{ form.description(class="form-control" + (" is-invalid" if form.description.errors else ""), 
+                                               rows="3", placeholder="Beschreibung für diese Spielrunde...") }}
+                            {% if form.description.errors %}
+                                <div class="invalid-feedback">
+                                    {% for error in form.description.errors %}
+                                        <span>{{ error }}</span>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="form-group">
+                            {{ form.minigame_folder_id.label(class="form-control-label") }}
+                            {{ form.minigame_folder_id(class="form-control" + (" is-invalid" if form.minigame_folder_id.errors else "")) }}
+                            {% if form.minigame_folder_id.errors %}
+                                <div class="invalid-feedback">
+                                    {% for error in form.minigame_folder_id.errors %}
+                                        <span>{{ error }}</span>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                            <small class="form-text text-muted">
+                                <i class="fas fa-info-circle"></i> 
+                                Wähle den Minigame-Ordner, aus dem für diese Runde die Spiele ausgewählt werden.
+                            </small>
+                        </div>
+                        
+                        <div class="form-group mt-4">
+                            {{ form.submit(class="btn btn-success btn-lg") }}
+                            <a href="{{ url_for('admin.manage_rounds') }}" class="btn btn-secondary btn-lg ml-2">
+                                Abbrechen
+                            </a>
+                        </div>
+                    </form>
+                </div>
+                <div class="card-footer bg-light">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6><i class="fas fa-play-circle text-success"></i> Aktivierung:</h6>
+                            <small class="text-muted">
+                                Nach dem Erstellen kannst du die Runde aktivieren, um sie als aktuelle Spielrunde zu nutzen.
+                            </small>
+                        </div>
+                        <div class="col-md-6">
+                            <h6><i class="fas fa-folder text-primary"></i> Minigame-Ordner:</h6>
+                            <small class="text-muted">
+                                Du kannst <a href="{{ url_for('admin.manage_folders') }}">hier weitere Ordner erstellen</a>, 
+                                falls der gewünschte noch nicht existiert.
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.card {
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+}
+
+.btn-lg {
+    padding: 0.75rem 1.5rem;
+    font-size: 1.1rem;
+}
+
+.form-control {
+    border-radius: 0.5rem;
+}
+
+.form-control:focus {
+    border-color: #28a745;
+    box-shadow: 0 0 0 0.2rem rgba(40, 167, 69, 0.25);
+}
+
+.card-footer a {
+    color: #007bff;
+    text-decoration: none;
+}
+
+.card-footer a:hover {
+    text-decoration: underline;
+}
+</style>
+{% endblock %}
