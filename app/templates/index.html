@@ -2,68 +2,601 @@
 
 {% block title %}Willkommen bei Wii Party U Deluxe{% endblock %}
 
-{% block content %}
-<div class="jumbotron text-center">
-    <h1 class="display-4">Willkommen bei Wii Party U Deluxe!</h1>
-    <p class="lead">Das ultimative Partyspiel-Erlebnis, jetzt im Browser.</p>
-    <hr class="my-4">
-    <p>Bereit für den Spaß? Starte ein neues Spiel oder schau dir das Spielbrett an!</p>
-    <a class="btn btn-primary btn-lg" href="{{ url_for('main.game_board') }}" role="button">Zum Spielbrett</a>
-    {% if current_user.is_authenticated and user_type_in_context == 'admin' %}
-        <a href="{{ url_for('admin.admin_dashboard') }}" class="btn btn-info btn-lg ml-2">Admin Dashboard</a>
-    {% elif current_user.is_authenticated and user_type_in_context == 'team' %}
-        <a href="{{ url_for('teams.team_dashboard') }}" class="btn btn-info btn-lg ml-2">Mein Team Dashboard</a>
-    {% else %}
-        <a href="{{ url_for('teams.team_login') }}" class="btn btn-success btn-lg ml-2">Team Login</a>
-        <a href="{{ url_for('admin.login') }}" class="btn btn-secondary btn-lg ml-2">Admin Login</a>
-    {% endif %}
-</div>
+{% block styles %}
+{{ super() }}
+<style>
+    /* Modern Hero Section */
+    .hero-section {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        position: relative;
+        overflow: hidden;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        color: white;
+    }
 
-<div class="container">
-    <div class="row">
-        <div class="col-md-6">
-            <h2>Spielregeln (Beispiel)</h2>
-            <p>Sammelt die meisten Sterne, indem ihr Minispiele gewinnt und euch geschickt auf dem Brett bewegt. Aber Vorsicht vor den Fallen!</p>
-            <ul>
-                <li>Würfle, um dich zu bewegen.</li>
-                <li>Lande auf einem Minispielfeld, um ein Spiel zu starten.</li>
-                <li>Der Gewinner des Minispiels erhält einen Bonus für den nächsten Zug!
-                    <ul>
-                        <li>Platz 1: Bonuswürfel 1-6</li>
-                        <li>Platz 2: Bonuswürfel 1-4</li>
-                        <li>Platz 3: Bonuswürfel 1-2</li>
-                    </ul>
-                </li>
-                <li>Erreiche als Erster das Ziel!</li>
-            </ul>
-        </div>
-        <div class="col-md-6">
-            <h2>Features</h2>
-            <ul>
-                <li>Interaktives 3D-Spielbrett (bald!)</li>
-                <li>Verschiedene Charaktere zur Auswahl</li>
-                <li>Spannende Minispiele</li>
-                <li>Team-Modus für gemeinsamen Spaß</li>
-                <li>Admin-Dashboard zur Spielverwaltung</li>
-            </ul>
-        </div>
-    </div>
+    .hero-section::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: linear-gradient(45deg, rgba(255,255,255,0.1) 25%, transparent 25%),
+                    linear-gradient(-45deg, rgba(255,255,255,0.1) 25%, transparent 25%),
+                    linear-gradient(45deg, transparent 75%, rgba(255,255,255,0.1) 75%),
+                    linear-gradient(-45deg, transparent 75%, rgba(255,255,255,0.1) 75%);
+        background-size: 60px 60px;
+        background-position: 0 0, 0 30px, 30px -30px, -30px 0px;
+        animation: movePattern 20s linear infinite;
+        opacity: 0.3;
+    }
 
-    <hr class="my-4">
+    @keyframes movePattern {
+        0% { transform: translateX(0px) translateY(0px); }
+        100% { transform: translateX(60px) translateY(60px); }
+    }
 
-    <div class="text-center mb-4">
-        <h3>Spielübersicht</h3>
-        <p>Hier könnte eine dynamische Übersicht über laufende Spiele oder Highscores stehen.</p>
+    .hero-content {
+        position: relative;
+        z-index: 2;
+        text-align: center;
+        padding: 2rem 0;
+    }
+
+    .hero-title {
+        font-size: 4rem;
+        font-weight: 900;
+        margin-bottom: 1rem;
+        text-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        background: linear-gradient(45deg, #fff, #f8f9ff, #fff);
+        background-size: 200% 200%;
+        background-clip: text;
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        animation: shimmer 3s ease-in-out infinite;
+        line-height: 1.1;
+    }
+
+    @keyframes shimmer {
+        0% { background-position: 0% 50%; }
+        50% { background-position: 100% 50%; }
+        100% { background-position: 0% 50%; }
+    }
+
+    .hero-subtitle {
+        font-size: 1.5rem;
+        margin-bottom: 2rem;
+        opacity: 0.95;
+        font-weight: 300;
+        letter-spacing: 0.5px;
+    }
+
+    .hero-buttons {
+        margin-top: 2rem;
+    }
+
+    .btn-hero {
+        padding: 1rem 2.5rem;
+        font-size: 1.2rem;
+        font-weight: 600;
+        border-radius: 50px;
+        margin: 0.5rem;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        text-decoration: none;
+        display: inline-block;
+        position: relative;
+        overflow: hidden;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+
+    .btn-hero::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: -100%;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+        transition: left 0.5s;
+    }
+
+    .btn-hero:hover::before {
+        left: 100%;
+    }
+
+    .btn-hero-primary {
+        background: linear-gradient(45deg, #ff6b6b, #ee5a52);
+        color: white;
+        border: none;
+        box-shadow: 0 8px 25px rgba(255, 107, 107, 0.3);
+    }
+
+    .btn-hero-primary:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 15px 35px rgba(255, 107, 107, 0.4);
+        color: white;
+    }
+
+    .btn-hero-secondary {
+        background: linear-gradient(45deg, #4ecdc4, #44a08d);
+        color: white;
+        border: none;
+        box-shadow: 0 8px 25px rgba(78, 205, 196, 0.3);
+    }
+
+    .btn-hero-secondary:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 15px 35px rgba(78, 205, 196, 0.4);
+        color: white;
+    }
+
+    .btn-hero-outline {
+        background: transparent;
+        color: white;
+        border: 2px solid rgba(255,255,255,0.8);
+        box-shadow: 0 8px 25px rgba(255, 255, 255, 0.1);
+    }
+
+    .btn-hero-outline:hover {
+        background: rgba(255,255,255,0.1);
+        transform: translateY(-3px);
+        box-shadow: 0 15px 35px rgba(255, 255, 255, 0.2);
+        color: white;
+    }
+
+    /* Floating Elements */
+    .floating-elements {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        z-index: 1;
+    }
+
+    .floating-element {
+        position: absolute;
+        background: rgba(255,255,255,0.1);
+        border-radius: 50%;
+        animation: float 15s infinite linear;
+    }
+
+    .floating-element:nth-child(1) {
+        width: 80px;
+        height: 80px;
+        top: 20%;
+        left: 10%;
+        animation-delay: 0s;
+    }
+
+    .floating-element:nth-child(2) {
+        width: 120px;
+        height: 120px;
+        top: 60%;
+        right: 15%;
+        animation-delay: -5s;
+    }
+
+    .floating-element:nth-child(3) {
+        width: 60px;
+        height: 60px;
+        top: 80%;
+        left: 80%;
+        animation-delay: -10s;
+    }
+
+    @keyframes float {
+        0% {
+            transform: translateY(0px) rotate(0deg);
+            opacity: 0.7;
+        }
+        33% {
+            transform: translateY(-30px) rotate(120deg);
+            opacity: 0.9;
+        }
+        66% {
+            transform: translateY(-60px) rotate(240deg);
+            opacity: 0.7;
+        }
+        100% {
+            transform: translateY(0px) rotate(360deg);
+            opacity: 0.7;
+        }
+    }
+
+    /* Features Section */
+    .features-section {
+        padding: 5rem 0;
+        background: linear-gradient(180deg, #f8f9ff 0%, #ffffff 100%);
+    }
+
+    .section-title {
+        text-align: center;
+        font-size: 3rem;
+        font-weight: 700;
+        margin-bottom: 1rem;
+        background: linear-gradient(45deg, #667eea, #764ba2);
+        background-clip: text;
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+
+    .section-subtitle {
+        text-align: center;
+        font-size: 1.2rem;
+        color: #666;
+        margin-bottom: 4rem;
+        max-width: 600px;
+        margin-left: auto;
+        margin-right: auto;
+    }
+
+    .feature-card {
+        background: white;
+        border-radius: 20px;
+        padding: 2.5rem 2rem;
+        text-align: center;
+        box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        border: 1px solid rgba(255,255,255,0.8);
+        position: relative;
+        overflow: hidden;
+        height: 100%;
+    }
+
+    .feature-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 4px;
+        background: linear-gradient(45deg, #667eea, #764ba2);
+    }
+
+    .feature-card:hover {
+        transform: translateY(-10px);
+        box-shadow: 0 25px 50px rgba(0,0,0,0.15);
+    }
+
+    .feature-icon {
+        width: 80px;
+        height: 80px;
+        margin: 0 auto 1.5rem;
+        background: linear-gradient(45deg, #667eea, #764ba2);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 2rem;
+        color: white;
+        position: relative;
+    }
+
+    .feature-icon::after {
+        content: '';
+        position: absolute;
+        top: -5px;
+        left: -5px;
+        right: -5px;
+        bottom: -5px;
+        background: linear-gradient(45deg, #667eea, #764ba2);
+        border-radius: 50%;
+        z-index: -1;
+        opacity: 0.3;
+        animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+        0% {
+            transform: scale(0.95);
+            opacity: 0.3;
+        }
+        70% {
+            transform: scale(1);
+            opacity: 0.1;
+        }
+        100% {
+            transform: scale(0.95);
+            opacity: 0.3;
+        }
+    }
+
+    .feature-title {
+        font-size: 1.5rem;
+        font-weight: 600;
+        margin-bottom: 1rem;
+        color: #333;
+    }
+
+    .feature-description {
+        color: #666;
+        line-height: 1.6;
+        margin-bottom: 1.5rem;
+    }
+
+    .feature-list {
+        text-align: left;
+        list-style: none;
+        padding: 0;
+    }
+
+    .feature-list li {
+        padding: 0.5rem 0;
+        position: relative;
+        padding-left: 2rem;
+        color: #555;
+    }
+
+    .feature-list li::before {
+        content: '🎮';
+        position: absolute;
+        left: 0;
+        top: 0.5rem;
+    }
+
+    /* Game Overview Section */
+    .game-overview {
+        padding: 5rem 0;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .game-overview::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grain" width="100" height="100" patternUnits="userSpaceOnUse"><circle cx="25" cy="25" r="1" fill="white" opacity="0.1"/><circle cx="75" cy="75" r="1" fill="white" opacity="0.1"/><circle cx="50" cy="10" r="0.5" fill="white" opacity="0.1"/><circle cx="90" cy="40" r="0.5" fill="white" opacity="0.1"/><circle cx="10" cy="80" r="0.5" fill="white" opacity="0.1"/></pattern></defs><rect width="100" height="100" fill="url(%23grain)"/></svg>');
+        opacity: 0.3;
+    }
+
+    .game-overview-content {
+        position: relative;
+        z-index: 2;
+        text-align: center;
+    }
+
+    .game-overview h3 {
+        font-size: 2.5rem;
+        font-weight: 700;
+        margin-bottom: 2rem;
+    }
+
+    .game-overview p {
+        font-size: 1.2rem;
+        margin-bottom: 2rem;
+        opacity: 0.9;
+        max-width: 600px;
+        margin-left: auto;
+        margin-right: auto;
+    }
+
+    /* Responsive Design */
+    @media (max-width: 768px) {
+        .hero-title {
+            font-size: 2.5rem;
+        }
         
-        {# Beispielhafter Link zum Team-Dashboard, der @login_required nutzt und ggf. zum Login weiterleitet #}
-        {% if current_user.is_authenticated and user_type_in_context == 'team' %}
-             <a href="{{ url_for('teams.team_dashboard') }}" class="btn btn-info btn-sm">Mein Team Dashboard</a>
-        {% else %}
-            {# Dieser Link führt zum Team-Login, wenn nicht eingeloggt, oder zum Dashboard, wenn eingeloggt #}
-            {# Der Text könnte angepasst werden, je nachdem ob man eingeloggt ist oder nicht #}
-             <a href="{{ url_for('teams.team_dashboard') }}" class="btn btn-info btn-sm">Zu den Team-Dashboards</a>
-        {% endif %}
-    </div>
+        .hero-subtitle {
+            font-size: 1.2rem;
+        }
+        
+        .btn-hero {
+            padding: 0.8rem 2rem;
+            font-size: 1rem;
+            margin: 0.3rem;
+        }
+        
+        .section-title {
+            font-size: 2rem;
+        }
+        
+        .feature-card {
+            margin-bottom: 2rem;
+        }
+        
+        .hero-section {
+            min-height: 80vh;
+        }
+    }
 
-</div>
+    /* Custom Animations */
+    .fade-in-up {
+        opacity: 0;
+        transform: translateY(30px);
+        animation: fadeInUp 0.8s ease-out forwards;
+    }
+
+    .fade-in-up:nth-child(1) { animation-delay: 0.1s; }
+    .fade-in-up:nth-child(2) { animation-delay: 0.2s; }
+    .fade-in-up:nth-child(3) { animation-delay: 0.3s; }
+
+    @keyframes fadeInUp {
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Hero Section -->
+<section class="hero-section">
+    <div class="floating-elements">
+        <div class="floating-element"></div>
+        <div class="floating-element"></div>
+        <div class="floating-element"></div>
+    </div>
+    
+    <div class="container">
+        <div class="hero-content">
+            <h1 class="hero-title">Wii Party U<br>Deluxe</h1>
+            <p class="hero-subtitle">Das ultimative Partyspiel-Erlebnis für Browser.<br>Spiele, lache und gewinne mit deinen Freunden!</p>
+            
+            <div class="hero-buttons">
+                <a href="{{ url_for('main.game_board') }}" class="btn btn-hero btn-hero-primary">
+                    <i class="fas fa-gamepad mr-2"></i>Zum Spielbrett
+                </a>
+                
+                {% if current_user.is_authenticated and user_type_in_context == 'admin' %}
+                    <a href="{{ url_for('admin.admin_dashboard') }}" class="btn btn-hero btn-hero-secondary">
+                        <i class="fas fa-cog mr-2"></i>Admin Dashboard
+                    </a>
+                {% elif current_user.is_authenticated and user_type_in_context == 'team' %}
+                    <a href="{{ url_for('teams.team_dashboard') }}" class="btn btn-hero btn-hero-secondary">
+                        <i class="fas fa-users mr-2"></i>Mein Team
+                    </a>
+                {% else %}
+                    <a href="{{ url_for('teams.team_login') }}" class="btn btn-hero btn-hero-secondary">
+                        <i class="fas fa-sign-in-alt mr-2"></i>Team Login
+                    </a>
+                    <a href="{{ url_for('admin.login') }}" class="btn btn-hero btn-hero-outline">
+                        <i class="fas fa-user-shield mr-2"></i>Admin Login
+                    </a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Features Section -->
+<section class="features-section">
+    <div class="container">
+        <h2 class="section-title">Warum Wii Party U Deluxe?</h2>
+        <p class="section-subtitle">Erlebe packende Minispiele, spannende Wettkämpfe und endlosen Spaß mit deinen Freunden in einer komplett neuen Dimension!</p>
+        
+        <div class="row">
+            <div class="col-lg-4 col-md-6 mb-4">
+                <div class="feature-card fade-in-up">
+                    <div class="feature-icon">
+                        <i class="fas fa-dice"></i>
+                    </div>
+                    <h3 class="feature-title">Spielregeln</h3>
+                    <p class="feature-description">Einfach zu lernen, schwer zu meistern! Sammle Sterne durch geschickte Züge und Minispiel-Erfolge.</p>
+                    <ul class="feature-list">
+                        <li>Würfle und bewege dich über das Brett</li>
+                        <li>Spiele spannende Minispiele</li>
+                        <li>Bonuswürfel für Gewinner (1-6, 1-4, 1-2)</li>
+                        <li>Erreiche als Erster das Ziel!</li>
+                    </ul>
+                </div>
+            </div>
+            
+            <div class="col-lg-4 col-md-6 mb-4">
+                <div class="feature-card fade-in-up">
+                    <div class="feature-icon">
+                        <i class="fas fa-magic"></i>
+                    </div>
+                    <h3 class="feature-title">Premium Features</h3>
+                    <p class="feature-description">Modernste Technologie trifft auf klassischen Spielspaß für ein unvergessliches Erlebnis.</p>
+                    <ul class="feature-list">
+                        <li>Interaktives 3D-Spielbrett</li>
+                        <li>Einzigartige Charaktere</li>
+                        <li>Vielfältige Minispiele</li>
+                        <li>Team-basiertes Gameplay</li>
+                        <li>Admin-Dashboard für Kontrolle</li>
+                    </ul>
+                </div>
+            </div>
+            
+            <div class="col-lg-4 col-md-12 mb-4">
+                <div class="feature-card fade-in-up">
+                    <div class="feature-icon">
+                        <i class="fas fa-users"></i>
+                    </div>
+                    <h3 class="feature-title">Multiplayer Spaß</h3>
+                    <p class="feature-description">Spiele mit deinen Freunden, familie oder Kollegen und erlebe unvergessliche Momente!</p>
+                    <ul class="feature-list">
+                        <li>Bis zu 6 Teams gleichzeitig</li>
+                        <li>Lokaler und Online-Multiplayer</li>
+                        <li>Teamstatistiken & Ranglisten</li>
+                        <li>Individuelle Team-Dashboards</li>
+                        <li>Spielstand-Speicherung</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Game Overview Section -->
+<section class="game-overview">
+    <div class="container">
+        <div class="game-overview-content">
+            <h3>Bereit für das Abenteuer?</h3>
+            <p>Starte jetzt dein erstes Spiel und entdecke die Welt von Wii Party U Deluxe. Ob Anfänger oder Profi - hier findet jeder seinen Spaß!</p>
+            
+            {% if current_user.is_authenticated and user_type_in_context == 'team' %}
+                <a href="{{ url_for('teams.team_dashboard') }}" class="btn btn-hero btn-hero-primary">
+                    <i class="fas fa-rocket mr-2"></i>Zu meinem Team-Dashboard
+                </a>
+            {% else %}
+                <a href="{{ url_for('teams.team_dashboard') }}" class="btn btn-hero btn-hero-primary">
+                    <i class="fas fa-rocket mr-2"></i>Team-Bereich erkunden
+                </a>
+            {% endif %}
+            
+            <a href="{{ url_for('main.game_board') }}" class="btn btn-hero btn-hero-outline">
+                <i class="fas fa-eye mr-2"></i>Spielbrett ansehen
+            </a>
+        </div>
+    </div>
+</section>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Intersection Observer für Animations-Trigger
+    const observerOptions = {
+        threshold: 0.1,
+        rootMargin: '0px 0px -50px 0px'
+    };
+
+    const observer = new IntersectionObserver(function(entries) {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                entry.target.style.animationPlayState = 'running';
+            }
+        });
+    }, observerOptions);
+
+    // Beobachte alle Elemente mit fade-in-up Klasse
+    document.querySelectorAll('.fade-in-up').forEach(el => {
+        observer.observe(el);
+    });
+
+    // Smooth Scrolling für interne Links
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+        anchor.addEventListener('click', function (e) {
+            e.preventDefault();
+            const target = document.querySelector(this.getAttribute('href'));
+            if (target) {
+                target.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'start'
+                });
+            }
+        });
+    });
+
+    // Parallax-Effekt für Hero-Section
+    const heroSection = document.querySelector('.hero-section');
+    if (heroSection) {
+        window.addEventListener('scroll', () => {
+            const scrolled = window.pageYOffset;
+            const rate = scrolled * -0.5;
+            heroSection.style.transform = `translateY(${rate}px)`;
+        });
+    }
+});
+</script>
 {% endblock %}
