@@ -175,7 +175,7 @@
                             <div class="input-group">
                                 <div class="input-group-prepend">
                                     <div class="input-group-text">
-                                        <input type="radio" class="correct-option" name="correct_option_temp" value="1">
+                                        <input type="radio" class="correct-option" value="0">
                                     </div>
                                 </div>
                                 <input type="text" class="form-control option-1" placeholder="Option 1" required>
@@ -185,7 +185,7 @@
                             <div class="input-group">
                                 <div class="input-group-prepend">
                                     <div class="input-group-text">
-                                        <input type="radio" class="correct-option" name="correct_option_temp" value="2">
+                                        <input type="radio" class="correct-option" value="1">
                                     </div>
                                 </div>
                                 <input type="text" class="form-control option-2" placeholder="Option 2" required>
@@ -197,7 +197,7 @@
                             <div class="input-group">
                                 <div class="input-group-prepend">
                                     <div class="input-group-text">
-                                        <input type="radio" class="correct-option" name="correct_option_temp" value="3">
+                                        <input type="radio" class="correct-option" value="2">
                                     </div>
                                 </div>
                                 <input type="text" class="form-control option-3" placeholder="Option 3 (optional)">
@@ -207,7 +207,7 @@
                             <div class="input-group">
                                 <div class="input-group-prepend">
                                     <div class="input-group-text">
-                                        <input type="radio" class="correct-option" name="correct_option_temp" value="4">
+                                        <input type="radio" class="correct-option" value="3">
                                     </div>
                                 </div>
                                 <input type="text" class="form-control option-4" placeholder="Option 4 (optional)">
@@ -294,11 +294,13 @@ document.addEventListener('DOMContentLoaded', function() {
     
     function updateNoQuestionsMessage() {
         const questionCards = questionsContainer.querySelectorAll('.question-card');
-        noQuestionsMessage.style.display = questionCards.length === 0 ? 'block' : 'none';
+        const hasQuestions = questionCards.length > 0;
+        
+        noQuestionsMessage.style.display = hasQuestions ? 'none' : 'block';
         
         // Update submit button state
-        submitBtn.disabled = questionCards.length === 0;
-        if (questionCards.length === 0) {
+        submitBtn.disabled = !hasQuestions;
+        if (!hasQuestions) {
             submitBtn.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Mindestens eine Frage erforderlich';
             submitBtn.classList.remove('btn-primary');
             submitBtn.classList.add('btn-secondary');
@@ -344,11 +346,9 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     function addQuestion() {
-        questionCounter++;
-        
         const template = document.getElementById('question-template');
         const newQuestion = template.cloneNode(true);
-        newQuestion.id = '';
+        newQuestion.id = `question-${Date.now()}`;
         newQuestion.style.display = 'block';
         
         // Add event listeners
@@ -357,9 +357,11 @@ document.addEventListener('DOMContentLoaded', function() {
         
         const removeBtn = newQuestion.querySelector('.remove-question');
         removeBtn.addEventListener('click', () => {
-            newQuestion.remove();
-            updateQuestionNumbers();
-            updateNoQuestionsMessage();
+            if (confirm('Diese Frage wirklich löschen?')) {
+                newQuestion.remove();
+                updateQuestionNumbers();
+                updateNoQuestionsMessage();
+            }
         });
         
         const moveUpBtn = newQuestion.querySelector('.move-question-up');
@@ -380,6 +382,12 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
         
+        // Set first radio button as checked by default
+        const firstRadio = newQuestion.querySelector('.correct-option');
+        if (firstRadio) {
+            firstRadio.checked = true;
+        }
+        
         questionsContainer.appendChild(newQuestion);
         updateQuestionNumbers();
         updateNoQuestionsMessage();
@@ -397,7 +405,11 @@ document.addEventListener('DOMContentLoaded', function() {
             const questionType = card.querySelector('.question-type').value;
             const questionPoints = parseInt(card.querySelector('.question-points').value) || 10;
             
-            if (!questionText) return; // Skip empty questions
+            // Skip empty questions
+            if (!questionText) {
+                console.log(`Skipping question ${index + 1}: No question text`);
+                return;
+            }
             
             const questionData = {
                 id: `q_${Date.now()}_${index}`,
@@ -408,6 +420,8 @@ document.addEventListener('DOMContentLoaded', function() {
             
             if (questionType === 'multiple_choice') {
                 const options = [];
+                
+                // Collect all non-empty options
                 for (let i = 1; i <= 4; i++) {
                     const optionInput = card.querySelector(`.option-${i}`);
                     if (optionInput && optionInput.value.trim()) {
@@ -415,23 +429,39 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                 }
                 
-                const correctOption = card.querySelector('.correct-option:checked');
-                const correctIndex = correctOption ? parseInt(correctOption.value) - 1 : 0;
+                // Find the correct option
+                const radioName = `correct_option_${index}`;
+                const correctOption = card.querySelector(`input[name="${radioName}"]:checked`);
+                let correctIndex = 0;
                 
-                if (options.length >= 2) { // Minimum 2 options required
+                if (correctOption) {
+                    correctIndex = parseInt(correctOption.value);
+                }
+                
+                // Validate: Need at least 2 options and correct index must be valid
+                if (options.length >= 2 && correctIndex < options.length) {
                     questionData.options = options;
                     questionData.correct_option = correctIndex;
+                    questions.push(questionData);
+                    console.log(`Added MC question ${index + 1}:`, questionData);
+                } else {
+                    console.log(`Skipping question ${index + 1}: Only ${options.length} options or invalid correct index ${correctIndex}`);
                 }
+                
             } else if (questionType === 'text_input') {
                 const correctText = card.querySelector('.correct-text').value.trim();
+                
                 if (correctText) {
                     questionData.correct_text = correctText;
+                    questions.push(questionData);
+                    console.log(`Added text question ${index + 1}:`, questionData);
+                } else {
+                    console.log(`Skipping question ${index + 1}: No correct text provided`);
                 }
             }
-            
-            questions.push(questionData);
         });
         
+        console.log('Total questions collected:', questions.length);
         return questions;
     }
     
@@ -440,36 +470,42 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Form submission
     document.getElementById('quiz-form').addEventListener('submit', function(e) {
+        console.log('Form submitted, collecting questions...');
         const questions = collectQuestionsData();
         
         if (questions.length === 0) {
             e.preventDefault();
-            alert('Bitte füge mindestens eine gültige Frage hinzu.');
+            alert('Bitte füge mindestens eine gültige Frage hinzu.\n\nFür Multiple Choice: Mindestens 2 Optionen erforderlich\nFür Freitext: Korrekte Antwort muss ausgefüllt sein');
             return;
         }
         
-        // Validate questions
+        // Additional validation
         let valid = true;
+        let errorMessage = '';
+        
         questions.forEach((q, index) => {
             if (q.type === 'multiple_choice') {
                 if (!q.options || q.options.length < 2) {
                     valid = false;
-                    alert(`Frage ${index + 1}: Mindestens 2 Antwortoptionen erforderlich.`);
+                    errorMessage = `Frage ${index + 1}: Mindestens 2 Antwortoptionen erforderlich.`;
                 }
             } else if (q.type === 'text_input') {
                 if (!q.correct_text) {
                     valid = false;
-                    alert(`Frage ${index + 1}: Korrekte Antwort ist erforderlich.`);
+                    errorMessage = `Frage ${index + 1}: Korrekte Antwort ist erforderlich.`;
                 }
             }
         });
         
         if (!valid) {
             e.preventDefault();
+            alert(errorMessage);
             return;
         }
         
+        // Set the JSON field value
         questionsJsonField.value = JSON.stringify(questions);
+        console.log('Questions JSON:', questionsJsonField.value);
     });
     
     // Initialize

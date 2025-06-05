@@ -7,7 +7,7 @@ sys.path.insert(0, PROJECT_ROOT)
 
 # Importiere create_app und db zuerst
 from app import create_app, db 
-from app.models import Admin, Team, Minigame, TeamMinigameScore, Character, GameSession, GameEvent, MinigameFolder, GameRound
+from app.models import Admin, Team, Character, GameSession, GameEvent, MinigameFolder, GameRound
 
 app_instance = create_app()
 

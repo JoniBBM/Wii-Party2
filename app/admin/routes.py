@@ -687,12 +687,25 @@ def create_quiz(folder_id):
     folder = MinigameFolder.query.get_or_404(folder_id)
     form = CreateQuizForm()
     
+    if request.method == 'POST':
+        # DEBUG: Logge alle Form-Daten
+        current_app.logger.info(f"=== CREATE QUIZ DEBUG ===")
+        current_app.logger.info(f"Form data: {request.form}")
+        current_app.logger.info(f"questions_json raw: {form.questions_json.data}")
+        current_app.logger.info(f"Form validates: {form.validate()}")
+        current_app.logger.info(f"Form errors: {form.errors}")
+    
     if form.validate_on_submit():
         try:
             # Parse Questions JSON
-            questions_data = json.loads(form.questions_json.data) if form.questions_json.data else []
+            questions_json_raw = form.questions_json.data
+            current_app.logger.info(f"Questions JSON: {questions_json_raw}")
+            
+            questions_data = json.loads(questions_json_raw) if questions_json_raw else []
+            current_app.logger.info(f"Parsed questions: {questions_data}")
             
             if not questions_data:
+                current_app.logger.warning("No questions data found!")
                 flash('Mindestens eine Frage ist erforderlich.', 'warning')
                 return render_template('admin/create_quiz.html', form=form, folder=folder)
             
@@ -709,8 +722,12 @@ def create_quiz(folder_id):
                 return redirect(url_for('admin.edit_folder', folder_id=folder.id))
             else:
                 flash('Fehler beim Erstellen des Quiz.', 'danger')
-        except json.JSONDecodeError:
+        except json.JSONDecodeError as e:
+            current_app.logger.error(f"JSON decode error: {e}")
             flash('Fehler beim Verarbeiten der Fragen. Bitte versuchen Sie es erneut.', 'danger')
+        except Exception as e:
+            current_app.logger.error(f"General error: {e}")
+            flash('Ein unerwarteter Fehler ist aufgetreten.', 'danger')
     
     return render_template('admin/create_quiz.html', form=form, folder=folder)
 
