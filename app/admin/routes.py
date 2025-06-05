@@ -2,20 +2,24 @@
 import sys
 import os
 import random
+import json
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session, current_app, g, jsonify
 from flask_login import login_user, logout_user, login_required, current_user
 # Korrigierte Importe basierend auf der Nutzung und der ursprünglichen Datei des Benutzers:
-from ..models import Admin, Team, Minigame, Character, GameSession, GameEvent, MinigameFolder, GameRound, db
-from ..forms import (AdminLoginForm, CreateTeamForm, EditTeamForm, MinigameForm, SetNextMinigameForm, 
+from ..models import Admin, Team, Character, GameSession, GameEvent, MinigameFolder, GameRound, QuizResponse, db
+from ..forms import (AdminLoginForm, CreateTeamForm, EditTeamForm, SetNextMinigameForm, 
                      AdminConfirmPasswordForm, CreateMinigameFolderForm, EditMinigameFolderForm,
                      CreateGameRoundForm, EditGameRoundForm, FolderMinigameForm, EditFolderMinigameForm,
-                     DeleteConfirmationForm)
+                     DeleteConfirmationForm, CreateQuizForm, EditQuizForm, StartQuizForm)
 # Importiere init_characters, wenn es verwendet wird (z.B. in init_chars Route)
 from .init_characters import initialize_characters
 from .minigame_utils import (ensure_minigame_folders_exist, create_minigame_folder_if_not_exists,
                             delete_minigame_folder, get_minigames_from_folder, add_minigame_to_folder,
                             update_minigame_in_folder, delete_minigame_from_folder, get_minigame_from_folder,
-                            get_random_minigame_from_folder, list_available_folders, update_folder_info)
+                            get_random_minigame_from_folder, list_available_folders, update_folder_info,
+                            get_quizzes_from_folder, add_quiz_to_folder, update_quiz_in_folder,
+                            delete_quiz_from_folder, get_quiz_from_folder, get_random_quiz_from_folder,
+                            get_all_content_from_folder, get_random_content_from_folder)
 
 admin_bp = Blueprint('admin', __name__, template_folder='../templates/admin', url_prefix='/admin')
 
@@ -52,7 +56,6 @@ def admin_dashboard():
 
     active_session = get_or_create_active_session()
     teams = Team.query.order_by(Team.name).all()
-    minigames_db = Minigame.query.all()
 
     # Hole aktuelle Runde und verfügbare Ordner
     active_round = GameRound.get_active_round()
@@ -60,20 +63,26 @@ def admin_dashboard():
     available_rounds = GameRound.query.order_by(GameRound.name).all()
 
     set_minigame_form = SetNextMinigameForm()
-    set_minigame_form.selected_minigame_id.choices = [(0, '-- Manuelle Eingabe verwenden --')] + \
-                                                     [(mg.id, mg.name) for mg in minigames_db]
     
-    # Befülle Ordner-Minigames falls aktive Runde vorhanden
+    # Befülle Ordner-Minigames und Quizzes falls aktive Runde vorhanden
     if active_round and active_round.minigame_folder:
-        folder_minigames = get_minigames_from_folder(active_round.minigame_folder.folder_path)
-        set_minigame_form.selected_folder_minigame_id.choices = [('', '-- Wähle aus Ordner --')] + \
-                                                                [(mg['id'], mg['name']) for mg in folder_minigames]
+        content = get_all_content_from_folder(active_round.minigame_folder.folder_path)
+        choices = [('', '-- Wähle aus Ordner --')]
+        
+        # Füge Minispiele hinzu
+        for mg in content['minigames']:
+            choices.append((mg['id'], f"🎮 {mg['name']}"))
+        
+        # Füge Quizzes hinzu
+        for quiz in content['quizzes']:
+            choices.append((quiz['id'], f"❓ {quiz['name']}"))
+            
+        set_minigame_form.selected_folder_minigame_id.choices = choices
     
     confirm_reset_form = AdminConfirmPasswordForm() # Formular für Passwortbestätigung
 
     template_data = {
         "teams": teams,
-        "minigames_db": minigames_db,
         "active_session": active_session,
         "active_round": active_round,
         "available_folders": available_folders,
@@ -236,16 +245,20 @@ def set_minigame():
     form = SetNextMinigameForm(request.form)
     
     # Dynamische Befüllung der Form-Choices
-    minigames_db = Minigame.query.all()
-    form.selected_minigame_id.choices = [(0, '-- Manuelle Eingabe verwenden --')] + \
-                                         [(mg.id, mg.name) for mg in minigames_db]
-
-    # Befülle Ordner-Minigames
     active_round = GameRound.get_active_round()
     if active_round and active_round.minigame_folder:
-        folder_minigames = get_minigames_from_folder(active_round.minigame_folder.folder_path)
-        form.selected_folder_minigame_id.choices = [('', '-- Wähle aus Ordner --')] + \
-                                                    [(mg['id'], mg['name']) for mg in folder_minigames]
+        content = get_all_content_from_folder(active_round.minigame_folder.folder_path)
+        choices = [('', '-- Wähle aus Ordner --')]
+        
+        # Füge Minispiele hinzu
+        for mg in content['minigames']:
+            choices.append((mg['id'], f"🎮 {mg['name']}"))
+        
+        # Füge Quizzes hinzu
+        for quiz in content['quizzes']:
+            choices.append((quiz['id'], f"❓ {quiz['name']}"))
+            
+        form.selected_folder_minigame_id.choices = choices
 
     if not form.validate_on_submit():
         flash('Formular-Validierung fehlgeschlagen.', 'danger')
@@ -263,88 +276,97 @@ def set_minigame():
             if manual_name and manual_description:
                 active_session.current_minigame_name = manual_name
                 active_session.current_minigame_description = manual_description
-                active_session.selected_minigame_id = None
                 active_session.selected_folder_minigame_id = None
+                active_session.current_quiz_id = None
                 active_session.minigame_source = 'manual'
                 flash(f"Minispiel '{manual_name}' manuell gesetzt.", 'info')
                 minigame_set = True
             else:
                 flash('Bitte Name und Beschreibung für das manuelle Minispiel angeben.', 'warning')
 
-        elif minigame_source == 'database':
-            # Aus Datenbank-Bibliothek
-            selected_id = form.selected_minigame_id.data
-            if selected_id and selected_id != 0:
-                minigame_from_db = Minigame.query.get(selected_id)
-                if minigame_from_db:
-                    active_session.current_minigame_name = minigame_from_db.name
-                    active_session.current_minigame_description = minigame_from_db.description
-                    active_session.selected_minigame_id = minigame_from_db.id
-                    active_session.selected_folder_minigame_id = None
-                    active_session.minigame_source = 'database'
-                    flash(f"Minispiel '{minigame_from_db.name}' aus Datenbank-Bibliothek ausgewählt.", 'info')
-                    minigame_set = True
-                else:
-                    flash('Ausgewähltes Minispiel nicht gefunden.', 'warning')
-            else:
-                flash('Bitte ein Minispiel aus der Datenbank-Bibliothek auswählen.', 'warning')
-
         elif minigame_source == 'folder_random':
             # Zufällig aus Ordner
             if active_round and active_round.minigame_folder:
-                random_minigame = get_random_minigame_from_folder(active_round.minigame_folder.folder_path)
-                if random_minigame:
-                    active_session.current_minigame_name = random_minigame['name']
-                    active_session.current_minigame_description = random_minigame.get('description', '')
-                    active_session.selected_minigame_id = None
-                    active_session.selected_folder_minigame_id = random_minigame['id']
+                random_content = get_random_content_from_folder(active_round.minigame_folder.folder_path)
+                if random_content:
+                    active_session.current_minigame_name = random_content['name']
+                    active_session.current_minigame_description = random_content.get('description', '')
+                    active_session.selected_folder_minigame_id = random_content['id']
                     active_session.minigame_source = 'folder_random'
-                    flash(f"Zufälliges Minispiel '{random_minigame['name']}' aus Ordner '{active_round.minigame_folder.name}' ausgewählt.", 'info')
+                    
+                    # Prüfe ob es ein Quiz ist
+                    if random_content.get('content_type') == 'quiz' or 'questions' in random_content:
+                        active_session.current_quiz_id = random_content['id']
+                        active_session.quiz_time_limit = random_content.get('time_limit', 300)
+                        flash(f"Zufälliges Quiz '{random_content['name']}' aus Ordner '{active_round.minigame_folder.name}' ausgewählt.", 'info')
+                    else:
+                        active_session.current_quiz_id = None
+                        flash(f"Zufälliges Minispiel '{random_content['name']}' aus Ordner '{active_round.minigame_folder.name}' ausgewählt.", 'info')
+                    
                     minigame_set = True
                 else:
-                    flash(f"Keine Minispiele im Ordner '{active_round.minigame_folder.name}' gefunden.", 'warning')
+                    flash(f"Keine Inhalte im Ordner '{active_round.minigame_folder.name}' gefunden.", 'warning')
             else:
                 flash('Keine aktive Runde oder Minigame-Ordner zugewiesen.', 'warning')
 
         elif minigame_source == 'folder_selected':
             # Aus Ordner auswählen
-            selected_folder_id = form.selected_folder_minigame_id.data
-            if selected_folder_id and active_round and active_round.minigame_folder:
-                selected_minigame = get_minigame_from_folder(active_round.minigame_folder.folder_path, selected_folder_id)
-                if selected_minigame:
-                    active_session.current_minigame_name = selected_minigame['name']
-                    active_session.current_minigame_description = selected_minigame.get('description', '')
-                    active_session.selected_minigame_id = None
-                    active_session.selected_folder_minigame_id = selected_minigame['id']
+            selected_id = form.selected_folder_minigame_id.data
+            if selected_id and active_round and active_round.minigame_folder:
+                # Suche in Minispielen
+                selected_content = get_minigame_from_folder(active_round.minigame_folder.folder_path, selected_id)
+                content_type = 'minigame'
+                
+                # Falls nicht gefunden, suche in Quizzes
+                if not selected_content:
+                    selected_content = get_quiz_from_folder(active_round.minigame_folder.folder_path, selected_id)
+                    content_type = 'quiz'
+                
+                if selected_content:
+                    active_session.current_minigame_name = selected_content['name']
+                    active_session.current_minigame_description = selected_content.get('description', '')
+                    active_session.selected_folder_minigame_id = selected_content['id']
                     active_session.minigame_source = 'folder_selected'
-                    flash(f"Minispiel '{selected_minigame['name']}' aus Ordner ausgewählt.", 'info')
+                    
+                    if content_type == 'quiz':
+                        active_session.current_quiz_id = selected_content['id']
+                        active_session.quiz_time_limit = selected_content.get('time_limit', 300)
+                        flash(f"Quiz '{selected_content['name']}' aus Ordner ausgewählt.", 'info')
+                    else:
+                        active_session.current_quiz_id = None
+                        flash(f"Minispiel '{selected_content['name']}' aus Ordner ausgewählt.", 'info')
+                    
                     minigame_set = True
                 else:
-                    flash('Ausgewähltes Minispiel nicht im Ordner gefunden.', 'warning')
+                    flash('Ausgewählter Inhalt nicht im Ordner gefunden.', 'warning')
             else:
-                flash('Bitte ein Minispiel aus dem Ordner auswählen.', 'warning')
+                flash('Bitte einen Inhalt aus dem Ordner auswählen.', 'warning')
 
         if minigame_set:
             # Setze Spielphase und reset Team-Platzierungen
-            active_session.current_phase = 'MINIGAME_ANNOUNCED'
+            if active_session.current_quiz_id:
+                active_session.current_phase = 'QUIZ_ACTIVE'
+                active_session.quiz_started_at = None  # Wird beim Start gesetzt
+            else:
+                active_session.current_phase = 'MINIGAME_ANNOUNCED'
+            
             teams_to_reset = Team.query.all()
             for t in teams_to_reset:
                 t.minigame_placement = None
 
             event = GameEvent(
                 game_session_id=active_session.id,
-                event_type="minigame_set",
-                description=f"Minispiel '{active_session.current_minigame_name}' wurde festgelegt (Quelle: {minigame_source}). Platzierungen zurückgesetzt.",
-                related_minigame_id=active_session.selected_minigame_id,
-                data_json=f'{{"name": "{active_session.current_minigame_name}", "description": "{active_session.current_minigame_description}", "source": "{minigame_source}"}}'
+                event_type="content_set",
+                description=f"{'Quiz' if active_session.current_quiz_id else 'Minispiel'} '{active_session.current_minigame_name}' wurde festgelegt (Quelle: {minigame_source}). Platzierungen zurückgesetzt.",
+                data_json=f'{{"name": "{active_session.current_minigame_name}", "description": "{active_session.current_minigame_description}", "source": "{minigame_source}", "is_quiz": {bool(active_session.current_quiz_id)}}}'
             )
             db.session.add(event)
             db.session.commit()
 
     except Exception as e:
         db.session.rollback()
-        current_app.logger.error(f"Fehler beim Setzen des Minispiels: {e}", exc_info=True)
-        flash('Ein Fehler ist beim Setzen des Minispiels aufgetreten.', 'danger')
+        current_app.logger.error(f"Fehler beim Setzen des Inhalts: {e}", exc_info=True)
+        flash('Ein Fehler ist beim Setzen des Inhalts aufgetreten.', 'danger')
 
     return redirect(url_for('admin.admin_dashboard'))
 
@@ -356,8 +378,8 @@ def record_placements():
         return redirect(url_for('main.index')) 
 
     active_session = GameSession.query.filter_by(is_active=True).first()
-    if not active_session or active_session.current_phase != 'MINIGAME_ANNOUNCED':
-        flash('Platzierungen können nur nach Ankündigung eines Minispiels eingegeben werden.', 'warning')
+    if not active_session or active_session.current_phase not in ['MINIGAME_ANNOUNCED', 'QUIZ_COMPLETED']:
+        flash('Platzierungen können nur nach Ankündigung eines Minispiels oder nach Quiz-Abschluss eingegeben werden.', 'warning')
         return redirect(url_for('admin.admin_dashboard'))
 
     teams = Team.query.all()
@@ -400,7 +422,11 @@ def record_placements():
     active_session.current_team_turn_id = int(dice_roll_order_ids[0]) if dice_roll_order_ids else None
     active_session.current_phase = 'DICE_ROLLING'
     
-    event_desc = f"Platzierungen für Minigame '{active_session.current_minigame_name}' festgelegt. Würfelreihenfolge: {active_session.dice_roll_order}"
+    # Reset Quiz-Daten
+    active_session.current_quiz_id = None
+    active_session.quiz_started_at = None
+    
+    event_desc = f"Platzierungen für {'Quiz' if active_session.current_quiz_id else 'Minigame'} '{active_session.current_minigame_name}' festgelegt. Würfelreihenfolge: {active_session.dice_roll_order}"
     event_data = {f"team_{t.id}_placement": placements[t.id] for t in teams}
     event = GameEvent(
         game_session_id=active_session.id,
@@ -428,6 +454,7 @@ def reset_game_state_confirmed():
         if admin_user and admin_user.check_password(form.password.data):
             try:
                 GameEvent.query.delete() 
+                QuizResponse.query.delete()  # Neue Quiz-Antworten löschen
                 GameSession.query.delete() 
 
                 teams = Team.query.all()
@@ -437,7 +464,7 @@ def reset_game_state_confirmed():
                     team.current_position = 0  
 
                 db.session.commit()
-                flash('Spiel komplett zurückgesetzt (inkl. Positionen, Events, Session). Eine neue Session wird beim nächsten Aufruf gestartet.', 'success')
+                flash('Spiel komplett zurückgesetzt (inkl. Positionen, Events, Quiz-Antworten, Session). Eine neue Session wird beim nächsten Aufruf gestartet.', 'success')
                 current_app.logger.info("Spiel komplett zurückgesetzt durch Admin.")
             except Exception as e:
                 db.session.rollback()
@@ -514,10 +541,12 @@ def edit_folder(folder_id):
             flash(f'Ordner "{folder.name}" erfolgreich aktualisiert.', 'success')
             return redirect(url_for('admin.manage_folders'))
     
-    # Lade Minispiele für Anzeige
+    # Lade Inhalte für Anzeige
     minigames = get_minigames_from_folder(folder.folder_path)
+    quizzes = get_quizzes_from_folder(folder.folder_path)
     
-    return render_template('admin/edit_folder.html', form=form, folder=folder, minigames=minigames)
+    return render_template('admin/edit_folder.html', form=form, folder=folder, 
+                         minigames=minigames, quizzes=quizzes)
 
 @admin_bp.route('/folders/<int:folder_id>/delete', methods=['GET', 'POST'])
 @login_required
@@ -560,10 +589,11 @@ def delete_folder(folder_id):
         return redirect(url_for('admin.manage_folders'))
     
     minigames = get_minigames_from_folder(folder.folder_path)
+    quizzes = get_quizzes_from_folder(folder.folder_path)
     using_rounds = GameRound.query.filter_by(minigame_folder_id=folder.id).all()
     
     return render_template('admin/delete_folder.html', form=form, folder=folder, 
-                         minigames=minigames, using_rounds=using_rounds)
+                         minigames=minigames, quizzes=quizzes, using_rounds=using_rounds)
 
 @admin_bp.route('/folders/<int:folder_id>/minigames/create', methods=['GET', 'POST'])
 @login_required
@@ -576,17 +606,22 @@ def create_folder_minigame(folder_id):
     form = FolderMinigameForm()
     
     if form.validate_on_submit():
-        minigame_data = {
-            'name': form.name.data,
-            'description': form.description.data,
-            'type': form.type.data
-        }
-        
-        if add_minigame_to_folder(folder.folder_path, minigame_data):
-            flash(f'Minispiel "{form.name.data}" erfolgreich erstellt.', 'success')
-            return redirect(url_for('admin.edit_folder', folder_id=folder.id))
+        if form.type.data == 'quiz':
+            # Redirect zum Quiz-Creator
+            return redirect(url_for('admin.create_quiz', folder_id=folder.id))
         else:
-            flash('Fehler beim Erstellen des Minispiels.', 'danger')
+            # Normales Minispiel
+            minigame_data = {
+                'name': form.name.data,
+                'description': form.description.data,
+                'type': form.type.data
+            }
+            
+            if add_minigame_to_folder(folder.folder_path, minigame_data):
+                flash(f'Minispiel "{form.name.data}" erfolgreich erstellt.', 'success')
+                return redirect(url_for('admin.edit_folder', folder_id=folder.id))
+            else:
+                flash('Fehler beim Erstellen des Minispiels.', 'danger')
     
     return render_template('admin/create_folder_minigame.html', form=form, folder=folder)
 
@@ -607,17 +642,20 @@ def edit_folder_minigame(folder_id, minigame_id):
     form = EditFolderMinigameForm(obj=type('obj', (object,), minigame)())
     
     if form.validate_on_submit():
-        updated_data = {
-            'name': form.name.data,
-            'description': form.description.data,
-            'type': form.type.data
-        }
-        
-        if update_minigame_in_folder(folder.folder_path, minigame_id, updated_data):
-            flash(f'Minispiel "{form.name.data}" erfolgreich aktualisiert.', 'success')
-            return redirect(url_for('admin.edit_folder', folder_id=folder.id))
+        if form.type.data == 'quiz' and minigame.get('type') != 'quiz':
+            flash('Typ kann nicht zu Quiz geändert werden. Bitte neues Quiz erstellen.', 'warning')
         else:
-            flash('Fehler beim Aktualisieren des Minispiels.', 'danger')
+            updated_data = {
+                'name': form.name.data,
+                'description': form.description.data,
+                'type': form.type.data
+            }
+            
+            if update_minigame_in_folder(folder.folder_path, minigame_id, updated_data):
+                flash(f'Minispiel "{form.name.data}" erfolgreich aktualisiert.', 'success')
+                return redirect(url_for('admin.edit_folder', folder_id=folder.id))
+            else:
+                flash('Fehler beim Aktualisieren des Minispiels.', 'danger')
     
     return render_template('admin/edit_folder_minigame.html', form=form, folder=folder, minigame=minigame)
 
@@ -636,6 +674,155 @@ def delete_folder_minigame(folder_id, minigame_id):
         flash('Fehler beim Löschen des Minispiels.', 'danger')
     
     return redirect(url_for('admin.edit_folder', folder_id=folder.id))
+
+# NEUE QUIZ-ROUTEN
+
+@admin_bp.route('/folders/<int:folder_id>/quiz/create', methods=['GET', 'POST'])
+@login_required
+def create_quiz(folder_id):
+    """Erstelle ein neues Quiz in einem Ordner"""
+    if not isinstance(current_user, Admin):
+        return redirect(url_for('main.index'))
+    
+    folder = MinigameFolder.query.get_or_404(folder_id)
+    form = CreateQuizForm()
+    
+    if form.validate_on_submit():
+        try:
+            # Parse Questions JSON
+            questions_data = json.loads(form.questions_json.data) if form.questions_json.data else []
+            
+            if not questions_data:
+                flash('Mindestens eine Frage ist erforderlich.', 'warning')
+                return render_template('admin/create_quiz.html', form=form, folder=folder)
+            
+            quiz_data = {
+                'name': form.name.data,
+                'description': form.description.data,
+                'type': 'quiz',
+                'time_limit': form.time_limit.data,
+                'questions': questions_data
+            }
+            
+            if add_quiz_to_folder(folder.folder_path, quiz_data):
+                flash(f'Quiz "{form.name.data}" erfolgreich erstellt.', 'success')
+                return redirect(url_for('admin.edit_folder', folder_id=folder.id))
+            else:
+                flash('Fehler beim Erstellen des Quiz.', 'danger')
+        except json.JSONDecodeError:
+            flash('Fehler beim Verarbeiten der Fragen. Bitte versuchen Sie es erneut.', 'danger')
+    
+    return render_template('admin/create_quiz.html', form=form, folder=folder)
+
+@admin_bp.route('/folders/<int:folder_id>/quiz/<quiz_id>/edit', methods=['GET', 'POST'])
+@login_required
+def edit_quiz(folder_id, quiz_id):
+    """Bearbeite ein Quiz in einem Ordner"""
+    if not isinstance(current_user, Admin):
+        return redirect(url_for('main.index'))
+    
+    folder = MinigameFolder.query.get_or_404(folder_id)
+    quiz = get_quiz_from_folder(folder.folder_path, quiz_id)
+    
+    if not quiz:
+        flash('Quiz nicht gefunden.', 'danger')
+        return redirect(url_for('admin.edit_folder', folder_id=folder.id))
+    
+    form = EditQuizForm()
+    
+    if request.method == 'GET':
+        # Befülle Form mit existierenden Daten
+        form.name.data = quiz['name']
+        form.description.data = quiz.get('description', '')
+        form.time_limit.data = quiz.get('time_limit', 300)
+        form.questions_json.data = json.dumps(quiz.get('questions', []))
+    
+    if form.validate_on_submit():
+        try:
+            # Parse Questions JSON
+            questions_data = json.loads(form.questions_json.data) if form.questions_json.data else []
+            
+            if not questions_data:
+                flash('Mindestens eine Frage ist erforderlich.', 'warning')
+                return render_template('admin/edit_quiz.html', form=form, folder=folder, quiz=quiz)
+            
+            updated_data = {
+                'name': form.name.data,
+                'description': form.description.data,
+                'type': 'quiz',
+                'time_limit': form.time_limit.data,
+                'questions': questions_data
+            }
+            
+            if update_quiz_in_folder(folder.folder_path, quiz_id, updated_data):
+                flash(f'Quiz "{form.name.data}" erfolgreich aktualisiert.', 'success')
+                return redirect(url_for('admin.edit_folder', folder_id=folder.id))
+            else:
+                flash('Fehler beim Aktualisieren des Quiz.', 'danger')
+        except json.JSONDecodeError:
+            flash('Fehler beim Verarbeiten der Fragen. Bitte versuchen Sie es erneut.', 'danger')
+    
+    return render_template('admin/edit_quiz.html', form=form, folder=folder, quiz=quiz)
+
+@admin_bp.route('/folders/<int:folder_id>/quiz/<quiz_id>/delete', methods=['POST'])
+@login_required
+def delete_quiz(folder_id, quiz_id):
+    """Lösche ein Quiz aus einem Ordner"""
+    if not isinstance(current_user, Admin):
+        return redirect(url_for('main.index'))
+    
+    folder = MinigameFolder.query.get_or_404(folder_id)
+    
+    if delete_quiz_from_folder(folder.folder_path, quiz_id):
+        flash('Quiz erfolgreich gelöscht.', 'success')
+    else:
+        flash('Fehler beim Löschen des Quiz.', 'danger')
+    
+    return redirect(url_for('admin.edit_folder', folder_id=folder.id))
+
+@admin_bp.route('/quiz/<quiz_id>/results')
+@login_required
+def quiz_results(quiz_id):
+    """Zeige Quiz-Ergebnisse"""
+    if not isinstance(current_user, Admin):
+        return redirect(url_for('main.index'))
+    
+    active_session = GameSession.query.filter_by(is_active=True).first()
+    if not active_session:
+        flash('Keine aktive Spielsitzung.', 'warning')
+        return redirect(url_for('admin.admin_dashboard'))
+    
+    # Hole Quiz-Antworten
+    responses = QuizResponse.query.filter_by(
+        game_session_id=active_session.id,
+        quiz_id=quiz_id
+    ).all()
+    
+    # Hole Quiz-Daten
+    active_round = GameRound.get_active_round()
+    quiz_data = None
+    if active_round and active_round.minigame_folder:
+        quiz_data = get_quiz_from_folder(active_round.minigame_folder.folder_path, quiz_id)
+    
+    # Gruppiere Antworten nach Teams
+    team_responses = {}
+    for response in responses:
+        if response.team_id not in team_responses:
+            team_responses[response.team_id] = {
+                'team': response.team,
+                'responses': [],
+                'total_points': 0,
+                'correct_answers': 0
+            }
+        team_responses[response.team_id]['responses'].append(response)
+        team_responses[response.team_id]['total_points'] += response.points_earned
+        if response.is_correct:
+            team_responses[response.team_id]['correct_answers'] += 1
+    
+    return render_template('admin/quiz_results.html', 
+                         quiz_data=quiz_data,
+                         team_responses=team_responses,
+                         active_session=active_session)
 
 # NEUE ROUTEN FÜR SPIELRUNDEN MANAGEMENT
 
@@ -748,7 +935,7 @@ def delete_round(round_id):
     
     return render_template('admin/delete_round.html', form=form, round=round_obj)
 
-# BESTEHENDE ROUTEN (Team & Minigame Management) - Unverändert
+# BESTEHENDE ROUTEN (Team Management) - Unverändert
 
 @admin_bp.route('/create_team', methods=['GET', 'POST'])
 @login_required
@@ -899,6 +1086,7 @@ def delete_team(team_id):
 
     GameSession.query.filter_by(current_team_turn_id=team.id).update({"current_team_turn_id": None})
     GameEvent.query.filter_by(related_team_id=team.id).update({"related_team_id": None})
+    QuizResponse.query.filter_by(team_id=team.id).delete()  # Lösche Quiz-Antworten
     
     active_sessions = GameSession.query.filter(GameSession.dice_roll_order.like(f"%{str(team.id)}%")).all() # Wichtig: team.id zu str konvertieren für LIKE
     for sess in active_sessions:
@@ -915,56 +1103,6 @@ def delete_team(team_id):
     db.session.delete(team)
     db.session.commit()
     flash('Team und zugehörige Referenzen erfolgreich gelöscht/aktualisiert.', 'success')
-    return redirect(url_for('admin.admin_dashboard'))
-
-@admin_bp.route('/create_minigame_db', methods=['GET', 'POST'])
-@login_required
-def create_minigame_db():
-    if not isinstance(current_user, Admin): return redirect(url_for('main.index')) 
-    form = MinigameForm() 
-    if form.validate_on_submit():
-        minigame = Minigame(name=form.name.data, description=form.description.data, type=form.type.data)
-        db.session.add(minigame)
-        db.session.commit()
-        flash('Datenbank-Minispiel erfolgreich erstellt.', 'success')
-        return redirect(url_for('admin.admin_dashboard'))
-    return render_template('create_minigame.html', title='DB-Minispiel erstellen', form=form)
-
-@admin_bp.route('/edit_minigame_db/<int:minigame_id>', methods=['GET', 'POST'])
-@login_required
-def edit_minigame_db(minigame_id):
-    if not isinstance(current_user, Admin): return redirect(url_for('main.index')) 
-    minigame = Minigame.query.get_or_404(minigame_id)
-    form = MinigameForm(obj=minigame) 
-    if form.validate_on_submit():
-        minigame.name = form.name.data
-        minigame.description = form.description.data
-        minigame.type = form.type.data
-        db.session.commit()
-        flash('Datenbank-Minispiel erfolgreich aktualisiert.', 'success')
-        return redirect(url_for('admin.admin_dashboard'))
-    return render_template('edit_minigame.html', title='DB-Minispiel bearbeiten', form=form, minigame=minigame)
-
-@admin_bp.route('/delete_minigame_db/<int:minigame_id>', methods=['POST'])
-@login_required
-def delete_minigame_db(minigame_id):
-    if not isinstance(current_user, Admin): return redirect(url_for('main.index')) 
-    minigame_to_delete = Minigame.query.get_or_404(minigame_id) 
-    
-    GameEvent.query.filter_by(related_minigame_id=minigame_to_delete.id).update({"related_minigame_id": None})
-    
-    active_sessions_with_this_minigame = GameSession.query.filter_by(selected_minigame_id=minigame_to_delete.id).all()
-    for sess in active_sessions_with_this_minigame:
-        sess.selected_minigame_id = None
-        if sess.current_minigame_name == minigame_to_delete.name:
-             sess.current_minigame_name = "N/A" 
-             sess.current_minigame_description = "Minispiel wurde gelöscht."
-             if sess.current_phase == 'MINIGAME_ANNOUNCED': 
-                 sess.current_phase = 'SETUP_MINIGAME' 
-
-    db.session.delete(minigame_to_delete)
-    db.session.commit()
-    flash('Datenbank-Minispiel und zugehörige Referenzen erfolgreich gelöscht/aktualisiert.', 'success')
     return redirect(url_for('admin.admin_dashboard'))
 
 @admin_bp.route('/init_chars')

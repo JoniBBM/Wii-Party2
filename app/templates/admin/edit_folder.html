@@ -60,48 +60,113 @@
             <div class="card">
                 <div class="card-header bg-info text-white">
                     <h5 class="mb-0">
-                        <i class="fas fa-list"></i> Minispiele in diesem Ordner
-                        <span class="badge badge-light text-info ml-2">{{ minigames|length }}</span>
+                        <i class="fas fa-list"></i> Inhalte in diesem Ordner
+                        <span class="badge badge-light text-info ml-2">{{ (minigames|length) + (quizzes|length) }}</span>
                     </h5>
                 </div>
                 <div class="card-body">
-                    {% if minigames %}
-                        <div class="list-group list-group-flush">
-                            {% for minigame in minigames %}
-                            <div class="list-group-item d-flex justify-content-between align-items-center p-2">
-                                <div>
-                                    <strong>{{ minigame.name }}</strong>
-                                    <br>
-                                    <small class="text-muted">{{ minigame.type|title }}</small>
+                    <!-- Tabs für Minispiele und Quizzes -->
+                    <ul class="nav nav-tabs" id="contentTabs" role="tablist">
+                        <li class="nav-item">
+                            <a class="nav-link active" id="minigames-tab" data-toggle="tab" href="#minigames" role="tab">
+                                🎮 Spiele <span class="badge badge-secondary">{{ minigames|length }}</span>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" id="quizzes-tab" data-toggle="tab" href="#quizzes" role="tab">
+                                ❓ Quizzes <span class="badge badge-secondary">{{ quizzes|length }}</span>
+                            </a>
+                        </li>
+                    </ul>
+                    
+                    <div class="tab-content mt-3" id="contentTabsContent">
+                        <!-- Minispiele Tab -->
+                        <div class="tab-pane fade show active" id="minigames" role="tabpanel">
+                            {% if minigames %}
+                                <div class="list-group list-group-flush">
+                                    {% for minigame in minigames %}
+                                    <div class="list-group-item d-flex justify-content-between align-items-center p-2">
+                                        <div>
+                                            <strong>{{ minigame.name }}</strong>
+                                            <br>
+                                            <small class="text-muted">{{ minigame.type|title }}</small>
+                                        </div>
+                                        <div class="btn-group btn-group-sm">
+                                            <a href="{{ url_for('admin.edit_folder_minigame', folder_id=folder.id, minigame_id=minigame.id) }}" 
+                                               class="btn btn-outline-primary btn-sm">
+                                                <i class="fas fa-edit"></i>
+                                            </a>
+                                            <form method="POST" action="{{ url_for('admin.delete_folder_minigame', folder_id=folder.id, minigame_id=minigame.id) }}" 
+                                                  style="display: inline;" onsubmit="return confirm('Minispiel wirklich löschen?')">
+                                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                                <button type="submit" class="btn btn-outline-danger btn-sm">
+                                                    <i class="fas fa-trash"></i>
+                                                </button>
+                                            </form>
+                                        </div>
+                                    </div>
+                                    {% endfor %}
                                 </div>
-                                <div class="btn-group btn-group-sm">
-                                    <a href="{{ url_for('admin.edit_folder_minigame', folder_id=folder.id, minigame_id=minigame.id) }}" 
-                                       class="btn btn-outline-primary btn-sm">
-                                        <i class="fas fa-edit"></i>
-                                    </a>
-                                    <form method="POST" action="{{ url_for('admin.delete_folder_minigame', folder_id=folder.id, minigame_id=minigame.id) }}" 
-                                          style="display: inline;" onsubmit="return confirm('Minispiel wirklich löschen?')">
-                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                        <button type="submit" class="btn btn-outline-danger btn-sm">
-                                            <i class="fas fa-trash"></i>
-                                        </button>
-                                    </form>
-                                </div>
-                            </div>
-                            {% endfor %}
+                            {% else %}
+                                <p class="text-muted text-center mb-0">
+                                    <i class="fas fa-gamepad"></i><br>
+                                    Noch keine Minispiele in diesem Ordner.
+                                </p>
+                            {% endif %}
                         </div>
-                    {% else %}
-                        <p class="text-muted text-center mb-0">
-                            <i class="fas fa-inbox"></i><br>
-                            Noch keine Minispiele in diesem Ordner.
-                        </p>
-                    {% endif %}
+                        
+                        <!-- Quizzes Tab -->
+                        <div class="tab-pane fade" id="quizzes" role="tabpanel">
+                            {% if quizzes %}
+                                <div class="list-group list-group-flush">
+                                    {% for quiz in quizzes %}
+                                    <div class="list-group-item d-flex justify-content-between align-items-center p-2">
+                                        <div>
+                                            <strong>{{ quiz.name }}</strong>
+                                            <br>
+                                            <small class="text-muted">
+                                                {{ quiz.questions|length if quiz.questions else 0 }} Fragen
+                                                {% if quiz.time_limit and quiz.time_limit > 0 %}
+                                                    | {{ quiz.time_limit }}s
+                                                {% endif %}
+                                            </small>
+                                        </div>
+                                        <div class="btn-group btn-group-sm">
+                                            <a href="{{ url_for('admin.edit_quiz', folder_id=folder.id, quiz_id=quiz.id) }}" 
+                                               class="btn btn-outline-primary btn-sm">
+                                                <i class="fas fa-edit"></i>
+                                            </a>
+                                            <form method="POST" action="{{ url_for('admin.delete_quiz', folder_id=folder.id, quiz_id=quiz.id) }}" 
+                                                  style="display: inline;" onsubmit="return confirm('Quiz wirklich löschen?')">
+                                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                                <button type="submit" class="btn btn-outline-danger btn-sm">
+                                                    <i class="fas fa-trash"></i>
+                                                </button>
+                                            </form>
+                                        </div>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            {% else %}
+                                <p class="text-muted text-center mb-0">
+                                    <i class="fas fa-question-circle"></i><br>
+                                    Noch keine Quizzes in diesem Ordner.
+                                </p>
+                            {% endif %}
+                        </div>
+                    </div>
                     
                     <div class="mt-3">
-                        <a href="{{ url_for('admin.create_folder_minigame', folder_id=folder.id) }}" 
-                           class="btn btn-success btn-sm btn-block">
-                            <i class="fas fa-plus"></i> Neues Minispiel hinzufügen
-                        </a>
+                        <div class="btn-group w-100" role="group">
+                            <a href="{{ url_for('admin.create_folder_minigame', folder_id=folder.id) }}" 
+                               class="btn btn-success btn-sm">
+                                <i class="fas fa-plus"></i> Minispiel
+                            </a>
+                            <a href="{{ url_for('admin.create_quiz', folder_id=folder.id) }}" 
+                               class="btn btn-primary btn-sm">
+                                <i class="fas fa-plus"></i> Quiz
+                            </a>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -114,7 +179,9 @@
                     <small class="text-muted">
                         <strong>Pfad:</strong> {{ folder.folder_path }}<br>
                         <strong>Erstellt:</strong> {{ folder.created_at.strftime('%d.%m.%Y %H:%M') }}<br>
-                        <strong>Minispiele:</strong> {{ minigames|length }}
+                        <strong>Minispiele:</strong> {{ minigames|length }}<br>
+                        <strong>Quizzes:</strong> {{ quizzes|length }}<br>
+                        <strong>Gesamt:</strong> {{ (minigames|length) + (quizzes|length) }} Inhalte
                     </small>
                 </div>
             </div>
@@ -143,6 +210,26 @@
 .btn-group-sm .btn {
     padding: 0.25rem 0.5rem;
     font-size: 0.75rem;
+}
+
+.nav-tabs .nav-link {
+    border: 1px solid transparent;
+    border-top-left-radius: 0.25rem;
+    border-top-right-radius: 0.25rem;
+}
+
+.nav-tabs .nav-link.active {
+    color: #495057;
+    background-color: #fff;
+    border-color: #dee2e6 #dee2e6 #fff;
+}
+
+.tab-content {
+    min-height: 200px;
+}
+
+.badge {
+    font-size: 0.7em;
 }
 </style>
 {% endblock %}

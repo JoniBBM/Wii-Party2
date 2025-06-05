@@ -1,6 +1,6 @@
 # app/forms.py
 from flask_wtf import FlaskForm
-from wtforms import StringField, PasswordField, SubmitField, IntegerField, BooleanField, SelectField, HiddenField, TextAreaField, RadioField
+from wtforms import StringField, PasswordField, SubmitField, IntegerField, BooleanField, SelectField, HiddenField, TextAreaField, RadioField, FieldList, FormField
 from wtforms.validators import DataRequired, Length, EqualTo, NumberRange, Optional, ValidationError
 from app.models import Character, MinigameFolder, GameRound # Importiere die Models
 
@@ -47,18 +47,11 @@ class EditTeamForm(FlaskForm):
         # Setze den aktuellen Charakter als vorausgewählt, falls vorhanden, sonst 0
         self.character_id.data = current_character_id if current_character_id else 0
 
-class MinigameForm(FlaskForm):
-    name = StringField('Name des Minispiels', validators=[DataRequired(), Length(max=100)])
-    description = TextAreaField('Beschreibung', validators=[Optional(), Length(max=300)])
-    type = SelectField('Typ', choices=[('game', 'Spiel'), ('video', 'Video')], validators=[DataRequired()])
-    submit = SubmitField('Minispiel erstellen/aktualisieren')
-
 class SetNextMinigameForm(FlaskForm):
     # Erweiterte Minigame-Auswahl
     minigame_source = RadioField('Minigame-Quelle', 
                                 choices=[
                                     ('manual', 'Manuell eingeben'),
-                                    ('database', 'Aus Datenbank-Bibliothek auswählen'),
                                     ('folder_random', 'Zufällig aus aktuellem Ordner'),
                                     ('folder_selected', 'Aus aktuellem Ordner auswählen')
                                 ], 
@@ -69,9 +62,6 @@ class SetNextMinigameForm(FlaskForm):
     minigame_name = StringField('Manueller Name Minispiel', validators=[Optional(), Length(max=100)])
     minigame_description = TextAreaField('Manuelle Beschreibung', validators=[Optional(), Length(max=300)])
     
-    # Auswahl aus Datenbank-Bibliothek (wie bisher)
-    selected_minigame_id = SelectField('Aus Datenbank-Bibliothek auswählen', coerce=int, validators=[Optional()])
-    
     # Auswahl aus Ordner
     selected_folder_minigame_id = SelectField('Aus Ordner auswählen', validators=[Optional()])
     
@@ -79,18 +69,9 @@ class SetNextMinigameForm(FlaskForm):
 
     def __init__(self, *args, **kwargs):
         super(SetNextMinigameForm, self).__init__(*args, **kwargs)
-        # Befülle DB-Minigames
-        from app.models import Minigame
-        minigames_db = Minigame.query.all()
-        self.selected_minigame_id.choices = [(0, '-- Manuelle Eingabe verwenden --')] + \
-                                             [(mg.id, mg.name) for mg in minigames_db]
         
         # Befülle Ordner-Minigames (wird in der Route dynamisch gesetzt)
         self.selected_folder_minigame_id.choices = [('', '-- Wähle aus Ordner --')]
-
-class EnterVideoScoresForm(FlaskForm):
-    # Dieses Formular wird dynamisch in der Route basierend auf den Teams erstellt.
-    submit = SubmitField('Punkte eintragen')
 
 class AdminConfirmPasswordForm(FlaskForm):
     password = PasswordField('Admin-Passwort zur Bestätigung', validators=[DataRequired()])
@@ -175,15 +156,90 @@ class FolderMinigameForm(FlaskForm):
     """Form für Minispiele in Ordnern (JSON-basiert)"""
     name = StringField('Name des Minispiels', validators=[DataRequired(), Length(max=100)])
     description = TextAreaField('Beschreibung', validators=[Optional(), Length(max=300)])
-    type = SelectField('Typ', choices=[('game', 'Spiel'), ('video', 'Video'), ('challenge', 'Challenge')], validators=[DataRequired()])
+    type = SelectField('Typ', choices=[
+        ('game', 'Spiel'), 
+        ('video', 'Video'), 
+        ('challenge', 'Challenge'),
+        ('quiz', 'Quiz')
+    ], validators=[DataRequired()])
     submit = SubmitField('Minispiel speichern')
 
 class EditFolderMinigameForm(FlaskForm):
     """Form für das Bearbeiten von Minispielen in Ordnern"""
     name = StringField('Name des Minispiels', validators=[DataRequired(), Length(max=100)])
     description = TextAreaField('Beschreibung', validators=[Optional(), Length(max=300)])
-    type = SelectField('Typ', choices=[('game', 'Spiel'), ('video', 'Video'), ('challenge', 'Challenge')], validators=[DataRequired()])
+    type = SelectField('Typ', choices=[
+        ('game', 'Spiel'), 
+        ('video', 'Video'), 
+        ('challenge', 'Challenge'),
+        ('quiz', 'Quiz')
+    ], validators=[DataRequired()])
     submit = SubmitField('Änderungen speichern')
+
+# NEUE QUIZ-FORMS
+
+class QuizQuestionForm(FlaskForm):
+    """Subform für eine Quiz-Frage"""
+    question_text = TextAreaField('Frage', validators=[DataRequired(), Length(max=500)])
+    question_type = SelectField('Fragetyp', choices=[
+        ('multiple_choice', 'Multiple Choice'),
+        ('text_input', 'Freitext-Eingabe')
+    ], validators=[DataRequired()])
+    
+    # Multiple Choice Optionen
+    option_1 = StringField('Option 1', validators=[Optional(), Length(max=200)])
+    option_2 = StringField('Option 2', validators=[Optional(), Length(max=200)])
+    option_3 = StringField('Option 3', validators=[Optional(), Length(max=200)])
+    option_4 = StringField('Option 4', validators=[Optional(), Length(max=200)])
+    
+    # Korrekte Antwort
+    correct_option = SelectField('Korrekte Option', choices=[
+        (1, 'Option 1'), (2, 'Option 2'), (3, 'Option 3'), (4, 'Option 4')
+    ], coerce=int, validators=[Optional()])
+    correct_text = StringField('Korrekte Antwort (Freitext)', validators=[Optional(), Length(max=200)])
+    
+    # Punkte
+    points = IntegerField('Punkte für richtige Antwort', validators=[DataRequired(), NumberRange(min=1, max=100)], default=10)
+
+class CreateQuizForm(FlaskForm):
+    """Form für das Erstellen eines Quiz"""
+    name = StringField('Quiz-Name', validators=[DataRequired(), Length(max=100)])
+    description = TextAreaField('Beschreibung', validators=[Optional(), Length(max=500)])
+    time_limit = IntegerField('Zeitlimit (Sekunden, 0 = unbegrenzt)', validators=[NumberRange(min=0, max=3600)], default=300)
+    
+    # Dynamische Fragen werden in JavaScript hinzugefügt
+    questions_json = HiddenField('Fragen als JSON')
+    
+    submit = SubmitField('Quiz erstellen')
+
+class EditQuizForm(FlaskForm):
+    """Form für das Bearbeiten eines Quiz"""
+    name = StringField('Quiz-Name', validators=[DataRequired(), Length(max=100)])
+    description = TextAreaField('Beschreibung', validators=[Optional(), Length(max=500)])
+    time_limit = IntegerField('Zeitlimit (Sekunden, 0 = unbegrenzt)', validators=[NumberRange(min=0, max=3600)], default=300)
+    
+    # Dynamische Fragen werden in JavaScript verwaltet
+    questions_json = HiddenField('Fragen als JSON')
+    
+    submit = SubmitField('Quiz aktualisieren')
+
+class QuizAnswerForm(FlaskForm):
+    """Form für Team-Antworten auf Quiz-Fragen"""
+    quiz_id = HiddenField()
+    question_id = HiddenField()
+    
+    # Für Multiple Choice
+    selected_option = RadioField('Antwort auswählen', coerce=int, validators=[Optional()])
+    
+    # Für Freitext
+    answer_text = TextAreaField('Antwort eingeben', validators=[Optional(), Length(max=500)])
+    
+    submit = SubmitField('Antwort abschicken')
+
+class StartQuizForm(FlaskForm):
+    """Form zum Starten eines Quiz durch den Admin"""
+    quiz_id = SelectField('Quiz auswählen', validators=[DataRequired()])
+    submit = SubmitField('Quiz starten')
 
 class DeleteConfirmationForm(FlaskForm):
     """Allgemeines Bestätigungsformular für Löschvorgänge"""

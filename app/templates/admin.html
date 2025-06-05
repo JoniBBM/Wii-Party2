@@ -21,7 +21,7 @@
         {% endif %}
     {% endwith %}
 
-    <!-- NEUE SEKTION: Runden & Ordner Management -->
+    <!-- SEKTION: Runden & Ordner Management -->
     <div class="row mb-4">
         <div class="col-md-6">
             <div class="card border-success">
@@ -39,7 +39,7 @@
                         <div class="mb-2">
                             <strong>Minigame-Ordner:</strong> 
                             <span class="badge badge-info">{{ active_round.minigame_folder.name }}</span>
-                            <small class="text-muted">({{ active_round.minigame_folder.get_minigames_count() }} Spiele)</small>
+                            <small class="text-muted">({{ active_round.minigame_folder.get_minigames_count() }} Inhalte)</small>
                         </div>
                         <a href="{{ url_for('admin.manage_rounds') }}" class="btn btn-outline-success btn-sm">
                             <i class="fas fa-cog"></i> Runden verwalten
@@ -102,9 +102,13 @@
                 <p><strong>Phase:</strong>
                     <span data-phase="{{ active_session.current_phase }}">
                         {% if active_session.current_phase == 'SETUP_MINIGAME' %}
-                            Minispiel festlegen
+                            Minispiel/Quiz festlegen
                         {% elif active_session.current_phase == 'MINIGAME_ANNOUNCED' %}
                             Minispiel angekündigt - Warte auf Platzierungen
+                        {% elif active_session.current_phase == 'QUIZ_ACTIVE' %}
+                            Quiz läuft - Teams antworten
+                        {% elif active_session.current_phase == 'QUIZ_COMPLETED' %}
+                            Quiz beendet - Platzierungen eingeben
                         {% elif active_session.current_phase == 'DICE_ROLLING' %}
                             Würfelrunde aktiv
                         {% elif active_session.current_phase == 'ROUND_OVER' %}
@@ -116,7 +120,16 @@
                 </p>
 
                 {% if active_session.current_minigame_name %}
-                    <p><strong>Aktuelles/Nächstes Minispiel:</strong> {{ active_session.current_minigame_name }}</p>
+                    <p><strong>Aktueller Inhalt:</strong> 
+                        {% if active_session.current_quiz_id %}
+                            ❓ Quiz: {{ active_session.current_minigame_name }}
+                            {% if active_session.quiz_time_limit and active_session.quiz_time_limit > 0 %}
+                                <small class="text-muted">({{ active_session.quiz_time_limit }}s)</small>
+                            {% endif %}
+                        {% else %}
+                            🎮 {{ active_session.current_minigame_name }}
+                        {% endif %}
+                    </p>
                     {% if active_session.current_minigame_description %}
                         <p><em>Beschreibung: {{ active_session.current_minigame_description }}</em></p>
                     {% endif %}
@@ -124,7 +137,6 @@
                         <small class="text-muted">
                             Quelle: 
                             {% if active_session.minigame_source == 'manual' %}Manuell eingegeben
-                            {% elif active_session.minigame_source == 'database' %}Aus Datenbank-Bibliothek
                             {% elif active_session.minigame_source == 'folder_random' %}Zufällig aus Ordner
                             {% elif active_session.minigame_source == 'folder_selected' %}Aus Ordner ausgewählt
                             {% else %}{{ active_session.minigame_source }}
@@ -132,10 +144,60 @@
                         </small>
                     {% endif %}
                 {% else %}
-                    <p>Noch kein Minispiel für diese Runde festgelegt.</p>
+                    <p>Noch kein Inhalt für diese Runde festgelegt.</p>
                 {% endif %}
 
                 <hr>
+
+                <!-- Quiz-Status und Kontrollen -->
+                {% if active_session.current_phase == 'QUIZ_ACTIVE' and active_session.current_quiz_id %}
+                    <div class="quiz-control-section p-4 mb-4 border rounded bg-light">
+                        <h4 class="text-success"><i class="fas fa-question-circle"></i> Quiz läuft</h4>
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="quiz-info p-3 bg-white border rounded">
+                                    <h6><strong>Quiz-Status:</strong></h6>
+                                    <p class="mb-2">
+                                        <span class="badge badge-success">Aktiv</span>
+                                        {% if active_session.quiz_started_at %}
+                                            <small class="d-block mt-1">
+                                                Gestartet: {{ active_session.quiz_started_at.strftime('%H:%M:%S') }}
+                                            </small>
+                                        {% endif %}
+                                    </p>
+                                    
+                                    {% if active_session.quiz_time_limit and active_session.quiz_time_limit > 0 %}
+                                        <div class="quiz-timer">
+                                            <small class="text-muted">Zeitlimit:</small>
+                                            <div class="progress mt-1">
+                                                <div class="progress-bar bg-warning" id="quiz-timer-bar" style="width: 100%"></div>
+                                            </div>
+                                            <small id="quiz-timer-text">{{ active_session.quiz_time_limit }}s verbleibend</small>
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-6">
+                                <div class="quiz-actions">
+                                    <a href="{{ url_for('admin.quiz_results', quiz_id=active_session.current_quiz_id) }}" 
+                                       class="btn btn-info btn-lg mb-2" target="_blank">
+                                        <i class="fas fa-chart-bar"></i> Live-Ergebnisse anzeigen
+                                    </a>
+                                    
+                                    <form method="POST" action="{{ url_for('admin.end_quiz') }}" class="d-inline">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                        <button type="submit" class="btn btn-warning btn-lg" 
+                                                onclick="return confirm('Quiz beenden und zu Platzierungen übergehen?')">
+                                            <i class="fas fa-stop-circle"></i> Quiz beenden
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                {% endif %}
 
                 <!-- Würfel-Steuerung für Admin -->
                 {% if active_session.current_phase == 'DICE_ROLLING' %}
@@ -225,18 +287,18 @@
                     </div>
                 {% endif %}
 
-                <!-- ERWEITERTE MINIGAME-AUSWAHL -->
+                <!-- ERWEITERTE MINIGAME/QUIZ-AUSWAHL -->
                 {% if active_session.current_phase == 'SETUP_MINIGAME' or active_session.current_phase == 'ROUND_OVER' %}
-                    <h4>Nächstes Minispiel festlegen</h4>
+                    <h4>Nächsten Inhalt festlegen</h4>
                     <form method="POST" action="{{ url_for('admin.set_minigame') }}" class="mb-3 p-3 border rounded bg-light" id="minigame-form">
                         {{ set_minigame_form.hidden_tag() }}
                         
-                        <!-- Minigame-Quelle auswählen -->
+                        <!-- Inhalts-Quelle auswählen -->
                         <div class="form-group">
-                            <label class="form-control-label"><strong>Minigame-Quelle auswählen:</strong></label>
+                            <label class="form-control-label"><strong>Inhalts-Quelle auswählen:</strong></label>
                             <div class="row">
                                 {% for value, label in set_minigame_form.minigame_source.choices %}
-                                <div class="col-md-6 mb-2">
+                                <div class="col-md-4 mb-2">
                                     <div class="custom-control custom-radio">
                                         <input type="radio" class="custom-control-input" 
                                                id="source_{{ value }}" name="minigame_source" value="{{ value }}"
@@ -244,8 +306,6 @@
                                         <label class="custom-control-label" for="source_{{ value }}">
                                             {% if value == 'manual' %}
                                                 <i class="fas fa-keyboard text-primary"></i> {{ label }}
-                                            {% elif value == 'database' %}
-                                                <i class="fas fa-database text-info"></i> {{ label }}
                                             {% elif value == 'folder_random' %}
                                                 <i class="fas fa-random text-success"></i> {{ label }}
                                             {% elif value == 'folder_selected' %}
@@ -264,7 +324,7 @@
                                 <div class="col-md-6">
                                     <div class="form-group">
                                         {{ set_minigame_form.minigame_name.label(class="form-control-label") }}
-                                        {{ set_minigame_form.minigame_name(class="form-control", placeholder="Name des Minispiels") }}
+                                        {{ set_minigame_form.minigame_name(class="form-control", placeholder="Name des Inhalts") }}
                                     </div>
                                 </div>
                                 <div class="col-md-6">
@@ -276,21 +336,13 @@
                             </div>
                         </div>
                         
-                        <!-- Datenbank-Auswahl Bereich -->
-                        <div id="database-section" class="minigame-section" style="display: none;">
-                            <div class="form-group">
-                                {{ set_minigame_form.selected_minigame_id.label(class="form-control-label") }}
-                                {{ set_minigame_form.selected_minigame_id(class="form-control") }}
-                            </div>
-                        </div>
-                        
                         <!-- Ordner-Zufällig Bereich -->
                         <div id="folder_random-section" class="minigame-section" style="display: none;">
                             {% if active_round and active_round.minigame_folder %}
                                 <div class="alert alert-success">
                                     <i class="fas fa-dice"></i> 
                                     <strong>Zufallsauswahl aus Ordner "{{ active_round.minigame_folder.name }}"</strong><br>
-                                    <small>{{ active_round.minigame_folder.get_minigames_count() }} Spiele verfügbar</small>
+                                    <small>{{ active_round.minigame_folder.get_minigames_count() }} Inhalte verfügbar (Spiele & Quizzes)</small>
                                 </div>
                             {% else %}
                                 <div class="alert alert-warning">
@@ -307,7 +359,8 @@
                                     {{ set_minigame_form.selected_folder_minigame_id.label(class="form-control-label") }}
                                     {{ set_minigame_form.selected_folder_minigame_id(class="form-control") }}
                                     <small class="form-text text-muted">
-                                        Aus Ordner: <strong>{{ active_round.minigame_folder.name }}</strong>
+                                        Aus Ordner: <strong>{{ active_round.minigame_folder.name }}</strong><br>
+                                        🎮 = Minispiel, ❓ = Quiz
                                     </small>
                                 </div>
                             {% else %}
@@ -322,7 +375,7 @@
                     </form>
                 {% endif %}
 
-                {% if active_session.current_phase == 'MINIGAME_ANNOUNCED' %}
+                {% if active_session.current_phase == 'MINIGAME_ANNOUNCED' or active_session.current_phase == 'QUIZ_COMPLETED' %}
                     <h4>Platzierungen für "{{ active_session.current_minigame_name }}" eingeben</h4>
                     {% if teams %}
                         <form method="POST" action="{{ url_for('admin.record_placements') }}" class="mb-3 p-3 border rounded bg-light" id="placements-form">
@@ -383,7 +436,7 @@
                         </button>
                     </div>
                     <div class="modal-body">
-                        <p><strong>Achtung!</strong> Diese Aktion löscht die gesamte Spielhistorie, alle Events, die aktuelle Spielsitzung und setzt die Positionen aller Teams auf 0 zurück.</p>
+                        <p><strong>Achtung!</strong> Diese Aktion löscht die gesamte Spielhistorie, alle Events, Quiz-Antworten, die aktuelle Spielsitzung und setzt die Positionen aller Teams auf 0 zurück.</p>
                         <p>Bitte gib dein Admin-Passwort ein, um fortzufahren.</p>
                         <div class="form-group">
                             {{ confirm_reset_form.password.label(class="form-control-label") }}
@@ -448,47 +501,6 @@
             </div>
         {% else %}
             <p>Noch keine Teams erstellt.</p>
-        {% endif %}
-    </div>
-
-    <!-- Minispiel-Bibliothek (Datenbank) -->
-    <div class="mb-4">
-        <h2>Minispiel-Bibliothek (Datenbank)</h2>
-        <a href="{{ url_for('admin.create_minigame_db') }}" class="btn btn-primary mb-3"><i class="fas fa-plus-circle"></i> Neues DB-Minispiel erstellen</a>
-        {% if minigames_db %}
-            <div class="row">
-                {% for minigame in minigames_db %}
-                <div class="col-md-6 col-lg-4 mb-3">
-                    <div class="card">
-                        <div class="card-body">
-                            <h5 class="card-title">{{ minigame.name }}</h5>
-                            <p class="card-text">
-                                <span class="badge badge-{{ 'primary' if minigame.type == 'game' else 'info' }}">
-                                    {{ minigame.type | title }}
-                                </span>
-                            </p>
-                            {% if minigame.description %}
-                                <p class="card-text"><small class="text-muted">{{ minigame.description }}</small></p>
-                            {% endif %}
-                            <div class="btn-group w-100" role="group">
-                                <a href="{{ url_for('admin.edit_minigame_db', minigame_id=minigame.id) }}" class="btn btn-outline-primary btn-sm">
-                                    <i class="fas fa-edit"></i> Bearbeiten
-                                </a>
-                                <form method="POST" action="{{ url_for('admin.delete_minigame_db', minigame_id=minigame.id) }}" style="display: inline;" 
-                                      onsubmit="return confirm('Minispiel {{ minigame.name }} wirklich aus der Bibliothek löschen?');" class="w-50">
-                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                                    <button type="submit" class="btn btn-outline-danger btn-sm w-100">
-                                        <i class="fas fa-trash-alt"></i> Löschen
-                                    </button>
-                                </form>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                {% endfor %}
-            </div>
-        {% else %}
-            <p>Noch keine Minispiele in der Bibliothek erstellt.</p>
         {% endif %}
     </div>
 </div>
@@ -586,6 +598,40 @@
                     manualRadio.checked = true;
                     showMinigameSection('manual');
                 }
+            }
+        }
+
+        // ===== QUIZ TIMER FUNKTIONALITÄT =====
+        const quizTimerBar = document.getElementById('quiz-timer-bar');
+        const quizTimerText = document.getElementById('quiz-timer-text');
+        
+        if (quizTimerBar && quizTimerText) {
+            const timeLimit = {{ active_session.quiz_time_limit if active_session and active_session.quiz_time_limit else 0 }};
+            const startTime = {{ ('new Date("' + active_session.quiz_started_at.isoformat() + 'Z").getTime()') if active_session and active_session.quiz_started_at else 0 }};
+            
+            if (timeLimit > 0 && startTime > 0) {
+                function updateTimer() {
+                    const now = new Date().getTime();
+                    const elapsed = Math.floor((now - startTime) / 1000);
+                    const remaining = Math.max(0, timeLimit - elapsed);
+                    const percentage = (remaining / timeLimit) * 100;
+                    
+                    quizTimerBar.style.width = percentage + '%';
+                    quizTimerText.textContent = remaining + 's verbleibend';
+                    
+                    if (remaining <= 0) {
+                        quizTimerBar.classList.remove('bg-warning');
+                        quizTimerBar.classList.add('bg-danger');
+                        quizTimerText.textContent = 'Zeit abgelaufen!';
+                        clearInterval(timerInterval);
+                    } else if (remaining <= timeLimit * 0.2) {
+                        quizTimerBar.classList.remove('bg-warning');
+                        quizTimerBar.classList.add('bg-danger');
+                    }
+                }
+                
+                updateTimer();
+                const timerInterval = setInterval(updateTimer, 1000);
             }
         }
 
@@ -789,7 +835,17 @@
         border-left: 4px solid #28a745;
     }
     
+    .quiz-control-section {
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        border-left: 4px solid #28a745;
+    }
+    
     .current-turn-display {
+        background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .quiz-info {
         background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
         box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     }
@@ -875,6 +931,10 @@
     .custom-radio .custom-control-input:checked ~ .custom-control-label::before {
         border-color: #007bff;
         background-color: #007bff;
+    }
+
+    .quiz-timer .progress {
+        height: 8px;
     }
     </style>
 {% endblock %}

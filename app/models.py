@@ -32,7 +32,6 @@ class Admin(UserMixin, db.Model):
     def is_team_user(self):
         return not self.is_admin_flag
 
-
     def __repr__(self):
         return f'<Admin {self.username}>'
 
@@ -70,27 +69,8 @@ class Team(UserMixin, db.Model):
     def is_team_user(self):
         return not self.is_admin_flag
 
-    def get_total_score(self, game_session_id=None):
-        # Stelle sicher, dass TeamMinigameScore hier bekannt ist.
-        # Falls es zu Import-Zyklen kommt, könnte man den Import in die Methode verschieben.
-        query = TeamMinigameScore.query.filter_by(team_id=self.id)
-        if game_session_id:
-            query = query.filter_by(game_session_id=game_session_id)
-        total_score = sum(score.score for score in query.all() if score.score is not None)
-        return total_score
-
     def __repr__(self):
         return f'<Team {self.name}>'
-
-class Minigame(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100), unique=True, nullable=False)
-    description = db.Column(db.String(500))
-    # HINZUGEFÜGT: type-Feld, basierend auf deiner MinigameForm und Routen-Logik
-    type = db.Column(db.String(50), nullable=False, default='score') # default='score' oder was immer sinnvoll ist
-
-    def __repr__(self):
-        return f'<Minigame {self.name}>'
 
 # NEUE MODELS FÜR MINIGAME-ORDNER & SPIELRUNDEN
 
@@ -145,19 +125,34 @@ class GameRound(db.Model):
     def __repr__(self):
         return f'<GameRound {self.name} (Active: {self.is_active})>'
 
-class TeamMinigameScore(db.Model):
+# QUIZ-SYSTEM MODELS
+
+class QuizResponse(db.Model):
+    """Speichert Team-Antworten auf Quiz-Fragen"""
     id = db.Column(db.Integer, primary_key=True)
     team_id = db.Column(db.Integer, db.ForeignKey('team.id'), nullable=False)
-    minigame_id = db.Column(db.Integer, db.ForeignKey('minigame.id'), nullable=True) 
-    score = db.Column(db.Integer, nullable=True)
     game_session_id = db.Column(db.Integer, db.ForeignKey('game_session.id'), nullable=False)
-
-    team = db.relationship('Team', backref=db.backref('minigame_scores_history', lazy='dynamic'))
-    minigame = db.relationship('Minigame', backref=db.backref('scores_history', lazy='dynamic'))
-    game_session = db.relationship('GameSession', backref=db.backref('scores_in_session_history', lazy='dynamic'))
+    
+    # Quiz-Identifikation (aus JSON-Datei)
+    quiz_id = db.Column(db.String(100), nullable=False)  # UUID aus JSON
+    question_id = db.Column(db.String(100), nullable=False)  # UUID aus JSON
+    
+    # Antwort-Daten
+    answer_text = db.Column(db.Text, nullable=True)  # Freitext-Antwort
+    selected_option = db.Column(db.Integer, nullable=True)  # Multiple Choice (Index)
+    is_correct = db.Column(db.Boolean, nullable=True)  # Wird beim Bewerten gesetzt
+    points_earned = db.Column(db.Integer, default=0)
+    
+    # Zeitstempel
+    answered_at = db.Column(db.DateTime, default=datetime.utcnow)
+    time_taken_seconds = db.Column(db.Integer, nullable=True)  # Zeit zum Antworten
+    
+    # Beziehungen
+    team = db.relationship('Team', backref=db.backref('quiz_responses', lazy='dynamic'))
+    game_session = db.relationship('GameSession', backref=db.backref('quiz_responses', lazy='dynamic'))
 
     def __repr__(self):
-        return f'<TeamMinigameScore Team {self.team_id} Minigame {self.minigame_id} Score {self.score} Session {self.game_session_id}>'
+        return f'<QuizResponse Team {self.team_id} Quiz {self.quiz_id} Question {self.question_id}>'
 
 class Character(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -168,7 +163,6 @@ class Character(db.Model):
     description = db.Column(db.Text, nullable=True)
     # HINZUGEFÜGT: is_selected Feld
     is_selected = db.Column(db.Boolean, default=False, nullable=False)
-
 
     def __repr__(self):
         return f'<Character {self.name}>'
@@ -184,14 +178,19 @@ class GameSession(db.Model):
 
     current_minigame_name = db.Column(db.String(200), nullable=True)
     current_minigame_description = db.Column(db.Text, nullable=True)
-    selected_minigame_id = db.Column(db.Integer, db.ForeignKey('minigame.id'), nullable=True)
-    selected_minigame = db.relationship('Minigame', foreign_keys=[selected_minigame_id])
-
+    
+    # ERWEITERT: Quiz-Support
+    current_quiz_id = db.Column(db.String(100), nullable=True)  # UUID aus JSON-Datei
+    quiz_time_limit = db.Column(db.Integer, nullable=True)  # Zeitlimit in Sekunden
+    quiz_started_at = db.Column(db.DateTime, nullable=True)
+    
     # ERWEITERT: Zusätzliche Felder für Minigame-Auswahl
     selected_folder_minigame_id = db.Column(db.String(100), nullable=True)  # ID aus JSON-Datei
-    minigame_source = db.Column(db.String(50), default='manual')  # 'manual', 'database', 'folder_random', 'folder_selected'
+    minigame_source = db.Column(db.String(50), default='manual')  # 'manual', 'folder_random', 'folder_selected'
 
-    current_phase = db.Column(db.String(50), default='SETUP_MINIGAME') # z.B. SETUP_MINIGAME, MINIGAME_ANNOUNCED, DICE_ROLLING, ROUND_OVER
+    current_phase = db.Column(db.String(50), default='SETUP_MINIGAME') 
+    # Mögliche Phasen: SETUP_MINIGAME, MINIGAME_ANNOUNCED, QUIZ_ACTIVE, QUIZ_COMPLETED, DICE_ROLLING, ROUND_OVER
+    
     dice_roll_order = db.Column(db.String(255), nullable=True) # Komma-separierte Team-IDs
     current_team_turn_id = db.Column(db.Integer, db.ForeignKey('team.id'), nullable=True)
     current_team_turn = db.relationship('Team', foreign_keys=[current_team_turn_id])
@@ -205,15 +204,14 @@ class GameEvent(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     game_session_id = db.Column(db.Integer, db.ForeignKey('game_session.id'), nullable=False)
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
-    event_type = db.Column(db.String(50), nullable=False) # z.B. 'game_session_started', 'minigame_set', 'placements_recorded', 'dice_roll', 'team_login'
+    event_type = db.Column(db.String(50), nullable=False) 
+    # z.B. 'game_session_started', 'minigame_set', 'quiz_started', 'quiz_completed', 'placements_recorded', 'dice_roll', 'team_login'
     description = db.Column(db.String(500), nullable=True)
     related_team_id = db.Column(db.Integer, db.ForeignKey('team.id'), nullable=True)
-    related_minigame_id = db.Column(db.Integer, db.ForeignKey('minigame.id'), nullable=True)
     data_json = db.Column(db.Text, nullable=True) # Für zusätzliche strukturierte Daten als JSON-String
 
     # Beziehungen, um einfach auf zugehörige Objekte zugreifen zu können
     related_team = db.relationship('Team', foreign_keys=[related_team_id])
-    related_minigame = db.relationship('Minigame', foreign_keys=[related_minigame_id])
     # game_session ist bereits über backref definiert
 
     def __repr__(self):
