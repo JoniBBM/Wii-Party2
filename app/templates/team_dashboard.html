@@ -43,6 +43,124 @@
         </div>
     </div>
 
+    <!-- Quiz-Interface (nur sichtbar wenn Quiz aktiv) -->
+    {% if current_quiz_data and active_session and active_session.current_phase == 'QUIZ_ACTIVE' %}
+    <div class="row mb-4" id="quiz-interface-section">
+        <div class="col-md-12">
+            <div class="card border-primary quiz-card">
+                <div class="card-header bg-primary text-white">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">
+                            <i class="fas fa-question-circle mr-2"></i>
+                            Quiz: {{ current_quiz_data.name }}
+                        </h5>
+                        <div class="quiz-controls">
+                            {% if current_quiz_data.time_limit and current_quiz_data.time_limit > 0 %}
+                                <div class="quiz-timer">
+                                    <i class="fas fa-clock mr-1"></i>
+                                    <span id="quiz-timer-display">--:--</span>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% if current_quiz_data.description %}
+                        <p class="mb-0 mt-2 opacity-90">{{ current_quiz_data.description }}</p>
+                    {% endif %}
+                </div>
+                <div class="card-body">
+                    {% if quiz_progress %}
+                        <div class="quiz-progress-section mb-4">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span class="quiz-progress-text">
+                                    <strong>Fortschritt:</strong> 
+                                    <span id="quiz-progress-answered">{{ quiz_progress.answered }}</span> 
+                                    von {{ quiz_progress.total }} Fragen beantwortet
+                                </span>
+                                <span class="quiz-progress-percentage" id="quiz-progress-percentage">
+                                    {{ quiz_progress.percentage|round(1) }}%
+                                </span>
+                            </div>
+                            <div class="progress" style="height: 12px;">
+                                <div class="progress-bar bg-success progress-bar-striped" 
+                                     id="quiz-progress-bar"
+                                     style="width: {{ quiz_progress.percentage }}%"
+                                     role="progressbar">
+                                </div>
+                            </div>
+                        </div>
+                    {% endif %}
+
+                    {% if quiz_progress and quiz_progress.completed %}
+                        <!-- Quiz abgeschlossen -->
+                        <div class="quiz-completed text-center">
+                            <div class="quiz-completed-icon mb-3">
+                                <i class="fas fa-check-circle text-success" style="font-size: 4rem;"></i>
+                            </div>
+                            <h4 class="text-success mb-3">Quiz abgeschlossen!</h4>
+                            <p class="text-muted mb-4">
+                                Du hast alle {{ quiz_progress.total }} Fragen beantwortet. 
+                                Warte, bis alle anderen Teams fertig sind.
+                            </p>
+                            <div class="quiz-completion-stats">
+                                <div class="row">
+                                    <div class="col-md-4">
+                                        <div class="stat-box">
+                                            <div class="stat-number" id="quiz-correct-answers">--</div>
+                                            <div class="stat-label">Richtige Antworten</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="stat-box">
+                                            <div class="stat-number" id="quiz-total-points">--</div>
+                                            <div class="stat-label">Punkte erreicht</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="stat-box">
+                                            <div class="stat-number" id="quiz-accuracy">--</div>
+                                            <div class="stat-label">Genauigkeit</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    {% else %}
+                        <!-- Quiz läuft noch - Zu Quiz-Interface weiterleiten -->
+                        <div class="quiz-active text-center">
+                            <div class="quiz-active-icon mb-3">
+                                <i class="fas fa-play-circle text-primary" style="font-size: 4rem;"></i>
+                            </div>
+                            <h4 class="text-primary mb-3">Quiz läuft!</h4>
+                            <p class="text-muted mb-4">
+                                Beantworte die Fragen so schnell und genau wie möglich.
+                                {% if current_quiz_data.time_limit and current_quiz_data.time_limit > 0 %}
+                                    <br><strong>Zeitlimit:</strong> {{ current_quiz_data.time_limit }} Sekunden
+                                {% endif %}
+                            </p>
+                            
+                            <a href="{{ url_for('teams.quiz_interface') }}" class="btn btn-primary btn-lg quiz-start-btn">
+                                <i class="fas fa-arrow-right mr-2"></i>
+                                {% if quiz_progress and quiz_progress.answered > 0 %}
+                                    Quiz fortsetzen
+                                {% else %}
+                                    Quiz starten
+                                {% endif %}
+                            </a>
+                            
+                            {% if quiz_progress and quiz_progress.answered > 0 %}
+                                <p class="mt-3 text-info">
+                                    <i class="fas fa-info-circle mr-1"></i>
+                                    Du kannst jederzeit zum Quiz zurückkehren und wo du aufgehört hast weitermachen.
+                                </p>
+                            {% endif %}
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
     <!-- Spielstatus -->
     <div class="row mb-4">
         <div class="col-md-12">
@@ -59,7 +177,13 @@
                 {% if active_session and active_session.current_minigame_name %}
                     <hr>
                     <p class="mb-0" id="minigame-info">
-                        <strong>Aktuelles Minispiel:</strong> {{ active_session.current_minigame_name }}
+                        <strong>
+                            {% if active_session.current_quiz_id %}
+                                Aktuelles Quiz:
+                            {% else %}
+                                Aktuelles Minispiel:
+                            {% endif %}
+                        </strong> {{ active_session.current_minigame_name }}
                         {% if active_session.current_minigame_description %}
                             <br><em>{{ active_session.current_minigame_description }}</em>
                         {% endif %}
@@ -132,6 +256,20 @@
                 <div class="banner-title">Neues Minispiel!</div>
                 <div class="banner-subtitle" id="minigame-banner-name"></div>
                 <div class="banner-description" id="minigame-banner-description"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quiz-Ankündigung Banner -->
+    <div id="quiz-announcement-banner" class="announcement-banner quiz-banner">
+        <div class="banner-content">
+            <div class="banner-icon">
+                <i class="fas fa-question-circle"></i>
+            </div>
+            <div class="banner-text">
+                <div class="banner-title">Neues Quiz!</div>
+                <div class="banner-subtitle" id="quiz-banner-name"></div>
+                <div class="banner-description" id="quiz-banner-description"></div>
             </div>
         </div>
     </div>
@@ -314,6 +452,38 @@
                     </div>
                     {% endif %}
 
+                    <!-- Quiz-Informationen (falls aktiv) -->
+                    <div class="info-section mb-4" id="quiz-info-section" {% if not current_quiz_data %}style="display: none;"{% endif %}>
+                        <h6 class="text-primary">
+                            <i class="fas fa-question-circle mr-1"></i>
+                            Aktuelles Quiz
+                        </h6>
+                        <div id="quiz-info-content">
+                            {% if current_quiz_data %}
+                                <p class="mb-1"><strong>{{ current_quiz_data.name }}</strong></p>
+                                {% if current_quiz_data.description %}
+                                    <p class="text-muted mb-2">{{ current_quiz_data.description }}</p>
+                                {% endif %}
+                                <div class="row">
+                                    <div class="col-6">
+                                        <small class="text-muted">Fragen:</small><br>
+                                        <strong>{{ current_quiz_data.questions|length if current_quiz_data.questions else 0 }}</strong>
+                                    </div>
+                                    <div class="col-6">
+                                        <small class="text-muted">Zeitlimit:</small><br>
+                                        <strong>
+                                            {% if current_quiz_data.time_limit and current_quiz_data.time_limit > 0 %}
+                                                {{ current_quiz_data.time_limit }}s
+                                            {% else %}
+                                                Unbegrenzt
+                                            {% endif %}
+                                        </strong>
+                                    </div>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+
                     <!-- Würfelreihenfolge -->
                     <div class="info-section mb-4" id="dice-order-section" {% if not dice_roll_order_names %}style="display: none;"{% endif %}>
                         <h6 class="text-primary">
@@ -397,7 +567,17 @@
                 <i class="fas fa-gamepad mr-2"></i>
                 Zum Spielbrett
             </a>
-            <button type="button" class="btn btn-success btn-lg mr-3" onclick="refreshDashboard()">
+            {% if current_quiz_data and active_session and active_session.current_phase == 'QUIZ_ACTIVE' and not (quiz_progress and quiz_progress.completed) %}
+                <a href="{{ url_for('teams.quiz_interface') }}" class="btn btn-success btn-lg mr-3">
+                    <i class="fas fa-question-circle mr-2"></i>
+                    {% if quiz_progress and quiz_progress.answered > 0 %}
+                        Quiz fortsetzen
+                    {% else %}
+                        Quiz starten
+                    {% endif %}
+                </a>
+            {% endif %}
+            <button type="button" class="btn btn-info btn-lg mr-3" onclick="refreshDashboard()">
                 <i class="fas fa-sync-alt mr-2"></i>
                 Aktualisieren
             </button>
@@ -410,7 +590,7 @@
 </div>
 
 <style>
-/* Team Dashboard Styles */
+/* Existing styles (keeping all previous CSS) */
 .bg-gradient-primary {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
 }
@@ -471,7 +651,152 @@
     100% { opacity: 1; }
 }
 
-/* Announcement Banner Styles */
+/* NEW QUIZ STYLES */
+.quiz-card {
+    border-width: 2px;
+    box-shadow: 0 4px 20px rgba(0, 123, 255, 0.2);
+}
+
+.quiz-card.quiz-updated {
+    animation: quizPulse 1s ease-in-out;
+}
+
+@keyframes quizPulse {
+    0% { transform: scale(1); box-shadow: 0 4px 20px rgba(0, 123, 255, 0.2); }
+    50% { transform: scale(1.02); box-shadow: 0 6px 30px rgba(0, 123, 255, 0.4); }
+    100% { transform: scale(1); box-shadow: 0 4px 20px rgba(0, 123, 255, 0.2); }
+}
+
+.quiz-timer {
+    background: rgba(255, 255, 255, 0.2);
+    padding: 0.3rem 0.8rem;
+    border-radius: 20px;
+    font-weight: bold;
+    font-size: 1.1rem;
+}
+
+.quiz-timer.time-warning {
+    background: rgba(255, 193, 7, 0.8);
+    color: #212529;
+    animation: timeWarning 1s infinite;
+}
+
+.quiz-timer.time-critical {
+    background: rgba(220, 53, 69, 0.8);
+    color: white;
+    animation: timeCritical 0.5s infinite;
+}
+
+@keyframes timeWarning {
+    0% { opacity: 1; }
+    50% { opacity: 0.7; }
+    100% { opacity: 1; }
+}
+
+@keyframes timeCritical {
+    0% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.8; transform: scale(1.05); }
+    100% { opacity: 1; transform: scale(1); }
+}
+
+.quiz-progress-section {
+    background: #f8f9fa;
+    border-radius: 10px;
+    padding: 1rem;
+}
+
+.quiz-progress-text {
+    font-size: 1rem;
+    color: #495057;
+}
+
+.quiz-progress-percentage {
+    font-size: 1.2rem;
+    font-weight: bold;
+    color: #28a745;
+}
+
+.quiz-completed {
+    padding: 2rem;
+    background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+    border-radius: 15px;
+    border: 2px solid #28a745;
+}
+
+.quiz-completed-icon {
+    animation: successPulse 2s infinite;
+}
+
+@keyframes successPulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+    100% { transform: scale(1); }
+}
+
+.quiz-active {
+    padding: 2rem;
+    background: linear-gradient(135deg, #cce5ff 0%, #b3d9ff 100%);
+    border-radius: 15px;
+    border: 2px solid #007bff;
+}
+
+.quiz-active-icon {
+    animation: activePulse 2s infinite;
+}
+
+@keyframes activePulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+    100% { transform: scale(1); }
+}
+
+.quiz-start-btn {
+    font-size: 1.2rem;
+    padding: 1rem 2rem;
+    border-radius: 50px;
+    box-shadow: 0 4px 15px rgba(0, 123, 255, 0.3);
+    transition: all 0.3s ease;
+}
+
+.quiz-start-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0, 123, 255, 0.4);
+}
+
+.quiz-completion-stats {
+    background: rgba(255, 255, 255, 0.8);
+    border-radius: 10px;
+    padding: 1.5rem;
+}
+
+.stat-box {
+    text-align: center;
+    padding: 1rem;
+    background: white;
+    border-radius: 10px;
+    margin-bottom: 1rem;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.stat-number {
+    font-size: 2rem;
+    font-weight: bold;
+    color: #28a745;
+}
+
+.stat-label {
+    font-size: 0.9rem;
+    color: #6c757d;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* Quiz Banner Styles */
+.quiz-banner .banner-content {
+    background: linear-gradient(135deg, #17a2b8 0%, #138496 100%);
+}
+
+/* Announcement Banner Styles (existing) */
 .announcement-banner {
     position: fixed;
     top: 0;
@@ -590,7 +915,7 @@
     backdrop-filter: blur(5px);
 }
 
-/* Würfel Animation Styles */
+/* Continue with remaining existing styles... */
 .dice-overlay {
     position: fixed;
     top: 0;
@@ -970,6 +1295,24 @@
     .waiting-submessage {
         font-size: 1.1rem;
     }
+    
+    .quiz-card {
+        margin-bottom: 1rem;
+    }
+    
+    .quiz-timer {
+        font-size: 0.9rem;
+        padding: 0.2rem 0.6rem;
+    }
+    
+    .quiz-start-btn {
+        font-size: 1rem;
+        padding: 0.8rem 1.5rem;
+    }
+    
+    .stat-box {
+        margin-bottom: 0.5rem;
+    }
 }
 </style>
 
@@ -983,6 +1326,8 @@ let lastMinigameName = "{{ active_session.current_minigame_name if active_sessio
 let hasShowMinigameResults = false;
 let lastPhase = "{{ active_session.current_phase if active_session else 'UNKNOWN' }}";
 let lastDiceResult = null; // Speichert das letzte Würfelergebnis
+let lastQuizData = null; // Speichert Quiz-Daten
+let quizTimerInterval = null; // Quiz Timer
 
 function updateDashboard(data) {
     if (!data || !data.success) return;
@@ -990,16 +1335,27 @@ function updateDashboard(data) {
     const gameData = data.data;
     const currentUser = gameData.current_user;
     
+    // Check for new quiz announcement
+    if (gameData.quiz_data && gameData.quiz_data.name && 
+        (!lastQuizData || lastQuizData.id !== gameData.quiz_data.id)) {
+        if (lastQuizData) { // Only show banner if this is a new quiz (not on page load)
+            showQuizAnnouncement(gameData.quiz_data.name, gameData.quiz_data.description);
+        }
+        lastQuizData = gameData.quiz_data;
+    } else if (!gameData.quiz_data && lastQuizData) {
+        lastQuizData = null;
+    }
+    
     // Check for new minigame announcement
     if (gameData.current_minigame_name && 
         gameData.current_minigame_name !== lastMinigameName && 
-        lastMinigameName !== "") {
+        lastMinigameName !== "" && !gameData.quiz_data) {
         showMinigameAnnouncement(gameData.current_minigame_name, gameData.current_minigame_description);
     }
     lastMinigameName = gameData.current_minigame_name || "";
     
-    // Check for minigame results
-    if (lastPhase === 'MINIGAME_ANNOUNCED' && 
+    // Check for minigame/quiz results
+    if ((lastPhase === 'MINIGAME_ANNOUNCED' || lastPhase === 'QUIZ_COMPLETED') && 
         gameData.current_phase === 'DICE_ROLLING' && 
         !hasShowMinigameResults) {
         showMinigameResults(gameData.teams);
@@ -1008,6 +1364,9 @@ function updateDashboard(data) {
         hasShowMinigameResults = false;
     }
     lastPhase = gameData.current_phase;
+    
+    // Update quiz interface visibility
+    updateQuizInterface(gameData);
     
     // Check for dice animation
     if (gameData.current_phase === 'DICE_ROLLING' && 
@@ -1039,6 +1398,140 @@ function updateDashboard(data) {
     updateMinigameInfo(gameData);
     
     lastGameData = gameData;
+}
+
+function updateQuizInterface(gameData) {
+    const quizSection = document.getElementById('quiz-interface-section');
+    const quizInfoSection = document.getElementById('quiz-info-section');
+    
+    if (gameData.quiz_data && gameData.current_phase === 'QUIZ_ACTIVE') {
+        // Show quiz interface
+        if (quizSection) {
+            quizSection.style.display = 'block';
+            quizSection.classList.add('quiz-updated');
+            setTimeout(() => quizSection.classList.remove('quiz-updated'), 1000);
+        }
+        
+        // Update quiz info section
+        if (quizInfoSection) {
+            quizInfoSection.style.display = 'block';
+            const quizInfoContent = document.getElementById('quiz-info-content');
+            if (quizInfoContent) {
+                quizInfoContent.innerHTML = `
+                    <p class="mb-1"><strong>${gameData.quiz_data.name}</strong></p>
+                    ${gameData.quiz_data.description ? `<p class="text-muted mb-2">${gameData.quiz_data.description}</p>` : ''}
+                    <div class="row">
+                        <div class="col-6">
+                            <small class="text-muted">Fragen:</small><br>
+                            <strong>${gameData.quiz_data.questions_count}</strong>
+                        </div>
+                        <div class="col-6">
+                            <small class="text-muted">Zeitlimit:</small><br>
+                            <strong>${gameData.quiz_data.time_limit > 0 ? gameData.quiz_data.time_limit + 's' : 'Unbegrenzt'}</strong>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+        
+        // Update quiz progress
+        if (gameData.quiz_data.progress) {
+            updateQuizProgress(gameData.quiz_data.progress);
+        }
+        
+        // Start quiz timer if needed
+        if (gameData.quiz_data.time_limit > 0) {
+            startQuizTimer(gameData.quiz_data.time_limit);
+        }
+        
+    } else {
+        // Hide quiz interface
+        if (quizSection) {
+            quizSection.style.display = 'none';
+        }
+        if (quizInfoSection) {
+            quizInfoSection.style.display = 'none';
+        }
+        
+        // Stop quiz timer
+        stopQuizTimer();
+    }
+}
+
+function updateQuizProgress(progress) {
+    const answeredEl = document.getElementById('quiz-progress-answered');
+    const percentageEl = document.getElementById('quiz-progress-percentage');
+    const progressBar = document.getElementById('quiz-progress-bar');
+    
+    if (answeredEl) answeredEl.textContent = progress.answered;
+    if (percentageEl) percentageEl.textContent = progress.percentage.toFixed(1) + '%';
+    if (progressBar) progressBar.style.width = progress.percentage + '%';
+}
+
+function startQuizTimer(timeLimit) {
+    // This would need quiz start time from server - simplified for now
+    const timerDisplay = document.getElementById('quiz-timer-display');
+    if (!timerDisplay) return;
+    
+    // Stop any existing timer
+    stopQuizTimer();
+    
+    // This is a simplified timer - in reality you'd need the start time from server
+    let remainingTime = timeLimit;
+    
+    quizTimerInterval = setInterval(() => {
+        remainingTime--;
+        
+        const minutes = Math.floor(remainingTime / 60);
+        const seconds = remainingTime % 60;
+        
+        timerDisplay.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+        
+        // Update timer styling based on remaining time
+        const timerEl = timerDisplay.parentElement;
+        if (remainingTime <= 30) {
+            timerEl.classList.add('time-critical');
+        } else if (remainingTime <= 60) {
+            timerEl.classList.add('time-warning');
+        }
+        
+        if (remainingTime <= 0) {
+            stopQuizTimer();
+            timerDisplay.textContent = '0:00';
+        }
+    }, 1000);
+}
+
+function stopQuizTimer() {
+    if (quizTimerInterval) {
+        clearInterval(quizTimerInterval);
+        quizTimerInterval = null;
+    }
+    
+    const timerEl = document.querySelector('.quiz-timer');
+    if (timerEl) {
+        timerEl.classList.remove('time-warning', 'time-critical');
+    }
+}
+
+function showQuizAnnouncement(name, description) {
+    const banner = document.getElementById('quiz-announcement-banner');
+    const nameEl = document.getElementById('quiz-banner-name');
+    const descEl = document.getElementById('quiz-banner-description');
+    
+    if (banner && nameEl && descEl) {
+        nameEl.textContent = name;
+        descEl.textContent = description || '';
+        
+        banner.classList.add('show');
+        
+        setTimeout(() => {
+            banner.classList.add('hide');
+            setTimeout(() => {
+                banner.classList.remove('show', 'hide');
+            }, 500);
+        }, 5000);
+    }
 }
 
 function showMinigameAnnouncement(name, description) {
@@ -1203,8 +1696,9 @@ function updateGameStatus(gameData) {
         
         // Update minigame info
         if (gameData.current_minigame_name && minigameInfo) {
+            const isQuiz = gameData.quiz_data && gameData.quiz_data.name === gameData.current_minigame_name;
             minigameInfo.innerHTML = `
-                <strong>Aktuelles Minispiel:</strong> ${gameData.current_minigame_name}
+                <strong>${isQuiz ? 'Aktuelles Quiz:' : 'Aktuelles Minispiel:'}</strong> ${gameData.current_minigame_name}
                 ${gameData.current_minigame_description ? '<br><em>' + gameData.current_minigame_description + '</em>' : ''}
             `;
             minigameInfo.style.display = 'block';
@@ -1448,6 +1942,8 @@ function stopLiveUpdates() {
         clearInterval(updateInterval);
         updateInterval = null;
     }
+    
+    stopQuizTimer();
 }
 
 // Page visibility change handler
