@@ -72,33 +72,80 @@
     <!-- Würfel-Animation Overlay -->
     <div id="dice-animation-overlay" class="dice-overlay">
         <div class="dice-animation-container">
-            <div class="dice-rolling" id="animated-dice">
-                <div class="dice-face dice-face-1">⚀</div>
-                <div class="dice-face dice-face-2">⚁</div>
-                <div class="dice-face dice-face-3">⚂</div>
-                <div class="dice-face dice-face-4">⚃</div>
-                <div class="dice-face dice-face-5">⚄</div>
-                <div class="dice-face dice-face-6">⚅</div>
+            <div class="dice-waiting" id="dice-waiting">
+                <div class="waiting-message">
+                    <i class="fas fa-clock mr-2"></i>
+                    Du bist dran!
+                </div>
+                <div class="waiting-submessage">
+                    Warte auf den Admin zum Würfeln...
+                </div>
+                <div class="dice-rolling-continuous" id="animated-dice-continuous">
+                    <div class="dice-face dice-face-1">⚀</div>
+                    <div class="dice-face dice-face-2">⚁</div>
+                    <div class="dice-face dice-face-3">⚂</div>
+                    <div class="dice-face dice-face-4">⚃</div>
+                    <div class="dice-face dice-face-5">⚄</div>
+                    <div class="dice-face dice-face-6">⚅</div>
+                </div>
             </div>
-            <div class="dice-result" id="dice-result">
-                <div class="result-title">Würfelergebnis!</div>
-                <div class="result-details">
-                    <div class="result-row">
-                        <span>Standard:</span>
-                        <span id="standard-roll">-</span>
+            <div class="dice-result-animation" id="dice-result-animation" style="display: none;">
+                <div class="dice-rolling-final" id="animated-dice-final">
+                    <div class="dice-face dice-face-1">⚀</div>
+                    <div class="dice-face dice-face-2">⚁</div>
+                    <div class="dice-face dice-face-3">⚂</div>
+                    <div class="dice-face dice-face-4">⚃</div>
+                    <div class="dice-face dice-face-5">⚄</div>
+                    <div class="dice-face dice-face-6">⚅</div>
+                </div>
+                <div class="dice-result" id="dice-result">
+                    <div class="result-title">Würfelergebnis!</div>
+                    <div class="result-details">
+                        <div class="result-row">
+                            <span>Standard:</span>
+                            <span id="standard-roll">-</span>
+                        </div>
+                        <div class="result-row" id="bonus-row" style="display: none;">
+                            <span>Bonus:</span>
+                            <span id="bonus-roll">-</span>
+                        </div>
+                        <div class="result-total">
+                            <span>Gesamt:</span>
+                            <span id="total-roll">0</span>
+                        </div>
                     </div>
-                    <div class="result-row" id="bonus-row" style="display: none;">
-                        <span>Bonus:</span>
-                        <span id="bonus-roll">-</span>
-                    </div>
-                    <div class="result-total">
-                        <span>Gesamt:</span>
-                        <span id="total-roll">0</span>
+                    <div class="movement-info">
+                        <span id="movement-text">Du bewegst dich von Position <span id="old-pos">0</span> auf Position <span id="new-pos">0</span>!</span>
                     </div>
                 </div>
-                <div class="movement-info">
-                    <span id="movement-text">Du bewegst dich von Position <span id="old-pos">0</span> auf Position <span id="new-pos">0</span>!</span>
-                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Minispiel-Ankündigung Banner -->
+    <div id="minigame-announcement-banner" class="announcement-banner">
+        <div class="banner-content">
+            <div class="banner-icon">
+                <i class="fas fa-gamepad"></i>
+            </div>
+            <div class="banner-text">
+                <div class="banner-title">Neues Minispiel!</div>
+                <div class="banner-subtitle" id="minigame-banner-name"></div>
+                <div class="banner-description" id="minigame-banner-description"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Minispiel-Ergebnisse Banner -->
+    <div id="minigame-results-banner" class="announcement-banner results-banner">
+        <div class="banner-content">
+            <div class="banner-icon">
+                <i class="fas fa-trophy"></i>
+            </div>
+            <div class="banner-text">
+                <div class="banner-title">Minispiel-Ergebnisse!</div>
+                <div class="banner-subtitle">Platzierungen wurden eingetragen</div>
+                <div class="banner-results" id="minigame-results-list"></div>
             </div>
         </div>
     </div>
@@ -329,6 +376,14 @@
                                 </strong>
                             </div>
                         </div>
+                        <div class="row mt-2">
+                            <div class="col-12">
+                                <small class="text-muted">Letztes Würfelergebnis:</small><br>
+                                <span id="last-dice-result">
+                                    <span class="text-muted">Noch nicht gewürfelt</span>
+                                </span>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -416,6 +471,125 @@
     100% { opacity: 1; }
 }
 
+/* Announcement Banner Styles */
+.announcement-banner {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.85);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+    backdrop-filter: blur(8px);
+}
+
+.announcement-banner.show {
+    display: flex;
+    animation: bannerFadeIn 0.5s ease-out;
+}
+
+.announcement-banner.hide {
+    animation: bannerFadeOut 0.5s ease-out forwards;
+}
+
+@keyframes bannerFadeIn {
+    from {
+        opacity: 0;
+        transform: scale(0.9);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+@keyframes bannerFadeOut {
+    from {
+        opacity: 1;
+        transform: scale(1);
+    }
+    to {
+        opacity: 0;
+        transform: scale(0.9);
+    }
+}
+
+.banner-content {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 20px;
+    padding: 3rem;
+    text-align: center;
+    color: white;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    max-width: 500px;
+    margin: 0 20px;
+    position: relative;
+    overflow: hidden;
+}
+
+.banner-content::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.1) 0%, transparent 70%);
+    pointer-events: none;
+}
+
+.results-banner .banner-content {
+    background: linear-gradient(135deg, #ff6b6b 0%, #ee5a52 100%);
+}
+
+.banner-icon {
+    font-size: 4rem;
+    margin-bottom: 1rem;
+    opacity: 0.9;
+    animation: bannerIconPulse 2s ease-in-out infinite;
+}
+
+@keyframes bannerIconPulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+}
+
+.banner-title {
+    font-size: 2.5rem;
+    font-weight: bold;
+    margin-bottom: 1rem;
+    text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+}
+
+.banner-subtitle {
+    font-size: 1.3rem;
+    margin-bottom: 1rem;
+    opacity: 0.9;
+}
+
+.banner-description {
+    font-size: 1.1rem;
+    opacity: 0.8;
+    font-style: italic;
+}
+
+.banner-results {
+    font-size: 1.2rem;
+    margin-top: 1rem;
+}
+
+.banner-results .result-item {
+    display: block;
+    margin: 0.5rem 0;
+    padding: 0.5rem;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    backdrop-filter: blur(5px);
+}
+
 /* Würfel Animation Styles */
 .dice-overlay {
     position: fixed;
@@ -436,13 +610,39 @@
     color: white;
 }
 
-.dice-rolling {
+.dice-waiting {
+    display: block;
+}
+
+.waiting-message {
+    font-size: 2.5rem;
+    font-weight: bold;
+    margin-bottom: 1rem;
+    color: #4fc3f7;
+    text-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+}
+
+.waiting-submessage {
+    font-size: 1.3rem;
+    margin-bottom: 2rem;
+    opacity: 0.8;
+}
+
+.dice-rolling-continuous,
+.dice-rolling-final {
     width: 120px;
     height: 120px;
     margin: 0 auto 2rem;
     position: relative;
     transform-style: preserve-3d;
-    animation: diceRoll 1s ease-in-out;
+}
+
+.dice-rolling-continuous {
+    animation: diceRollContinuous 2s ease-in-out infinite;
+}
+
+.dice-rolling-final {
+    animation: diceRollFinal 0.3s ease-in-out forwards;
 }
 
 .dice-face {
@@ -467,28 +667,37 @@
 .dice-face-5 { transform: rotateX(90deg) translateZ(60px); }
 .dice-face-6 { transform: rotateX(-90deg) translateZ(60px); }
 
-@keyframes diceRoll {
+@keyframes diceRollContinuous {
     0% { 
         transform: rotateX(0deg) rotateY(0deg) rotateZ(0deg);
     }
     25% { 
-        transform: rotateX(180deg) rotateY(90deg) rotateZ(45deg);
+        transform: rotateX(90deg) rotateY(90deg) rotateZ(45deg);
     }
     50% { 
-        transform: rotateX(360deg) rotateY(180deg) rotateZ(90deg);
+        transform: rotateX(180deg) rotateY(180deg) rotateZ(90deg);
     }
     75% { 
-        transform: rotateX(540deg) rotateY(270deg) rotateZ(135deg);
+        transform: rotateX(270deg) rotateY(270deg) rotateZ(135deg);
     }
     100% { 
-        transform: rotateX(720deg) rotateY(360deg) rotateZ(180deg);
+        transform: rotateX(360deg) rotateY(360deg) rotateZ(180deg);
     }
 }
 
-.dice-result {
+@keyframes diceRollFinal {
+    0% { 
+        transform: rotateX(0deg) rotateY(0deg) rotateZ(0deg);
+    }
+    100% { 
+        transform: rotateX(90deg) rotateY(90deg) rotateZ(45deg);
+    }
+}
+
+.dice-result-animation {
     opacity: 0;
     transform: translateY(20px);
-    animation: resultFadeIn 0.5s ease-out 1.2s forwards;
+    animation: resultFadeIn 0.3s ease-out 0.1s forwards;
 }
 
 @keyframes resultFadeIn {
@@ -722,7 +931,8 @@
         margin-bottom: 0.5rem;
     }
     
-    .dice-rolling {
+    .dice-rolling-continuous,
+    .dice-rolling-final {
         width: 80px;
         height: 80px;
     }
@@ -739,6 +949,27 @@
     .dice-face-4 { transform: rotateY(-90deg) translateZ(40px); }
     .dice-face-5 { transform: rotateX(90deg) translateZ(40px); }
     .dice-face-6 { transform: rotateX(-90deg) translateZ(40px); }
+    
+    .banner-content {
+        padding: 2rem;
+        margin: 0 10px;
+    }
+    
+    .banner-title {
+        font-size: 2rem;
+    }
+    
+    .banner-subtitle {
+        font-size: 1.1rem;
+    }
+    
+    .waiting-message {
+        font-size: 2rem;
+    }
+    
+    .waiting-submessage {
+        font-size: 1.1rem;
+    }
 }
 </style>
 
@@ -747,6 +978,11 @@ let lastGameData = null;
 let isCurrentlyMyTurn = {{ 'true' if current_team_turn_name == current_user.name else 'false' }};
 let myTeamId = {{ current_user.id }};
 let updateInterval = null;
+let isDiceAnimationShowing = false;
+let lastMinigameName = "{{ active_session.current_minigame_name if active_session else '' }}";
+let hasShowMinigameResults = false;
+let lastPhase = "{{ active_session.current_phase if active_session else 'UNKNOWN' }}";
+let lastDiceResult = null; // Speichert das letzte Würfelergebnis
 
 function updateDashboard(data) {
     if (!data || !data.success) return;
@@ -754,15 +990,36 @@ function updateDashboard(data) {
     const gameData = data.data;
     const currentUser = gameData.current_user;
     
+    // Check for new minigame announcement
+    if (gameData.current_minigame_name && 
+        gameData.current_minigame_name !== lastMinigameName && 
+        lastMinigameName !== "") {
+        showMinigameAnnouncement(gameData.current_minigame_name, gameData.current_minigame_description);
+    }
+    lastMinigameName = gameData.current_minigame_name || "";
+    
+    // Check for minigame results
+    if (lastPhase === 'MINIGAME_ANNOUNCED' && 
+        gameData.current_phase === 'DICE_ROLLING' && 
+        !hasShowMinigameResults) {
+        showMinigameResults(gameData.teams);
+        hasShowMinigameResults = true;
+    } else if (gameData.current_phase !== 'DICE_ROLLING') {
+        hasShowMinigameResults = false;
+    }
+    lastPhase = gameData.current_phase;
+    
     // Check for dice animation
     if (gameData.current_phase === 'DICE_ROLLING' && 
         currentUser.is_current_turn && 
-        !isCurrentlyMyTurn) {
+        !isCurrentlyMyTurn &&
+        !isDiceAnimationShowing) {
         
-        // Simulate dice roll (in real scenario this would come from server)
-        showDiceAnimation();
+        showDiceWaitingAnimation();
         isCurrentlyMyTurn = true;
-    } else if (!currentUser.is_current_turn) {
+    } else if (!currentUser.is_current_turn && isCurrentlyMyTurn) {
+        // Team's turn is over, hide dice animation
+        hideDiceAnimation();
         isCurrentlyMyTurn = false;
     }
     
@@ -782,6 +1039,154 @@ function updateDashboard(data) {
     updateMinigameInfo(gameData);
     
     lastGameData = gameData;
+}
+
+function showMinigameAnnouncement(name, description) {
+    const banner = document.getElementById('minigame-announcement-banner');
+    const nameEl = document.getElementById('minigame-banner-name');
+    const descEl = document.getElementById('minigame-banner-description');
+    
+    if (banner && nameEl && descEl) {
+        nameEl.textContent = name;
+        descEl.textContent = description || '';
+        
+        banner.classList.add('show');
+        
+        setTimeout(() => {
+            banner.classList.add('hide');
+            setTimeout(() => {
+                banner.classList.remove('show', 'hide');
+            }, 500);
+        }, 5000);
+    }
+}
+
+function showMinigameResults(teams) {
+    const banner = document.getElementById('minigame-results-banner');
+    const resultsList = document.getElementById('minigame-results-list');
+    
+    if (banner && resultsList) {
+        // Sort teams by placement
+        const teamsWithPlacements = teams
+            .filter(team => team.minigame_placement)
+            .sort((a, b) => a.minigame_placement - b.minigame_placement);
+        
+        resultsList.innerHTML = '';
+        teamsWithPlacements.forEach(team => {
+            const resultItem = document.createElement('div');
+            resultItem.className = 'result-item';
+            
+            let medalIcon = '';
+            if (team.minigame_placement === 1) medalIcon = '🥇';
+            else if (team.minigame_placement === 2) medalIcon = '🥈';
+            else if (team.minigame_placement === 3) medalIcon = '🥉';
+            else medalIcon = `${team.minigame_placement}.`;
+            
+            resultItem.innerHTML = `${medalIcon} ${team.name}`;
+            if (team.is_current_user) {
+                resultItem.style.backgroundColor = 'rgba(255, 255, 255, 0.2)';
+                resultItem.style.fontWeight = 'bold';
+            }
+            resultsList.appendChild(resultItem);
+        });
+        
+        banner.classList.add('show');
+        
+        setTimeout(() => {
+            banner.classList.add('hide');
+            setTimeout(() => {
+                banner.classList.remove('show', 'hide');
+            }, 500);
+        }, 5000);
+    }
+}
+
+function showDiceWaitingAnimation() {
+    const overlay = document.getElementById('dice-animation-overlay');
+    const waitingDiv = document.getElementById('dice-waiting');
+    const resultDiv = document.getElementById('dice-result-animation');
+    
+    if (overlay && waitingDiv && resultDiv) {
+        waitingDiv.style.display = 'block';
+        resultDiv.style.display = 'none';
+        overlay.style.display = 'flex';
+        isDiceAnimationShowing = true;
+    }
+}
+
+function showDiceResultAnimation(standardRoll, bonusRoll, totalRoll, oldPos, newPos) {
+    const waitingDiv = document.getElementById('dice-waiting');
+    const resultDiv = document.getElementById('dice-result-animation');
+    const diceElement = document.getElementById('animated-dice-final');
+    
+    if (waitingDiv && resultDiv) {
+        // Hide waiting animation and show result
+        waitingDiv.style.display = 'none';
+        resultDiv.style.display = 'block';
+        
+        // Stop the dice animation and hide the dice after a brief moment
+        setTimeout(() => {
+            if (diceElement) {
+                diceElement.style.display = 'none';
+            }
+        }, 200); // Hide dice after 200ms
+        
+        // Update result values
+        document.getElementById('standard-roll').textContent = standardRoll;
+        document.getElementById('total-roll').textContent = totalRoll;
+        document.getElementById('old-pos').textContent = oldPos;
+        document.getElementById('new-pos').textContent = newPos;
+        
+        // Speichere das Würfelergebnis
+        lastDiceResult = {
+            standard: standardRoll,
+            bonus: bonusRoll,
+            total: totalRoll
+        };
+        updateLastDiceResultDisplay();
+        
+        if (bonusRoll > 0) {
+            document.getElementById('bonus-roll').textContent = bonusRoll;
+            document.getElementById('bonus-row').style.display = 'flex';
+        } else {
+            document.getElementById('bonus-row').style.display = 'none';
+        }
+        
+        // Hide the entire banner after 3 seconds (just showing the result)
+        setTimeout(() => {
+            hideDiceAnimation();
+        }, 3000);
+    }
+}
+
+function hideDiceAnimation() {
+    const overlay = document.getElementById('dice-animation-overlay');
+    const diceElement = document.getElementById('animated-dice-final');
+    
+    if (overlay) {
+        overlay.style.display = 'none';
+        isDiceAnimationShowing = false;
+        
+        // Reset dice visibility for next time
+        if (diceElement) {
+            diceElement.style.display = 'block';
+        }
+    }
+}
+
+function updateLastDiceResultDisplay() {
+    const lastDiceResultEl = document.getElementById('last-dice-result');
+    if (lastDiceResultEl && lastDiceResult) {
+        let resultText = `<strong class="text-primary">${lastDiceResult.standard}</strong>`;
+        
+        if (lastDiceResult.bonus > 0) {
+            resultText += ` + <strong class="text-success">${lastDiceResult.bonus}</strong>`;
+        }
+        
+        resultText += ` = <strong class="text-info">${lastDiceResult.total}</strong>`;
+        
+        lastDiceResultEl.innerHTML = resultText;
+    }
 }
 
 function updateGameStatus(gameData) {
@@ -813,8 +1218,35 @@ function updateStatistics(currentUser, stats) {
     // Position
     const positionNumber = document.getElementById('position-number');
     if (positionNumber && positionNumber.textContent != currentUser.position) {
+        const oldPos = parseInt(positionNumber.textContent);
         positionNumber.textContent = currentUser.position;
         document.getElementById('position-circle').classList.add('position-updated');
+        
+        // Show dice result if we're currently showing dice animation
+        if (isDiceAnimationShowing && isCurrentlyMyTurn) {
+            // Calculate dice result from position change
+            const positionChange = currentUser.position - oldPos;
+            if (positionChange > 0) {
+                // Simulate result (in reality this should come from server)
+                const standardRoll = Math.min(6, positionChange);
+                const bonusRoll = Math.max(0, positionChange - 6);
+                showDiceResultAnimation(standardRoll, bonusRoll, positionChange, oldPos, currentUser.position);
+            }
+        } else if (!isDiceAnimationShowing && oldPos !== currentUser.position) {
+            // Update last dice result even if animation is not showing (for other team moves)
+            const positionChange = currentUser.position - oldPos;
+            if (positionChange > 0) {
+                const standardRoll = Math.min(6, positionChange);
+                const bonusRoll = Math.max(0, positionChange - 6);
+                lastDiceResult = {
+                    standard: standardRoll,
+                    bonus: bonusRoll,
+                    total: positionChange
+                };
+                updateLastDiceResultDisplay();
+            }
+        }
+        
         setTimeout(() => {
             document.getElementById('position-circle').classList.remove('position-updated');
         }, 1000);
@@ -980,41 +1412,6 @@ function updateMinigameInfo(gameData) {
     // Already handled in updateGameStatus
 }
 
-function showDiceAnimation() {
-    const overlay = document.getElementById('dice-animation-overlay');
-    if (!overlay) return;
-    
-    // Simulate dice result (in real implementation, this would come from server)
-    const standardRoll = Math.floor(Math.random() * 6) + 1;
-    const bonusRoll = Math.random() > 0.7 ? Math.floor(Math.random() * 4) + 1 : 0;
-    const totalRoll = standardRoll + bonusRoll;
-    
-    // Show overlay
-    overlay.style.display = 'flex';
-    
-    // Update result values
-    document.getElementById('standard-roll').textContent = standardRoll;
-    document.getElementById('total-roll').textContent = totalRoll;
-    
-    if (bonusRoll > 0) {
-        document.getElementById('bonus-roll').textContent = bonusRoll;
-        document.getElementById('bonus-row').style.display = 'flex';
-    } else {
-        document.getElementById('bonus-row').style.display = 'none';
-    }
-    
-    // Simulate movement
-    const currentPos = parseInt(document.getElementById('position-number').textContent);
-    const newPos = currentPos + totalRoll;
-    document.getElementById('old-pos').textContent = currentPos;
-    document.getElementById('new-pos').textContent = newPos;
-    
-    // Hide animation after 4 seconds
-    setTimeout(() => {
-        overlay.style.display = 'none';
-    }, 4000);
-}
-
 function refreshDashboard() {
     fetchDashboardData();
 }
@@ -1067,6 +1464,9 @@ document.addEventListener('visibilitychange', function() {
 // Initialize when page loads
 document.addEventListener('DOMContentLoaded', function() {
     startLiveUpdates();
+    
+    // Initialize last dice result display
+    updateLastDiceResultDisplay();
     
     // Flash-Nachrichten nach 5 Sekunden ausblenden
     setTimeout(() => {
