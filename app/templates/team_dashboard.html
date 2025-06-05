@@ -1,38 +1,1086 @@
 {% extends "base.html" %}
 
-{% block title %}Dashboard Team {{ current_user.name }}{% endblock %}
+{% block title %}{{ title }} - Wii Party U Deluxe{% endblock %}
 
 {% block content %}
 <div class="container mt-4">
-    <h2>Team Dashboard - {{ current_user.name }}</h2>
-    <p>Willkommen im Dashboard, {{ current_user.name }}!</p>
-    <p>Hier siehst du deine Team-Statistiken und kannst Aktionen ausführen.</p>
-    
-    <div class="card mt-4">
-        <div class="card-header">
-            Team Informationen
+    <!-- Header mit Team-Info -->
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card bg-gradient-primary text-white">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-md-8">
+                            <h1 class="mb-1">
+                                <i class="fas fa-users mr-2"></i>
+                                Team {{ current_user.name }}
+                            </h1>
+                            <p class="mb-0 opacity-75">
+                                {% if current_user.character %}
+                                    <i class="fas fa-user-astronaut mr-1"></i>
+                                    Charakter: {{ current_user.character.name }}
+                                {% else %}
+                                    <i class="fas fa-user-slash mr-1"></i>
+                                    Kein Charakter zugewiesen
+                                {% endif %}
+                                {% if current_user.members %}
+                                    | <i class="fas fa-user-friends ml-2 mr-1"></i>
+                                    Mitglieder: {{ current_user.members }}
+                                {% endif %}
+                            </p>
+                        </div>
+                        <div class="col-md-4 text-md-right">
+                            <div class="team-position-display">
+                                <div class="position-circle" id="position-circle">
+                                    <span class="position-number" id="position-number">{{ current_user.current_position }}</span>
+                                    <small class="position-label">Position</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
-        <ul class="list-group list-group-flush">
-            <li class="list-group-item"><strong>Team Name:</strong> {{ current_user.name }}</li>
-            <li class="list-group-item"><strong>Mitglieder:</strong> {{ current_user.members if current_user.members else "Keine Angabe" }}</li>
-            <li class="list-group-item"><strong>Charakter:</strong> {{ current_user.character.name if current_user.character else (current_user.character_name if current_user.character_name else "Noch kein Charakter gewählt") }}</li>
-            <li class="list-group-item"><strong>Aktuelle Position:</strong> {{ current_user.current_position }}</li>
-            <li class="list-group-item"><strong>Letzte Minispiel Platzierung:</strong> {{ current_user.minigame_placement if current_user.minigame_placement else 'N/A' }}</li>
-            <li class="list-group-item"><strong>Bonus Würfel:</strong> 
-                {% if current_user.bonus_dice_sides == 6 %} 1-6
-                {% elif current_user.bonus_dice_sides == 4 %} 1-4
-                {% elif current_user.bonus_dice_sides == 2 %} 1-2
-                {% else %} Standard
-                {% endif %}
-            </li>
-            {# Hier könnten weitere Infos wie Gesamtpunkte etc. angezeigt werden #}
-            {# Beispiel: <li class="list-group-item"><strong>Gesamtpunkte:</strong> {{ current_user.get_total_score() }}</li> #}
-        </ul>
     </div>
 
-    <div class="mt-4">
-        <a href="{{ url_for('main.game_board') }}" class="btn btn-primary">Zum Spielbrett</a>
-        <a href="{{ url_for('teams.team_logout') }}" class="btn btn-danger">Ausloggen</a>
+    <!-- Spielstatus -->
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="alert alert-{{ game_status_class }} alert-dismissible fade show" role="alert" id="game-status-alert">
+                <h5 class="alert-heading">
+                    <i class="fas fa-info-circle mr-2"></i>
+                    Aktueller Spielstatus
+                    <span class="live-indicator" id="live-indicator">
+                        <i class="fas fa-circle"></i> LIVE
+                    </span>
+                </h5>
+                <p class="mb-2" id="game-status-text"><strong>{{ game_status }}</strong></p>
+                
+                {% if active_session and active_session.current_minigame_name %}
+                    <hr>
+                    <p class="mb-0" id="minigame-info">
+                        <strong>Aktuelles Minispiel:</strong> {{ active_session.current_minigame_name }}
+                        {% if active_session.current_minigame_description %}
+                            <br><em>{{ active_session.current_minigame_description }}</em>
+                        {% endif %}
+                    </p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Würfel-Animation Overlay -->
+    <div id="dice-animation-overlay" class="dice-overlay">
+        <div class="dice-animation-container">
+            <div class="dice-rolling" id="animated-dice">
+                <div class="dice-face dice-face-1">⚀</div>
+                <div class="dice-face dice-face-2">⚁</div>
+                <div class="dice-face dice-face-3">⚂</div>
+                <div class="dice-face dice-face-4">⚃</div>
+                <div class="dice-face dice-face-5">⚄</div>
+                <div class="dice-face dice-face-6">⚅</div>
+            </div>
+            <div class="dice-result" id="dice-result">
+                <div class="result-title">Würfelergebnis!</div>
+                <div class="result-details">
+                    <div class="result-row">
+                        <span>Standard:</span>
+                        <span id="standard-roll">-</span>
+                    </div>
+                    <div class="result-row" id="bonus-row" style="display: none;">
+                        <span>Bonus:</span>
+                        <span id="bonus-roll">-</span>
+                    </div>
+                    <div class="result-total">
+                        <span>Gesamt:</span>
+                        <span id="total-roll">0</span>
+                    </div>
+                </div>
+                <div class="movement-info">
+                    <span id="movement-text">Du bewegst dich von Position <span id="old-pos">0</span> auf Position <span id="new-pos">0</span>!</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Hauptstatistiken -->
+    <div class="row mb-4">
+        <div class="col-md-3 col-sm-6 mb-3">
+            <div class="stat-card stat-card-primary">
+                <div class="stat-icon">
+                    <i class="fas fa-trophy"></i>
+                </div>
+                <div class="stat-content">
+                    <h3 id="current-rank">{{ current_team_rank }}</h3>
+                    <p>von <span id="teams-count">{{ teams_count }}</span></p>
+                    <small>Aktuelle Platzierung</small>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-3 col-sm-6 mb-3">
+            <div class="stat-card stat-card-success">
+                <div class="stat-icon">
+                    <i class="fas fa-flag-checkered"></i>
+                </div>
+                <div class="stat-content">
+                    <h3 id="fields-to-goal">{{ fields_to_goal }}</h3>
+                    <p>Felder</p>
+                    <small>bis zum Ziel</small>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-3 col-sm-6 mb-3">
+            <div class="stat-card stat-card-warning">
+                <div class="stat-icon">
+                    <i class="fas fa-users-cog"></i>
+                </div>
+                <div class="stat-content">
+                    <h3 id="teams-ahead">{{ teams_ahead }}</h3>
+                    <p>Teams</p>
+                    <small>vor dir</small>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-3 col-sm-6 mb-3">
+            <div class="stat-card stat-card-info">
+                <div class="stat-icon">
+                    <i class="fas fa-dice"></i>
+                </div>
+                <div class="stat-content">
+                    <h3 id="bonus-dice">
+                        {% if current_user.bonus_dice_sides == 6 %}1-6{% elif current_user.bonus_dice_sides == 4 %}1-4{% elif current_user.bonus_dice_sides == 2 %}1-2{% else %}Standard{% endif %}
+                    </h3>
+                    <p>Würfel</p>
+                    <small>Bonus-Stufe</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Team-Rangliste -->
+        <div class="col-lg-6 mb-4">
+            <div class="card h-100">
+                <div class="card-header bg-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-list-ol mr-2 text-primary"></i>
+                        Team-Rangliste
+                    </h5>
+                    <small class="text-muted">Sortiert nach Position auf dem Spielbrett</small>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Rang</th>
+                                    <th>Team</th>
+                                    <th>Position</th>
+                                    <th>Minispiel</th>
+                                </tr>
+                            </thead>
+                            <tbody id="team-rankings">
+                                {% for team in all_teams %}
+                                <tr {% if team.id == current_user.id %}class="table-primary"{% endif %} data-team-id="{{ team.id }}">
+                                    <td>
+                                        <span class="rank-badge rank-{{ loop.index }}">
+                                            {% if loop.index == 1 %}
+                                                <i class="fas fa-crown text-warning"></i>
+                                            {% else %}
+                                                {{ loop.index }}
+                                            {% endif %}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            {% if team.character %}
+                                                <i class="fas fa-user-astronaut mr-2 text-info"></i>
+                                            {% else %}
+                                                <i class="fas fa-user mr-2 text-muted"></i>
+                                            {% endif %}
+                                            <strong {% if team.id == current_user.id %}class="text-primary"{% endif %}>
+                                                {{ team.name }}
+                                                {% if team.id == current_user.id %}
+                                                    <small class="badge badge-primary ml-1">Du</small>
+                                                {% endif %}
+                                            </strong>
+                                        </div>
+                                        {% if team.character %}
+                                            <small class="text-muted">{{ team.character.name }}</small>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <span class="position-indicator">
+                                            {{ team.current_position }} / {{ max_board_fields - 1 }}
+                                        </span>
+                                        <div class="progress progress-sm mt-1">
+                                            <div class="progress-bar" style="width: {{ (team.current_position / (max_board_fields - 1) * 100)|round(1) }}%"></div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        {% if team.minigame_placement %}
+                                            <span class="badge badge-placement-{{ team.minigame_placement }}">
+                                                {{ team.minigame_placement }}. Platz
+                                            </span>
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Spielinformationen -->
+        <div class="col-lg-6 mb-4">
+            <div class="card h-100">
+                <div class="card-header bg-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-gamepad mr-2 text-success"></i>
+                        Spielinformationen
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <!-- Aktuelle Runde -->
+                    {% if active_round %}
+                    <div class="info-section mb-4">
+                        <h6 class="text-primary">
+                            <i class="fas fa-play-circle mr-1"></i>
+                            Aktuelle Spielrunde
+                        </h6>
+                        <p class="mb-1"><strong>{{ active_round.name }}</strong></p>
+                        {% if active_round.description %}
+                            <p class="text-muted mb-2">{{ active_round.description }}</p>
+                        {% endif %}
+                        <small class="text-info">
+                            <i class="fas fa-folder mr-1"></i>
+                            Ordner: {{ active_round.minigame_folder.name }}
+                            ({{ active_round.minigame_folder.get_minigames_count() }} Spiele)
+                        </small>
+                    </div>
+                    {% endif %}
+
+                    <!-- Würfelreihenfolge -->
+                    <div class="info-section mb-4" id="dice-order-section" {% if not dice_roll_order_names %}style="display: none;"{% endif %}>
+                        <h6 class="text-primary">
+                            <i class="fas fa-dice mr-1"></i>
+                            Würfelreihenfolge
+                        </h6>
+                        <div class="dice-order" id="dice-order">
+                            {% for team_name in dice_roll_order_names %}
+                                <span class="badge {% if team_name == current_team_turn_name %}badge-success{% elif team_name == current_user.name %}badge-primary{% else %}badge-secondary{% endif %} mr-1 mb-1">
+                                    {{ loop.index }}. {{ team_name }}
+                                    {% if team_name == current_team_turn_name %}
+                                        <i class="fas fa-arrow-right ml-1"></i>
+                                    {% endif %}
+                                </span>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <!-- Spielbrett-Info -->
+                    <div class="info-section mb-4">
+                        <h6 class="text-primary">
+                            <i class="fas fa-map mr-1"></i>
+                            Spielbrett
+                        </h6>
+                        <div class="row">
+                            <div class="col-6">
+                                <small class="text-muted">Felder gesamt:</small><br>
+                                <strong>{{ max_board_fields }}</strong>
+                            </div>
+                            <div class="col-6">
+                                <small class="text-muted">Teams im Spiel:</small><br>
+                                <strong id="total-teams">{{ teams_count }}</strong>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Dein Status -->
+                    <div class="info-section">
+                        <h6 class="text-primary">
+                            <i class="fas fa-user-check mr-1"></i>
+                            Dein Status
+                        </h6>
+                        <div class="row">
+                            <div class="col-6">
+                                <small class="text-muted">Letztes Minispiel:</small><br>
+                                <span id="last-minigame-placement">
+                                    {% if current_user.minigame_placement %}
+                                        <span class="badge badge-placement-{{ current_user.minigame_placement }}">
+                                            {{ current_user.minigame_placement }}. Platz
+                                        </span>
+                                    {% else %}
+                                        <span class="text-muted">Noch kein Spiel</span>
+                                    {% endif %}
+                                </span>
+                            </div>
+                            <div class="col-6">
+                                <small class="text-muted">Bonus Würfel:</small><br>
+                                <strong class="text-{% if current_user.bonus_dice_sides > 0 %}success{% else %}muted{% endif %}" id="bonus-dice-status">
+                                    {% if current_user.bonus_dice_sides == 6 %}1-6 (Gold){% elif current_user.bonus_dice_sides == 4 %}1-4 (Silber){% elif current_user.bonus_dice_sides == 2 %}1-2 (Bronze){% else %}Standard{% endif %}
+                                </strong>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Action Buttons -->
+    <div class="row mt-4">
+        <div class="col-md-12 text-center">
+            <a href="{{ url_for('main.game_board') }}" class="btn btn-primary btn-lg mr-3">
+                <i class="fas fa-gamepad mr-2"></i>
+                Zum Spielbrett
+            </a>
+            <button type="button" class="btn btn-success btn-lg mr-3" onclick="refreshDashboard()">
+                <i class="fas fa-sync-alt mr-2"></i>
+                Aktualisieren
+            </button>
+            <a href="{{ url_for('teams.team_logout') }}" class="btn btn-outline-danger">
+                <i class="fas fa-sign-out-alt mr-2"></i>
+                Ausloggen
+            </a>
+        </div>
     </div>
 </div>
+
+<style>
+/* Team Dashboard Styles */
+.bg-gradient-primary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.opacity-75 {
+    opacity: 0.75;
+}
+
+.position-circle {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 50%;
+    width: 80px;
+    height: 80px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    border: 3px solid rgba(255, 255, 255, 0.5);
+    transition: all 0.3s ease;
+}
+
+.position-circle.position-updated {
+    animation: positionPulse 1s ease-in-out;
+}
+
+@keyframes positionPulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.1); border-color: #ffeb3b; }
+    100% { transform: scale(1); }
+}
+
+.position-number {
+    font-size: 1.8rem;
+    font-weight: bold;
+    line-height: 1;
+}
+
+.position-label {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.live-indicator {
+    float: right;
+    font-size: 0.8rem;
+    opacity: 0.8;
+}
+
+.live-indicator i {
+    color: #28a745;
+    animation: livePulse 2s infinite;
+}
+
+@keyframes livePulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.3; }
+    100% { opacity: 1; }
+}
+
+/* Würfel Animation Styles */
+.dice-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.8);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+    backdrop-filter: blur(5px);
+}
+
+.dice-animation-container {
+    text-align: center;
+    color: white;
+}
+
+.dice-rolling {
+    width: 120px;
+    height: 120px;
+    margin: 0 auto 2rem;
+    position: relative;
+    transform-style: preserve-3d;
+    animation: diceRoll 1s ease-in-out;
+}
+
+.dice-face {
+    position: absolute;
+    width: 120px;
+    height: 120px;
+    background: linear-gradient(135deg, #fff 0%, #f0f0f0 100%);
+    border: 3px solid #333;
+    border-radius: 15px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 4rem;
+    color: #333;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+}
+
+.dice-face-1 { transform: rotateY(0deg) translateZ(60px); }
+.dice-face-2 { transform: rotateY(90deg) translateZ(60px); }
+.dice-face-3 { transform: rotateY(180deg) translateZ(60px); }
+.dice-face-4 { transform: rotateY(-90deg) translateZ(60px); }
+.dice-face-5 { transform: rotateX(90deg) translateZ(60px); }
+.dice-face-6 { transform: rotateX(-90deg) translateZ(60px); }
+
+@keyframes diceRoll {
+    0% { 
+        transform: rotateX(0deg) rotateY(0deg) rotateZ(0deg);
+    }
+    25% { 
+        transform: rotateX(180deg) rotateY(90deg) rotateZ(45deg);
+    }
+    50% { 
+        transform: rotateX(360deg) rotateY(180deg) rotateZ(90deg);
+    }
+    75% { 
+        transform: rotateX(540deg) rotateY(270deg) rotateZ(135deg);
+    }
+    100% { 
+        transform: rotateX(720deg) rotateY(360deg) rotateZ(180deg);
+    }
+}
+
+.dice-result {
+    opacity: 0;
+    transform: translateY(20px);
+    animation: resultFadeIn 0.5s ease-out 1.2s forwards;
+}
+
+@keyframes resultFadeIn {
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.result-title {
+    font-size: 2rem;
+    font-weight: bold;
+    margin-bottom: 1rem;
+    color: #ffeb3b;
+}
+
+.result-details {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    padding: 1.5rem;
+    margin-bottom: 1rem;
+}
+
+.result-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 1.2rem;
+    margin-bottom: 0.5rem;
+}
+
+.result-total {
+    display: flex;
+    justify-content: space-between;
+    font-size: 1.5rem;
+    font-weight: bold;
+    border-top: 2px solid rgba(255, 255, 255, 0.3);
+    padding-top: 0.5rem;
+    color: #4fc3f7;
+}
+
+.movement-info {
+    font-size: 1.1rem;
+    color: #81c784;
+    font-weight: 600;
+}
+
+.stat-card {
+    background: white;
+    border-radius: 12px;
+    padding: 1.5rem;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    border-left: 4px solid;
+    transition: transform 0.2s ease;
+    height: 100%;
+}
+
+.stat-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+}
+
+.stat-card.stat-updated {
+    animation: statPulse 0.8s ease-in-out;
+}
+
+@keyframes statPulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+    100% { transform: scale(1); }
+}
+
+.stat-card-primary { border-left-color: #007bff; }
+.stat-card-success { border-left-color: #28a745; }
+.stat-card-warning { border-left-color: #ffc107; }
+.stat-card-info { border-left-color: #17a2b8; }
+
+.stat-icon {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    margin-bottom: 1rem;
+    color: white;
+}
+
+.stat-card-primary .stat-icon { background: #007bff; }
+.stat-card-success .stat-icon { background: #28a745; }
+.stat-card-warning .stat-icon { background: #ffc107; }
+.stat-card-info .stat-icon { background: #17a2b8; }
+
+.stat-content h3 {
+    font-size: 2rem;
+    font-weight: bold;
+    margin: 0;
+    color: #333;
+    transition: all 0.3s ease;
+}
+
+.stat-content p {
+    margin: 0;
+    font-size: 0.9rem;
+    color: #666;
+}
+
+.stat-content small {
+    font-size: 0.8rem;
+    color: #999;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.rank-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    font-weight: bold;
+    font-size: 0.9rem;
+}
+
+.rank-1 { background: linear-gradient(45deg, #FFD700, #FFA500); color: #333; }
+.rank-2 { background: linear-gradient(45deg, #C0C0C0, #A9A9A9); color: #333; }
+.rank-3 { background: linear-gradient(45deg, #CD7F32, #B8860B); color: white; }
+
+.rank-badge:not(.rank-1):not(.rank-2):not(.rank-3) {
+    background: #f8f9fa;
+    color: #6c757d;
+    border: 1px solid #dee2e6;
+}
+
+.position-indicator {
+    font-weight: 600;
+    color: #495057;
+}
+
+.progress-sm {
+    height: 6px;
+}
+
+.progress-bar {
+    transition: width 0.5s ease;
+}
+
+.badge-placement-1 { background: linear-gradient(45deg, #FFD700, #FFA500); color: #333; }
+.badge-placement-2 { background: linear-gradient(45deg, #C0C0C0, #A9A9A9); color: #333; }
+.badge-placement-3 { background: linear-gradient(45deg, #CD7F32, #B8860B); color: white; }
+
+.info-section {
+    border-bottom: 1px solid #eee;
+    padding-bottom: 1rem;
+}
+
+.info-section:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.dice-order .badge {
+    font-size: 0.85rem;
+    padding: 0.5rem 0.75rem;
+    transition: all 0.3s ease;
+}
+
+.dice-order .badge.badge-success {
+    animation: currentTurnPulse 1.5s infinite;
+}
+
+@keyframes currentTurnPulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+    100% { transform: scale(1); }
+}
+
+.card {
+    border: none;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    transition: box-shadow 0.3s ease;
+}
+
+.card:hover {
+    box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+}
+
+.card-header {
+    border-bottom: 1px solid #eee;
+    padding: 1rem 1.25rem;
+}
+
+.table-primary {
+    background-color: rgba(0, 123, 255, 0.1);
+}
+
+.btn-lg {
+    padding: 0.75rem 2rem;
+    font-size: 1.1rem;
+}
+
+/* Update Animations */
+.row-updated {
+    animation: rowHighlight 1s ease-in-out;
+}
+
+@keyframes rowHighlight {
+    0% { background-color: transparent; }
+    50% { background-color: rgba(255, 235, 59, 0.3); }
+    100% { background-color: transparent; }
+}
+
+@media (max-width: 768px) {
+    .position-circle {
+        width: 60px;
+        height: 60px;
+    }
+    
+    .position-number {
+        font-size: 1.4rem;
+    }
+    
+    .stat-card {
+        margin-bottom: 1rem;
+    }
+    
+    .btn-lg {
+        padding: 0.5rem 1.5rem;
+        font-size: 1rem;
+        margin-bottom: 0.5rem;
+    }
+    
+    .dice-rolling {
+        width: 80px;
+        height: 80px;
+    }
+    
+    .dice-face {
+        width: 80px;
+        height: 80px;
+        font-size: 2.5rem;
+    }
+    
+    .dice-face-1 { transform: rotateY(0deg) translateZ(40px); }
+    .dice-face-2 { transform: rotateY(90deg) translateZ(40px); }
+    .dice-face-3 { transform: rotateY(180deg) translateZ(40px); }
+    .dice-face-4 { transform: rotateY(-90deg) translateZ(40px); }
+    .dice-face-5 { transform: rotateX(90deg) translateZ(40px); }
+    .dice-face-6 { transform: rotateX(-90deg) translateZ(40px); }
+}
+</style>
+
+<script>
+let lastGameData = null;
+let isCurrentlyMyTurn = {{ 'true' if current_team_turn_name == current_user.name else 'false' }};
+let myTeamId = {{ current_user.id }};
+let updateInterval = null;
+
+function updateDashboard(data) {
+    if (!data || !data.success) return;
+    
+    const gameData = data.data;
+    const currentUser = gameData.current_user;
+    
+    // Check for dice animation
+    if (gameData.current_phase === 'DICE_ROLLING' && 
+        currentUser.is_current_turn && 
+        !isCurrentlyMyTurn) {
+        
+        // Simulate dice roll (in real scenario this would come from server)
+        showDiceAnimation();
+        isCurrentlyMyTurn = true;
+    } else if (!currentUser.is_current_turn) {
+        isCurrentlyMyTurn = false;
+    }
+    
+    // Update game status
+    updateGameStatus(gameData);
+    
+    // Update statistics
+    updateStatistics(currentUser, gameData.stats);
+    
+    // Update team rankings
+    updateTeamRankings(gameData.teams, gameData.stats.max_board_fields);
+    
+    // Update dice order
+    updateDiceOrder(gameData.dice_roll_order);
+    
+    // Update minigame info
+    updateMinigameInfo(gameData);
+    
+    lastGameData = gameData;
+}
+
+function updateGameStatus(gameData) {
+    const statusAlert = document.getElementById('game-status-alert');
+    const statusText = document.getElementById('game-status-text');
+    const minigameInfo = document.getElementById('minigame-info');
+    
+    if (statusAlert && statusText) {
+        // Update alert class
+        statusAlert.className = `alert alert-${gameData.game_status_class} alert-dismissible fade show`;
+        
+        // Update status text
+        statusText.innerHTML = `<strong>${gameData.game_status}</strong>`;
+        
+        // Update minigame info
+        if (gameData.current_minigame_name && minigameInfo) {
+            minigameInfo.innerHTML = `
+                <strong>Aktuelles Minispiel:</strong> ${gameData.current_minigame_name}
+                ${gameData.current_minigame_description ? '<br><em>' + gameData.current_minigame_description + '</em>' : ''}
+            `;
+            minigameInfo.style.display = 'block';
+        } else if (minigameInfo) {
+            minigameInfo.style.display = 'none';
+        }
+    }
+}
+
+function updateStatistics(currentUser, stats) {
+    // Position
+    const positionNumber = document.getElementById('position-number');
+    if (positionNumber && positionNumber.textContent != currentUser.position) {
+        positionNumber.textContent = currentUser.position;
+        document.getElementById('position-circle').classList.add('position-updated');
+        setTimeout(() => {
+            document.getElementById('position-circle').classList.remove('position-updated');
+        }, 1000);
+    }
+    
+    // Rank
+    const currentRank = document.getElementById('current-rank');
+    if (currentRank && currentRank.textContent != currentUser.rank) {
+        currentRank.textContent = currentUser.rank;
+        currentRank.parentElement.parentElement.parentElement.classList.add('stat-updated');
+        setTimeout(() => {
+            currentRank.parentElement.parentElement.parentElement.classList.remove('stat-updated');
+        }, 800);
+    }
+    
+    // Fields to goal
+    const fieldsToGoal = document.getElementById('fields-to-goal');
+    if (fieldsToGoal) fieldsToGoal.textContent = currentUser.fields_to_goal;
+    
+    // Teams ahead
+    const teamsAhead = document.getElementById('teams-ahead');
+    if (teamsAhead) teamsAhead.textContent = currentUser.teams_ahead;
+    
+    // Teams count
+    const teamsCount = document.getElementById('teams-count');
+    if (teamsCount) teamsCount.textContent = stats.teams_count;
+    
+    const totalTeams = document.getElementById('total-teams');
+    if (totalTeams) totalTeams.textContent = stats.teams_count;
+    
+    // Bonus dice
+    const bonusDice = document.getElementById('bonus-dice');
+    const bonusDiceStatus = document.getElementById('bonus-dice-status');
+    if (bonusDice && bonusDiceStatus) {
+        let diceText = 'Standard';
+        let statusText = 'Standard';
+        let statusClass = 'text-muted';
+        
+        if (currentUser.bonus_dice_sides == 6) {
+            diceText = '1-6';
+            statusText = '1-6 (Gold)';
+            statusClass = 'text-success';
+        } else if (currentUser.bonus_dice_sides == 4) {
+            diceText = '1-4';
+            statusText = '1-4 (Silber)';
+            statusClass = 'text-success';
+        } else if (currentUser.bonus_dice_sides == 2) {
+            diceText = '1-2';
+            statusText = '1-2 (Bronze)';
+            statusClass = 'text-success';
+        }
+        
+        bonusDice.textContent = diceText;
+        bonusDiceStatus.textContent = statusText;
+        bonusDiceStatus.className = statusClass;
+    }
+    
+    // Minigame placement
+    const lastMinigamePlacement = document.getElementById('last-minigame-placement');
+    if (lastMinigamePlacement) {
+        if (currentUser.minigame_placement) {
+            lastMinigamePlacement.innerHTML = `
+                <span class="badge badge-placement-${currentUser.minigame_placement}">
+                    ${currentUser.minigame_placement}. Platz
+                </span>
+            `;
+        } else {
+            lastMinigamePlacement.innerHTML = '<span class="text-muted">Noch kein Spiel</span>';
+        }
+    }
+}
+
+function updateTeamRankings(teams, maxFields) {
+    const tbody = document.getElementById('team-rankings');
+    if (!tbody) return;
+    
+    tbody.innerHTML = '';
+    
+    teams.forEach((team, index) => {
+        const rank = index + 1;
+        const progressPercent = ((team.position / (maxFields - 1)) * 100).toFixed(1);
+        
+        const row = document.createElement('tr');
+        if (team.is_current_user) {
+            row.className = 'table-primary';
+        }
+        row.setAttribute('data-team-id', team.id);
+        
+        row.innerHTML = `
+            <td>
+                <span class="rank-badge rank-${rank}">
+                    ${rank === 1 ? '<i class="fas fa-crown text-warning"></i>' : rank}
+                </span>
+            </td>
+            <td>
+                <div class="d-flex align-items-center">
+                    ${team.character_name ? '<i class="fas fa-user-astronaut mr-2 text-info"></i>' : '<i class="fas fa-user mr-2 text-muted"></i>'}
+                    <strong ${team.is_current_user ? 'class="text-primary"' : ''}>
+                        ${team.name}
+                        ${team.is_current_user ? '<small class="badge badge-primary ml-1">Du</small>' : ''}
+                    </strong>
+                </div>
+                ${team.character_name ? '<small class="text-muted">' + team.character_name + '</small>' : ''}
+            </td>
+            <td>
+                <span class="position-indicator">
+                    ${team.position} / ${maxFields - 1}
+                </span>
+                <div class="progress progress-sm mt-1">
+                    <div class="progress-bar" style="width: ${progressPercent}%"></div>
+                </div>
+            </td>
+            <td>
+                ${team.minigame_placement ? 
+                    `<span class="badge badge-placement-${team.minigame_placement}">${team.minigame_placement}. Platz</span>` : 
+                    '<span class="text-muted">-</span>'
+                }
+            </td>
+        `;
+        
+        tbody.appendChild(row);
+    });
+}
+
+function updateDiceOrder(diceOrder) {
+    const diceOrderSection = document.getElementById('dice-order-section');
+    const diceOrderContainer = document.getElementById('dice-order');
+    
+    if (!diceOrder || diceOrder.length === 0) {
+        if (diceOrderSection) diceOrderSection.style.display = 'none';
+        return;
+    }
+    
+    if (diceOrderSection) diceOrderSection.style.display = 'block';
+    
+    if (diceOrderContainer) {
+        diceOrderContainer.innerHTML = '';
+        
+        diceOrder.forEach(order => {
+            const badge = document.createElement('span');
+            let badgeClass = 'badge mr-1 mb-1 ';
+            
+            if (order.is_current_turn) {
+                badgeClass += 'badge-success';
+            } else if (order.is_current_user) {
+                badgeClass += 'badge-primary';
+            } else {
+                badgeClass += 'badge-secondary';
+            }
+            
+            badge.className = badgeClass;
+            badge.innerHTML = `
+                ${order.position}. ${order.name}
+                ${order.is_current_turn ? '<i class="fas fa-arrow-right ml-1"></i>' : ''}
+            `;
+            
+            diceOrderContainer.appendChild(badge);
+        });
+    }
+}
+
+function updateMinigameInfo(gameData) {
+    // Already handled in updateGameStatus
+}
+
+function showDiceAnimation() {
+    const overlay = document.getElementById('dice-animation-overlay');
+    if (!overlay) return;
+    
+    // Simulate dice result (in real implementation, this would come from server)
+    const standardRoll = Math.floor(Math.random() * 6) + 1;
+    const bonusRoll = Math.random() > 0.7 ? Math.floor(Math.random() * 4) + 1 : 0;
+    const totalRoll = standardRoll + bonusRoll;
+    
+    // Show overlay
+    overlay.style.display = 'flex';
+    
+    // Update result values
+    document.getElementById('standard-roll').textContent = standardRoll;
+    document.getElementById('total-roll').textContent = totalRoll;
+    
+    if (bonusRoll > 0) {
+        document.getElementById('bonus-roll').textContent = bonusRoll;
+        document.getElementById('bonus-row').style.display = 'flex';
+    } else {
+        document.getElementById('bonus-row').style.display = 'none';
+    }
+    
+    // Simulate movement
+    const currentPos = parseInt(document.getElementById('position-number').textContent);
+    const newPos = currentPos + totalRoll;
+    document.getElementById('old-pos').textContent = currentPos;
+    document.getElementById('new-pos').textContent = newPos;
+    
+    // Hide animation after 4 seconds
+    setTimeout(() => {
+        overlay.style.display = 'none';
+    }, 4000);
+}
+
+function refreshDashboard() {
+    fetchDashboardData();
+}
+
+function fetchDashboardData() {
+    fetch("{{ url_for('teams.dashboard_status_api') }}?t=" + new Date().getTime())
+        .then(response => response.json())
+        .then(data => {
+            updateDashboard(data);
+        })
+        .catch(error => {
+            console.error('Dashboard update failed:', error);
+        });
+}
+
+// Start live updates
+function startLiveUpdates() {
+    // Clear any existing interval
+    if (updateInterval) {
+        clearInterval(updateInterval);
+    }
+    
+    // Update every 2 seconds
+    updateInterval = setInterval(() => {
+        if (!document.hidden) {
+            fetchDashboardData();
+        }
+    }, 2000);
+}
+
+// Stop live updates
+function stopLiveUpdates() {
+    if (updateInterval) {
+        clearInterval(updateInterval);
+        updateInterval = null;
+    }
+}
+
+// Page visibility change handler
+document.addEventListener('visibilitychange', function() {
+    if (document.hidden) {
+        stopLiveUpdates();
+    } else {
+        startLiveUpdates();
+        // Immediate update when page becomes visible
+        fetchDashboardData();
+    }
+});
+
+// Initialize when page loads
+document.addEventListener('DOMContentLoaded', function() {
+    startLiveUpdates();
+    
+    // Flash-Nachrichten nach 5 Sekunden ausblenden
+    setTimeout(() => {
+        const alerts = document.querySelectorAll('.alert-dismissible');
+        alerts.forEach(alert => {
+            const closeBtn = alert.querySelector('.close');
+            if (closeBtn) closeBtn.click();
+        });
+    }, 5000);
+});
+
+// Clean up on page unload
+window.addEventListener('beforeunload', function() {
+    stopLiveUpdates();
+});
+</script>
 {% endblock %}
