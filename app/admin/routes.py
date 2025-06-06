@@ -686,10 +686,7 @@ def reset_game_state_confirmed():
 
     return redirect(url_for('admin.admin_dashboard'))
 
-# REST OF THE ROUTES (Folder and Round management) - keeping them as they are for brevity
-# [Include all other routes from the original file - create_team, edit_team, delete_team, manage_folders, etc.]
-
-# EXISTING TEAM MANAGEMENT ROUTES
+# TEAM MANAGEMENT ROUTES
 @admin_bp.route('/create_team', methods=['GET', 'POST'])
 @login_required
 def create_team():
@@ -849,6 +846,455 @@ def init_chars():
         flash(f"Fehler bei der Charakterinitialisierung: {str(e)}", "danger")
     return redirect(url_for('admin.admin_dashboard'))
 
-# Include all other folder and round management routes here (keeping them unchanged for brevity)
-# manage_folders, create_folder, edit_folder, delete_folder, etc.
-# manage_rounds, create_round, edit_round, delete_round, etc.
+# FOLDER MANAGEMENT ROUTES
+@admin_bp.route('/manage_folders')
+@login_required
+def manage_folders():
+    if not isinstance(current_user, Admin):
+        return redirect(url_for('main.index'))
+    
+    folders = MinigameFolder.query.order_by(MinigameFolder.name).all()
+    return render_template('manage_folders.html', folders=folders)
+
+@admin_bp.route('/create_folder', methods=['GET', 'POST'])
+@login_required
+def create_folder():
+    if not isinstance(current_user, Admin):
+        return redirect(url_for('main.index'))
+    
+    form = CreateMinigameFolderForm()
+    
+    if form.validate_on_submit():
+        try:
+            # Erstelle Ordner im Dateisystem
+            if create_minigame_folder_if_not_exists(form.name.data, form.description.data):
+                # Erstelle Eintrag in der Datenbank
+                folder = MinigameFolder(
+                    name=form.name.data,
+                    description=form.description.data,
+                    folder_path=form.name.data
+                )
+                db.session.add(folder)
+                db.session.commit()
+                
+                flash(f"Minigame-Ordner '{form.name.data}' erfolgreich erstellt.", 'success')
+                return redirect(url_for('admin.manage_folders'))
+            else:
+                flash('Fehler beim Erstellen des Ordners im Dateisystem.', 'danger')
+        except Exception as e:
+            db.session.rollback()
+            current_app.logger.error(f"Fehler beim Erstellen des Ordners: {e}", exc_info=True)
+            flash('Ein Fehler ist beim Erstellen des Ordners aufgetreten.', 'danger')
+    
+    return render_template('create_folder.html', form=form)
+
+@admin_bp.route('/edit_folder/<int:folder_id>')
+@login_required
+def edit_folder(folder_id):
+    if not isinstance(current_user, Admin):
+        return redirect(url_for('main.index'))
+    
+    folder = MinigameFolder.query.get_or_404(folder_id)
+    
+    # Lade Inhalte aus dem Ordner
+    content = get_all_content_from_folder(folder.folder_path)
+    games = content['games']
+    questions = content['questions']
+    
+    form = EditMinigameFolderForm(original_folder_name=folder.name, obj=folder)
+    
+    if request.method == 'POST' and form.validate_on_submit():
+        try:
+            # Aktualisiere nur die Beschreibung (Name kann nicht geändert werden)
+            folder.description = form.description.data
+            
+            # Aktualisiere auch die JSON-Datei
+            update_folder_info(folder.folder_path, form.description.data)
+            
+            db.session.commit()
+            flash(f"Ordner '{folder.name}' erfolgreich aktualisiert.", 'success')
+            return redirect(url_for('admin.manage_folders'))
+        except Exception as e:
+            db.session.rollback()
+            current_app.logger.error(f"Fehler beim Aktualisieren des Ordners: {e}", exc_info=True)
+            flash('Ein Fehler ist beim Aktualisieren des Ordners aufgetreten.', 'danger')
+    
+    return render_template('edit_folder.html', form=form, folder=folder, games=games, questions=questions)
+
+@admin_bp.route('/delete_folder/<int:folder_id>', methods=['GET', 'POST'])
+@login_required
+def delete_folder(folder_id):
+    if not isinstance(current_user, Admin):
+        return redirect(url_for('main.index'))
+    
+    folder = MinigameFolder.query.get_or_404(folder_id)
+    
+    # Prüfe ob Ordner von Spielrunden verwendet wird
+    using_rounds = GameRound.query.filter_by(minigame_folder_id=folder.id).all()
+    
+    form = DeleteConfirmationForm()
+    
+    if using_rounds:
+        # Ordner kann nicht gelöscht werden
+        minigames = get_minigames_from_folder(folder.folder_path)
+        return render_template('delete_folder.html', 
+                             folder=folder, 
+                             using_rounds=using_rounds,
+                             minigames=minigames,
+                             form=form)
+    
+    if request.method == 'POST' and form.validate_on_submit():
+        try:
+            # Lösche aus Dateisystem
+            if delete_minigame_folder(folder.folder_path):
+                # Lösche aus Datenbank
+                db.session.delete(folder)
+                db.session.commit()
+                
+                flash(f"Ordner '{folder.name}' erfolgreich gelöscht.", 'success')
+                return redirect(url_for('admin.manage_folders'))
+            else:
+                flash('Fehler beim Löschen des Ordners aus dem Dateisystem.', 'danger')
+        except Exception as e:
+            db.session.rollback()
+            current_app.logger.error(f"Fehler beim Löschen des Ordners: {e}", exc_info=True)
+            flash('Ein Fehler ist beim Löschen des Ordners aufgetreten.', 'danger')
+    
+    # Lade Minispiele für die Anzeige
+    minigames = get_minigames_from_folder(folder.folder_path)
+    
+    return render_template('delete_folder.html', 
+                         folder=folder, 
+                         using_rounds=using_rounds,
+                         minigames=minigames,
+                         form=form)
+
+@admin_bp.route('/create_folder_minigame/<int:folder_id>', methods=['GET', 'POST'])
+@login_required
+def create_folder_minigame(folder_id):
+    if not isinstance(current_user, Admin):
+        return redirect(url_for('main.index'))
+    
+    folder = MinigameFolder.query.get_or_404(folder_id)
+    form = FolderMinigameForm()
+    
+    if form.validate_on_submit():
+        try:
+            minigame_data = {
+                'name': form.name.data,
+                'description': form.description.data,
+                'type': form.type.data
+            }
+            
+            if add_minigame_to_folder(folder.folder_path, minigame_data):
+                flash(f"Minispiel '{form.name.data}' erfolgreich zu Ordner '{folder.name}' hinzugefügt.", 'success')
+                return redirect(url_for('admin.edit_folder', folder_id=folder.id))
+            else:
+                flash('Fehler beim Hinzufügen des Minispiels.', 'danger')
+        except Exception as e:
+            current_app.logger.error(f"Fehler beim Erstellen des Minispiels: {e}", exc_info=True)
+            flash('Ein Fehler ist beim Erstellen des Minispiels aufgetreten.', 'danger')
+    
+    return render_template('create_folder_minigame.html', form=form, folder=folder)
+
+@admin_bp.route('/edit_folder_minigame/<int:folder_id>/<string:minigame_id>', methods=['GET', 'POST'])
+@login_required
+def edit_folder_minigame(folder_id, minigame_id):
+    if not isinstance(current_user, Admin):
+        return redirect(url_for('main.index'))
+    
+    folder = MinigameFolder.query.get_or_404(folder_id)
+    minigame = get_minigame_from_folder(folder.folder_path, minigame_id)
+    
+    if not minigame:
+        flash('Minispiel nicht gefunden.', 'danger')
+        return redirect(url_for('admin.edit_folder', folder_id=folder.id))
+    
+    form = EditFolderMinigameForm(obj=type('obj', (object,), minigame)())
+    
+    if form.validate_on_submit():
+        try:
+            updated_data = {
+                'name': form.name.data,
+                'description': form.description.data,
+                'type': form.type.data
+            }
+            
+            if update_minigame_in_folder(folder.folder_path, minigame_id, updated_data):
+                flash(f"Minispiel '{form.name.data}' erfolgreich aktualisiert.", 'success')
+                return redirect(url_for('admin.edit_folder', folder_id=folder.id))
+            else:
+                flash('Fehler beim Aktualisieren des Minispiels.', 'danger')
+        except Exception as e:
+            current_app.logger.error(f"Fehler beim Aktualisieren des Minispiels: {e}", exc_info=True)
+            flash('Ein Fehler ist beim Aktualisieren des Minispiels aufgetreten.', 'danger')
+    
+    return render_template('edit_folder_minigame.html', form=form, folder=folder, minigame=minigame)
+
+@admin_bp.route('/delete_folder_minigame/<int:folder_id>/<string:minigame_id>', methods=['POST'])
+@login_required
+def delete_folder_minigame(folder_id, minigame_id):
+    if not isinstance(current_user, Admin):
+        return redirect(url_for('main.index'))
+    
+    folder = MinigameFolder.query.get_or_404(folder_id)
+    
+    try:
+        if delete_minigame_from_folder(folder.folder_path, minigame_id):
+            flash('Minispiel erfolgreich gelöscht.', 'success')
+        else:
+            flash('Fehler beim Löschen des Minispiels.', 'danger')
+    except Exception as e:
+        current_app.logger.error(f"Fehler beim Löschen des Minispiels: {e}", exc_info=True)
+        flash('Ein Fehler ist beim Löschen des Minispiels aufgetreten.', 'danger')
+    
+    return redirect(url_for('admin.edit_folder', folder_id=folder.id))
+
+# QUESTION MANAGEMENT ROUTES
+@admin_bp.route('/create_question/<int:folder_id>', methods=['GET', 'POST'])
+@login_required
+def create_question(folder_id):
+    if not isinstance(current_user, Admin):
+        return redirect(url_for('main.index'))
+    
+    folder = MinigameFolder.query.get_or_404(folder_id)
+    form = CreateQuestionForm()
+    
+    if form.validate_on_submit():
+        try:
+            question_data = {
+                'name': form.name.data,
+                'description': form.description.data,
+                'question_text': form.question_text.data,
+                'question_type': form.question_type.data,
+                'type': 'question'
+            }
+            
+            if form.question_type.data == 'multiple_choice':
+                options = []
+                if form.option_1.data: options.append(form.option_1.data)
+                if form.option_2.data: options.append(form.option_2.data)
+                if form.option_3.data: options.append(form.option_3.data)
+                if form.option_4.data: options.append(form.option_4.data)
+                
+                if len(options) < 2:
+                    flash('Mindestens 2 Antwortoptionen sind erforderlich.', 'warning')
+                    return render_template('create_question.html', form=form, folder=folder)
+                
+                question_data['options'] = options
+                question_data['correct_option'] = form.correct_option.data
+                
+            elif form.question_type.data == 'text_input':
+                if not form.correct_text.data:
+                    flash('Korrekte Antwort ist bei Freitext-Fragen erforderlich.', 'warning')
+                    return render_template('create_question.html', form=form, folder=folder)
+                
+                question_data['correct_text'] = form.correct_text.data
+            
+            if add_question_to_folder(folder.folder_path, question_data):
+                flash(f"Frage '{form.name.data}' erfolgreich zu Ordner '{folder.name}' hinzugefügt.", 'success')
+                return redirect(url_for('admin.edit_folder', folder_id=folder.id))
+            else:
+                flash('Fehler beim Hinzufügen der Frage.', 'danger')
+        except Exception as e:
+            current_app.logger.error(f"Fehler beim Erstellen der Frage: {e}", exc_info=True)
+            flash('Ein Fehler ist beim Erstellen der Frage aufgetreten.', 'danger')
+    
+    return render_template('create_question.html', form=form, folder=folder)
+
+@admin_bp.route('/edit_question/<int:folder_id>/<string:question_id>', methods=['GET', 'POST'])
+@login_required
+def edit_question(folder_id, question_id):
+    if not isinstance(current_user, Admin):
+        return redirect(url_for('main.index'))
+    
+    folder = MinigameFolder.query.get_or_404(folder_id)
+    question = get_question_from_folder(folder.folder_path, question_id)
+    
+    if not question:
+        flash('Frage nicht gefunden.', 'danger')
+        return redirect(url_for('admin.edit_folder', folder_id=folder.id))
+    
+    # Erstelle ein temporäres Objekt für das Form
+    question_obj = type('obj', (object,), question)()
+    form = EditQuestionForm(obj=question_obj)
+    
+    if form.validate_on_submit():
+        try:
+            updated_data = {
+                'name': form.name.data,
+                'description': form.description.data,
+                'question_text': form.question_text.data,
+                'question_type': form.question_type.data,
+                'type': 'question'
+            }
+            
+            if form.question_type.data == 'multiple_choice':
+                options = []
+                if form.option_1.data: options.append(form.option_1.data)
+                if form.option_2.data: options.append(form.option_2.data)
+                if form.option_3.data: options.append(form.option_3.data)
+                if form.option_4.data: options.append(form.option_4.data)
+                
+                if len(options) < 2:
+                    flash('Mindestens 2 Antwortoptionen sind erforderlich.', 'warning')
+                    return render_template('edit_question.html', form=form, folder=folder, question=question)
+                
+                updated_data['options'] = options
+                updated_data['correct_option'] = form.correct_option.data
+                
+            elif form.question_type.data == 'text_input':
+                if not form.correct_text.data:
+                    flash('Korrekte Antwort ist bei Freitext-Fragen erforderlich.', 'warning')
+                    return render_template('edit_question.html', form=form, folder=folder, question=question)
+                
+                updated_data['correct_text'] = form.correct_text.data
+            
+            if update_minigame_in_folder(folder.folder_path, question_id, updated_data):
+                flash(f"Frage '{form.name.data}' erfolgreich aktualisiert.", 'success')
+                return redirect(url_for('admin.edit_folder', folder_id=folder.id))
+            else:
+                flash('Fehler beim Aktualisieren der Frage.', 'danger')
+        except Exception as e:
+            current_app.logger.error(f"Fehler beim Aktualisieren der Frage: {e}", exc_info=True)
+            flash('Ein Fehler ist beim Aktualisieren der Frage aufgetreten.', 'danger')
+    
+    return render_template('edit_question.html', form=form, folder=folder, question=question)
+
+@admin_bp.route('/delete_question/<int:folder_id>/<string:question_id>', methods=['POST'])
+@login_required
+def delete_question(folder_id, question_id):
+    if not isinstance(current_user, Admin):
+        return redirect(url_for('main.index'))
+    
+    folder = MinigameFolder.query.get_or_404(folder_id)
+    
+    try:
+        if delete_minigame_from_folder(folder.folder_path, question_id):
+            flash('Frage erfolgreich gelöscht.', 'success')
+        else:
+            flash('Fehler beim Löschen der Frage.', 'danger')
+    except Exception as e:
+        current_app.logger.error(f"Fehler beim Löschen der Frage: {e}", exc_info=True)
+        flash('Ein Fehler ist beim Löschen der Frage aufgetreten.', 'danger')
+    
+    return redirect(url_for('admin.edit_folder', folder_id=folder.id))
+
+# ROUND MANAGEMENT ROUTES
+@admin_bp.route('/manage_rounds')
+@login_required
+def manage_rounds():
+    if not isinstance(current_user, Admin):
+        return redirect(url_for('main.index'))
+    
+    rounds = GameRound.query.order_by(GameRound.name).all()
+    active_round = GameRound.get_active_round()
+    
+    return render_template('manage_rounds.html', rounds=rounds, active_round=active_round)
+
+@admin_bp.route('/create_round', methods=['GET', 'POST'])
+@login_required
+def create_round():
+    if not isinstance(current_user, Admin):
+        return redirect(url_for('main.index'))
+    
+    form = CreateGameRoundForm()
+    
+    if form.validate_on_submit():
+        try:
+            round_obj = GameRound(
+                name=form.name.data,
+                description=form.description.data,
+                minigame_folder_id=form.minigame_folder_id.data,
+                is_active=False  # Wird nicht automatisch aktiviert
+            )
+            
+            db.session.add(round_obj)
+            db.session.commit()
+            
+            flash(f"Spielrunde '{form.name.data}' erfolgreich erstellt.", 'success')
+            return redirect(url_for('admin.manage_rounds'))
+        except Exception as e:
+            db.session.rollback()
+            current_app.logger.error(f"Fehler beim Erstellen der Spielrunde: {e}", exc_info=True)
+            flash('Ein Fehler ist beim Erstellen der Spielrunde aufgetreten.', 'danger')
+    
+    return render_template('create_round.html', form=form)
+
+@admin_bp.route('/edit_round/<int:round_id>', methods=['GET', 'POST'])
+@login_required
+def edit_round(round_id):
+    if not isinstance(current_user, Admin):
+        return redirect(url_for('main.index'))
+    
+    round_obj = GameRound.query.get_or_404(round_id)
+    form = EditGameRoundForm(original_round_name=round_obj.name, obj=round_obj)
+    
+    if form.validate_on_submit():
+        try:
+            round_obj.name = form.name.data
+            round_obj.description = form.description.data
+            round_obj.minigame_folder_id = form.minigame_folder_id.data
+            
+            db.session.commit()
+            flash(f"Spielrunde '{form.name.data}' erfolgreich aktualisiert.", 'success')
+            return redirect(url_for('admin.manage_rounds'))
+        except Exception as e:
+            db.session.rollback()
+            current_app.logger.error(f"Fehler beim Aktualisieren der Spielrunde: {e}", exc_info=True)
+            flash('Ein Fehler ist beim Aktualisieren der Spielrunde aufgetreten.', 'danger')
+    
+    return render_template('edit_round.html', form=form, round=round_obj)
+
+@admin_bp.route('/delete_round/<int:round_id>', methods=['GET', 'POST'])
+@login_required
+def delete_round(round_id):
+    if not isinstance(current_user, Admin):
+        return redirect(url_for('main.index'))
+    
+    round_obj = GameRound.query.get_or_404(round_id)
+    form = DeleteConfirmationForm()
+    
+    if request.method == 'POST' and form.validate_on_submit():
+        try:
+            was_active = round_obj.is_active
+            
+            # Aktualisiere GameSessions
+            GameSession.query.filter_by(game_round_id=round_obj.id).update({'game_round_id': None})
+            
+            # Lösche die Runde
+            db.session.delete(round_obj)
+            
+            # Falls es die aktive Runde war, aktiviere eine andere
+            if was_active:
+                other_round = GameRound.query.first()
+                if other_round:
+                    other_round.is_active = True
+                    flash(f"Runde '{other_round.name}' wurde automatisch aktiviert.", 'info')
+            
+            db.session.commit()
+            flash(f"Spielrunde '{round_obj.name}' erfolgreich gelöscht.", 'success')
+            return redirect(url_for('admin.manage_rounds'))
+        except Exception as e:
+            db.session.rollback()
+            current_app.logger.error(f"Fehler beim Löschen der Spielrunde: {e}", exc_info=True)
+            flash('Ein Fehler ist beim Löschen der Spielrunde aufgetreten.', 'danger')
+    
+    return render_template('delete_round.html', form=form, round=round_obj)
+
+@admin_bp.route('/activate_round/<int:round_id>', methods=['POST'])
+@login_required
+def activate_round(round_id):
+    if not isinstance(current_user, Admin):
+        return redirect(url_for('main.index'))
+    
+    try:
+        round_obj = GameRound.query.get_or_404(round_id)
+        round_obj.activate()  # Verwendet die Model-Methode
+        
+        flash(f"Spielrunde '{round_obj.name}' wurde aktiviert.", 'success')
+    except Exception as e:
+        current_app.logger.error(f"Fehler beim Aktivieren der Spielrunde: {e}", exc_info=True)
+        flash('Ein Fehler ist beim Aktivieren der Spielrunde aufgetreten.', 'danger')
+    
+    return redirect(url_for('admin.manage_rounds'))

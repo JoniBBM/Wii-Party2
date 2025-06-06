@@ -1119,6 +1119,10 @@ let lastQuestionData = null;
 let currentQuestionAnswered = {{ 'true' if question_answered else 'false' }};
 let diceResultTimer = null;
 
+// Track if user is currently interacting with question form
+let userInteractingWithQuestion = false;
+let questionInterfaceInitialized = false;
+
 function updateDashboard(data) {
     if (!data || !data.success) return;
     
@@ -1207,17 +1211,26 @@ function updateQuestionInterface(gameData) {
     if (gameData.question_data && gameData.current_phase === 'QUESTION_ACTIVE') {
         // Show question interface
         if (questionSection) {
+            const wasHidden = questionSection.style.display === 'none';
             questionSection.style.display = 'block';
-            questionSection.classList.add('question-updated');
-            setTimeout(() => questionSection.classList.remove('question-updated'), 1000);
             
-            // Update question content
-            updateQuestionContent(gameData.question_data, gameData.question_data.answered);
+            if (wasHidden) {
+                questionSection.classList.add('question-updated');
+                setTimeout(() => questionSection.classList.remove('question-updated'), 1000);
+            }
+            
+            // Only update content if user is not currently interacting or if interface wasn't initialized
+            if (!userInteractingWithQuestion || !questionInterfaceInitialized) {
+                updateQuestionContent(gameData.question_data, gameData.question_data.answered);
+                questionInterfaceInitialized = true;
+            }
         }
     } else {
         // Hide question interface
         if (questionSection) {
             questionSection.style.display = 'none';
+            questionInterfaceInitialized = false;
+            userInteractingWithQuestion = false;
         }
     }
 }
@@ -1246,15 +1259,34 @@ function updateQuestionContent(questionData, isAnswered) {
                 </div>
             `;
         } else {
+            // Preserve current form state if user is interacting
+            let currentFormData = {};
+            if (userInteractingWithQuestion) {
+                const existingForm = document.getElementById('question-answer-form');
+                if (existingForm) {
+                    // Save current form state
+                    const formData = new FormData(existingForm);
+                    for (let [key, value] of formData.entries()) {
+                        currentFormData[key] = value;
+                    }
+                    
+                    // If user has already started answering, don't rebuild the form
+                    if (Object.keys(currentFormData).length > 0) {
+                        return; // Exit early to preserve user input
+                    }
+                }
+            }
+            
             // Show question form
             let optionsHtml = '';
             
             if (questionData.question_type === 'multiple_choice') {
                 questionData.options.forEach((option, index) => {
+                    const isChecked = currentFormData.selected_option == index ? 'checked' : '';
                     optionsHtml += `
                         <div class="custom-control custom-radio mb-3">
                             <input type="radio" class="custom-control-input" 
-                                   id="option_${index}" name="selected_option" value="${index}">
+                                   id="option_${index}" name="selected_option" value="${index}" ${isChecked}>
                             <label class="custom-control-label answer-option-label" for="option_${index}">
                                 <span class="option-letter">${"ABCD"[index]}.</span>
                                 <span class="option-text">${option}</span>
@@ -1286,7 +1318,7 @@ function updateQuestionContent(questionData, isAnswered) {
                                     <strong>Gib deine Antwort ein:</strong>
                                 </label>
                                 <textarea name="answer_text" class="form-control form-control-lg" 
-                                         rows="3" placeholder="Deine Antwort hier eingeben..."></textarea>
+                                         rows="3" placeholder="Deine Antwort hier eingeben...">${currentFormData.answer_text || ''}</textarea>
                                 <small class="form-text text-muted mt-2">
                                     <i class="fas fa-lightbulb mr-1"></i>
                                     Tipp: Achte auf Rechtschreibung - die Antwort muss exakt stimmen!
@@ -1304,10 +1336,37 @@ function updateQuestionContent(questionData, isAnswered) {
                 </div>
             `;
             
-            // Attach form handler
+            // Attach form handler and interaction listeners
             const form = document.getElementById('question-answer-form');
             if (form) {
                 form.addEventListener('submit', handleQuestionSubmit);
+                
+                // Add interaction listeners
+                const inputs = form.querySelectorAll('input, textarea');
+                inputs.forEach(input => {
+                    input.addEventListener('focus', () => {
+                        userInteractingWithQuestion = true;
+                    });
+                    
+                    input.addEventListener('blur', () => {
+                        // Only set to false if no other inputs are focused
+                        setTimeout(() => {
+                            const focusedElement = document.activeElement;
+                            const isFormElement = form.contains(focusedElement);
+                            if (!isFormElement) {
+                                userInteractingWithQuestion = false;
+                            }
+                        }, 100);
+                    });
+                    
+                    input.addEventListener('input', () => {
+                        userInteractingWithQuestion = true;
+                    });
+                    
+                    input.addEventListener('change', () => {
+                        userInteractingWithQuestion = true;
+                    });
+                });
             }
         }
     }
@@ -1352,9 +1411,10 @@ function handleQuestionSubmit(e) {
     
     if (!isValid) return;
     
-    // Disable form
+    // Disable form and reset interaction flag
     submitBtn.disabled = true;
     submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Wird gesendet...';
+    userInteractingWithQuestion = false;
     
     // Send answer
     fetch("{{ url_for('teams.submit_question_answer') }}", {
@@ -1378,6 +1438,7 @@ function handleQuestionSubmit(e) {
             alert('Fehler: ' + (data.error || 'Unbekannter Fehler'));
             submitBtn.disabled = false;
             submitBtn.innerHTML = '<i class="fas fa-paper-plane mr-2"></i>Antwort abschicken';
+            userInteractingWithQuestion = false;
         }
     })
     .catch(error => {
@@ -1385,6 +1446,7 @@ function handleQuestionSubmit(e) {
         alert('Netzwerkfehler beim Senden der Antwort.');
         submitBtn.disabled = false;
         submitBtn.innerHTML = '<i class="fas fa-paper-plane mr-2"></i>Antwort abschicken';
+        userInteractingWithQuestion = false;
     });
 }
 

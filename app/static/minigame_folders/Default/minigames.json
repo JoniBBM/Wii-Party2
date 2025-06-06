@@ -53,6 +53,16 @@
       "correct_option": 1,
       "id": "ff0f2bf0",
       "created_at": "2025-06-06T07:16:23.730996"
+    },
+    {
+      "id": "db7ae21f",
+      "name": "Spontane Frage",
+      "description": "",
+      "type": "question",
+      "question_text": "Wie gehts",
+      "question_type": "text_input",
+      "created_at": "2025-06-06T11:25:10.183252",
+      "correct_text": "Gut"
     }
   ]
 }
