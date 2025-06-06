@@ -1,6 +1,6 @@
 """
 Utility-Funktionen für das Management von Minigame-Ordnern und JSON-Dateien
-Erweitert um Quiz-Support
+Vereinfacht ohne komplexes Quiz-System - unterstützt nur Einzelfragen
 """
 import os
 import json
@@ -27,7 +27,7 @@ def ensure_minigame_folders_exist():
     
     # Erstelle Default-Ordner falls nicht vorhanden
     default_folder = current_app.config.get('DEFAULT_MINIGAME_FOLDER', 'Default')
-    create_minigame_folder_if_not_exists(default_folder, "Standard-Minispiele")
+    create_minigame_folder_if_not_exists(default_folder, "Standard-Minispiele und Fragen")
 
 def create_minigame_folder_if_not_exists(folder_name: str, description: str = "") -> bool:
     """Erstellt einen neuen Minigame-Ordner falls er nicht existiert"""
@@ -40,15 +40,14 @@ def create_minigame_folder_if_not_exists(folder_name: str, description: str = ""
     try:
         os.makedirs(folder_path, exist_ok=True)
         
-        # Erstelle initiale JSON-Datei mit Quiz-Support
+        # Erstelle initiale JSON-Datei
         initial_data = {
             "folder_info": {
                 "name": folder_name,
                 "description": description,
                 "created_at": datetime.utcnow().isoformat()
             },
-            "minigames": [],
-            "quizzes": []
+            "minigames": []
         }
         
         json_path = os.path.join(folder_path, 'minigames.json')
@@ -96,7 +95,7 @@ def get_folder_info(folder_name: str) -> Optional[Dict[str, Any]]:
         return None
 
 def get_minigames_from_folder(folder_name: str) -> List[Dict[str, Any]]:
-    """Lädt alle Minispiele aus einem Ordner"""
+    """Lädt alle Minispiele und Fragen aus einem Ordner"""
     json_path = get_folder_json_path(folder_name)
     
     if not os.path.exists(json_path):
@@ -111,7 +110,7 @@ def get_minigames_from_folder(folder_name: str) -> List[Dict[str, Any]]:
         return []
 
 def add_minigame_to_folder(folder_name: str, minigame_data: Dict[str, Any]) -> bool:
-    """Fügt ein neues Minispiel zu einem Ordner hinzu"""
+    """Fügt ein neues Minispiel oder eine Frage zu einem Ordner hinzu"""
     json_path = get_folder_json_path(folder_name)
     
     if not os.path.exists(json_path):
@@ -135,14 +134,10 @@ def add_minigame_to_folder(folder_name: str, minigame_data: Dict[str, Any]) -> b
         if minigame_data['id'] in existing_ids:
             minigame_data['id'] = str(uuid.uuid4())[:8]  # Neue ID generieren
         
-        # Füge Minispiel hinzu
+        # Füge Minispiel/Frage hinzu
         if 'minigames' not in data:
             data['minigames'] = []
         data['minigames'].append(minigame_data)
-        
-        # Stelle sicher, dass quizzes Array existiert (für Abwärtskompatibilität)
-        if 'quizzes' not in data:
-            data['quizzes'] = []
         
         # Speichere zurück
         with open(json_path, 'w', encoding='utf-8') as f:
@@ -151,11 +146,11 @@ def add_minigame_to_folder(folder_name: str, minigame_data: Dict[str, Any]) -> b
         return True
         
     except Exception as e:
-        current_app.logger.error(f"Fehler beim Hinzufügen des Minispiels zu {folder_name}: {e}")
+        current_app.logger.error(f"Fehler beim Hinzufügen des Inhalts zu {folder_name}: {e}")
         return False
 
 def update_minigame_in_folder(folder_name: str, minigame_id: str, updated_data: Dict[str, Any]) -> bool:
-    """Aktualisiert ein existierendes Minispiel in einem Ordner"""
+    """Aktualisiert ein existierendes Minispiel oder eine Frage in einem Ordner"""
     json_path = get_folder_json_path(folder_name)
     
     if not os.path.exists(json_path):
@@ -167,7 +162,7 @@ def update_minigame_in_folder(folder_name: str, minigame_id: str, updated_data: 
         
         minigames = data.get('minigames', [])
         
-        # Finde das zu aktualisierende Minispiel
+        # Finde das zu aktualisierende Item
         for i, minigame in enumerate(minigames):
             if minigame.get('id') == minigame_id:
                 # Behalte original ID und created_at
@@ -179,7 +174,7 @@ def update_minigame_in_folder(folder_name: str, minigame_id: str, updated_data: 
                 minigames[i] = updated_data
                 break
         else:
-            return False  # Minispiel nicht gefunden
+            return False  # Item nicht gefunden
         
         # Speichere zurück
         with open(json_path, 'w', encoding='utf-8') as f:
@@ -188,11 +183,11 @@ def update_minigame_in_folder(folder_name: str, minigame_id: str, updated_data: 
         return True
         
     except Exception as e:
-        current_app.logger.error(f"Fehler beim Aktualisieren des Minispiels {minigame_id} in {folder_name}: {e}")
+        current_app.logger.error(f"Fehler beim Aktualisieren des Inhalts {minigame_id} in {folder_name}: {e}")
         return False
 
 def delete_minigame_from_folder(folder_name: str, minigame_id: str) -> bool:
-    """Löscht ein Minispiel aus einem Ordner"""
+    """Löscht ein Minispiel oder eine Frage aus einem Ordner"""
     json_path = get_folder_json_path(folder_name)
     
     if not os.path.exists(json_path):
@@ -205,7 +200,7 @@ def delete_minigame_from_folder(folder_name: str, minigame_id: str) -> bool:
         minigames = data.get('minigames', [])
         original_count = len(minigames)
         
-        # Filtere das zu löschende Minispiel heraus
+        # Filtere das zu löschende Item heraus
         data['minigames'] = [mg for mg in minigames if mg.get('id') != minigame_id]
         
         if len(data['minigames']) == original_count:
@@ -218,11 +213,11 @@ def delete_minigame_from_folder(folder_name: str, minigame_id: str) -> bool:
         return True
         
     except Exception as e:
-        current_app.logger.error(f"Fehler beim Löschen des Minispiels {minigame_id} aus {folder_name}: {e}")
+        current_app.logger.error(f"Fehler beim Löschen des Inhalts {minigame_id} aus {folder_name}: {e}")
         return False
 
 def get_minigame_from_folder(folder_name: str, minigame_id: str) -> Optional[Dict[str, Any]]:
-    """Lädt ein spezifisches Minispiel aus einem Ordner"""
+    """Lädt ein spezifisches Minispiel oder eine Frage aus einem Ordner"""
     minigames = get_minigames_from_folder(folder_name)
     
     for minigame in minigames:
@@ -232,7 +227,7 @@ def get_minigame_from_folder(folder_name: str, minigame_id: str) -> Optional[Dic
     return None
 
 def get_random_minigame_from_folder(folder_name: str) -> Optional[Dict[str, Any]]:
-    """Gibt ein zufälliges Minispiel aus einem Ordner zurück"""
+    """Gibt ein zufälliges Minispiel oder eine Frage aus einem Ordner zurück"""
     minigames = get_minigames_from_folder(folder_name)
     
     if not minigames:
@@ -285,161 +280,63 @@ def update_folder_info(folder_name: str, new_description: str) -> bool:
         current_app.logger.error(f"Fehler beim Aktualisieren der Folder-Info für {folder_name}: {e}")
         return False
 
-# NEUE QUIZ-FUNKTIONEN
+# FRAGEN-SPEZIFISCHE HILFSFUNKTIONEN
 
-def get_quizzes_from_folder(folder_name: str) -> List[Dict[str, Any]]:
-    """Lädt alle Quizzes aus einem Ordner"""
-    json_path = get_folder_json_path(folder_name)
-    
-    if not os.path.exists(json_path):
-        return []
-    
-    try:
-        with open(json_path, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-            return data.get('quizzes', [])
-    except Exception as e:
-        current_app.logger.error(f"Fehler beim Laden der Quizzes aus {folder_name}: {e}")
-        return []
+def add_question_to_folder(folder_name: str, question_data: Dict[str, Any]) -> bool:
+    """Fügt eine neue Frage zu einem Ordner hinzu"""
+    # Setze den Typ auf 'question'
+    question_data['type'] = 'question'
+    return add_minigame_to_folder(folder_name, question_data)
 
-def add_quiz_to_folder(folder_name: str, quiz_data: Dict[str, Any]) -> bool:
-    """Fügt ein neues Quiz zu einem Ordner hinzu"""
-    json_path = get_folder_json_path(folder_name)
+def get_question_from_folder(folder_name: str, question_id: str) -> Optional[Dict[str, Any]]:
+    """Lädt eine spezifische Frage aus einem Ordner"""
+    question = get_minigame_from_folder(folder_name, question_id)
     
-    if not os.path.exists(json_path):
-        current_app.logger.error(f"Ordner {folder_name} existiert nicht")
-        return False
-    
-    try:
-        # Lade existierende Daten
-        with open(json_path, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-        
-        # Generiere eindeutige ID falls nicht vorhanden
-        if 'id' not in quiz_data or not quiz_data['id']:
-            quiz_data['id'] = str(uuid.uuid4())[:8]
-        
-        # Füge Timestamp hinzu
-        quiz_data['created_at'] = datetime.utcnow().isoformat()
-        
-        # Prüfe auf doppelte IDs
-        existing_ids = [quiz.get('id') for quiz in data.get('quizzes', [])]
-        if quiz_data['id'] in existing_ids:
-            quiz_data['id'] = str(uuid.uuid4())[:8]  # Neue ID generieren
-        
-        # Füge Quiz hinzu
-        if 'quizzes' not in data:
-            data['quizzes'] = []
-        data['quizzes'].append(quiz_data)
-        
-        # Speichere zurück
-        with open(json_path, 'w', encoding='utf-8') as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
-            
-        return True
-        
-    except Exception as e:
-        current_app.logger.error(f"Fehler beim Hinzufügen des Quiz zu {folder_name}: {e}")
-        return False
-
-def update_quiz_in_folder(folder_name: str, quiz_id: str, updated_data: Dict[str, Any]) -> bool:
-    """Aktualisiert ein existierendes Quiz in einem Ordner"""
-    json_path = get_folder_json_path(folder_name)
-    
-    if not os.path.exists(json_path):
-        return False
-    
-    try:
-        with open(json_path, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-        
-        quizzes = data.get('quizzes', [])
-        
-        # Finde das zu aktualisierende Quiz
-        for i, quiz in enumerate(quizzes):
-            if quiz.get('id') == quiz_id:
-                # Behalte original ID und created_at
-                updated_data['id'] = quiz_id
-                if 'created_at' in quiz:
-                    updated_data['created_at'] = quiz['created_at']
-                updated_data['updated_at'] = datetime.utcnow().isoformat()
-                
-                quizzes[i] = updated_data
-                break
-        else:
-            return False  # Quiz nicht gefunden
-        
-        # Speichere zurück
-        with open(json_path, 'w', encoding='utf-8') as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
-            
-        return True
-        
-    except Exception as e:
-        current_app.logger.error(f"Fehler beim Aktualisieren des Quiz {quiz_id} in {folder_name}: {e}")
-        return False
-
-def delete_quiz_from_folder(folder_name: str, quiz_id: str) -> bool:
-    """Löscht ein Quiz aus einem Ordner"""
-    json_path = get_folder_json_path(folder_name)
-    
-    if not os.path.exists(json_path):
-        return False
-    
-    try:
-        with open(json_path, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-        
-        quizzes = data.get('quizzes', [])
-        original_count = len(quizzes)
-        
-        # Filtere das zu löschende Quiz heraus
-        data['quizzes'] = [quiz for quiz in quizzes if quiz.get('id') != quiz_id]
-        
-        if len(data['quizzes']) == original_count:
-            return False  # Nichts wurde gelöscht
-        
-        # Speichere zurück
-        with open(json_path, 'w', encoding='utf-8') as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
-            
-        return True
-        
-    except Exception as e:
-        current_app.logger.error(f"Fehler beim Löschen des Quiz {quiz_id} aus {folder_name}: {e}")
-        return False
-
-def get_quiz_from_folder(folder_name: str, quiz_id: str) -> Optional[Dict[str, Any]]:
-    """Lädt ein spezifisches Quiz aus einem Ordner"""
-    quizzes = get_quizzes_from_folder(folder_name)
-    
-    for quiz in quizzes:
-        if quiz.get('id') == quiz_id:
-            return quiz
+    # Prüfe ob es wirklich eine Frage ist
+    if question and question.get('type') == 'question':
+        return question
     
     return None
 
-def get_random_quiz_from_folder(folder_name: str) -> Optional[Dict[str, Any]]:
-    """Gibt ein zufälliges Quiz aus einem Ordner zurück"""
-    quizzes = get_quizzes_from_folder(folder_name)
+def get_questions_from_folder(folder_name: str) -> List[Dict[str, Any]]:
+    """Lädt alle Fragen aus einem Ordner"""
+    all_content = get_minigames_from_folder(folder_name)
     
-    if not quizzes:
-        return None
+    # Filtere nur Fragen heraus
+    questions = [item for item in all_content if item.get('type') == 'question']
     
-    import random
-    return random.choice(quizzes)
+    return questions
+
+def get_games_from_folder(folder_name: str) -> List[Dict[str, Any]]:
+    """Lädt alle Nicht-Fragen (normale Minispiele) aus einem Ordner"""
+    all_content = get_minigames_from_folder(folder_name)
+    
+    # Filtere Fragen heraus
+    games = [item for item in all_content if item.get('type') != 'question']
+    
+    return games
 
 def get_all_content_from_folder(folder_name: str) -> Dict[str, List[Dict[str, Any]]]:
-    """Gibt alle Inhalte (Minispiele + Quizzes) aus einem Ordner zurück"""
+    """Gibt alle Inhalte getrennt nach Typ zurück"""
+    all_content = get_minigames_from_folder(folder_name)
+    
+    games = []
+    questions = []
+    
+    for item in all_content:
+        if item.get('type') == 'question':
+            questions.append(item)
+        else:
+            games.append(item)
+    
     return {
-        'minigames': get_minigames_from_folder(folder_name),
-        'quizzes': get_quizzes_from_folder(folder_name)
+        'games': games,
+        'questions': questions
     }
 
 def get_random_content_from_folder(folder_name: str) -> Optional[Dict[str, Any]]:
-    """Gibt zufälligen Inhalt (Minispiel oder Quiz) aus einem Ordner zurück"""
-    content = get_all_content_from_folder(folder_name)
-    all_items = content['minigames'] + content['quizzes']
+    """Gibt zufälligen Inhalt (Minispiel oder Frage) aus einem Ordner zurück"""
+    all_items = get_minigames_from_folder(folder_name)
     
     if not all_items:
         return None
@@ -448,10 +345,7 @@ def get_random_content_from_folder(folder_name: str) -> Optional[Dict[str, Any]]
     selected = random.choice(all_items)
     
     # Füge Typ-Info hinzu falls nicht vorhanden
-    if 'content_type' not in selected:
-        if selected in content['quizzes']:
-            selected['content_type'] = 'quiz'
-        else:
-            selected['content_type'] = 'minigame'
+    if 'type' not in selected:
+        selected['type'] = 'game'  # Default zu game
     
     return selected
