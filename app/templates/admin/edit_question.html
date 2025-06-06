@@ -21,26 +21,13 @@
                         
                         <!-- Grundlegende Informationen -->
                         <div class="row">
-                            <div class="col-md-6">
+                            <div class="col-md-12">
                                 <div class="form-group">
                                     {{ form.name.label(class="form-control-label") }}
                                     {{ form.name(class="form-control" + (" is-invalid" if form.name.errors else "")) }}
                                     {% if form.name.errors %}
                                         <div class="invalid-feedback">
                                             {% for error in form.name.errors %}
-                                                <span>{{ error }}</span>
-                                            {% endfor %}
-                                        </div>
-                                    {% endif %}
-                                </div>
-                            </div>
-                            <div class="col-md-6">
-                                <div class="form-group">
-                                    {{ form.points.label(class="form-control-label") }}
-                                    {{ form.points(class="form-control" + (" is-invalid" if form.points.errors else "")) }}
-                                    {% if form.points.errors %}
-                                        <div class="invalid-feedback">
-                                            {% for error in form.points.errors %}
                                                 <span>{{ error }}</span>
                                             {% endfor %}
                                         </div>

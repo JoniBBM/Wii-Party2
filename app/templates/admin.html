@@ -90,11 +90,11 @@
                 {% endif %}
             </div>
         </div>
-        <div class="card-body">
+        <div class="card-body" id="game-status-container">
             {% if active_session %}
                 <h5 class="card-title">Aktuelle Spielsitzung (ID: {{ active_session.id }})</h5>
                 <p><strong>Phase:</strong>
-                    <span data-phase="{{ active_session.current_phase }}">
+                    <span data-phase="{{ active_session.current_phase }}" id="current-phase-display">
                         {% if active_session.current_phase == 'SETUP_MINIGAME' %}
                             Inhalt festlegen
                         {% elif active_session.current_phase == 'MINIGAME_ANNOUNCED' %}
@@ -111,158 +111,155 @@
                     </span>
                 </p>
 
-                {% if active_session.current_minigame_name %}
-                    <p><strong>Aktueller Inhalt:</strong> 
-                        {% if active_session.current_question_id %}
-                            ❓ Frage: {{ active_session.current_minigame_name }}
-                        {% else %}
-                            🎮 {{ active_session.current_minigame_name }}
+                <div id="current-content-info">
+                    {% if active_session.current_minigame_name %}
+                        <p><strong>Aktueller Inhalt:</strong> 
+                            {% if active_session.current_question_id %}
+                                ❓ Frage: {{ active_session.current_minigame_name }}
+                            {% else %}
+                                🎮 {{ active_session.current_minigame_name }}
+                            {% endif %}
+                        </p>
+                        {% if active_session.current_minigame_description %}
+                            <p><em>Beschreibung: {{ active_session.current_minigame_description }}</em></p>
                         {% endif %}
-                    </p>
-                    {% if active_session.current_minigame_description %}
-                        <p><em>Beschreibung: {{ active_session.current_minigame_description }}</em></p>
+                    {% else %}
+                        <p>Noch kein Inhalt für diese Runde festgelegt.</p>
                     {% endif %}
-                {% else %}
-                    <p>Noch kein Inhalt für diese Runde festgelegt.</p>
-                {% endif %}
+                </div>
 
                 <hr>
 
                 <!-- Fragen-Kontrollen -->
-                {% if active_session.current_phase == 'QUESTION_ACTIVE' and active_session.current_question_id %}
-                    <div class="question-control-section p-4 mb-4 border rounded bg-light">
-                        <h4 class="text-primary"><i class="fas fa-question-circle"></i> Frage läuft</h4>
-                        
-                        <div class="row">
-                            <div class="col-md-6">
-                                <div class="question-info p-3 bg-white border rounded">
-                                    <h6><strong>Fragen-Status:</strong></h6>
-                                    <p class="mb-2">
-                                        <span class="badge badge-primary">Aktiv</span>
-                                        <small class="d-block mt-1">Teams können antworten</small>
-                                    </p>
-                                </div>
-                            </div>
-                            
-                            <div class="col-md-6">
-                                <div class="question-actions">
-                                    <button type="button" class="btn btn-info btn-lg mb-2" onclick="showQuestionResponses()">
-                                        <i class="fas fa-eye"></i> Antworten anzeigen
-                                    </button>
-                                    
-                                    <form method="POST" action="{{ url_for('admin.end_question') }}" class="d-inline">
-                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                        <button type="submit" class="btn btn-warning btn-lg" 
-                                                onclick="return confirm('Frage beenden und automatische Platzierung berechnen?')">
-                                            <i class="fas fa-stop-circle"></i> Frage beenden
-                                        </button>
-                                    </form>
-                                </div>
+                <div id="question-control-section" class="question-control-section p-4 mb-4 border rounded bg-light" 
+                     style="{% if active_session.current_phase != 'QUESTION_ACTIVE' or not active_session.current_question_id %}display: none;{% endif %}">
+                    <h4 class="text-primary"><i class="fas fa-question-circle"></i> Frage läuft</h4>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="question-info p-3 bg-white border rounded">
+                                <h6><strong>Fragen-Status:</strong></h6>
+                                <p class="mb-2">
+                                    <span class="badge badge-primary">Aktiv</span>
+                                    <small class="d-block mt-1" id="question-response-count">Teams können antworten</small>
+                                </p>
                             </div>
                         </div>
                         
-                        <!-- Antworten-Übersicht -->
-                        <div id="question-responses-container" style="display: none;" class="mt-3">
-                            <h6>Aktuelle Team-Antworten:</h6>
-                            <div id="question-responses-list" class="border rounded p-3 bg-white">
-                                <div class="text-center text-muted">
-                                    <i class="fas fa-spinner fa-spin"></i> Lade Antworten...
-                                </div>
+                        <div class="col-md-6">
+                            <div class="question-actions">
+                                <form method="POST" action="{{ url_for('admin.end_question') }}" class="d-inline">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <button type="submit" class="btn btn-warning btn-lg" 
+                                            onclick="return confirm('Frage beenden und automatische Platzierung berechnen?')">
+                                        <i class="fas fa-stop-circle"></i> Frage beenden
+                                    </button>
+                                </form>
                             </div>
                         </div>
                     </div>
-                {% endif %}
+                    
+                    <!-- Antworten-Übersicht (automatisch) -->
+                    <div id="question-responses-container" class="mt-3">
+                        <h6>Team-Antworten (Live-Updates):</h6>
+                        <div id="question-responses-list" class="border rounded p-3 bg-white">
+                            <div class="text-center text-muted">
+                                <i class="fas fa-clock"></i> Warte auf Antworten...
+                            </div>
+                        </div>
+                    </div>
+                </div>
 
                 <!-- Würfel-Steuerung -->
-                {% if active_session.current_phase == 'DICE_ROLLING' %}
-                    <div class="dice-control-section p-4 mb-4 border rounded bg-light">
-                        <h4 class="text-primary"><i class="fas fa-dice"></i> Würfel-Steuerung</h4>
-                        
-                        <div class="row">
-                            <div class="col-md-6">
-                                <div class="current-turn-display p-3 mb-3 bg-white border rounded">
-                                    <h6><strong>Aktueller Zug:</strong></h6>
-                                    <div id="current-turn-info">
-                                        {% if active_session.current_team_turn %}
-                                            <span class="badge badge-primary" style="font-size: 1.1em;">
-                                                {{ active_session.current_team_turn.name }}
-                                            </span>
-                                            <small class="d-block mt-1">
-                                                Position: {{ active_session.current_team_turn.current_position }}
-                                                | Bonus: 
-                                                {% if active_session.current_team_turn.bonus_dice_sides == 6 %}1-6
-                                                {% elif active_session.current_team_turn.bonus_dice_sides == 4 %}1-4
-                                                {% elif active_session.current_team_turn.bonus_dice_sides == 2 %}1-2
-                                                {% else %}Standard
-                                                {% endif %}
-                                            </small>
-                                        {% else %}
-                                            <span class="text-muted">Warte auf Team... (oder Runde beendet)</span>
-                                        {% endif %}
-                                    </div>
+                <div id="dice-control-section" class="dice-control-section p-4 mb-4 border rounded bg-light"
+                     style="{% if active_session.current_phase != 'DICE_ROLLING' %}display: none;{% endif %}">
+                    <h4 class="text-primary"><i class="fas fa-dice"></i> Würfel-Steuerung</h4>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="current-turn-display p-3 mb-3 bg-white border rounded">
+                                <h6><strong>Aktueller Zug:</strong></h6>
+                                <div id="current-turn-info">
+                                    {% if active_session.current_team_turn %}
+                                        <span class="badge badge-primary" style="font-size: 1.1em;">
+                                            {{ active_session.current_team_turn.name }}
+                                        </span>
+                                        <small class="d-block mt-1">
+                                            Position: {{ active_session.current_team_turn.current_position }}
+                                            | Bonus: 
+                                            {% if active_session.current_team_turn.bonus_dice_sides == 6 %}1-6
+                                            {% elif active_session.current_team_turn.bonus_dice_sides == 4 %}1-4
+                                            {% elif active_session.current_team_turn.bonus_dice_sides == 2 %}1-2
+                                            {% else %}Standard
+                                            {% endif %}
+                                        </small>
+                                    {% else %}
+                                        <span class="text-muted">Warte auf Team... (oder Runde beendet)</span>
+                                    {% endif %}
                                 </div>
-                                
-                                <button id="admin-roll-dice" class="btn btn-success btn-lg" 
-                                        {% if not active_session.current_team_turn %}disabled{% endif %}>
-                                    <i class="fas fa-dice"></i> Für aktuelles Team würfeln
-                                </button>
                             </div>
                             
-                            <div class="col-md-6">
-                                <div id="dice-result-admin" class="dice-result-admin" style="display: none;">
-                                    <h6>Würfelergebnis:</h6>
-                                    <div class="result-display p-3 bg-white border rounded">
-                                        <div class="row text-center">
-                                            <div class="col-4">
-                                                <div class="result-part">
-                                                    <small>Standard</small>
-                                                    <div class="result-number" id="admin-standard-roll">-</div>
-                                                </div>
+                            <button id="admin-roll-dice" class="btn btn-success btn-lg" 
+                                    {% if not active_session.current_team_turn %}disabled{% endif %}>
+                                <i class="fas fa-dice"></i> Für aktuelles Team würfeln
+                            </button>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <div id="dice-result-admin" class="dice-result-admin" style="display: none;">
+                                <h6>Würfelergebnis:</h6>
+                                <div class="result-display p-3 bg-white border rounded">
+                                    <div class="row text-center">
+                                        <div class="col-4">
+                                            <div class="result-part">
+                                                <small>Standard</small>
+                                                <div class="result-number" id="admin-standard-roll">-</div>
                                             </div>
-                                            <div class="col-4" id="admin-bonus-section" style="display: none;">
-                                                <div class="result-part">
-                                                    <small>Bonus</small>
-                                                    <div class="result-number" id="admin-bonus-roll">-</div>
-                                                </div>
+                                        </div>
+                                        <div class="col-4" id="admin-bonus-section" style="display: none;">
+                                            <div class="result-part">
+                                                <small>Bonus</small>
+                                                <div class="result-number" id="admin-bonus-roll">-</div>
                                             </div>
-                                            <div class="col-4">
-                                                <div class="result-part total">
-                                                    <small>Gesamt</small>
-                                                    <div class="result-number total" id="admin-total-roll">0</div>
-                                                </div>
+                                        </div>
+                                        <div class="col-4">
+                                            <div class="result-part total">
+                                                <small>Gesamt</small>
+                                                <div class="result-number total" id="admin-total-roll">0</div>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
-                                
-                                <div class="dice-order-info mt-3">
-                                    <h6>Würfelreihenfolge:</h6>
-                                    <div class="team-order-list">
-                                        {% if active_session.dice_roll_order %}
-                                            {% set order_ids = active_session.dice_roll_order.split(',') %}
-                                            {% for team_id_str in order_ids %}
-                                                {% if team_id_str %}
-                                                    {% set team_id = team_id_str | int %}
-                                                    {% set team = teams | selectattr('id', 'equalto', team_id) | first %}
-                                                    {% if team %}
-                                                        <span class="badge {% if team.id == active_session.current_team_turn_id %}badge-success{% else %}badge-secondary{% endif %} mr-1">
-                                                            {{ loop.index }}. {{ team.name }}
-                                                        </span>
-                                                    {% endif %}
+                            </div>
+                            
+                            <div class="dice-order-info mt-3">
+                                <h6>Würfelreihenfolge:</h6>
+                                <div class="team-order-list" id="dice-order-display">
+                                    {% if active_session.dice_roll_order %}
+                                        {% set order_ids = active_session.dice_roll_order.split(',') %}
+                                        {% for team_id_str in order_ids %}
+                                            {% if team_id_str %}
+                                                {% set team_id = team_id_str | int %}
+                                                {% set team = teams | selectattr('id', 'equalto', team_id) | first %}
+                                                {% if team %}
+                                                    <span class="badge {% if team.id == active_session.current_team_turn_id %}badge-success{% else %}badge-secondary{% endif %} mr-1">
+                                                        {{ loop.index }}. {{ team.name }}
+                                                    </span>
                                                 {% endif %}
-                                            {% endfor %}
-                                        {% else %}
-                                            <span class="text-muted">Reihenfolge noch nicht festgelegt</span>
-                                        {% endif %}
-                                    </div>
+                                            {% endif %}
+                                        {% endfor %}
+                                    {% else %}
+                                        <span class="text-muted">Reihenfolge noch nicht festgelegt</span>
+                                    {% endif %}
                                 </div>
                             </div>
                         </div>
                     </div>
-                {% endif %}
+                </div>
 
                 <!-- ERWEITERTE MINIGAME/FRAGEN-AUSWAHL -->
-                {% if active_session.current_phase == 'SETUP_MINIGAME' or active_session.current_phase == 'ROUND_OVER' %}
+                <div id="content-selection-section" 
+                     style="{% if active_session.current_phase not in ['SETUP_MINIGAME', 'ROUND_OVER'] %}display: none;{% endif %}">
                     <h4>Nächsten Inhalt festlegen</h4>
                     <form method="POST" action="{{ url_for('admin.set_minigame') }}" class="mb-3 p-3 border rounded bg-light" id="minigame-form">
                         {{ set_minigame_form.hidden_tag() }}
@@ -417,10 +414,12 @@
                         
                         {{ set_minigame_form.submit(class="btn btn-success btn-lg") }}
                     </form>
-                {% endif %}
+                </div>
 
-                {% if active_session.current_phase == 'MINIGAME_ANNOUNCED' %}
-                    <h4>Platzierungen für "{{ active_session.current_minigame_name }}" eingeben</h4>
+                <!-- Platzierungen eingeben -->
+                <div id="placement-section" 
+                     style="{% if active_session.current_phase != 'MINIGAME_ANNOUNCED' %}display: none;{% endif %}">
+                    <h4>Platzierungen für "<span id="current-minigame-name">{{ active_session.current_minigame_name }}</span>" eingeben</h4>
                     {% if teams %}
                         <form method="POST" action="{{ url_for('admin.record_placements') }}" class="mb-3 p-3 border rounded bg-light">
                              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
@@ -448,7 +447,7 @@
                     {% else %}
                         <p class="text-warning">Keine Teams vorhanden, um Platzierungen einzugeben.</p>
                     {% endif %}
-                {% endif %}
+                </div>
 
             {% else %}
                 <p class="text-danger">Keine aktive Spielsitzung gefunden.</p>
@@ -590,6 +589,38 @@
     background-color: #f8f9fa;
     padding: 1rem;
 }
+
+.response-item {
+    transition: all 0.3s ease;
+    border-radius: 0.25rem;
+    padding: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.response-item.correct {
+    background-color: #d4edda;
+    border-left: 4px solid #28a745;
+}
+
+.response-item.incorrect {
+    background-color: #f8d7da;
+    border-left: 4px solid #dc3545;
+}
+
+.response-item.new {
+    animation: slideIn 0.5s ease;
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
 </style>
 
 <script>
@@ -597,6 +628,9 @@ document.addEventListener('DOMContentLoaded', function() {
     const rollDiceBtn = document.getElementById('admin-roll-dice');
     const csrfToken = "{{ csrf_token() }}";
     let isRollingDice = false;
+    let questionResponsesInterval = null;
+    let currentPhase = "{{ active_session.current_phase if active_session else '' }}";
+    let lastResponseCount = 0;
     
     // Minigame-Source Auswahl
     const sourceRadios = document.querySelectorAll('input[name="minigame_source"]');
@@ -607,7 +641,6 @@ document.addEventListener('DOMContentLoaded', function() {
         const targetSection = document.getElementById(selectedValue + '-section');
         if (targetSection) targetSection.style.display = 'block';
         
-        // Speichere Auswahl
         localStorage.setItem('adminMinigameSource', selectedValue);
     }
     
@@ -617,7 +650,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
     
-    // Lade gespeicherte Auswahl
     const savedSource = localStorage.getItem('adminMinigameSource');
     if (savedSource) {
         const savedRadio = document.getElementById('source_' + savedSource);
@@ -655,59 +687,59 @@ document.addEventListener('DOMContentLoaded', function() {
         toggleDirectQuestionType();
     }
     
-    // Fragen-Antworten anzeigen
-    window.showQuestionResponses = function() {
-        const container = document.getElementById('question-responses-container');
-        const responsesList = document.getElementById('question-responses-list');
-        
-        if (container.style.display === 'none') {
-            container.style.display = 'block';
-            loadQuestionResponses();
-        } else {
-            container.style.display = 'none';
-        }
-    };
-
+    // Fragen-Antworten automatisch laden
     function loadQuestionResponses() {
-        const responsesList = document.getElementById('question-responses-list');
-        responsesList.innerHTML = '<div class="text-center text-muted"><i class="fas fa-spinner fa-spin"></i> Lade Antworten...</div>';
+        if (currentPhase !== 'QUESTION_ACTIVE') return;
         
         fetch('/admin/api/question-responses')
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    displayQuestionResponses(data.responses);
-                } else {
-                    responsesList.innerHTML = '<div class="text-center text-danger"><i class="fas fa-exclamation-triangle"></i> Fehler beim Laden</div>';
+                    displayQuestionResponses(data.responses, data.total_teams);
+                    
+                    // Update response count
+                    const responseCount = document.getElementById('question-response-count');
+                    if (responseCount) {
+                        const count = data.responses.length;
+                        const total = data.total_teams;
+                        responseCount.innerHTML = `${count}/${total} Teams haben geantwortet`;
+                        
+                        if (count === total && count > 0) {
+                            responseCount.innerHTML += ' <span class="badge badge-success">Alle</span>';
+                        }
+                    }
                 }
             })
             .catch(error => {
-                responsesList.innerHTML = '<div class="text-center text-warning"><i class="fas fa-info-circle"></i> Noch keine Antworten verfügbar</div>';
+                console.warn('Fehler beim Laden der Antworten:', error);
             });
     }
 
-    function displayQuestionResponses(responses) {
+    function displayQuestionResponses(responses, totalTeams) {
         const responsesList = document.getElementById('question-responses-list');
+        if (!responsesList) return;
         
         if (responses.length === 0) {
-            responsesList.innerHTML = '<div class="text-center text-muted"><i class="fas fa-clock"></i> Noch keine Antworten</div>';
+            responsesList.innerHTML = '<div class="text-center text-muted"><i class="fas fa-clock"></i> Warte auf Antworten...</div>';
             return;
         }
         
         let html = '<div class="row">';
-        responses.forEach(response => {
+        responses.forEach((response, index) => {
             const statusIcon = response.is_correct ? '<i class="fas fa-check text-success"></i>' : '<i class="fas fa-times text-danger"></i>';
-            const statusClass = response.is_correct ? 'border-success' : 'border-danger';
+            const statusClass = response.is_correct ? 'correct' : 'incorrect';
+            const isNew = index >= lastResponseCount;
             
             html += `
                 <div class="col-md-6 mb-2">
-                    <div class="card ${statusClass}">
-                        <div class="card-body p-2">
-                            <div class="d-flex justify-content-between align-items-center">
+                    <div class="response-item ${statusClass} ${isNew ? 'new' : ''}">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
                                 <strong>${response.team_name}</strong>
-                                <span>${statusIcon}</span>
+                                <small class="d-block text-muted">${response.answer_preview}</small>
+                                ${response.answered_at ? `<small class="text-muted">${response.answered_at}</small>` : ''}
                             </div>
-                            <small class="text-muted">${response.answer_preview}</small>
+                            <span>${statusIcon}</span>
                         </div>
                     </div>
                 </div>
@@ -715,7 +747,12 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         html += '</div>';
         
+        if (responses.length === totalTeams && totalTeams > 0) {
+            html += '<div class="alert alert-success mt-3 mb-0"><i class="fas fa-check-circle"></i> Alle Teams haben geantwortet!</div>';
+        }
+        
         responsesList.innerHTML = html;
+        lastResponseCount = responses.length;
     }
     
     // Würfel-Funktionalität
@@ -756,8 +793,12 @@ document.addEventListener('DOMContentLoaded', function() {
     
     function resetDiceButton() {
         isRollingDice = false;
-        rollDiceBtn.disabled = false;
-        rollDiceBtn.innerHTML = '<i class="fas fa-dice"></i> Für aktuelles Team würfeln';
+        if (rollDiceBtn) {
+            rollDiceBtn.disabled = false;
+            rollDiceBtn.innerHTML = '<i class="fas fa-dice"></i> Für aktuelles Team würfeln';
+            rollDiceBtn.classList.remove('btn-secondary');
+            rollDiceBtn.classList.add('btn-success');
+        }
     }
     
     function showDiceResult(data) {
@@ -782,36 +823,179 @@ document.addEventListener('DOMContentLoaded', function() {
         fetch("{{ url_for('main.board_status') }}?t=" + new Date().getTime())
             .then(response => response.json())
             .then(data => {
-                if (data.game_session && data.game_session.current_phase === 'DICE_ROLLING') {
-                    const newTeamId = data.game_session.current_team_turn_id;
-                    const currentTeamData = data.teams.find(t => t.id === newTeamId);
+                if (data.game_session) {
+                    const newPhase = data.game_session.current_phase;
                     
-                    if (currentTeamData) {
-                        const currentTurnInfo = document.getElementById('current-turn-info');
-                        if (currentTurnInfo) {
-                            let bonusText = 'Standard';
-                            if (currentTeamData.bonus_dice_sides === 6) bonusText = '1-6';
-                            else if (currentTeamData.bonus_dice_sides === 4) bonusText = '1-4';
-                            else if (currentTeamData.bonus_dice_sides === 2) bonusText = '1-2';
-                            
-                            currentTurnInfo.innerHTML = `
-                                <span class="badge badge-primary" style="font-size: 1.1em;">
-                                    ${currentTeamData.name}
-                                </span>
-                                <small class="d-block mt-1">
-                                    Position: ${currentTeamData.position} | Bonus: ${bonusText}
-                                </small>
-                            `;
+                    // Phase hat sich geändert - Update UI
+                    if (newPhase !== currentPhase) {
+                        currentPhase = newPhase;
+                        updatePhaseDisplay(newPhase);
+                        updateSectionVisibility(newPhase);
+                        
+                        // Question responses polling starten/stoppen
+                        if (newPhase === 'QUESTION_ACTIVE') {
+                            startQuestionResponsesPolling();
+                        } else {
+                            stopQuestionResponsesPolling();
                         }
+                    }
+                    
+                    // Würfel-spezifische Updates
+                    if (newPhase === 'DICE_ROLLING') {
+                        const newTeamId = data.game_session.current_team_turn_id;
+                        updateCurrentTeamDisplay(data.teams, newTeamId);
                         resetDiceButton();
                     }
+                    
+                    // Update current content info
+                    updateContentInfo(data.game_session);
                 }
             })
             .catch(error => console.warn('Status-Update fehlgeschlagen:', error));
     }
     
-    // Auto-Update alle 5 Sekunden
-    setInterval(updateGameStatus, 5000);
+    function updatePhaseDisplay(phase) {
+        const phaseDisplay = document.getElementById('current-phase-display');
+        if (phaseDisplay) {
+            let phaseText = '';
+            switch(phase) {
+                case 'SETUP_MINIGAME':
+                    phaseText = 'Inhalt festlegen';
+                    break;
+                case 'MINIGAME_ANNOUNCED':
+                    phaseText = 'Minispiel angekündigt - Warte auf Platzierungen';
+                    break;
+                case 'QUESTION_ACTIVE':
+                    phaseText = 'Frage läuft - Teams antworten';
+                    break;
+                case 'DICE_ROLLING':
+                    phaseText = 'Würfelrunde aktiv';
+                    break;
+                case 'ROUND_OVER':
+                    phaseText = 'Runde beendet - Nächsten Inhalt festlegen';
+                    break;
+                default:
+                    phaseText = phase.replace('_', ' ').title();
+            }
+            phaseDisplay.textContent = phaseText;
+            phaseDisplay.setAttribute('data-phase', phase);
+        }
+    }
+    
+    function updateSectionVisibility(phase) {
+        // Alle Sektionen ausblenden
+        const sections = [
+            'question-control-section',
+            'dice-control-section', 
+            'content-selection-section',
+            'placement-section'
+        ];
+        
+        sections.forEach(sectionId => {
+            const section = document.getElementById(sectionId);
+            if (section) section.style.display = 'none';
+        });
+        
+        // Richtige Sektion anzeigen
+        let targetSection = null;
+        switch(phase) {
+            case 'QUESTION_ACTIVE':
+                targetSection = 'question-control-section';
+                break;
+            case 'DICE_ROLLING':
+                targetSection = 'dice-control-section';
+                break;
+            case 'SETUP_MINIGAME':
+            case 'ROUND_OVER':
+                targetSection = 'content-selection-section';
+                break;
+            case 'MINIGAME_ANNOUNCED':
+                targetSection = 'placement-section';
+                break;
+        }
+        
+        if (targetSection) {
+            const section = document.getElementById(targetSection);
+            if (section) section.style.display = 'block';
+        }
+    }
+    
+    function updateCurrentTeamDisplay(teams, currentTeamId) {
+        const currentTurnInfo = document.getElementById('current-turn-info');
+        if (!currentTurnInfo) return;
+        
+        if (!currentTeamId) {
+            currentTurnInfo.innerHTML = '<span class="text-muted">Runde beendet</span>';
+            return;
+        }
+        
+        const currentTeam = teams.find(t => t.id === currentTeamId);
+        if (currentTeam) {
+            let bonusText = 'Standard';
+            if (currentTeam.bonus_dice_sides === 6) bonusText = '1-6';
+            else if (currentTeam.bonus_dice_sides === 4) bonusText = '1-4';
+            else if (currentTeam.bonus_dice_sides === 2) bonusText = '1-2';
+            
+            currentTurnInfo.innerHTML = `
+                <span class="badge badge-primary" style="font-size: 1.1em;">
+                    ${currentTeam.name}
+                </span>
+                <small class="d-block mt-1">
+                    Position: ${currentTeam.position} | Bonus: ${bonusText}
+                </small>
+            `;
+        }
+    }
+    
+    function updateContentInfo(gameSession) {
+        const contentInfo = document.getElementById('current-content-info');
+        const minigameName = document.getElementById('current-minigame-name');
+        
+        if (contentInfo) {
+            if (gameSession.current_minigame_name) {
+                const isQuestion = gameSession.current_phase === 'QUESTION_ACTIVE';
+                const icon = isQuestion ? '❓' : '🎮';
+                const type = isQuestion ? 'Frage' : 'Minispiel';
+                
+                contentInfo.innerHTML = `
+                    <p><strong>Aktueller Inhalt:</strong> ${icon} ${type}: ${gameSession.current_minigame_name}</p>
+                    ${gameSession.current_minigame_description ? `<p><em>Beschreibung: ${gameSession.current_minigame_description}</em></p>` : ''}
+                `;
+            } else {
+                contentInfo.innerHTML = '<p>Noch kein Inhalt für diese Runde festgelegt.</p>';
+            }
+        }
+        
+        if (minigameName) {
+            minigameName.textContent = gameSession.current_minigame_name || '';
+        }
+    }
+    
+    function startQuestionResponsesPolling() {
+        if (questionResponsesInterval) clearInterval(questionResponsesInterval);
+        
+        // Sofort laden
+        loadQuestionResponses();
+        
+        // Alle 2 Sekunden aktualisieren
+        questionResponsesInterval = setInterval(loadQuestionResponses, 2000);
+    }
+    
+    function stopQuestionResponsesPolling() {
+        if (questionResponsesInterval) {
+            clearInterval(questionResponsesInterval);
+            questionResponsesInterval = null;
+        }
+        lastResponseCount = 0;
+    }
+    
+    // Initial setup basierend auf aktueller Phase
+    if (currentPhase === 'QUESTION_ACTIVE') {
+        startQuestionResponsesPolling();
+    }
+    
+    // Auto-Update alle 3 Sekunden (häufiger für bessere Responsivität)
+    setInterval(updateGameStatus, 3000);
 });
 </script>
 {% endblock %}
