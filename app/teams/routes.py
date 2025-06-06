@@ -1,8 +1,8 @@
 from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify
 from flask_login import login_user, logout_user, login_required, current_user
-from app.models import Team, db, Admin, GameSession, GameRound, QuizResponse
-from app.forms import TeamLoginForm, QuizAnswerForm
-from app.admin.minigame_utils import get_quiz_from_folder
+from app.models import Team, db, Admin, GameSession, GameRound, QuestionResponse
+from app.forms import TeamLoginForm, QuestionAnswerForm
+from app.admin.minigame_utils import get_question_from_folder
 import json
 from datetime import datetime
 
@@ -52,30 +52,22 @@ def _get_dashboard_data(team_user):
     # Aktive Spielrunde
     active_round = GameRound.get_active_round()
     
-    # Quiz-Daten falls aktiv
-    current_quiz_data = None
-    quiz_responses = []
-    quiz_progress = None
+    # Fragen-Daten falls aktiv
+    current_question_data = None
+    question_response = None
+    question_answered = False
     
-    if active_session and active_session.current_quiz_id and active_round and active_round.minigame_folder:
-        current_quiz_data = get_quiz_from_folder(active_round.minigame_folder.folder_path, active_session.current_quiz_id)
-        if current_quiz_data:
-            # Hole bereits gegebene Antworten dieses Teams
-            quiz_responses = QuizResponse.query.filter_by(
+    if active_session and active_session.current_question_id and active_round and active_round.minigame_folder:
+        current_question_data = get_question_from_folder(active_round.minigame_folder.folder_path, active_session.current_question_id)
+        if current_question_data:
+            # Hole bereits gegebene Antwort dieses Teams für diese Frage
+            question_response = QuestionResponse.query.filter_by(
                 team_id=team_user.id,
                 game_session_id=active_session.id,
-                quiz_id=active_session.current_quiz_id
-            ).all()
+                question_id=active_session.current_question_id
+            ).first()
             
-            # Berechne Quiz-Fortschritt
-            total_questions = len(current_quiz_data.get('questions', []))
-            answered_questions = len(quiz_responses)
-            quiz_progress = {
-                'total': total_questions,
-                'answered': answered_questions,
-                'percentage': (answered_questions / total_questions * 100) if total_questions > 0 else 0,
-                'completed': answered_questions >= total_questions
-            }
+            question_answered = question_response is not None
     
     # Spielbrett-Informationen
     max_board_fields = 73
@@ -126,24 +118,24 @@ def _get_dashboard_data(team_user):
     # Spielstatus-Text generieren
     if active_session:
         if active_session.current_phase == 'SETUP_MINIGAME':
-            game_status = "Admin wählt nächstes Minispiel aus"
+            game_status = "Admin wählt nächsten Inhalt aus"
             game_status_class = "warning"
         elif active_session.current_phase == 'MINIGAME_ANNOUNCED':
             game_status = "Minispiel wurde angekündigt - Warte auf Platzierungen"
             game_status_class = "info"
-        elif active_session.current_phase == 'QUIZ_ACTIVE':
-            if current_quiz_data:
-                if quiz_progress and quiz_progress['completed']:
-                    game_status = f"Quiz '{current_quiz_data['name']}' abgeschlossen - Warte auf andere Teams"
+        elif active_session.current_phase == 'QUESTION_ACTIVE':
+            if current_question_data:
+                if question_answered:
+                    game_status = f"Frage '{current_question_data['name']}' beantwortet - Warte auf andere Teams"
                     game_status_class = "success"
                 else:
-                    game_status = f"Quiz '{current_quiz_data['name']}' läuft - Beantworte die Fragen!"
+                    game_status = f"Frage '{current_question_data['name']}' läuft - Beantworte die Frage!"
                     game_status_class = "primary"
             else:
-                game_status = "Quiz läuft"
+                game_status = "Frage läuft"
                 game_status_class = "primary"
-        elif active_session.current_phase == 'QUIZ_COMPLETED':
-            game_status = "Quiz beendet - Warte auf Platzierungen"
+        elif active_session.current_phase == 'QUESTION_COMPLETED':
+            game_status = "Frage beendet - Warte auf Platzierungen"
             game_status_class = "info"
         elif active_session.current_phase == 'DICE_ROLLING':
             if current_team_turn_name:
@@ -157,7 +149,7 @@ def _get_dashboard_data(team_user):
                 game_status = "Würfelrunde läuft"
                 game_status_class = "primary"
         elif active_session.current_phase == 'ROUND_OVER':
-            game_status = "Runde beendet - Nächstes Minispiel wird vorbereitet"
+            game_status = "Runde beendet - Nächster Inhalt wird vorbereitet"
             game_status_class = "secondary"
         else:
             game_status = f"Spielphase: {active_session.current_phase}"
@@ -183,10 +175,10 @@ def _get_dashboard_data(team_user):
         'game_status': game_status,
         'game_status_class': game_status_class,
         'title': f'Dashboard Team {team_user.name}',
-        # Quiz-Daten
-        'current_quiz_data': current_quiz_data,
-        'quiz_responses': quiz_responses,
-        'quiz_progress': quiz_progress
+        # Fragen-Daten
+        'current_question_data': current_question_data,
+        'question_response': question_response,
+        'question_answered': question_answered
     }
 
 @teams_bp.route('/dashboard')
@@ -234,16 +226,16 @@ def dashboard_status_api():
                     'is_current_user': team_name == current_user.name
                 })
         
-        # Quiz-Daten für JSON
-        quiz_data = None
-        if data['current_quiz_data']:
-            quiz_data = {
-                'id': data['current_quiz_data']['id'],
-                'name': data['current_quiz_data']['name'],
-                'description': data['current_quiz_data'].get('description', ''),
-                'time_limit': data['current_quiz_data'].get('time_limit', 0),
-                'questions_count': len(data['current_quiz_data'].get('questions', [])),
-                'progress': data['quiz_progress']
+        # Fragen-Daten für JSON
+        question_data = None
+        if data['current_question_data']:
+            question_data = {
+                'id': data['current_question_data']['id'],
+                'name': data['current_question_data']['name'],
+                'description': data['current_question_data'].get('description', ''),
+                'question_type': data['current_question_data'].get('question_type', 'multiple_choice'),
+                'points': data['current_question_data'].get('points', 10),
+                'answered': data['question_answered']
             }
         
         return {
@@ -257,7 +249,7 @@ def dashboard_status_api():
                 'current_minigame_name': data['active_session'].current_minigame_name if data['active_session'] else None,
                 'current_minigame_description': data['active_session'].current_minigame_description if data['active_session'] else None,
                 'dice_roll_order': dice_order_data,
-                'quiz_data': quiz_data,
+                'question_data': question_data,
                 'current_user': {
                     'id': current_user.id,
                     'name': current_user.name,
@@ -279,88 +271,66 @@ def dashboard_status_api():
     except Exception as e:
         return {'error': str(e)}, 500
 
-# NEUE QUIZ-ROUTEN
+# NEUE FRAGEN-ROUTEN
 
-@teams_bp.route('/quiz')
+@teams_bp.route('/question')
 @login_required
-def quiz_interface():
-    """Quiz-Interface für Teams"""
+def question_interface():
+    """Fragen-Interface für Teams"""
     if not isinstance(current_user, Team):
-        flash('Nur eingeloggte Teams können Quizzes bearbeiten.', 'warning')
+        flash('Nur eingeloggte Teams können Fragen bearbeiten.', 'warning')
         return redirect(url_for('teams.team_login'))
     
-    # Hole aktive Session und Quiz-Daten
+    # Hole aktive Session und Fragen-Daten
     active_session = GameSession.query.filter_by(is_active=True).first()
-    if not active_session or not active_session.current_quiz_id:
-        flash('Derzeit ist kein Quiz aktiv.', 'info')
+    if not active_session or not active_session.current_question_id:
+        flash('Derzeit ist keine Frage aktiv.', 'info')
         return redirect(url_for('teams.team_dashboard'))
     
-    if active_session.current_phase != 'QUIZ_ACTIVE':
-        flash('Das Quiz ist derzeit nicht aktiv.', 'warning')
+    if active_session.current_phase != 'QUESTION_ACTIVE':
+        flash('Die Frage ist derzeit nicht aktiv.', 'warning')
         return redirect(url_for('teams.team_dashboard'))
     
-    # Hole Quiz-Daten
+    # Hole Fragen-Daten
     active_round = GameRound.get_active_round()
     if not active_round or not active_round.minigame_folder:
         flash('Keine aktive Spielrunde gefunden.', 'danger')
         return redirect(url_for('teams.team_dashboard'))
     
-    quiz_data = get_quiz_from_folder(active_round.minigame_folder.folder_path, active_session.current_quiz_id)
-    if not quiz_data:
-        flash('Quiz-Daten konnten nicht geladen werden.', 'danger')
+    question_data = get_question_from_folder(active_round.minigame_folder.folder_path, active_session.current_question_id)
+    if not question_data:
+        flash('Fragen-Daten konnten nicht geladen werden.', 'danger')
         return redirect(url_for('teams.team_dashboard'))
     
-    # Prüfe ob Team bereits alle Fragen beantwortet hat
-    existing_responses = QuizResponse.query.filter_by(
+    # Prüfe ob Team bereits geantwortet hat
+    existing_response = QuestionResponse.query.filter_by(
         team_id=current_user.id,
         game_session_id=active_session.id,
-        quiz_id=active_session.current_quiz_id
-    ).all()
+        question_id=active_session.current_question_id
+    ).first()
     
-    answered_question_ids = [r.question_id for r in existing_responses]
-    questions = quiz_data.get('questions', [])
-    
-    # Finde die nächste unbeantwortete Frage
-    current_question = None
-    question_index = 0
-    
-    for i, question in enumerate(questions):
-        if question['id'] not in answered_question_ids:
-            current_question = question
-            question_index = i
-            break
-    
-    if not current_question:
-        flash('Du hast bereits alle Fragen beantwortet!', 'success')
+    if existing_response:
+        flash('Du hast diese Frage bereits beantwortet!', 'success')
         return redirect(url_for('teams.team_dashboard'))
     
-    # Quiz-Zeitlimit prüfen
-    quiz_time_expired = False
-    time_remaining = None
+    # Erstelle Form
+    form = QuestionAnswerForm()
+    form.question_id.data = active_session.current_question_id
     
-    if quiz_data.get('time_limit', 0) > 0 and active_session.quiz_started_at:
-        from datetime import timedelta
-        elapsed_time = datetime.utcnow() - active_session.quiz_started_at
-        time_remaining = quiz_data['time_limit'] - elapsed_time.total_seconds()
-        
-        if time_remaining <= 0:
-            quiz_time_expired = True
-            flash('Das Zeitlimit für dieses Quiz ist abgelaufen.', 'warning')
-            return redirect(url_for('teams.team_dashboard'))
+    # Setze Choices für Multiple Choice
+    if question_data.get('question_type') == 'multiple_choice':
+        options = question_data.get('options', [])
+        form.selected_option.choices = [(i, option) for i, option in enumerate(options)]
     
-    return render_template('quiz_interface.html',
-                         quiz_data=quiz_data,
-                         current_question=current_question,
-                         question_index=question_index,
-                         total_questions=len(questions),
-                         answered_questions=len(existing_responses),
-                         time_remaining=time_remaining,
+    return render_template('question_interface.html',
+                         question_data=question_data,
+                         form=form,
                          active_session=active_session)
 
-@teams_bp.route('/quiz/answer', methods=['POST'])
+@teams_bp.route('/question/answer', methods=['POST'])
 @login_required
-def submit_quiz_answer():
-    """Verarbeite Quiz-Antwort eines Teams"""
+def submit_question_answer():
+    """Verarbeite Fragen-Antwort eines Teams"""
     if not isinstance(current_user, Team):
         return jsonify({'success': False, 'error': 'Unauthorized'}), 403
     
@@ -371,61 +341,42 @@ def submit_quiz_answer():
             return jsonify({'success': False, 'error': 'Keine Daten empfangen'}), 400
         
         question_id = data.get('question_id')
-        quiz_id = data.get('quiz_id')
         answer_type = data.get('answer_type')
         
-        if not all([question_id, quiz_id, answer_type]):
+        if not all([question_id, answer_type]):
             return jsonify({'success': False, 'error': 'Fehlende erforderliche Daten'}), 400
         
         # Hole aktive Session
         active_session = GameSession.query.filter_by(is_active=True).first()
-        if not active_session or active_session.current_quiz_id != quiz_id:
-            return jsonify({'success': False, 'error': 'Kein aktives Quiz gefunden'}), 404
+        if not active_session or active_session.current_question_id != question_id:
+            return jsonify({'success': False, 'error': 'Keine aktive Frage gefunden'}), 404
         
-        if active_session.current_phase != 'QUIZ_ACTIVE':
-            return jsonify({'success': False, 'error': 'Quiz ist nicht aktiv'}), 403
+        if active_session.current_phase != 'QUESTION_ACTIVE':
+            return jsonify({'success': False, 'error': 'Frage ist nicht aktiv'}), 403
         
         # Prüfe ob bereits beantwortet
-        existing_response = QuizResponse.query.filter_by(
+        existing_response = QuestionResponse.query.filter_by(
             team_id=current_user.id,
             game_session_id=active_session.id,
-            quiz_id=quiz_id,
             question_id=question_id
         ).first()
         
         if existing_response:
             return jsonify({'success': False, 'error': 'Frage bereits beantwortet'}), 409
         
-        # Hole Quiz-Daten
+        # Hole Fragen-Daten
         active_round = GameRound.get_active_round()
         if not active_round or not active_round.minigame_folder:
             return jsonify({'success': False, 'error': 'Keine aktive Spielrunde'}), 404
         
-        quiz_data = get_quiz_from_folder(active_round.minigame_folder.folder_path, quiz_id)
-        if not quiz_data:
-            return jsonify({'success': False, 'error': 'Quiz-Daten nicht gefunden'}), 404
-        
-        # Finde die Frage
-        question = None
-        for q in quiz_data.get('questions', []):
-            if q['id'] == question_id:
-                question = q
-                break
-        
-        if not question:
-            return jsonify({'success': False, 'error': 'Frage nicht gefunden'}), 404
-        
-        # Prüfe Zeitlimit
-        if quiz_data.get('time_limit', 0) > 0 and active_session.quiz_started_at:
-            elapsed_time = datetime.utcnow() - active_session.quiz_started_at
-            if elapsed_time.total_seconds() > quiz_data['time_limit']:
-                return jsonify({'success': False, 'error': 'Zeitlimit überschritten'}), 403
+        question_data = get_question_from_folder(active_round.minigame_folder.folder_path, question_id)
+        if not question_data:
+            return jsonify({'success': False, 'error': 'Fragen-Daten nicht gefunden'}), 404
         
         # Erstelle Antwort-Objekt
-        response = QuizResponse(
+        response = QuestionResponse(
             team_id=current_user.id,
             game_session_id=active_session.id,
-            quiz_id=quiz_id,
             question_id=question_id
         )
         
@@ -439,20 +390,20 @@ def submit_quiz_answer():
                 response.selected_option = int(selected_option)
                 
                 # Prüfe Korrektheit
-                correct_option = question.get('correct_option', 0)
+                correct_option = question_data.get('correct_option', 0)
                 if selected_option == correct_option:
                     is_correct = True
-                    points_earned = question.get('points', 10)
+                    points_earned = question_data.get('points', 10)
         
         elif answer_type == 'text_input':
             answer_text = data.get('answer_text', '').strip()
             response.answer_text = answer_text
             
             # Prüfe Korrektheit (case-insensitive)
-            correct_text = question.get('correct_text', '').strip().lower()
+            correct_text = question_data.get('correct_text', '').strip().lower()
             if answer_text.lower() == correct_text:
                 is_correct = True
-                points_earned = question.get('points', 10)
+                points_earned = question_data.get('points', 10)
         
         else:
             return jsonify({'success': False, 'error': 'Ungültiger Antworttyp'}), 400
@@ -464,55 +415,23 @@ def submit_quiz_answer():
         db.session.add(response)
         db.session.commit()
         
-        # Prüfe ob alle Teams alle Fragen beantwortet haben
+        # Prüfe ob alle Teams geantwortet haben
         total_teams = Team.query.count()
-        total_questions = len(quiz_data.get('questions', []))
-        total_expected_responses = total_teams * total_questions
-        
-        total_actual_responses = QuizResponse.query.filter_by(
+        total_responses = QuestionResponse.query.filter_by(
             game_session_id=active_session.id,
-            quiz_id=quiz_id
+            question_id=question_id
         ).count()
         
-        quiz_completed = total_actual_responses >= total_expected_responses
-        
-        # Berechne Fortschritt für dieses Team
-        team_responses = QuizResponse.query.filter_by(
-            team_id=current_user.id,
-            game_session_id=active_session.id,
-            quiz_id=quiz_id
-        ).count()
-        
-        team_completed = team_responses >= total_questions
-        
-        # Bestimme nächste Frage für dieses Team
-        answered_question_ids = [r.question_id for r in QuizResponse.query.filter_by(
-            team_id=current_user.id,
-            game_session_id=active_session.id,
-            quiz_id=quiz_id
-        ).all()]
-        
-        next_question = None
-        next_question_index = None
-        
-        for i, q in enumerate(quiz_data.get('questions', [])):
-            if q['id'] not in answered_question_ids:
-                next_question = q
-                next_question_index = i
-                break
+        all_teams_answered = total_responses >= total_teams
         
         return jsonify({
             'success': True,
             'is_correct': is_correct,
             'points_earned': points_earned,
-            'team_completed': team_completed,
-            'quiz_completed': quiz_completed,
-            'next_question': next_question,
-            'next_question_index': next_question_index,
-            'progress': {
-                'answered': team_responses,
-                'total': total_questions,
-                'percentage': (team_responses / total_questions * 100) if total_questions > 0 else 100
+            'all_teams_answered': all_teams_answered,
+            'feedback': {
+                'message': 'Richtig!' if is_correct else 'Leider falsch.',
+                'correct_answer': question_data.get('correct_text') if answer_type == 'text_input' else question_data.get('options', [])[question_data.get('correct_option', 0)] if answer_type == 'multiple_choice' else None
             }
         })
         
@@ -520,78 +439,65 @@ def submit_quiz_answer():
         db.session.rollback()
         return jsonify({'success': False, 'error': f'Serverfehler: {str(e)}'}), 500
 
-@teams_bp.route('/quiz/status')
+@teams_bp.route('/question/status')
 @login_required
-def quiz_status():
-    """API für Quiz-Status Updates"""
+def question_status():
+    """API für Fragen-Status Updates"""
     if not isinstance(current_user, Team):
         return jsonify({'error': 'Unauthorized'}), 403
     
     try:
         active_session = GameSession.query.filter_by(is_active=True).first()
-        if not active_session or not active_session.current_quiz_id:
+        if not active_session or not active_session.current_question_id:
             return jsonify({
-                'quiz_active': False,
-                'message': 'Kein aktives Quiz'
+                'question_active': False,
+                'message': 'Keine aktive Frage'
             })
         
-        if active_session.current_phase != 'QUIZ_ACTIVE':
+        if active_session.current_phase != 'QUESTION_ACTIVE':
             return jsonify({
-                'quiz_active': False,
-                'message': 'Quiz nicht in aktiver Phase'
+                'question_active': False,
+                'message': 'Frage nicht in aktiver Phase'
             })
         
-        # Hole Quiz-Daten
+        # Hole Fragen-Daten
         active_round = GameRound.get_active_round()
         if not active_round or not active_round.minigame_folder:
             return jsonify({
-                'quiz_active': False,
+                'question_active': False,
                 'message': 'Keine aktive Spielrunde'
             })
         
-        quiz_data = get_quiz_from_folder(active_round.minigame_folder.folder_path, active_session.current_quiz_id)
-        if not quiz_data:
+        question_data = get_question_from_folder(active_round.minigame_folder.folder_path, active_session.current_question_id)
+        if not question_data:
             return jsonify({
-                'quiz_active': False,
-                'message': 'Quiz-Daten nicht gefunden'
+                'question_active': False,
+                'message': 'Fragen-Daten nicht gefunden'
             })
         
-        # Berechne verbleibende Zeit
-        time_remaining = None
-        time_expired = False
-        
-        if quiz_data.get('time_limit', 0) > 0 and active_session.quiz_started_at:
-            elapsed_time = datetime.utcnow() - active_session.quiz_started_at
-            time_remaining = max(0, quiz_data['time_limit'] - elapsed_time.total_seconds())
-            time_expired = time_remaining <= 0
-        
-        # Hole Team-Fortschritt
-        team_responses = QuizResponse.query.filter_by(
+        # Hole Team-Antwort
+        team_response = QuestionResponse.query.filter_by(
             team_id=current_user.id,
             game_session_id=active_session.id,
-            quiz_id=active_session.current_quiz_id
-        ).count()
+            question_id=active_session.current_question_id
+        ).first()
         
-        total_questions = len(quiz_data.get('questions', []))
-        team_completed = team_responses >= total_questions
+        team_answered = team_response is not None
         
         return jsonify({
-            'quiz_active': True,
-            'quiz_data': {
-                'id': quiz_data['id'],
-                'name': quiz_data['name'],
-                'description': quiz_data.get('description', ''),
-                'time_limit': quiz_data.get('time_limit', 0),
-                'questions_count': total_questions
+            'question_active': True,
+            'question_data': {
+                'id': question_data['id'],
+                'name': question_data['name'],
+                'description': question_data.get('description', ''),
+                'question_type': question_data.get('question_type', 'multiple_choice'),
+                'points': question_data.get('points', 10)
             },
-            'time_remaining': time_remaining,
-            'time_expired': time_expired,
-            'team_progress': {
-                'answered': team_responses,
-                'total': total_questions,
-                'completed': team_completed,
-                'percentage': (team_responses / total_questions * 100) if total_questions > 0 else 100
-            }
+            'team_answered': team_answered,
+            'team_response': {
+                'is_correct': team_response.is_correct if team_response else None,
+                'points_earned': team_response.points_earned if team_response else 0
+            } if team_response else None
         })
         
     except Exception as e:

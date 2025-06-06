@@ -102,17 +102,17 @@
                 <p><strong>Phase:</strong>
                     <span data-phase="{{ active_session.current_phase }}">
                         {% if active_session.current_phase == 'SETUP_MINIGAME' %}
-                            Minispiel/Quiz festlegen
+                            Inhalt festlegen
                         {% elif active_session.current_phase == 'MINIGAME_ANNOUNCED' %}
                             Minispiel angekündigt - Warte auf Platzierungen
-                        {% elif active_session.current_phase == 'QUIZ_ACTIVE' %}
-                            Quiz läuft - Teams antworten
-                        {% elif active_session.current_phase == 'QUIZ_COMPLETED' %}
-                            Quiz beendet - Platzierungen eingeben
+                        {% elif active_session.current_phase == 'QUESTION_ACTIVE' %}
+                            Frage läuft - Teams antworten
+                        {% elif active_session.current_phase == 'QUESTION_COMPLETED' %}
+                            Frage beendet - Platzierungen eingeben
                         {% elif active_session.current_phase == 'DICE_ROLLING' %}
                             Würfelrunde aktiv
                         {% elif active_session.current_phase == 'ROUND_OVER' %}
-                            Runde beendet - Nächstes Minispiel festlegen
+                            Runde beendet - Nächsten Inhalt festlegen
                         {% else %}
                             {{ active_session.current_phase | replace('_', ' ') | title }}
                         {% endif %}
@@ -121,11 +121,8 @@
 
                 {% if active_session.current_minigame_name %}
                     <p><strong>Aktueller Inhalt:</strong> 
-                        {% if active_session.current_quiz_id %}
-                            ❓ Quiz: {{ active_session.current_minigame_name }}
-                            {% if active_session.quiz_time_limit and active_session.quiz_time_limit > 0 %}
-                                <small class="text-muted">({{ active_session.quiz_time_limit }}s)</small>
-                            {% endif %}
+                        {% if active_session.current_question_id %}
+                            ❓ Frage: {{ active_session.current_minigame_name }}
                         {% else %}
                             🎮 {{ active_session.current_minigame_name }}
                         {% endif %}
@@ -149,50 +146,53 @@
 
                 <hr>
 
-                <!-- Quiz-Status und Kontrollen -->
-                {% if active_session.current_phase == 'QUIZ_ACTIVE' and active_session.current_quiz_id %}
-                    <div class="quiz-control-section p-4 mb-4 border rounded bg-light">
-                        <h4 class="text-success"><i class="fas fa-question-circle"></i> Quiz läuft</h4>
+                <!-- Fragen-Status und Kontrollen -->
+                {% if active_session.current_phase == 'QUESTION_ACTIVE' and active_session.current_question_id %}
+                    <div class="question-control-section p-4 mb-4 border rounded bg-light">
+                        <h4 class="text-primary"><i class="fas fa-question-circle"></i> Frage läuft</h4>
                         
                         <div class="row">
                             <div class="col-md-6">
-                                <div class="quiz-info p-3 bg-white border rounded">
-                                    <h6><strong>Quiz-Status:</strong></h6>
+                                <div class="question-info p-3 bg-white border rounded">
+                                    <h6><strong>Fragen-Status:</strong></h6>
                                     <p class="mb-2">
-                                        <span class="badge badge-success">Aktiv</span>
-                                        {% if active_session.quiz_started_at %}
-                                            <small class="d-block mt-1">
-                                                Gestartet: {{ active_session.quiz_started_at.strftime('%H:%M:%S') }}
-                                            </small>
-                                        {% endif %}
+                                        <span class="badge badge-primary">Aktiv</span>
+                                        <small class="d-block mt-1">
+                                            Teams können antworten
+                                        </small>
                                     </p>
                                     
-                                    {% if active_session.quiz_time_limit and active_session.quiz_time_limit > 0 %}
-                                        <div class="quiz-timer">
-                                            <small class="text-muted">Zeitlimit:</small>
-                                            <div class="progress mt-1">
-                                                <div class="progress-bar bg-warning" id="quiz-timer-bar" style="width: 100%"></div>
-                                            </div>
-                                            <small id="quiz-timer-text">{{ active_session.quiz_time_limit }}s verbleibend</small>
-                                        </div>
-                                    {% endif %}
+                                    <div class="question-details">
+                                        <small class="text-muted">Typ:</small>
+                                        <span class="badge badge-info ml-1">Einzelfrage</span>
+                                    </div>
                                 </div>
                             </div>
                             
                             <div class="col-md-6">
-                                <div class="quiz-actions">
-                                    <a href="{{ url_for('admin.quiz_results', quiz_id=active_session.current_quiz_id) }}" 
-                                       class="btn btn-info btn-lg mb-2" target="_blank">
-                                        <i class="fas fa-chart-bar"></i> Live-Ergebnisse anzeigen
-                                    </a>
+                                <div class="question-actions">
+                                    <button type="button" class="btn btn-info btn-lg mb-2" onclick="showQuestionResponses()">
+                                        <i class="fas fa-eye"></i> Antworten anzeigen
+                                    </button>
                                     
-                                    <form method="POST" action="{{ url_for('admin.end_quiz') }}" class="d-inline">
+                                    <form method="POST" action="{{ url_for('admin.end_question') }}" class="d-inline">
                                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                         <button type="submit" class="btn btn-warning btn-lg" 
-                                                onclick="return confirm('Quiz beenden und zu Platzierungen übergehen?')">
-                                            <i class="fas fa-stop-circle"></i> Quiz beenden
+                                                onclick="return confirm('Frage beenden und zu Platzierungen übergehen?')">
+                                            <i class="fas fa-stop-circle"></i> Frage beenden
                                         </button>
                                     </form>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Antworten-Übersicht -->
+                        <div id="question-responses-container" style="display: none;" class="mt-3">
+                            <h6>Aktuelle Team-Antworten:</h6>
+                            <div id="question-responses-list" class="border rounded p-3 bg-white">
+                                <!-- Wird dynamisch gefüllt -->
+                                <div class="text-center text-muted">
+                                    <i class="fas fa-spinner fa-spin"></i> Lade Antworten...
                                 </div>
                             </div>
                         </div>
@@ -287,7 +287,7 @@
                     </div>
                 {% endif %}
 
-                <!-- ERWEITERTE MINIGAME/QUIZ-AUSWAHL -->
+                <!-- ERWEITERTE MINIGAME/FRAGEN-AUSWAHL -->
                 {% if active_session.current_phase == 'SETUP_MINIGAME' or active_session.current_phase == 'ROUND_OVER' %}
                     <h4>Nächsten Inhalt festlegen</h4>
                     <form method="POST" action="{{ url_for('admin.set_minigame') }}" class="mb-3 p-3 border rounded bg-light" id="minigame-form">
@@ -342,7 +342,7 @@
                                 <div class="alert alert-success">
                                     <i class="fas fa-dice"></i> 
                                     <strong>Zufallsauswahl aus Ordner "{{ active_round.minigame_folder.name }}"</strong><br>
-                                    <small>{{ active_round.minigame_folder.get_minigames_count() }} Inhalte verfügbar (Spiele & Quizzes)</small>
+                                    <small>{{ active_round.minigame_folder.get_minigames_count() }} Inhalte verfügbar (Spiele & Fragen)</small>
                                 </div>
                             {% else %}
                                 <div class="alert alert-warning">
@@ -360,7 +360,7 @@
                                     {{ set_minigame_form.selected_folder_minigame_id(class="form-control") }}
                                     <small class="form-text text-muted">
                                         Aus Ordner: <strong>{{ active_round.minigame_folder.name }}</strong><br>
-                                        🎮 = Minispiel, ❓ = Quiz
+                                        🎮 = Minispiel, ❓ = Frage
                                     </small>
                                 </div>
                             {% else %}
@@ -375,7 +375,7 @@
                     </form>
                 {% endif %}
 
-                {% if active_session.current_phase == 'MINIGAME_ANNOUNCED' or active_session.current_phase == 'QUIZ_COMPLETED' %}
+                {% if active_session.current_phase == 'MINIGAME_ANNOUNCED' or active_session.current_phase == 'QUESTION_COMPLETED' %}
                     <h4>Platzierungen für "{{ active_session.current_minigame_name }}" eingeben</h4>
                     {% if teams %}
                         <form method="POST" action="{{ url_for('admin.record_placements') }}" class="mb-3 p-3 border rounded bg-light" id="placements-form">
@@ -436,7 +436,7 @@
                         </button>
                     </div>
                     <div class="modal-body">
-                        <p><strong>Achtung!</strong> Diese Aktion löscht die gesamte Spielhistorie, alle Events, Quiz-Antworten, die aktuelle Spielsitzung und setzt die Positionen aller Teams auf 0 zurück.</p>
+                        <p><strong>Achtung!</strong> Diese Aktion löscht die gesamte Spielhistorie, alle Events, Fragen-Antworten, die aktuelle Spielsitzung und setzt die Positionen aller Teams auf 0 zurück.</p>
                         <p>Bitte gib dein Admin-Passwort ein, um fortzufahren.</p>
                         <div class="form-group">
                             {{ confirm_reset_form.password.label(class="form-control-label") }}
@@ -601,38 +601,70 @@
             }
         }
 
-        // ===== QUIZ TIMER FUNKTIONALITÄT =====
-        const quizTimerBar = document.getElementById('quiz-timer-bar');
-        const quizTimerText = document.getElementById('quiz-timer-text');
-        
-        if (quizTimerBar && quizTimerText) {
-            const timeLimit = {{ active_session.quiz_time_limit if active_session and active_session.quiz_time_limit else 0 }};
-            const startTime = {{ ('new Date("' + active_session.quiz_started_at.isoformat() + 'Z").getTime()') if active_session and active_session.quiz_started_at else 0 }};
+        // ===== FRAGEN-ANTWORTEN ANZEIGEN =====
+        window.showQuestionResponses = function() {
+            const container = document.getElementById('question-responses-container');
+            const responsesList = document.getElementById('question-responses-list');
             
-            if (timeLimit > 0 && startTime > 0) {
-                function updateTimer() {
-                    const now = new Date().getTime();
-                    const elapsed = Math.floor((now - startTime) / 1000);
-                    const remaining = Math.max(0, timeLimit - elapsed);
-                    const percentage = (remaining / timeLimit) * 100;
-                    
-                    quizTimerBar.style.width = percentage + '%';
-                    quizTimerText.textContent = remaining + 's verbleibend';
-                    
-                    if (remaining <= 0) {
-                        quizTimerBar.classList.remove('bg-warning');
-                        quizTimerBar.classList.add('bg-danger');
-                        quizTimerText.textContent = 'Zeit abgelaufen!';
-                        clearInterval(timerInterval);
-                    } else if (remaining <= timeLimit * 0.2) {
-                        quizTimerBar.classList.remove('bg-warning');
-                        quizTimerBar.classList.add('bg-danger');
-                    }
-                }
-                
-                updateTimer();
-                const timerInterval = setInterval(updateTimer, 1000);
+            if (container.style.display === 'none') {
+                container.style.display = 'block';
+                loadQuestionResponses();
+            } else {
+                container.style.display = 'none';
             }
+        };
+
+        function loadQuestionResponses() {
+            const responsesList = document.getElementById('question-responses-list');
+            responsesList.innerHTML = '<div class="text-center text-muted"><i class="fas fa-spinner fa-spin"></i> Lade Antworten...</div>';
+            
+            // Simuliere API-Aufruf für Fragen-Antworten
+            // In der echten Implementierung würde hier ein API-Aufruf an eine neue Route gemacht
+            fetch('/admin/api/question-responses')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        displayQuestionResponses(data.responses);
+                    } else {
+                        responsesList.innerHTML = '<div class="text-center text-danger"><i class="fas fa-exclamation-triangle"></i> Fehler beim Laden der Antworten</div>';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading responses:', error);
+                    responsesList.innerHTML = '<div class="text-center text-warning"><i class="fas fa-info-circle"></i> Noch keine Antworten verfügbar</div>';
+                });
+        }
+
+        function displayQuestionResponses(responses) {
+            const responsesList = document.getElementById('question-responses-list');
+            
+            if (responses.length === 0) {
+                responsesList.innerHTML = '<div class="text-center text-muted"><i class="fas fa-clock"></i> Noch keine Antworten eingegangen</div>';
+                return;
+            }
+            
+            let html = '<div class="row">';
+            responses.forEach(response => {
+                const statusIcon = response.is_correct ? '<i class="fas fa-check text-success"></i>' : '<i class="fas fa-times text-danger"></i>';
+                const statusClass = response.is_correct ? 'border-success' : 'border-danger';
+                
+                html += `
+                    <div class="col-md-6 mb-2">
+                        <div class="card ${statusClass}">
+                            <div class="card-body p-2">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <strong>${response.team_name}</strong>
+                                    <span>${statusIcon} ${response.points_earned} Punkte</span>
+                                </div>
+                                <small class="text-muted">${response.answer_preview}</small>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            html += '</div>';
+            
+            responsesList.innerHTML = html;
         }
 
         // ===== EXISTIERENDE FUNKTIONALITÄT (unverändert) =====
@@ -835,9 +867,9 @@
         border-left: 4px solid #28a745;
     }
     
-    .quiz-control-section {
+    .question-control-section {
         background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-        border-left: 4px solid #28a745;
+        border-left: 4px solid #007bff;
     }
     
     .current-turn-display {
@@ -845,7 +877,7 @@
         box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     }
     
-    .quiz-info {
+    .question-info {
         background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
         box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     }
@@ -933,8 +965,16 @@
         background-color: #007bff;
     }
 
-    .quiz-timer .progress {
-        height: 8px;
+    #question-responses-container {
+        border: 1px solid #dee2e6;
+        border-radius: 0.375rem;
+        background-color: #f8f9fa;
+        padding: 1rem;
+    }
+
+    .question-actions .btn {
+        margin-right: 0.5rem;
+        margin-bottom: 0.5rem;
     }
     </style>
 {% endblock %}

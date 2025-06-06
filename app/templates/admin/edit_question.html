@@ -1,0 +1,478 @@
+{% extends "base.html" %}
+
+{% block title %}Frage bearbeiten: {{ question.name }} - Admin Dashboard{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-10">
+            <div class="card">
+                <div class="card-header bg-warning text-dark">
+                    <h3 class="mb-0">
+                        <i class="fas fa-edit"></i> Frage bearbeiten: {{ question.name }}
+                    </h3>
+                    <p class="mb-0 mt-2">
+                        <i class="fas fa-folder"></i> Ordner: <strong>{{ folder.name }}</strong>
+                    </p>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('admin.edit_question', folder_id=folder.id, question_id=question.id) }}" novalidate>
+                        {{ form.hidden_tag() }}
+                        
+                        <!-- Grundlegende Informationen -->
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    {{ form.name.label(class="form-control-label") }}
+                                    {{ form.name(class="form-control" + (" is-invalid" if form.name.errors else "")) }}
+                                    {% if form.name.errors %}
+                                        <div class="invalid-feedback">
+                                            {% for error in form.name.errors %}
+                                                <span>{{ error }}</span>
+                                            {% endfor %}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    {{ form.points.label(class="form-control-label") }}
+                                    {{ form.points(class="form-control" + (" is-invalid" if form.points.errors else "")) }}
+                                    {% if form.points.errors %}
+                                        <div class="invalid-feedback">
+                                            {% for error in form.points.errors %}
+                                                <span>{{ error }}</span>
+                                            {% endfor %}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            {{ form.description.label(class="form-control-label") }}
+                            {{ form.description(class="form-control" + (" is-invalid" if form.description.errors else ""), 
+                                               rows="2") }}
+                            {% if form.description.errors %}
+                                <div class="invalid-feedback">
+                                    {% for error in form.description.errors %}
+                                        <span>{{ error }}</span>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                        
+                        <!-- Fragetyp -->
+                        <div class="form-group">
+                            {{ form.question_type.label(class="form-control-label") }}
+                            {{ form.question_type(class="form-control" + (" is-invalid" if form.question_type.errors else ""), id="question-type-select") }}
+                            {% if form.question_type.errors %}
+                                <div class="invalid-feedback">
+                                    {% for error in form.question_type.errors %}
+                                        <span>{{ error }}</span>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                            <small class="form-text text-muted">
+                                <i class="fas fa-info-circle"></i> 
+                                <strong>Multiple Choice:</strong> Vorgefertigte Antwortoptionen | 
+                                <strong>Freitext:</strong> Teams geben die Antwort selbst ein
+                            </small>
+                        </div>
+                        
+                        <!-- Fragetext -->
+                        <div class="form-group">
+                            {{ form.question_text.label(class="form-control-label") }}
+                            {{ form.question_text(class="form-control" + (" is-invalid" if form.question_text.errors else ""), 
+                                                  rows="4") }}
+                            {% if form.question_text.errors %}
+                                <div class="invalid-feedback">
+                                    {% for error in form.question_text.errors %}
+                                        <span>{{ error }}</span>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                        
+                        <!-- Multiple Choice Optionen -->
+                        <div id="multiple-choice-section" class="question-type-section">
+                            <h5 class="text-warning mb-3">
+                                <i class="fas fa-list mr-2"></i>
+                                Antwortoptionen
+                            </h5>
+                            
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        {{ form.option_1.label(class="form-control-label") }}
+                                        {{ form.option_1(class="form-control" + (" is-invalid" if form.option_1.errors else "")) }}
+                                        {% if form.option_1.errors %}
+                                            <div class="invalid-feedback">
+                                                {% for error in form.option_1.errors %}
+                                                    <span>{{ error }}</span>
+                                                {% endfor %}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        {{ form.option_2.label(class="form-control-label") }}
+                                        {{ form.option_2(class="form-control" + (" is-invalid" if form.option_2.errors else "")) }}
+                                        {% if form.option_2.errors %}
+                                            <div class="invalid-feedback">
+                                                {% for error in form.option_2.errors %}
+                                                    <span>{{ error }}</span>
+                                                {% endfor %}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        {{ form.option_3.label(class="form-control-label") }}
+                                        {{ form.option_3(class="form-control" + (" is-invalid" if form.option_3.errors else "")) }}
+                                        {% if form.option_3.errors %}
+                                            <div class="invalid-feedback">
+                                                {% for error in form.option_3.errors %}
+                                                    <span>{{ error }}</span>
+                                                {% endfor %}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        {{ form.option_4.label(class="form-control-label") }}
+                                        {{ form.option_4(class="form-control" + (" is-invalid" if form.option_4.errors else "")) }}
+                                        {% if form.option_4.errors %}
+                                            <div class="invalid-feedback">
+                                                {% for error in form.option_4.errors %}
+                                                    <span>{{ error }}</span>
+                                                {% endfor %}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="form-group">
+                                {{ form.correct_option.label(class="form-control-label") }}
+                                {{ form.correct_option(class="form-control" + (" is-invalid" if form.correct_option.errors else ""), id="correct-option-select") }}
+                                {% if form.correct_option.errors %}
+                                    <div class="invalid-feedback">
+                                        {% for error in form.correct_option.errors %}
+                                            <span>{{ error }}</span>
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                                <small class="form-text text-muted">
+                                    <i class="fas fa-check-circle text-success"></i>
+                                    Wähle die korrekte Antwort aus den obigen Optionen
+                                </small>
+                            </div>
+                        </div>
+                        
+                        <!-- Freitext Antwort -->
+                        <div id="text-input-section" class="question-type-section" style="display: none;">
+                            <h5 class="text-warning mb-3">
+                                <i class="fas fa-edit mr-2"></i>
+                                Korrekte Antwort
+                            </h5>
+                            
+                            <div class="form-group">
+                                {{ form.correct_text.label(class="form-control-label") }}
+                                {{ form.correct_text(class="form-control" + (" is-invalid" if form.correct_text.errors else "")) }}
+                                {% if form.correct_text.errors %}
+                                    <div class="invalid-feedback">
+                                        {% for error in form.correct_text.errors %}
+                                            <span>{{ error }}</span>
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                                <small class="form-text text-muted">
+                                    <i class="fas fa-exclamation-triangle text-warning"></i>
+                                    <strong>Wichtig:</strong> Die Antwort wird case-insensitive verglichen, aber muss ansonsten exakt übereinstimmen!
+                                </small>
+                            </div>
+                        </div>
+                        
+                        <!-- Metadaten anzeigen -->
+                        <hr>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6><i class="fas fa-info-circle text-info"></i> Fragen-Info:</h6>
+                                <small class="text-muted">
+                                    <strong>ID:</strong> {{ question.id }}<br>
+                                    {% if question.created_at %}
+                                        <strong>Erstellt:</strong> {{ question.created_at[:19] | replace('T', ' ') }}<br>
+                                    {% endif %}
+                                    {% if question.updated_at %}
+                                        <strong>Zuletzt bearbeitet:</strong> {{ question.updated_at[:19] | replace('T', ' ') }}<br>
+                                    {% endif %}
+                                    <strong>Aktueller Typ:</strong> {{ question.question_type | title }}
+                                </small>
+                            </div>
+                            <div class="col-md-6">
+                                <h6><i class="fas fa-folder text-info"></i> Ordner-Info:</h6>
+                                <small class="text-muted">
+                                    <strong>Ordner:</strong> {{ folder.name }}<br>
+                                    <strong>Pfad:</strong> {{ folder.folder_path }}<br>
+                                    <a href="{{ url_for('admin.edit_folder', folder_id=folder.id) }}">
+                                        Ordner verwalten <i class="fas fa-external-link-alt"></i>
+                                    </a>
+                                </small>
+                            </div>
+                        </div>
+                        
+                        <!-- Submit Buttons -->
+                        <div class="form-group mt-4">
+                            {{ form.submit(class="btn btn-warning btn-lg") }}
+                            <a href="{{ url_for('admin.edit_folder', folder_id=folder.id) }}" class="btn btn-secondary btn-lg ml-2">
+                                Abbrechen
+                            </a>
+                        </div>
+                    </form>
+                </div>
+                <div class="card-footer bg-light">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6><i class="fas fa-save text-warning"></i> Änderungen speichern:</h6>
+                            <small class="text-muted">
+                                Änderungen werden sofort in der JSON-Datei gespeichert und sind in allen Spielrunden verfügbar.
+                            </small>
+                        </div>
+                        <div class="col-md-6">
+                            <h6><i class="fas fa-trash text-danger"></i> Löschen:</h6>
+                            <small class="text-muted">
+                                <a href="{{ url_for('admin.edit_folder', folder_id=folder.id) }}" class="text-danger">
+                                    Zurück zum Ordner, um die Frage zu löschen
+                                </a>
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.card {
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+}
+
+.btn-lg {
+    padding: 0.75rem 1.5rem;
+    font-size: 1.1rem;
+}
+
+.form-control {
+    border-radius: 0.5rem;
+}
+
+.form-control:focus {
+    border-color: #ffc107;
+    box-shadow: 0 0 0 0.2rem rgba(255, 193, 7, 0.25);
+}
+
+.question-type-section {
+    background: #fff3cd;
+    border-radius: 10px;
+    padding: 1.5rem;
+    margin: 1rem 0;
+    border-left: 4px solid #ffc107;
+}
+
+.card-header p {
+    font-size: 0.9rem;
+    opacity: 0.9;
+}
+
+#correct-option-select {
+    max-width: 300px;
+}
+
+.text-warning {
+    color: #856404 !important;
+}
+
+/* Form Validation Feedback */
+.is-invalid {
+    border-color: #dc3545;
+}
+
+.invalid-feedback {
+    display: block;
+}
+
+.card-footer a {
+    color: inherit;
+    text-decoration: none;
+}
+
+.card-footer a:hover {
+    text-decoration: underline;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .container {
+        padding-left: 10px;
+        padding-right: 10px;
+    }
+    
+    .card-footer .row > div {
+        margin-bottom: 1rem;
+    }
+}
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const questionTypeSelect = document.getElementById('question-type-select');
+    const multipleChoiceSection = document.getElementById('multiple-choice-section');
+    const textInputSection = document.getElementById('text-input-section');
+    const correctOptionSelect = document.getElementById('correct-option-select');
+    
+    function toggleQuestionTypeSections() {
+        const selectedType = questionTypeSelect.value;
+        
+        if (selectedType === 'multiple_choice') {
+            multipleChoiceSection.style.display = 'block';
+            textInputSection.style.display = 'none';
+        } else if (selectedType === 'text_input') {
+            multipleChoiceSection.style.display = 'none';
+            textInputSection.style.display = 'block';
+        }
+    }
+    
+    // Initial toggle
+    toggleQuestionTypeSections();
+    
+    // Listen for changes
+    questionTypeSelect.addEventListener('change', toggleQuestionTypeSections);
+    
+    // Update correct option choices based on filled options
+    function updateCorrectOptionChoices() {
+        const options = [
+            document.querySelector('input[name="option_1"]'),
+            document.querySelector('input[name="option_2"]'),
+            document.querySelector('input[name="option_3"]'),
+            document.querySelector('input[name="option_4"]')
+        ];
+        
+        const currentValue = correctOptionSelect.value;
+        
+        // Clear current options
+        correctOptionSelect.innerHTML = '';
+        
+        options.forEach((option, index) => {
+            if (option && option.value.trim()) {
+                const optionElement = document.createElement('option');
+                optionElement.value = index;
+                optionElement.textContent = `Option ${index + 1}: ${option.value.substring(0, 30)}${option.value.length > 30 ? '...' : ''}`;
+                if (currentValue == index) {
+                    optionElement.selected = true;
+                }
+                correctOptionSelect.appendChild(optionElement);
+            }
+        });
+        
+        // Add default option if no options are filled
+        if (correctOptionSelect.children.length === 0) {
+            const defaultOption = document.createElement('option');
+            defaultOption.value = '';
+            defaultOption.textContent = '-- Bitte fülle zuerst die Optionen aus --';
+            correctOptionSelect.appendChild(defaultOption);
+        }
+    }
+    
+    // Listen for changes in option inputs
+    ['option_1', 'option_2', 'option_3', 'option_4'].forEach(optionName => {
+        const optionInput = document.querySelector(`input[name="${optionName}"]`);
+        if (optionInput) {
+            optionInput.addEventListener('input', updateCorrectOptionChoices);
+            optionInput.addEventListener('blur', updateCorrectOptionChoices);
+        }
+    });
+    
+    // Initial update
+    updateCorrectOptionChoices();
+    
+    // Form validation
+    const form = document.querySelector('form');
+    form.addEventListener('submit', function(e) {
+        const questionType = questionTypeSelect.value;
+        
+        if (questionType === 'multiple_choice') {
+            // Check if at least 2 options are filled
+            const option1 = document.querySelector('input[name="option_1"]').value.trim();
+            const option2 = document.querySelector('input[name="option_2"]').value.trim();
+            
+            if (!option1 || !option2) {
+                e.preventDefault();
+                alert('Bitte fülle mindestens die ersten beiden Antwortoptionen aus!');
+                return;
+            }
+            
+            // Check if correct option is selected
+            if (!correctOptionSelect.value && correctOptionSelect.value !== '0') {
+                e.preventDefault();
+                alert('Bitte wähle die korrekte Antwortoption aus!');
+                return;
+            }
+        } else if (questionType === 'text_input') {
+            // Check if correct text is filled
+            const correctText = document.querySelector('input[name="correct_text"]').value.trim();
+            if (!correctText) {
+                e.preventDefault();
+                alert('Bitte gib die korrekte Antwort für die Freitext-Frage ein!');
+                return;
+            }
+        }
+    });
+    
+    // Highlight changes when editing
+    const allInputs = document.querySelectorAll('input, textarea, select');
+    allInputs.forEach(input => {
+        if (input.name !== 'csrf_token') {
+            let originalValue = input.value;
+            
+            input.addEventListener('input', function() {
+                if (this.value !== originalValue) {
+                    this.style.backgroundColor = '#fff3cd';
+                } else {
+                    this.style.backgroundColor = '';
+                }
+            });
+        }
+    });
+    
+    // Show confirmation for unsaved changes
+    let formChanged = false;
+    allInputs.forEach(input => {
+        if (input.name !== 'csrf_token') {
+            input.addEventListener('input', function() {
+                formChanged = true;
+            });
+        }
+    });
+    
+    window.addEventListener('beforeunload', function(e) {
+        if (formChanged) {
+            e.preventDefault();
+            e.returnValue = 'Du hast ungespeicherte Änderungen. Möchtest du die Seite wirklich verlassen?';
+        }
+    });
+    
+    // Reset form changed flag on submit
+    form.addEventListener('submit', function() {
+        formChanged = false;
+    });
+});
+</script>
+{% endblock %}
