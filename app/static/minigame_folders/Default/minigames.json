@@ -4,5 +4,17 @@
     "description": "Standard-Minispiele",
     "created_at": "2025-06-03T17:48:22.127743"
   },
-  "minigames": []
+  "minigames": [
+    {
+      "name": "Hauptstadt von deutschland",
+      "description": "",
+      "type": "question",
+      "question_text": "Was ist die Hauptstadt von Deutschland",
+      "question_type": "text_input",
+      "points": 10,
+      "correct_text": "Berlin",
+      "id": "e1ff707b",
+      "created_at": "2025-06-06T06:42:26.537175"
+    }
+  ]
 }

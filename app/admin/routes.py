@@ -357,6 +357,121 @@ def set_minigame():
 
     return redirect(url_for('admin.admin_dashboard'))
 
+# NEUE FRAGEN-KONTROLLEN ROUTEN
+
+@admin_bp.route('/end_question', methods=['POST'])
+@login_required
+def end_question():
+    """Beendet die aktive Frage und wechselt zur Platzierungsphase"""
+    if not isinstance(current_user, Admin):
+        flash('Aktion nicht erlaubt.', 'danger')
+        return redirect(url_for('main.index'))
+    
+    active_session = GameSession.query.filter_by(is_active=True).first()
+    if not active_session:
+        flash('Keine aktive Spielsitzung gefunden.', 'danger')
+        return redirect(url_for('admin.admin_dashboard'))
+    
+    if active_session.current_phase != 'QUESTION_ACTIVE':
+        flash('Keine aktive Frage zum Beenden gefunden.', 'warning')
+        return redirect(url_for('admin.admin_dashboard'))
+    
+    try:
+        # Wechsle zur Platzierungsphase
+        active_session.current_phase = 'QUESTION_COMPLETED'
+        
+        # Erstelle Event
+        event = GameEvent(
+            game_session_id=active_session.id,
+            event_type="question_ended",
+            description=f"Admin beendete die Frage '{active_session.current_minigame_name}'. Wechsel zur Platzierungsphase."
+        )
+        db.session.add(event)
+        db.session.commit()
+        
+        flash(f"Frage '{active_session.current_minigame_name}' beendet. Teams können nun platziert werden.", 'success')
+        
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Fehler beim Beenden der Frage: {e}", exc_info=True)
+        flash('Fehler beim Beenden der Frage.', 'danger')
+    
+    return redirect(url_for('admin.admin_dashboard'))
+
+@admin_bp.route('/api/question-responses')
+@login_required
+def question_responses_api():
+    """API zum Abrufen der aktuellen Fragen-Antworten"""
+    if not isinstance(current_user, Admin):
+        return jsonify({"success": False, "error": "Nur Admins können Antworten einsehen."}), 403
+    
+    try:
+        active_session = GameSession.query.filter_by(is_active=True).first()
+        if not active_session or not active_session.current_question_id:
+            return jsonify({
+                "success": True,
+                "responses": [],
+                "message": "Keine aktive Frage"
+            })
+        
+        # Hole alle Antworten für die aktuelle Frage
+        responses = QuestionResponse.query.filter_by(
+            game_session_id=active_session.id,
+            question_id=active_session.current_question_id
+        ).join(Team).all()
+        
+        # Formatiere Antworten für JSON
+        formatted_responses = []
+        for response in responses:
+            answer_preview = ""
+            if response.selected_option is not None:
+                # Multiple Choice - zeige gewählte Option
+                active_round = GameRound.get_active_round()
+                if active_round and active_round.minigame_folder:
+                    question_data = get_question_from_folder(active_round.minigame_folder.folder_path, response.question_id)
+                    if question_data and question_data.get('options'):
+                        options = question_data['options']
+                        if 0 <= response.selected_option < len(options):
+                            answer_preview = f"Option {response.selected_option + 1}: {options[response.selected_option][:30]}..."
+                        else:
+                            answer_preview = f"Option {response.selected_option + 1}"
+                    else:
+                        answer_preview = f"Option {response.selected_option + 1}"
+            elif response.answer_text:
+                # Freitext - zeige Textantwort (gekürzt)
+                answer_preview = response.answer_text[:50]
+                if len(response.answer_text) > 50:
+                    answer_preview += "..."
+            else:
+                answer_preview = "Keine Antwort"
+            
+            formatted_responses.append({
+                "team_id": response.team_id,
+                "team_name": response.team.name,
+                "answer_preview": answer_preview,
+                "is_correct": response.is_correct,
+                "points_earned": response.points_earned,
+                "answered_at": response.answered_at.strftime('%H:%M:%S') if response.answered_at else None
+            })
+        
+        # Sortiere nach Antwortzeit
+        formatted_responses.sort(key=lambda x: x['answered_at'] or '99:99:99')
+        
+        return jsonify({
+            "success": True,
+            "responses": formatted_responses,
+            "total_responses": len(formatted_responses),
+            "total_teams": Team.query.count(),
+            "question_name": active_session.current_minigame_name
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"Fehler beim Laden der Fragen-Antworten: {e}", exc_info=True)
+        return jsonify({
+            "success": False,
+            "error": "Fehler beim Laden der Antworten"
+        }), 500
+
 @admin_bp.route('/record_placements', methods=['POST'])
 @login_required
 def record_placements():
