@@ -43,19 +43,39 @@ class EditTeamForm(FlaskForm):
         self.character_id.data = current_character_id if current_character_id else 0
 
 class SetNextMinigameForm(FlaskForm):
-    # Erweiterte Minigame-Auswahl
-    minigame_source = RadioField('Minigame-Quelle', 
+    # Erweiterte Minigame-Auswahl mit direkter Fragen-Erstellung
+    minigame_source = RadioField('Inhalts-Quelle', 
                                 choices=[
                                     ('manual', 'Manuell eingeben'),
+                                    ('direct_question', 'Direkte Frage erstellen'),
                                     ('folder_random', 'Zufällig aus aktuellem Ordner'),
                                     ('folder_selected', 'Aus aktuellem Ordner auswählen')
                                 ], 
                                 default='manual',
                                 validators=[DataRequired()])
     
-    # Manuelle Eingabe (wie bisher)
-    minigame_name = StringField('Manueller Name', validators=[Optional(), Length(max=100)])
-    minigame_description = TextAreaField('Manuelle Beschreibung', validators=[Optional(), Length(max=300)])
+    # Manuelle Eingabe
+    minigame_name = StringField('Name', validators=[Optional(), Length(max=100)])
+    minigame_description = TextAreaField('Beschreibung', validators=[Optional(), Length(max=300)])
+    
+    # Direkte Fragen-Erstellung
+    question_text = TextAreaField('Frage', validators=[Optional(), Length(max=500)])
+    question_type = SelectField('Fragetyp', choices=[
+        ('multiple_choice', 'Multiple Choice'),
+        ('text_input', 'Freitext-Eingabe')
+    ], validators=[Optional()])
+    
+    # Multiple Choice Optionen
+    option_1 = StringField('Option 1', validators=[Optional(), Length(max=200)])
+    option_2 = StringField('Option 2', validators=[Optional(), Length(max=200)])
+    option_3 = StringField('Option 3', validators=[Optional(), Length(max=200)])
+    option_4 = StringField('Option 4', validators=[Optional(), Length(max=200)])
+    correct_option = SelectField('Korrekte Option', choices=[
+        (0, 'Option 1'), (1, 'Option 2'), (2, 'Option 3'), (3, 'Option 4')
+    ], coerce=int, validators=[Optional()])
+    
+    # Freitext-Antwort
+    correct_text = StringField('Korrekte Antwort', validators=[Optional(), Length(max=200)])
     
     # Auswahl aus Ordner
     selected_folder_minigame_id = SelectField('Aus Ordner auswählen', validators=[Optional()])
@@ -163,7 +183,7 @@ class EditFolderMinigameForm(FlaskForm):
     ], validators=[DataRequired()])
     submit = SubmitField('Änderungen speichern')
 
-# NEUE QUESTION-FORMS
+# FRAGEN-FORMS (ohne Punkte)
 
 class CreateQuestionForm(FlaskForm):
     """Form für das Erstellen einer Einzelfrage"""
@@ -187,7 +207,6 @@ class CreateQuestionForm(FlaskForm):
     ], coerce=int, validators=[Optional()])
     
     correct_text = StringField('Korrekte Antwort (Freitext)', validators=[Optional(), Length(max=200)])
-    points = IntegerField('Punkte für richtige Antwort', validators=[DataRequired(), NumberRange(min=1, max=100)], default=10)
     
     submit = SubmitField('Frage erstellen')
 
@@ -213,12 +232,11 @@ class EditQuestionForm(FlaskForm):
     ], coerce=int, validators=[Optional()])
     
     correct_text = StringField('Korrekte Antwort (Freitext)', validators=[Optional(), Length(max=200)])
-    points = IntegerField('Punkte für richtige Antwort', validators=[DataRequired(), NumberRange(min=1, max=100)], default=10)
     
     submit = SubmitField('Frage aktualisieren')
 
 class QuestionAnswerForm(FlaskForm):
-    """Form für Team-Antworten auf Einzelfragen"""
+    """Form für Team-Antworten auf Einzelfragen - ohne Punkte"""
     question_id = HiddenField()
     
     # Für Multiple Choice

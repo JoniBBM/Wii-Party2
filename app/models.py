@@ -116,7 +116,7 @@ class GameRound(db.Model):
         return f'<GameRound {self.name} (Active: {self.is_active})>'
 
 class QuestionResponse(db.Model):
-    """Speichert Team-Antworten auf Einzelfragen"""
+    """Speichert Team-Antworten auf Einzelfragen - ohne Punkte-System"""
     id = db.Column(db.Integer, primary_key=True)
     team_id = db.Column(db.Integer, db.ForeignKey('team.id'), nullable=False)
     game_session_id = db.Column(db.Integer, db.ForeignKey('game_session.id'), nullable=False)
@@ -128,9 +128,8 @@ class QuestionResponse(db.Model):
     answer_text = db.Column(db.Text, nullable=True)  # Freitext-Antwort
     selected_option = db.Column(db.Integer, nullable=True)  # Multiple Choice (Index)
     is_correct = db.Column(db.Boolean, nullable=True)
-    points_earned = db.Column(db.Integer, default=0)
     
-    # Zeitstempel
+    # Zeitstempel für automatische Platzierung
     answered_at = db.Column(db.DateTime, default=datetime.utcnow)
     time_taken_seconds = db.Column(db.Integer, nullable=True)
     
@@ -170,7 +169,7 @@ class GameSession(db.Model):
     
     # Zusätzliche Felder für Minigame-Auswahl
     selected_folder_minigame_id = db.Column(db.String(100), nullable=True)  # ID aus JSON-Datei
-    minigame_source = db.Column(db.String(50), default='manual')  # 'manual', 'folder_random', 'folder_selected'
+    minigame_source = db.Column(db.String(50), default='manual')  # 'manual', 'folder_random', 'folder_selected', 'direct_question'
 
     current_phase = db.Column(db.String(50), default='SETUP_MINIGAME') 
     # Mögliche Phasen: SETUP_MINIGAME, MINIGAME_ANNOUNCED, QUESTION_ACTIVE, QUESTION_COMPLETED, DICE_ROLLING, ROUND_OVER

@@ -134,9 +134,6 @@ def _get_dashboard_data(team_user):
             else:
                 game_status = "Frage läuft"
                 game_status_class = "primary"
-        elif active_session.current_phase == 'QUESTION_COMPLETED':
-            game_status = "Frage beendet - Warte auf Platzierungen"
-            game_status_class = "info"
         elif active_session.current_phase == 'DICE_ROLLING':
             if current_team_turn_name:
                 if current_team_turn_name == team_user.name:
@@ -233,8 +230,9 @@ def dashboard_status_api():
                 'id': data['current_question_data']['id'],
                 'name': data['current_question_data']['name'],
                 'description': data['current_question_data'].get('description', ''),
+                'question_text': data['current_question_data'].get('question_text', ''),
                 'question_type': data['current_question_data'].get('question_type', 'multiple_choice'),
-                'points': data['current_question_data'].get('points', 10),
+                'options': data['current_question_data'].get('options', []),
                 'answered': data['question_answered']
             }
         
@@ -271,66 +269,10 @@ def dashboard_status_api():
     except Exception as e:
         return {'error': str(e)}, 500
 
-# NEUE FRAGEN-ROUTEN
-
-@teams_bp.route('/question')
-@login_required
-def question_interface():
-    """Fragen-Interface für Teams"""
-    if not isinstance(current_user, Team):
-        flash('Nur eingeloggte Teams können Fragen bearbeiten.', 'warning')
-        return redirect(url_for('teams.team_login'))
-    
-    # Hole aktive Session und Fragen-Daten
-    active_session = GameSession.query.filter_by(is_active=True).first()
-    if not active_session or not active_session.current_question_id:
-        flash('Derzeit ist keine Frage aktiv.', 'info')
-        return redirect(url_for('teams.team_dashboard'))
-    
-    if active_session.current_phase != 'QUESTION_ACTIVE':
-        flash('Die Frage ist derzeit nicht aktiv.', 'warning')
-        return redirect(url_for('teams.team_dashboard'))
-    
-    # Hole Fragen-Daten
-    active_round = GameRound.get_active_round()
-    if not active_round or not active_round.minigame_folder:
-        flash('Keine aktive Spielrunde gefunden.', 'danger')
-        return redirect(url_for('teams.team_dashboard'))
-    
-    question_data = get_question_from_folder(active_round.minigame_folder.folder_path, active_session.current_question_id)
-    if not question_data:
-        flash('Fragen-Daten konnten nicht geladen werden.', 'danger')
-        return redirect(url_for('teams.team_dashboard'))
-    
-    # Prüfe ob Team bereits geantwortet hat
-    existing_response = QuestionResponse.query.filter_by(
-        team_id=current_user.id,
-        game_session_id=active_session.id,
-        question_id=active_session.current_question_id
-    ).first()
-    
-    if existing_response:
-        flash('Du hast diese Frage bereits beantwortet!', 'success')
-        return redirect(url_for('teams.team_dashboard'))
-    
-    # Erstelle Form
-    form = QuestionAnswerForm()
-    form.question_id.data = active_session.current_question_id
-    
-    # Setze Choices für Multiple Choice
-    if question_data.get('question_type') == 'multiple_choice':
-        options = question_data.get('options', [])
-        form.selected_option.choices = [(i, option) for i, option in enumerate(options)]
-    
-    return render_template('question_interface.html',
-                         question_data=question_data,
-                         form=form,
-                         active_session=active_session)
-
-@teams_bp.route('/question/answer', methods=['POST'])
+@teams_bp.route('/submit_question_answer', methods=['POST'])
 @login_required
 def submit_question_answer():
-    """Verarbeite Fragen-Antwort eines Teams"""
+    """Verarbeite Fragen-Antwort eines Teams - ohne Punkte, mit automatischer Platzierung"""
     if not isinstance(current_user, Team):
         return jsonify({'success': False, 'error': 'Unauthorized'}), 403
     
@@ -382,7 +324,6 @@ def submit_question_answer():
         
         # Verarbeite Antwort basierend auf Typ
         is_correct = False
-        points_earned = 0
         
         if answer_type == 'multiple_choice':
             selected_option = data.get('selected_option')
@@ -393,7 +334,6 @@ def submit_question_answer():
                 correct_option = question_data.get('correct_option', 0)
                 if selected_option == correct_option:
                     is_correct = True
-                    points_earned = question_data.get('points', 10)
         
         elif answer_type == 'text_input':
             answer_text = data.get('answer_text', '').strip()
@@ -403,13 +343,11 @@ def submit_question_answer():
             correct_text = question_data.get('correct_text', '').strip().lower()
             if answer_text.lower() == correct_text:
                 is_correct = True
-                points_earned = question_data.get('points', 10)
         
         else:
             return jsonify({'success': False, 'error': 'Ungültiger Antworttyp'}), 400
         
         response.is_correct = is_correct
-        response.points_earned = points_earned
         
         # Speichere in Datenbank
         db.session.add(response)
@@ -427,7 +365,6 @@ def submit_question_answer():
         return jsonify({
             'success': True,
             'is_correct': is_correct,
-            'points_earned': points_earned,
             'all_teams_answered': all_teams_answered,
             'feedback': {
                 'message': 'Richtig!' if is_correct else 'Leider falsch.',
@@ -490,13 +427,13 @@ def question_status():
                 'id': question_data['id'],
                 'name': question_data['name'],
                 'description': question_data.get('description', ''),
+                'question_text': question_data.get('question_text', ''),
                 'question_type': question_data.get('question_type', 'multiple_choice'),
-                'points': question_data.get('points', 10)
+                'options': question_data.get('options', [])
             },
             'team_answered': team_answered,
             'team_response': {
-                'is_correct': team_response.is_correct if team_response else None,
-                'points_earned': team_response.points_earned if team_response else 0
+                'is_correct': team_response.is_correct if team_response else None
             } if team_response else None
         })
         

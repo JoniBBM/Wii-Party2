@@ -4,7 +4,7 @@
 
 {% block content %}
 <div class="container mt-4">
-    <!-- Header mit Team-Info -->
+    <!-- Team-Header -->
     <div class="row mb-4">
         <div class="col-md-12">
             <div class="card bg-gradient-primary text-white">
@@ -23,10 +23,6 @@
                                     <i class="fas fa-user-slash mr-1"></i>
                                     Kein Charakter zugewiesen
                                 {% endif %}
-                                {% if current_user.members %}
-                                    | <i class="fas fa-user-friends ml-2 mr-1"></i>
-                                    Mitglieder: {{ current_user.members }}
-                                {% endif %}
                             </p>
                         </div>
                         <div class="col-md-4 text-md-right">
@@ -43,110 +39,28 @@
         </div>
     </div>
 
-    <!-- Fragen-Interface (nur sichtbar wenn Frage aktiv) -->
-    {% if current_question_data and active_session and active_session.current_phase == 'QUESTION_ACTIVE' %}
-    <div class="row mb-4" id="question-interface-section">
+    <!-- Fragen-Interface (direkt im Dashboard) -->
+    <div class="row mb-4" id="question-interface-section" style="display: none;">
         <div class="col-md-12">
             <div class="card border-primary question-card">
                 <div class="card-header bg-primary text-white">
                     <div class="d-flex justify-content-between align-items-center">
                         <h5 class="mb-0">
                             <i class="fas fa-question-circle mr-2"></i>
-                            Frage: {{ current_question_data.name }}
+                            <span id="question-title">Aktuelle Frage</span>
                         </h5>
-                        <div class="question-controls">
-                            {% if current_question_data.points %}
-                                <span class="badge badge-warning badge-lg">
-                                    <i class="fas fa-star mr-1"></i>
-                                    {{ current_question_data.points }} Punkte
-                                </span>
-                            {% endif %}
+                        <div class="question-timer">
+                            <i class="fas fa-clock mr-1"></i>
+                            <span id="question-timer">Läuft...</span>
                         </div>
                     </div>
-                    {% if current_question_data.description %}
-                        <p class="mb-0 mt-2 opacity-90">{{ current_question_data.description }}</p>
-                    {% endif %}
                 </div>
-                <div class="card-body">
-                    {% if question_answered %}
-                        <!-- Frage bereits beantwortet -->
-                        <div class="question-completed text-center">
-                            <div class="question-completed-icon mb-3">
-                                <i class="fas fa-check-circle text-success" style="font-size: 4rem;"></i>
-                            </div>
-                            <h4 class="text-success mb-3">Frage beantwortet!</h4>
-                            <p class="text-muted mb-4">
-                                Du hast die Frage bereits beantwortet. 
-                                Warte, bis alle anderen Teams fertig sind.
-                            </p>
-                            {% if question_response %}
-                            <div class="question-result-stats">
-                                <div class="row">
-                                    <div class="col-md-4">
-                                        <div class="stat-box">
-                                            <div class="stat-number text-{{ 'success' if question_response.is_correct else 'danger' }}">
-                                                {% if question_response.is_correct %}
-                                                    <i class="fas fa-check"></i>
-                                                {% else %}
-                                                    <i class="fas fa-times"></i>
-                                                {% endif %}
-                                            </div>
-                                            <div class="stat-label">
-                                                {% if question_response.is_correct %}Richtig{% else %}Falsch{% endif %}
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="col-md-4">
-                                        <div class="stat-box">
-                                            <div class="stat-number text-info">{{ question_response.points_earned }}</div>
-                                            <div class="stat-label">Punkte erhalten</div>
-                                        </div>
-                                    </div>
-                                    <div class="col-md-4">
-                                        <div class="stat-box">
-                                            <div class="stat-number text-primary">{{ current_question_data.question_type|title }}</div>
-                                            <div class="stat-label">Fragetyp</div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            {% endif %}
-                        </div>
-                    {% else %}
-                        <!-- Frage läuft noch - Zu Fragen-Interface weiterleiten -->
-                        <div class="question-active text-center">
-                            <div class="question-active-icon mb-3">
-                                <i class="fas fa-play-circle text-primary" style="font-size: 4rem;"></i>
-                            </div>
-                            <h4 class="text-primary mb-3">Frage läuft!</h4>
-                            <div class="question-preview mb-4">
-                                <div class="question-text-preview">
-                                    "{{ current_question_data.question_text[:100] }}{% if current_question_data.question_text|length > 100 %}...{% endif %}"
-                                </div>
-                                <small class="text-muted mt-2 d-block">
-                                    Typ: {{ current_question_data.question_type|title }}
-                                    {% if current_question_data.points %}
-                                        | {{ current_question_data.points }} Punkte möglich
-                                    {% endif %}
-                                </small>
-                            </div>
-                            
-                            <a href="{{ url_for('teams.question_interface') }}" class="btn btn-primary btn-lg question-start-btn">
-                                <i class="fas fa-arrow-right mr-2"></i>
-                                Frage beantworten
-                            </a>
-                            
-                            <p class="mt-3 text-info">
-                                <i class="fas fa-info-circle mr-1"></i>
-                                Beantworte die Frage so schnell und genau wie möglich!
-                            </p>
-                        </div>
-                    {% endif %}
+                <div class="card-body" id="question-content">
+                    <!-- Wird dynamisch gefüllt -->
                 </div>
             </div>
         </div>
     </div>
-    {% endif %}
 
     <!-- Spielstatus -->
     <div class="row mb-4">
@@ -180,7 +94,7 @@
         </div>
     </div>
 
-    <!-- Würfel-Animation Overlay -->
+    <!-- Würfel-Animation (mit längerer Ergebnis-Anzeige) -->
     <div id="dice-animation-overlay" class="dice-overlay">
         <div class="dice-animation-container">
             <div class="dice-waiting" id="dice-waiting">
@@ -201,14 +115,6 @@
                 </div>
             </div>
             <div class="dice-result-animation" id="dice-result-animation" style="display: none;">
-                <div class="dice-rolling-final" id="animated-dice-final">
-                    <div class="dice-face dice-face-1">⚀</div>
-                    <div class="dice-face dice-face-2">⚁</div>
-                    <div class="dice-face dice-face-3">⚂</div>
-                    <div class="dice-face dice-face-4">⚃</div>
-                    <div class="dice-face dice-face-5">⚄</div>
-                    <div class="dice-face dice-face-6">⚅</div>
-                </div>
                 <div class="dice-result" id="dice-result">
                     <div class="result-title">Würfelergebnis!</div>
                     <div class="result-details">
@@ -228,12 +134,15 @@
                     <div class="movement-info">
                         <span id="movement-text">Du bewegst dich von Position <span id="old-pos">0</span> auf Position <span id="new-pos">0</span>!</span>
                     </div>
+                    <div class="result-continue">
+                        <small class="text-muted">Ergebnis wird automatisch geschlossen...</small>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Minispiel-Ankündigung Banner -->
+    <!-- Banner für verschiedene Events -->
     <div id="minigame-announcement-banner" class="announcement-banner">
         <div class="banner-content">
             <div class="banner-icon">
@@ -247,7 +156,6 @@
         </div>
     </div>
 
-    <!-- Fragen-Ankündigung Banner -->
     <div id="question-announcement-banner" class="announcement-banner question-banner">
         <div class="banner-content">
             <div class="banner-icon">
@@ -261,7 +169,6 @@
         </div>
     </div>
 
-    <!-- Minispiel-Ergebnisse Banner -->
     <div id="minigame-results-banner" class="announcement-banner results-banner">
         <div class="banner-content">
             <div class="banner-icon">
@@ -439,38 +346,6 @@
                     </div>
                     {% endif %}
 
-                    <!-- Fragen-Informationen (falls aktiv) -->
-                    <div class="info-section mb-4" id="question-info-section" {% if not current_question_data %}style="display: none;"{% endif %}>
-                        <h6 class="text-primary">
-                            <i class="fas fa-question-circle mr-1"></i>
-                            Aktuelle Frage
-                        </h6>
-                        <div id="question-info-content">
-                            {% if current_question_data %}
-                                <p class="mb-1"><strong>{{ current_question_data.name }}</strong></p>
-                                {% if current_question_data.description %}
-                                    <p class="text-muted mb-2">{{ current_question_data.description }}</p>
-                                {% endif %}
-                                <div class="row">
-                                    <div class="col-6">
-                                        <small class="text-muted">Typ:</small><br>
-                                        <strong>{{ current_question_data.question_type|title }}</strong>
-                                    </div>
-                                    <div class="col-6">
-                                        <small class="text-muted">Punkte:</small><br>
-                                        <strong>
-                                            {% if current_question_data.points %}
-                                                {{ current_question_data.points }}
-                                            {% else %}
-                                                10
-                                            {% endif %}
-                                        </strong>
-                                    </div>
-                                </div>
-                            {% endif %}
-                        </div>
-                    </div>
-
                     <!-- Würfelreihenfolge -->
                     <div class="info-section mb-4" id="dice-order-section" {% if not dice_roll_order_names %}style="display: none;"{% endif %}>
                         <h6 class="text-primary">
@@ -554,12 +429,6 @@
                 <i class="fas fa-gamepad mr-2"></i>
                 Zum Spielbrett
             </a>
-            {% if current_question_data and active_session and active_session.current_phase == 'QUESTION_ACTIVE' and not question_answered %}
-                <a href="{{ url_for('teams.question_interface') }}" class="btn btn-success btn-lg mr-3">
-                    <i class="fas fa-question-circle mr-2"></i>
-                    Frage beantworten
-                </a>
-            {% endif %}
             <button type="button" class="btn btn-info btn-lg mr-3" onclick="refreshDashboard()">
                 <i class="fas fa-sync-alt mr-2"></i>
                 Aktualisieren
@@ -573,7 +442,7 @@
 </div>
 
 <style>
-/* Existing styles (keeping all previous CSS) */
+/* Basis-Styling */
 .bg-gradient-primary {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
 }
@@ -634,7 +503,7 @@
     100% { opacity: 1; }
 }
 
-/* QUESTION STYLES */
+/* Fragen-Interface */
 .question-card {
     border-width: 2px;
     box-shadow: 0 4px 20px rgba(0, 123, 255, 0.2);
@@ -650,7 +519,92 @@
     100% { transform: scale(1); box-shadow: 0 4px 20px rgba(0, 123, 255, 0.2); }
 }
 
+.question-form {
+    padding: 2rem;
+    background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
+    border-radius: 15px;
+}
+
+.question-text {
+    font-size: 1.3rem;
+    line-height: 1.6;
+    color: #333;
+    padding: 1.5rem;
+    text-align: center;
+    background: #e3f2fd;
+    border-radius: 10px;
+    border-left: 4px solid #2196f3;
+    margin-bottom: 2rem;
+}
+
+.answer-options {
+    max-width: 600px;
+    margin: 0 auto;
+}
+
+.answer-option-label {
+    font-size: 1.1rem;
+    padding: 1rem;
+    border: 2px solid #e9ecef;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    background: #f8f9fa;
+    margin-bottom: 0.5rem;
+}
+
+.answer-option-label:hover {
+    border-color: #007bff;
+    background: #e3f2fd;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(0, 123, 255, 0.1);
+}
+
+.custom-radio input:checked ~ .answer-option-label {
+    border-color: #28a745;
+    background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+    color: #155724;
+    font-weight: 600;
+}
+
+.option-letter {
+    font-weight: bold;
+    color: #007bff;
+    min-width: 30px;
+    margin-right: 0.5rem;
+}
+
+.custom-radio input:checked ~ .answer-option-label .option-letter {
+    color: #28a745;
+}
+
+.option-text {
+    flex: 1;
+}
+
+.question-submit-btn {
+    font-size: 1.3rem;
+    padding: 1rem 2rem;
+    border-radius: 50px;
+    box-shadow: 0 4px 15px rgba(40, 167, 69, 0.3);
+    transition: all 0.3s ease;
+}
+
+.question-submit-btn:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(40, 167, 69, 0.4);
+}
+
+.question-submit-btn:disabled {
+    opacity: 0.6;
+    transform: none;
+    box-shadow: none;
+}
+
 .question-completed {
+    text-align: center;
     padding: 2rem;
     background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
     border-radius: 15px;
@@ -658,6 +612,8 @@
 }
 
 .question-completed-icon {
+    font-size: 4rem;
+    margin-bottom: 1rem;
     animation: successPulse 2s infinite;
 }
 
@@ -667,198 +623,7 @@
     100% { transform: scale(1); }
 }
 
-.question-active {
-    padding: 2rem;
-    background: linear-gradient(135deg, #cce5ff 0%, #b3d9ff 100%);
-    border-radius: 15px;
-    border: 2px solid #007bff;
-}
-
-.question-active-icon {
-    animation: activePulse 2s infinite;
-}
-
-@keyframes activePulse {
-    0% { transform: scale(1); }
-    50% { transform: scale(1.1); }
-    100% { transform: scale(1); }
-}
-
-.question-start-btn {
-    font-size: 1.2rem;
-    padding: 1rem 2rem;
-    border-radius: 50px;
-    box-shadow: 0 4px 15px rgba(0, 123, 255, 0.3);
-    transition: all 0.3s ease;
-}
-
-.question-start-btn:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(0, 123, 255, 0.4);
-}
-
-.question-text-preview {
-    font-size: 1.1rem;
-    font-style: italic;
-    color: #495057;
-    background: rgba(255, 255, 255, 0.8);
-    padding: 1rem;
-    border-radius: 8px;
-    border-left: 4px solid #007bff;
-}
-
-.question-result-stats {
-    background: rgba(255, 255, 255, 0.8);
-    border-radius: 10px;
-    padding: 1.5rem;
-}
-
-.stat-box {
-    text-align: center;
-    padding: 1rem;
-    background: white;
-    border-radius: 10px;
-    margin-bottom: 1rem;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-}
-
-.stat-number {
-    font-size: 2rem;
-    font-weight: bold;
-}
-
-.stat-label {
-    font-size: 0.9rem;
-    color: #6c757d;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-}
-
-/* Question Banner Styles */
-.question-banner .banner-content {
-    background: linear-gradient(135deg, #17a2b8 0%, #138496 100%);
-}
-
-/* Announcement Banner Styles (existing) */
-.announcement-banner {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
-    background: rgba(0, 0, 0, 0.85);
-    display: none;
-    align-items: center;
-    justify-content: center;
-    z-index: 10000;
-    backdrop-filter: blur(8px);
-}
-
-.announcement-banner.show {
-    display: flex;
-    animation: bannerFadeIn 0.5s ease-out;
-}
-
-.announcement-banner.hide {
-    animation: bannerFadeOut 0.5s ease-out forwards;
-}
-
-@keyframes bannerFadeIn {
-    from {
-        opacity: 0;
-        transform: scale(0.9);
-    }
-    to {
-        opacity: 1;
-        transform: scale(1);
-    }
-}
-
-@keyframes bannerFadeOut {
-    from {
-        opacity: 1;
-        transform: scale(1);
-    }
-    to {
-        opacity: 0;
-        transform: scale(0.9);
-    }
-}
-
-.banner-content {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    border-radius: 20px;
-    padding: 3rem;
-    text-align: center;
-    color: white;
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-    max-width: 500px;
-    margin: 0 20px;
-    position: relative;
-    overflow: hidden;
-}
-
-.banner-content::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.1) 0%, transparent 70%);
-    pointer-events: none;
-}
-
-.results-banner .banner-content {
-    background: linear-gradient(135deg, #ff6b6b 0%, #ee5a52 100%);
-}
-
-.banner-icon {
-    font-size: 4rem;
-    margin-bottom: 1rem;
-    opacity: 0.9;
-    animation: bannerIconPulse 2s ease-in-out infinite;
-}
-
-@keyframes bannerIconPulse {
-    0%, 100% { transform: scale(1); }
-    50% { transform: scale(1.1); }
-}
-
-.banner-title {
-    font-size: 2.5rem;
-    font-weight: bold;
-    margin-bottom: 1rem;
-    text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
-}
-
-.banner-subtitle {
-    font-size: 1.3rem;
-    margin-bottom: 1rem;
-    opacity: 0.9;
-}
-
-.banner-description {
-    font-size: 1.1rem;
-    opacity: 0.8;
-    font-style: italic;
-}
-
-.banner-results {
-    font-size: 1.2rem;
-    margin-top: 1rem;
-}
-
-.banner-results .result-item {
-    display: block;
-    margin: 0.5rem 0;
-    padding: 0.5rem;
-    background: rgba(255, 255, 255, 0.1);
-    border-radius: 10px;
-    backdrop-filter: blur(5px);
-}
-
-/* Continue with remaining existing styles... */
+/* Würfel-Animation (längere Anzeige) */
 .dice-overlay {
     position: fixed;
     top: 0;
@@ -896,21 +661,13 @@
     opacity: 0.8;
 }
 
-.dice-rolling-continuous,
-.dice-rolling-final {
+.dice-rolling-continuous {
     width: 120px;
     height: 120px;
     margin: 0 auto 2rem;
     position: relative;
     transform-style: preserve-3d;
-}
-
-.dice-rolling-continuous {
     animation: diceRollContinuous 2s ease-in-out infinite;
-}
-
-.dice-rolling-final {
-    animation: diceRollFinal 0.3s ease-in-out forwards;
 }
 
 .dice-face {
@@ -936,30 +693,11 @@
 .dice-face-6 { transform: rotateX(-90deg) translateZ(60px); }
 
 @keyframes diceRollContinuous {
-    0% { 
-        transform: rotateX(0deg) rotateY(0deg) rotateZ(0deg);
-    }
-    25% { 
-        transform: rotateX(90deg) rotateY(90deg) rotateZ(45deg);
-    }
-    50% { 
-        transform: rotateX(180deg) rotateY(180deg) rotateZ(90deg);
-    }
-    75% { 
-        transform: rotateX(270deg) rotateY(270deg) rotateZ(135deg);
-    }
-    100% { 
-        transform: rotateX(360deg) rotateY(360deg) rotateZ(180deg);
-    }
-}
-
-@keyframes diceRollFinal {
-    0% { 
-        transform: rotateX(0deg) rotateY(0deg) rotateZ(0deg);
-    }
-    100% { 
-        transform: rotateX(90deg) rotateY(90deg) rotateZ(45deg);
-    }
+    0% { transform: rotateX(0deg) rotateY(0deg) rotateZ(0deg); }
+    25% { transform: rotateX(90deg) rotateY(90deg) rotateZ(45deg); }
+    50% { transform: rotateX(180deg) rotateY(180deg) rotateZ(90deg); }
+    75% { transform: rotateX(270deg) rotateY(270deg) rotateZ(135deg); }
+    100% { transform: rotateX(360deg) rotateY(360deg) rotateZ(180deg); }
 }
 
 .dice-result-animation {
@@ -1010,8 +748,126 @@
     font-size: 1.1rem;
     color: #81c784;
     font-weight: 600;
+    margin-bottom: 1rem;
 }
 
+.result-continue {
+    font-size: 0.9rem;
+    opacity: 0.7;
+}
+
+/* Banner */
+.announcement-banner {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.85);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+    backdrop-filter: blur(8px);
+}
+
+.announcement-banner.show {
+    display: flex;
+    animation: bannerFadeIn 0.5s ease-out;
+}
+
+.announcement-banner.hide {
+    animation: bannerFadeOut 0.5s ease-out forwards;
+}
+
+@keyframes bannerFadeIn {
+    from { opacity: 0; transform: scale(0.9); }
+    to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes bannerFadeOut {
+    from { opacity: 1; transform: scale(1); }
+    to { opacity: 0; transform: scale(0.9); }
+}
+
+.banner-content {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 20px;
+    padding: 3rem;
+    text-align: center;
+    color: white;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    max-width: 500px;
+    margin: 0 20px;
+    position: relative;
+    overflow: hidden;
+}
+
+.banner-content::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.1) 0%, transparent 70%);
+    pointer-events: none;
+}
+
+.results-banner .banner-content {
+    background: linear-gradient(135deg, #ff6b6b 0%, #ee5a52 100%);
+}
+
+.question-banner .banner-content {
+    background: linear-gradient(135deg, #17a2b8 0%, #138496 100%);
+}
+
+.banner-icon {
+    font-size: 4rem;
+    margin-bottom: 1rem;
+    opacity: 0.9;
+    animation: bannerIconPulse 2s ease-in-out infinite;
+}
+
+@keyframes bannerIconPulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+}
+
+.banner-title {
+    font-size: 2.5rem;
+    font-weight: bold;
+    margin-bottom: 1rem;
+    text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+}
+
+.banner-subtitle {
+    font-size: 1.3rem;
+    margin-bottom: 1rem;
+    opacity: 0.9;
+}
+
+.banner-description {
+    font-size: 1.1rem;
+    opacity: 0.8;
+    font-style: italic;
+}
+
+.banner-results {
+    font-size: 1.2rem;
+    margin-top: 1rem;
+}
+
+.banner-results .result-item {
+    display: block;
+    margin: 0.5rem 0;
+    padding: 0.5rem;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    backdrop-filter: blur(5px);
+}
+
+/* Statistiken */
 .stat-card {
     background: white;
     border-radius: 12px;
@@ -1168,7 +1024,6 @@
     font-size: 1.1rem;
 }
 
-/* Update Animations */
 .row-updated {
     animation: rowHighlight 1s ease-in-out;
 }
@@ -1179,6 +1034,7 @@
     100% { background-color: transparent; }
 }
 
+/* Responsive */
 @media (max-width: 768px) {
     .position-circle {
         width: 60px;
@@ -1199,8 +1055,7 @@
         margin-bottom: 0.5rem;
     }
     
-    .dice-rolling-continuous,
-    .dice-rolling-final {
+    .dice-rolling-continuous {
         width: 80px;
         height: 80px;
     }
@@ -1243,13 +1098,9 @@
         margin-bottom: 1rem;
     }
     
-    .question-start-btn {
+    .question-submit-btn {
         font-size: 1rem;
         padding: 0.8rem 1.5rem;
-    }
-    
-    .stat-box {
-        margin-bottom: 0.5rem;
     }
 }
 </style>
@@ -1263,8 +1114,10 @@ let isDiceAnimationShowing = false;
 let lastMinigameName = "{{ active_session.current_minigame_name if active_session else '' }}";
 let hasShowMinigameResults = false;
 let lastPhase = "{{ active_session.current_phase if active_session else 'UNKNOWN' }}";
-let lastDiceResult = null; // Speichert das letzte Würfelergebnis
-let lastQuestionData = null; // Speichert Fragen-Daten
+let lastDiceResult = null;
+let lastQuestionData = null;
+let currentQuestionAnswered = {{ 'true' if question_answered else 'false' }};
+let diceResultTimer = null;
 
 function updateDashboard(data) {
     if (!data || !data.success) return;
@@ -1272,10 +1125,13 @@ function updateDashboard(data) {
     const gameData = data.data;
     const currentUser = gameData.current_user;
     
+    // Fragen-Interface Management
+    updateQuestionInterface(gameData);
+    
     // Check for new question announcement
     if (gameData.question_data && gameData.question_data.name && 
         (!lastQuestionData || lastQuestionData.id !== gameData.question_data.id)) {
-        if (lastQuestionData) { // Only show banner if this is a new question (not on page load)
+        if (lastQuestionData) {
             showQuestionAnnouncement(gameData.question_data.name, gameData.question_data.description);
         }
         lastQuestionData = gameData.question_data;
@@ -1292,9 +1148,7 @@ function updateDashboard(data) {
     lastMinigameName = gameData.current_minigame_name || "";
     
     // Check for minigame/question results
-    if ((lastPhase === 'MINIGAME_ANNOUNCED' || lastPhase === 'QUESTION_COMPLETED') && 
-        gameData.current_phase === 'DICE_ROLLING' && 
-        !hasShowMinigameResults) {
+    if (gameData.current_phase === 'DICE_ROLLING' && lastPhase !== 'DICE_ROLLING' && !hasShowMinigameResults) {
         showMinigameResults(gameData.teams);
         hasShowMinigameResults = true;
     } else if (gameData.current_phase !== 'DICE_ROLLING') {
@@ -1302,10 +1156,7 @@ function updateDashboard(data) {
     }
     lastPhase = gameData.current_phase;
     
-    // Update question interface visibility
-    updateQuestionInterface(gameData);
-    
-    // Check for dice animation
+    // Check for dice animation with longer result display
     if (gameData.current_phase === 'DICE_ROLLING' && 
         currentUser.is_current_turn && 
         !isCurrentlyMyTurn &&
@@ -1314,8 +1165,24 @@ function updateDashboard(data) {
         showDiceWaitingAnimation();
         isCurrentlyMyTurn = true;
     } else if (!currentUser.is_current_turn && isCurrentlyMyTurn) {
-        // Team's turn is over, hide dice animation
-        hideDiceAnimation();
+        // Team's turn is over, but show result longer
+        if (isDiceAnimationShowing) {
+            // Position should have changed, show result
+            const positionChanged = lastGameData && 
+                lastGameData.current_user.position !== currentUser.position;
+            
+            if (positionChanged) {
+                const positionChange = currentUser.position - lastGameData.current_user.position;
+                if (positionChange > 0) {
+                    const standardRoll = Math.min(6, positionChange);
+                    const bonusRoll = Math.max(0, positionChange - 6);
+                    showDiceResultAnimation(standardRoll, bonusRoll, positionChange, 
+                                          lastGameData.current_user.position, currentUser.position);
+                }
+            } else {
+                // No position change yet, keep waiting animation
+            }
+        }
         isCurrentlyMyTurn = false;
     }
     
@@ -1331,15 +1198,11 @@ function updateDashboard(data) {
     // Update dice order
     updateDiceOrder(gameData.dice_roll_order);
     
-    // Update minigame info
-    updateMinigameInfo(gameData);
-    
     lastGameData = gameData;
 }
 
 function updateQuestionInterface(gameData) {
     const questionSection = document.getElementById('question-interface-section');
-    const questionInfoSection = document.getElementById('question-info-section');
     
     if (gameData.question_data && gameData.current_phase === 'QUESTION_ACTIVE') {
         // Show question interface
@@ -1347,38 +1210,212 @@ function updateQuestionInterface(gameData) {
             questionSection.style.display = 'block';
             questionSection.classList.add('question-updated');
             setTimeout(() => questionSection.classList.remove('question-updated'), 1000);
+            
+            // Update question content
+            updateQuestionContent(gameData.question_data, gameData.question_data.answered);
         }
-        
-        // Update question info section
-        if (questionInfoSection) {
-            questionInfoSection.style.display = 'block';
-            const questionInfoContent = document.getElementById('question-info-content');
-            if (questionInfoContent) {
-                questionInfoContent.innerHTML = `
-                    <p class="mb-1"><strong>${gameData.question_data.name}</strong></p>
-                    ${gameData.question_data.description ? `<p class="text-muted mb-2">${gameData.question_data.description}</p>` : ''}
-                    <div class="row">
-                        <div class="col-6">
-                            <small class="text-muted">Typ:</small><br>
-                            <strong>${gameData.question_data.question_type}</strong>
-                        </div>
-                        <div class="col-6">
-                            <small class="text-muted">Punkte:</small><br>
-                            <strong>${gameData.question_data.points || 10}</strong>
-                        </div>
-                    </div>
-                `;
-            }
-        }
-        
     } else {
         // Hide question interface
         if (questionSection) {
             questionSection.style.display = 'none';
         }
-        if (questionInfoSection) {
-            questionInfoSection.style.display = 'none';
+    }
+}
+
+function updateQuestionContent(questionData, isAnswered) {
+    const questionTitle = document.getElementById('question-title');
+    const questionContent = document.getElementById('question-content');
+    
+    if (questionTitle) {
+        questionTitle.textContent = questionData.name;
+    }
+    
+    if (questionContent) {
+        if (isAnswered) {
+            // Show "already answered" state
+            questionContent.innerHTML = `
+                <div class="question-completed">
+                    <div class="question-completed-icon">
+                        <i class="fas fa-check-circle text-success"></i>
+                    </div>
+                    <h4 class="text-success mb-3">Frage beantwortet!</h4>
+                    <p class="text-muted mb-0">
+                        Du hast die Frage bereits beantwortet. 
+                        Warte, bis alle anderen Teams fertig sind.
+                    </p>
+                </div>
+            `;
+        } else {
+            // Show question form
+            let optionsHtml = '';
+            
+            if (questionData.question_type === 'multiple_choice') {
+                questionData.options.forEach((option, index) => {
+                    optionsHtml += `
+                        <div class="custom-control custom-radio mb-3">
+                            <input type="radio" class="custom-control-input" 
+                                   id="option_${index}" name="selected_option" value="${index}">
+                            <label class="custom-control-label answer-option-label" for="option_${index}">
+                                <span class="option-letter">${"ABCD"[index]}.</span>
+                                <span class="option-text">${option}</span>
+                            </label>
+                        </div>
+                    `;
+                });
+            }
+            
+            questionContent.innerHTML = `
+                <div class="question-form">
+                    ${questionData.description ? `<p class="text-muted mb-3">${questionData.description}</p>` : ''}
+                    
+                    <div class="question-text mb-4">
+                        ${questionData.question_text}
+                    </div>
+                    
+                    <form id="question-answer-form">
+                        ${questionData.question_type === 'multiple_choice' ? `
+                            <div class="answer-options">
+                                <label class="form-control-label mb-3">
+                                    <strong>Wähle die richtige Antwort:</strong>
+                                </label>
+                                ${optionsHtml}
+                            </div>
+                        ` : `
+                            <div class="form-group">
+                                <label class="form-control-label mb-3">
+                                    <strong>Gib deine Antwort ein:</strong>
+                                </label>
+                                <textarea name="answer_text" class="form-control form-control-lg" 
+                                         rows="3" placeholder="Deine Antwort hier eingeben..."></textarea>
+                                <small class="form-text text-muted mt-2">
+                                    <i class="fas fa-lightbulb mr-1"></i>
+                                    Tipp: Achte auf Rechtschreibung - die Antwort muss exakt stimmen!
+                                </small>
+                            </div>
+                        `}
+                        
+                        <div class="text-center mt-4">
+                            <button type="submit" class="btn btn-success btn-lg question-submit-btn">
+                                <i class="fas fa-paper-plane mr-2"></i>
+                                Antwort abschicken
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            `;
+            
+            // Attach form handler
+            const form = document.getElementById('question-answer-form');
+            if (form) {
+                form.addEventListener('submit', handleQuestionSubmit);
+            }
         }
+    }
+}
+
+function handleQuestionSubmit(e) {
+    e.preventDefault();
+    
+    const form = e.target;
+    const submitBtn = form.querySelector('.question-submit-btn');
+    const questionData = lastQuestionData;
+    
+    if (!questionData) return;
+    
+    let answerData = {
+        question_id: questionData.id,
+        answer_type: questionData.question_type
+    };
+    
+    // Validation and data collection
+    let isValid = false;
+    
+    if (questionData.question_type === 'multiple_choice') {
+        const selectedOption = form.querySelector('input[name="selected_option"]:checked');
+        if (selectedOption) {
+            answerData.selected_option = parseInt(selectedOption.value);
+            isValid = true;
+        } else {
+            alert('Bitte wähle eine Antwort aus!');
+            return;
+        }
+    } else if (questionData.question_type === 'text_input') {
+        const answerText = form.querySelector('textarea[name="answer_text"]').value.trim();
+        if (answerText) {
+            answerData.answer_text = answerText;
+            isValid = true;
+        } else {
+            alert('Bitte gib eine Antwort ein!');
+            return;
+        }
+    }
+    
+    if (!isValid) return;
+    
+    // Disable form
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Wird gesendet...';
+    
+    // Send answer
+    fetch("{{ url_for('teams.submit_question_answer') }}", {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': "{{ csrf_token() }}"
+        },
+        body: JSON.stringify(answerData)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            currentQuestionAnswered = true;
+            showQuestionResult(data);
+            // Update interface to show "answered" state
+            setTimeout(() => {
+                updateQuestionContent(questionData, true);
+            }, 3000);
+        } else {
+            alert('Fehler: ' + (data.error || 'Unbekannter Fehler'));
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<i class="fas fa-paper-plane mr-2"></i>Antwort abschicken';
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Netzwerkfehler beim Senden der Antwort.');
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<i class="fas fa-paper-plane mr-2"></i>Antwort abschicken';
+    });
+}
+
+function showQuestionResult(data) {
+    // Show a quick feedback message
+    const questionContent = document.getElementById('question-content');
+    if (questionContent) {
+        const isCorrect = data.is_correct;
+        const resultHtml = `
+            <div class="question-result text-center p-4">
+                <div class="result-icon mb-3">
+                    <i class="fas ${isCorrect ? 'fa-check-circle text-success' : 'fa-times-circle text-danger'}" 
+                       style="font-size: 4rem;"></i>
+                </div>
+                <h4 class="${isCorrect ? 'text-success' : 'text-danger'} mb-3">
+                    ${isCorrect ? 'Richtig!' : 'Leider falsch'}
+                </h4>
+                <p class="text-muted">
+                    ${data.feedback && data.feedback.message ? data.feedback.message : ''}
+                    ${data.feedback && data.feedback.correct_answer && !isCorrect ? 
+                        '<br><strong>Die richtige Antwort war:</strong> ' + data.feedback.correct_answer : ''}
+                </p>
+                <p class="text-info mt-3">
+                    ${data.all_teams_answered ? 
+                        'Alle Teams haben geantwortet. Der Admin wird die Ergebnisse auswerten.' : 
+                        'Warte, bis alle anderen Teams geantwortet haben.'}
+                </p>
+            </div>
+        `;
+        
+        questionContent.innerHTML = resultHtml;
     }
 }
 
@@ -1398,7 +1435,7 @@ function showQuestionAnnouncement(name, description) {
             setTimeout(() => {
                 banner.classList.remove('show', 'hide');
             }, 500);
-        }, 5000);
+        }, 4000);
     }
 }
 
@@ -1418,7 +1455,7 @@ function showMinigameAnnouncement(name, description) {
             setTimeout(() => {
                 banner.classList.remove('show', 'hide');
             }, 500);
-        }, 5000);
+        }, 4000);
     }
 }
 
@@ -1427,7 +1464,6 @@ function showMinigameResults(teams) {
     const resultsList = document.getElementById('minigame-results-list');
     
     if (banner && resultsList) {
-        // Sort teams by placement
         const teamsWithPlacements = teams
             .filter(team => team.minigame_placement)
             .sort((a, b) => a.minigame_placement - b.minigame_placement);
@@ -1478,19 +1514,11 @@ function showDiceWaitingAnimation() {
 function showDiceResultAnimation(standardRoll, bonusRoll, totalRoll, oldPos, newPos) {
     const waitingDiv = document.getElementById('dice-waiting');
     const resultDiv = document.getElementById('dice-result-animation');
-    const diceElement = document.getElementById('animated-dice-final');
     
     if (waitingDiv && resultDiv) {
         // Hide waiting animation and show result
         waitingDiv.style.display = 'none';
         resultDiv.style.display = 'block';
-        
-        // Stop the dice animation and hide the dice after a brief moment
-        setTimeout(() => {
-            if (diceElement) {
-                diceElement.style.display = 'none';
-            }
-        }, 200); // Hide dice after 200ms
         
         // Update result values
         document.getElementById('standard-roll').textContent = standardRoll;
@@ -1498,7 +1526,7 @@ function showDiceResultAnimation(standardRoll, bonusRoll, totalRoll, oldPos, new
         document.getElementById('old-pos').textContent = oldPos;
         document.getElementById('new-pos').textContent = newPos;
         
-        // Speichere das Würfelergebnis
+        // Store dice result
         lastDiceResult = {
             standard: standardRoll,
             bonus: bonusRoll,
@@ -1513,25 +1541,28 @@ function showDiceResultAnimation(standardRoll, bonusRoll, totalRoll, oldPos, new
             document.getElementById('bonus-row').style.display = 'none';
         }
         
-        // Hide the entire banner after 3 seconds (just showing the result)
-        setTimeout(() => {
+        // Hide the banner after longer time (8 seconds instead of 3)
+        if (diceResultTimer) {
+            clearTimeout(diceResultTimer);
+        }
+        
+        diceResultTimer = setTimeout(() => {
             hideDiceAnimation();
-        }, 3000);
+        }, 8000); // Longer display time
     }
 }
 
 function hideDiceAnimation() {
     const overlay = document.getElementById('dice-animation-overlay');
-    const diceElement = document.getElementById('animated-dice-final');
     
     if (overlay) {
         overlay.style.display = 'none';
         isDiceAnimationShowing = false;
-        
-        // Reset dice visibility for next time
-        if (diceElement) {
-            diceElement.style.display = 'block';
-        }
+    }
+    
+    if (diceResultTimer) {
+        clearTimeout(diceResultTimer);
+        diceResultTimer = null;
     }
 }
 
@@ -1556,13 +1587,9 @@ function updateGameStatus(gameData) {
     const minigameInfo = document.getElementById('minigame-info');
     
     if (statusAlert && statusText) {
-        // Update alert class
         statusAlert.className = `alert alert-${gameData.game_status_class} alert-dismissible fade show`;
-        
-        // Update status text
         statusText.innerHTML = `<strong>${gameData.game_status}</strong>`;
         
-        // Update minigame info
         if (gameData.current_minigame_name && minigameInfo) {
             const isQuestion = gameData.question_data && gameData.question_data.name === gameData.current_minigame_name;
             minigameInfo.innerHTML = `
@@ -1580,35 +1607,8 @@ function updateStatistics(currentUser, stats) {
     // Position
     const positionNumber = document.getElementById('position-number');
     if (positionNumber && positionNumber.textContent != currentUser.position) {
-        const oldPos = parseInt(positionNumber.textContent);
         positionNumber.textContent = currentUser.position;
         document.getElementById('position-circle').classList.add('position-updated');
-        
-        // Show dice result if we're currently showing dice animation
-        if (isDiceAnimationShowing && isCurrentlyMyTurn) {
-            // Calculate dice result from position change
-            const positionChange = currentUser.position - oldPos;
-            if (positionChange > 0) {
-                // Simulate result (in reality this should come from server)
-                const standardRoll = Math.min(6, positionChange);
-                const bonusRoll = Math.max(0, positionChange - 6);
-                showDiceResultAnimation(standardRoll, bonusRoll, positionChange, oldPos, currentUser.position);
-            }
-        } else if (!isDiceAnimationShowing && oldPos !== currentUser.position) {
-            // Update last dice result even if animation is not showing (for other team moves)
-            const positionChange = currentUser.position - oldPos;
-            if (positionChange > 0) {
-                const standardRoll = Math.min(6, positionChange);
-                const bonusRoll = Math.max(0, positionChange - 6);
-                lastDiceResult = {
-                    standard: standardRoll,
-                    bonus: bonusRoll,
-                    total: positionChange
-                };
-                updateLastDiceResultDisplay();
-            }
-        }
-        
         setTimeout(() => {
             document.getElementById('position-circle').classList.remove('position-updated');
         }, 1000);
@@ -1770,10 +1770,6 @@ function updateDiceOrder(diceOrder) {
     }
 }
 
-function updateMinigameInfo(gameData) {
-    // Already handled in updateGameStatus
-}
-
 function refreshDashboard() {
     fetchDashboardData();
 }
@@ -1789,14 +1785,12 @@ function fetchDashboardData() {
         });
 }
 
-// Start live updates
+// Live updates management
 function startLiveUpdates() {
-    // Clear any existing interval
     if (updateInterval) {
         clearInterval(updateInterval);
     }
     
-    // Update every 2 seconds
     updateInterval = setInterval(() => {
         if (!document.hidden) {
             fetchDashboardData();
@@ -1804,7 +1798,6 @@ function startLiveUpdates() {
     }, 2000);
 }
 
-// Stop live updates
 function stopLiveUpdates() {
     if (updateInterval) {
         clearInterval(updateInterval);
@@ -1818,19 +1811,16 @@ document.addEventListener('visibilitychange', function() {
         stopLiveUpdates();
     } else {
         startLiveUpdates();
-        // Immediate update when page becomes visible
         fetchDashboardData();
     }
 });
 
-// Initialize when page loads
+// Initialize
 document.addEventListener('DOMContentLoaded', function() {
     startLiveUpdates();
-    
-    // Initialize last dice result display
     updateLastDiceResultDisplay();
     
-    // Flash-Nachrichten nach 5 Sekunden ausblenden
+    // Auto-hide flash messages
     setTimeout(() => {
         const alerts = document.querySelectorAll('.alert-dismissible');
         alerts.forEach(alert => {
@@ -1843,6 +1833,9 @@ document.addEventListener('DOMContentLoaded', function() {
 // Clean up on page unload
 window.addEventListener('beforeunload', function() {
     stopLiveUpdates();
+    if (diceResultTimer) {
+        clearTimeout(diceResultTimer);
+    }
 });
 </script>
 {% endblock %}
