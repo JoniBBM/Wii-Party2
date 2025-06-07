@@ -1,8 +1,8 @@
 # app/forms.py
 from flask_wtf import FlaskForm
-from wtforms import StringField, PasswordField, SubmitField, IntegerField, BooleanField, SelectField, HiddenField, TextAreaField, RadioField
+from wtforms import StringField, PasswordField, SubmitField, IntegerField, BooleanField, SelectField, HiddenField, TextAreaField, RadioField, FloatField, SelectMultipleField
 from wtforms.validators import DataRequired, Length, EqualTo, NumberRange, Optional, ValidationError
-from app.models import Character, MinigameFolder, GameRound
+from app.models import Character, MinigameFolder, GameRound, FieldType, Team
 
 class AdminLoginForm(FlaskForm):
     username = StringField('Benutzername', validators=[DataRequired(), Length(min=4, max=25)])
@@ -251,3 +251,216 @@ class DeleteConfirmationForm(FlaskForm):
     """Allgemeines Bestätigungsformular für Löschvorgänge"""
     confirm = BooleanField('Ja, ich möchte dies wirklich löschen', validators=[DataRequired()])
     submit = SubmitField('Endgültig löschen')
+
+# NEUE FORMS FÜR FELDAKTIONEN
+
+class CreateFieldTypeForm(FlaskForm):
+    """Form für das Erstellen eines neuen Feldtyps"""
+    name = StringField('Interner Name', validators=[DataRequired(), Length(min=2, max=50)])
+    display_name = StringField('Anzeigename', validators=[DataRequired(), Length(min=2, max=100)])
+    description = TextAreaField('Beschreibung', validators=[Optional(), Length(max=500)])
+    color = StringField('Farbe (Hex)', validators=[DataRequired(), Length(min=7, max=7)], default='#FF0000')
+    icon = StringField('Icon (Unicode/CSS)', validators=[Optional(), Length(max=20)], default='⭐')
+    probability = FloatField('Wahrscheinlichkeit', validators=[NumberRange(min=0.0, max=1.0)], default=1.0)
+    
+    # Basis-Konfiguration
+    action_type = SelectField('Hauptaktion', choices=[
+        ('move_backward', 'Rückwärts bewegen'),
+        ('move_forward', 'Vorwärts bewegen'),
+        ('teleport', 'Teleportation'),
+        ('swap_positions', 'Positionen tauschen'),
+        ('extra_dice', 'Extra-Würfel'),
+        ('bonus_move', 'Bonus-Bewegung'),
+        ('block_player', 'Spieler blockieren'),
+        ('shield', 'Schutzschild'),
+        ('volcano_trigger', 'Vulkan auslösen'),
+        ('lucky_field', 'Glücksfeld'),
+        ('choice_field', 'Wahlfeld'),
+        ('minigame_field', 'Mini-Minispiel'),
+        ('mystery_box', 'Mysterium-Box'),
+        ('time_warp', 'Zeitverzerrung')
+    ], validators=[DataRequired()])
+    
+    submit = SubmitField('Feldtyp erstellen')
+
+    def validate_name(self, name):
+        import re
+        if not re.match(r'^[a-zA-Z0-9_]+$', name.data):
+            raise ValidationError('Name darf nur Buchstaben, Zahlen und Unterstriche enthalten.')
+        
+        existing_type = FieldType.query.filter_by(name=name.data).first()
+        if existing_type:
+            raise ValidationError('Ein Feldtyp mit diesem Namen existiert bereits.')
+
+    def validate_color(self, color):
+        import re
+        if not re.match(r'^#[0-9A-Fa-f]{6}$', color.data):
+            raise ValidationError('Farbe muss im Format #RRGGBB angegeben werden (z.B. #FF0000).')
+
+class EditFieldTypeForm(FlaskForm):
+    """Form für das Bearbeiten eines Feldtyps"""
+    name = StringField('Interner Name', validators=[DataRequired(), Length(min=2, max=50)])
+    display_name = StringField('Anzeigename', validators=[DataRequired(), Length(min=2, max=100)])
+    description = TextAreaField('Beschreibung', validators=[Optional(), Length(max=500)])
+    color = StringField('Farbe (Hex)', validators=[DataRequired(), Length(min=7, max=7)])
+    icon = StringField('Icon (Unicode/CSS)', validators=[Optional(), Length(max=20)])
+    probability = FloatField('Wahrscheinlichkeit', validators=[NumberRange(min=0.0, max=1.0)])
+    is_active = BooleanField('Aktiv')
+    
+    action_type = SelectField('Hauptaktion', choices=[
+        ('move_backward', 'Rückwärts bewegen'),
+        ('move_forward', 'Vorwärts bewegen'),
+        ('teleport', 'Teleportation'),
+        ('swap_positions', 'Positionen tauschen'),
+        ('extra_dice', 'Extra-Würfel'),
+        ('bonus_move', 'Bonus-Bewegung'),
+        ('block_player', 'Spieler blockieren'),
+        ('shield', 'Schutzschild'),
+        ('volcano_trigger', 'Vulkan auslösen'),
+        ('lucky_field', 'Glücksfeld'),
+        ('choice_field', 'Wahlfeld'),
+        ('minigame_field', 'Mini-Minispiel'),
+        ('mystery_box', 'Mysterium-Box'),
+        ('time_warp', 'Zeitverzerrung')
+    ], validators=[DataRequired()])
+    
+    submit = SubmitField('Änderungen speichern')
+
+    def __init__(self, original_name, *args, **kwargs):
+        super(EditFieldTypeForm, self).__init__(*args, **kwargs)
+        self.original_name = original_name
+
+    def validate_name(self, name):
+        import re
+        if not re.match(r'^[a-zA-Z0-9_]+$', name.data):
+            raise ValidationError('Name darf nur Buchstaben, Zahlen und Unterstriche enthalten.')
+        
+        if name.data != self.original_name:
+            existing_type = FieldType.query.filter_by(name=name.data).first()
+            if existing_type:
+                raise ValidationError('Ein Feldtyp mit diesem Namen existiert bereits.')
+
+    def validate_color(self, color):
+        import re
+        if not re.match(r'^#[0-9A-Fa-f]{6}$', color.data):
+            raise ValidationError('Farbe muss im Format #RRGGBB angegeben werden (z.B. #FF0000).')
+
+class BoardFieldConfigForm(FlaskForm):
+    """Form für die Konfiguration von Spielbrett-Feldern"""
+    position = IntegerField('Feld-Position', validators=[DataRequired(), NumberRange(min=0, max=72)])
+    field_type_id = SelectField('Feldtyp', coerce=int, validators=[Optional()])
+    is_active = BooleanField('Aktiv', default=True)
+    
+    # Erweiterte Konfiguration (JSON)
+    custom_config = TextAreaField('Benutzerdefinierte Konfiguration (JSON)', validators=[Optional()])
+    
+    submit = SubmitField('Feld konfigurieren')
+
+    def __init__(self, *args, **kwargs):
+        super(BoardFieldConfigForm, self).__init__(*args, **kwargs)
+        field_types = FieldType.query.filter_by(is_active=True).order_by(FieldType.display_name).all()
+        self.field_type_id.choices = [(0, '-- Normal (kein spezieller Typ) --')] + [(ft.id, f"{ft.display_name} ({ft.name})") for ft in field_types]
+
+    def validate_custom_config(self, custom_config):
+        if custom_config.data and custom_config.data.strip():
+            try:
+                import json
+                json.loads(custom_config.data)
+            except json.JSONDecodeError:
+                raise ValidationError('Benutzerdefinierte Konfiguration muss gültiges JSON sein.')
+
+class VolcanoControlForm(FlaskForm):
+    """Form für die Vulkan-Steuerung"""
+    action = SelectField('Vulkan-Aktion', choices=[
+        ('trigger', 'Vulkan-Countdown starten'),
+        ('eruption', 'Sofortiger Ausbruch'),
+        ('calm', 'Vulkan beruhigen'),
+        ('reset', 'Vulkan zurücksetzen')
+    ], validators=[DataRequired()])
+    
+    countdown = IntegerField('Countdown (nur bei Trigger)', validators=[Optional(), NumberRange(min=1, max=10)], default=5)
+    eruption_type = SelectField('Ausbruchstyp', choices=[
+        ('scatter', 'Alle Teams verstreuen'),
+        ('reset', 'Alle Teams zum Start'),
+        ('selective', 'Positions-abhängige Effekte')
+    ], default='scatter')
+    
+    submit = SubmitField('Vulkan-Aktion ausführen')
+
+class FieldActionConfigForm(FlaskForm):
+    """Form für die Konfiguration spezifischer Feldaktionen"""
+    action_type = SelectField('Aktionstyp', validators=[DataRequired()])
+    
+    # Allgemeine Parameter
+    min_value = IntegerField('Minimum-Wert', validators=[Optional()])
+    max_value = IntegerField('Maximum-Wert', validators=[Optional()])
+    fixed_value = IntegerField('Fester Wert', validators=[Optional()])
+    probability = FloatField('Wahrscheinlichkeit', validators=[Optional(), NumberRange(min=0.0, max=1.0)])
+    
+    # Spezifische Parameter
+    duration = IntegerField('Dauer (Züge)', validators=[Optional(), NumberRange(min=1, max=10)])
+    target_type = SelectField('Ziel', choices=[
+        ('self', 'Nur eigenes Team'),
+        ('choice', 'Team auswählen'),
+        ('random', 'Zufälliges Team'),
+        ('all', 'Alle Teams'),
+        ('others', 'Alle anderen Teams')
+    ], default='self')
+    
+    effect_strength = SelectField('Stärke', choices=[
+        ('weak', 'Schwach'),
+        ('normal', 'Normal'),
+        ('strong', 'Stark')
+    ], default='normal')
+    
+    submit = SubmitField('Konfiguration speichern')
+
+    def __init__(self, *args, **kwargs):
+        super(FieldActionConfigForm, self).__init__(*args, **kwargs)
+        # Aktionstypen aus dem Feldaktions-System laden
+        from app.field_actions import get_available_actions, get_action_info
+        
+        action_choices = []
+        for action_type in get_available_actions():
+            info = get_action_info(action_type)
+            action_choices.append((action_type, f"{info.get('name', action_type)} ({info.get('category', 'unknown')})"))
+        
+        self.action_type.choices = action_choices
+
+class QuickFieldSetupForm(FlaskForm):
+    """Form für schnelle Feld-Konfiguration"""
+    setup_type = SelectField('Setup-Typ', choices=[
+        ('random', 'Zufällige Verteilung'),
+        ('balanced', 'Ausgewogene Verteilung'),
+        ('chaotic', 'Chaotische Verteilung'),
+        ('volcano_heavy', 'Vulkan-lastig'),
+        ('safe', 'Sicher (wenig Fallen)'),
+        ('clear_all', 'Alle Spezialfelder entfernen')
+    ], validators=[DataRequired()])
+    
+    special_field_density = SelectField('Dichte der Spezialfelder', choices=[
+        ('low', 'Niedrig (10%)'),
+        ('medium', 'Mittel (20%)'),
+        ('high', 'Hoch (30%)'),
+        ('extreme', 'Extrem (40%)')
+    ], default='medium')
+    
+    include_volcano = BooleanField('Vulkan-Felder einschließen', default=True)
+    include_teleport = BooleanField('Teleport-Felder einschließen', default=True)
+    include_bonus = BooleanField('Bonus-Felder einschließen', default=True)
+    include_traps = BooleanField('Fallen einschließen', default=True)
+    
+    submit = SubmitField('Spielbrett konfigurieren')
+
+class TeamFieldActionForm(FlaskForm):
+    """Form für Team-Interaktionen mit Feldaktionen"""
+    action_id = HiddenField()
+    choice_value = StringField('Auswahl')
+    target_team_id = SelectField('Ziel-Team', coerce=int, validators=[Optional()])
+    
+    submit = SubmitField('Aktion ausführen')
+
+    def __init__(self, *args, **kwargs):
+        super(TeamFieldActionForm, self).__init__(*args, **kwargs)
+        teams = Team.query.order_by(Team.name).all()
+        self.target_team_id.choices = [(0, '-- Kein Team --')] + [(t.id, t.name) for t in teams]

@@ -25,7 +25,7 @@ def game_board():
 
 @main_bp.route('/api/board-status')
 def board_status():
-    """API für Spielstatus-Updates via AJAX mit verbesserter Fehlerbehandlung"""
+    """API für Spielstatus-Updates via AJAX mit verbesserter Fehlerbehandlung und Sonderfeld-Unterstützung"""
     try:
         teams_query = Team.query.order_by(Team.id).all() # Reihenfolge nach ID für Konsistenz
         active_session_query = GameSession.query.filter_by(is_active=True).first()
@@ -46,7 +46,10 @@ def board_status():
                 "position": team_obj.current_position if team_obj.current_position is not None else 0,
                 "character": char_info,
                 "bonus_dice_sides": team_obj.bonus_dice_sides if team_obj.bonus_dice_sides is not None else 0,
-                "minigame_placement": team_obj.minigame_placement # Kann None sein
+                "minigame_placement": team_obj.minigame_placement, # Kann None sein
+                # NEU: Sonderfeld-Status
+                "is_blocked": team_obj.is_blocked if hasattr(team_obj, 'is_blocked') else False,
+                "blocked_target_number": team_obj.blocked_target_number if hasattr(team_obj, 'blocked_target_number') else None
             })
 
         game_session_data = None

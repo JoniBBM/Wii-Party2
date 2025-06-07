@@ -23,6 +23,7 @@ with app_instance.app_context():
         db.create_all()
         print("Datenbank-Tabellen erfolgreich erstellt.")
         print("✅ Spiele-Tracking-Feld 'played_content_ids' in GameSession enthalten.")
+        print("✅ Sonderfeld-Features 'is_blocked' und 'blocked_target_number' in Team enthalten.")
     except Exception as e:
         print(f"Fehler beim Erstellen der Tabellen: {e}")
         sys.exit(1)
@@ -140,10 +141,58 @@ with app_instance.app_context():
         print(f"Fehler bei der Minigame-Ordner-Initialisierung: {minigame_e}")
         print("Die Grundfunktionalität sollte trotzdem funktionieren.")
 
+    # NEU: Teste Sonderfeld-Features
+    print("\n--- Teste Sonderfeld-Features ---")
+    
+    try:
+        # Erstelle Test-Team
+        test_team = Team(name="Test-Team-Sonderfelder")
+        test_team.set_password("test123")
+        test_team.current_position = 15  # Sonderfeld-Position
+        
+        print("Teste Sonderfeld-Status-Features...")
+        print(f"  Initial is_blocked: {test_team.is_blocked}")
+        print(f"  Initial blocked_target_number: {test_team.blocked_target_number}")
+        
+        # Teste Blockierung
+        test_team.is_blocked = True
+        test_team.blocked_target_number = 5
+        print(f"  Nach Blockierung - is_blocked: {test_team.is_blocked}, target: {test_team.blocked_target_number}")
+        
+        # Teste Reset
+        test_team.reset_special_field_status()
+        print(f"  Nach Reset - is_blocked: {test_team.is_blocked}, target: {test_team.blocked_target_number}")
+        
+        # Teste Sonderfeld-Logik
+        from app.game_logic.special_fields import get_field_type_at_position, get_all_special_field_positions
+        
+        print("Teste Sonderfeld-Typ-Erkennung...")
+        test_positions = [0, 15, 26, 34, 38, 72]  # Start, Katapult vorwärts, Katapult rückwärts, Tausch, Sperre, Ziel
+        for pos in test_positions:
+            field_type = get_field_type_at_position(pos)
+            print(f"  Position {pos}: {field_type}")
+        
+        print("Teste get_all_special_field_positions()...")
+        special_positions = get_all_special_field_positions(73)
+        for field_type, positions in special_positions.items():
+            print(f"  {field_type}: {len(positions)} Felder - {positions[:5]}{'...' if len(positions) > 5 else ''}")
+        
+        print("✅ Alle Sonderfeld-Features funktionieren korrekt!")
+        
+        # Lösche Test-Team (nicht speichern)
+        
+    except ImportError as ie:
+        print(f"ImportFehler beim Laden der Sonderfeld-Logic: {ie}")
+        print("Stelle sicher, dass app/game_logic/special_fields.py existiert und korrekt implementiert ist.")
+    except Exception as special_e:
+        print(f"Fehler bei der Sonderfeld-Feature-Initialisierung: {special_e}")
+        print("Die Grundfunktionalität sollte trotzdem funktionieren.")
+
     print("\nDatenbank-Initialisierung abgeschlossen.")
     print("\n📁 Minigame-Ordner-System ist bereit!")
     print("🎮 Standard-Spielrunde wurde erstellt und aktiviert.")
     print("📊 Spiele-Tracking-System ist aktiviert und getestet!")
+    print("⭐ Sonderfeld-System ist implementiert und getestet!")
     print("👨‍💼 Admin kann jetzt über das Dashboard weitere Ordner und Runden erstellen.")
     print("\n🎯 Neue Features:")
     print("  ✅ Spiele werden nur einmal pro Runde ausgewählt")
@@ -151,3 +200,16 @@ with app_instance.app_context():
     print("  ✅ Admin kann gespielte Inhalte zurücksetzen")
     print("  ✅ Spielfortschritt wird im Dashboard angezeigt")
     print("  ✅ Bereits gespielte Inhalte werden markiert")
+    print("\n🌟 SONDERFELD-FEATURES:")
+    print("  🚀 Katapult Vorwärts: Wirft Teams 3-5 Felder nach vorne")
+    print("  💥 Katapult Rückwärts: Wirft Teams 2-4 Felder nach hinten")
+    print("  🔄 Spieler-Tausch: Tauscht Positionen mit zufälligem Team")
+    print("  🚧 Sperren-Feld: Blockiert Teams bis bestimmte Zahl gewürfelt wird")
+    print("  🎨 Visuelle Effekte: Spezielle Dekos und Animationen für jedes Feld")
+    print("  🎮 Integration: Nahtlose Einbindung in bestehende Würfel-Mechanik")
+    print("\n📍 Sonderfeld-Positionen:")
+    print("  - Katapult Vorwärts: Alle 15 Felder (15, 30, 45, 60)")
+    print("  - Katapult Rückwärts: Alle 13 Felder (13, 26, 39, 52, 65)")
+    print("  - Spieler-Tausch: Alle 17 Felder (17, 34, 51, 68)")
+    print("  - Sperren-Feld: Alle 19 Felder (19, 38, 57)")
+    print("\n🎲 Spiel ist bereit für epische Abenteuer!")

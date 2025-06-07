@@ -161,12 +161,65 @@ div.game-container {
     background: linear-gradient(135deg, rgba(50, 150, 200, 0.96) 0%, rgba(30, 120, 180, 0.94) 100%);
 }
 
+.status-message.status-special {
+    background: linear-gradient(135deg, rgba(138, 43, 226, 0.96) 0%, rgba(75, 0, 130, 0.94) 100%);
+}
+
 @keyframes statusMessageAnim {
     0% { opacity: 0; transform: translate(-50%, -65%) scale(0.9); }
     12% { opacity: 1; transform: translate(-50%, -50%) scale(1.05); }
     18% { transform: translate(-50%, -50%) scale(1); }
     82% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
     100% { opacity: 0; transform: translate(-50%, -35%) scale(0.9); }
+}
+
+/* Spezial-Feld-Effekte */
+.special-field-display {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0);
+    background: linear-gradient(135deg, rgba(138, 43, 226, 0.98), rgba(75, 0, 130, 0.95));
+    border-radius: 25px;
+    width: 320px;
+    min-height: 180px;
+    padding: 25px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 0 60px rgba(138, 43, 226, 0.9), 0 20px 50px rgba(0, 0, 0, 0.4);
+    z-index: 250;
+    opacity: 0;
+    transition: all 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+    border: 4px solid rgba(255, 255, 255, 0.9);
+    color: white;
+    text-align: center;
+}
+
+.special-field-display.show {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+}
+
+.special-field-icon {
+    font-size: 4rem;
+    margin-bottom: 15px;
+    text-shadow: 2px 2px 8px rgba(0, 0, 0, 0.5);
+}
+
+.special-field-title {
+    font-size: 1.5rem;
+    font-weight: 900;
+    margin-bottom: 10px;
+    text-shadow: 2px 2px 6px rgba(0, 0, 0, 0.4);
+}
+
+.special-field-description {
+    font-size: 1.1rem;
+    font-weight: 600;
+    line-height: 1.4;
+    text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.3);
 }
 
 /* Vollbild-Styles */
@@ -217,6 +270,12 @@ div.game-container {
     .dice-result-number {
         font-size: 2.2rem;
     }
+    
+    .special-field-display {
+        width: 280px;
+        min-height: 160px;
+        padding: 20px;
+    }
 }
 </style>
 {% endblock %}
@@ -232,6 +291,13 @@ div.game-container {
             <div id="dice-result-bonus" class="dice-result-part" style="display: none;">Bonus: <span>-</span></div>
             <div class="dice-result-total">Gesamt: <span class="dice-result-number">0</span></div>
             <div class="dice-result-text">Felder</div>
+        </div>
+        
+        <!-- NEU: Sonderfeld-Anzeige -->
+        <div id="special-field-display" class="special-field-display" style="display: none;">
+            <div id="special-field-icon" class="special-field-icon">🎯</div>
+            <div id="special-field-title" class="special-field-title">Sonderfeld!</div>
+            <div id="special-field-description" class="special-field-description">Etwas Besonderes ist passiert!</div>
         </div>
     </div>
 </div>
@@ -251,7 +317,7 @@ div.game-container {
 <script src="{{ url_for('static', filename='js/characters/defaultCharacter.js') }}"></script>
 
 <script>
-// Spielbrett-Konfiguration
+// Spielbrett-Konfiguration mit NEUEN SONDERFELDERN
 const BOARD_CONFIG = {
     fieldTypes: {
         start: { color: 0x4FC3F7, emission: 0x002244, name: 'Start' },
@@ -260,7 +326,12 @@ const BOARD_CONFIG = {
         chance: { color: 0xAED581, emission: 0x224400, name: 'Ereignisfeld' },
         trap: { color: 0xE57373, emission: 0x440000, name: 'Falle' },
         minigame: { color: 0xBA68C8, emission: 0x440044, name: 'Minispiel' },
-        goal: { color: 0xFFB74D, emission: 0x442200, name: 'Ziel' }
+        goal: { color: 0xFFB74D, emission: 0x442200, name: 'Ziel' },
+        // NEU: Sonderfelder
+        catapult_forward: { color: 0x4CAF50, emission: 0x2E7D32, name: 'Katapult Vorwärts' },
+        catapult_backward: { color: 0xF44336, emission: 0xC62828, name: 'Katapult Rückwärts' },
+        player_swap: { color: 0x2196F3, emission: 0x1565C0, name: 'Spieler-Tausch' },
+        barrier: { color: 0x9E9E9E, emission: 0x424242, name: 'Sperre' }
     },
     fieldSize: 1.0,
     fieldHeight: 0.25,
@@ -327,7 +398,10 @@ let localTeams = [
         }
         {% endif %},
         bonus_dice_sides: {{ team.bonus_dice_sides if team.bonus_dice_sides else 0 }},
-        minigame_placement: {{ team.minigame_placement if team.minigame_placement else 'null' }}
+        minigame_placement: {{ team.minigame_placement if team.minigame_placement else 'null' }},
+        // NEU: Sonderfeld-Status
+        is_blocked: {{ team.is_blocked|tojson if team.is_blocked is defined else 'false' }},
+        blocked_target_number: {{ team.blocked_target_number if team.blocked_target_number else 'null' }}
     }{% if not loop.last %},{% endif %}
     {% endfor %}
 ];
@@ -338,6 +412,53 @@ let currentMinigameDescription = "{{ active_session.current_minigame_description
 let currentGamePhase = "{{ active_session.current_phase | e if active_session else 'UNKNOWN' }}";
 
 const isAdmin = {{ is_admin|tojson }};
+
+// NEU: Sonderfeld-Hilfsfunktionen
+function getFieldTypeAtPosition(position) {
+    if (position === 0) return 'start';
+    else if (position === 72) return 'goal';
+    else if (position % 15 === 0) return 'catapult_forward';
+    else if (position % 13 === 0) return 'catapult_backward';
+    else if (position % 17 === 0) return 'player_swap';
+    else if (position % 19 === 0) return 'barrier';
+    else if (position % 8 === 0) return 'bonus';
+    else if (position % 12 === 0) return 'minigame';
+    else if (position % 20 === 0) return 'chance';
+    else if (position % 25 === 0) return 'trap';
+    else return 'normal';
+}
+
+function showSpecialFieldEffect(actionType, title, description, duration = 4000) {
+    const display = document.getElementById('special-field-display');
+    const icon = document.getElementById('special-field-icon');
+    const titleEl = document.getElementById('special-field-title');
+    const descEl = document.getElementById('special-field-description');
+    
+    if (!display || !icon || !titleEl || !descEl) return;
+    
+    // Setze Icon basierend auf Aktion
+    const iconMap = {
+        'catapult_forward': '🚀',
+        'catapult_backward': '💥',
+        'player_swap': '🔄',
+        'barrier_set': '🚧',
+        'barrier_released': '🎉'
+    };
+    
+    icon.textContent = iconMap[actionType] || '⭐';
+    titleEl.textContent = title;
+    descEl.textContent = description;
+    
+    display.style.display = 'flex';
+    display.classList.add('show');
+    
+    setTimeout(() => {
+        display.classList.remove('show');
+        setTimeout(() => {
+            display.style.display = 'none';
+        }, 500);
+    }, duration);
+}
 
 class WiiPartyIsland {
     constructor(canvasId) {
@@ -809,13 +930,8 @@ class WiiPartyIsland {
         }
         
         this.pathPoints.forEach((point, index) => {
-            let type = 'normal';
-            if (index === 0) type = 'start';
-            else if (index === this.pathPoints.length - 1) type = 'goal';
-            else if (index % 8 === 0) type = 'bonus';
-            else if (index % 12 === 0) type = 'minigame';
-            else if (index % 15 === 0) type = 'chance';
-            else if (index % 20 === 0) type = 'trap';
+            // NEU: Verwende die gleiche Logik wie im Backend
+            const type = getFieldTypeAtPosition(index);
             
             const field = this.createGameField(point, type, index);
             this.boardFields.push({ 
@@ -859,6 +975,9 @@ class WiiPartyIsland {
         ring.position.y = BOARD_CONFIG.fieldHeight + 0.01;
         group.add(ring);
         
+        // NEU: Spezielle Dekorationen für Sonderfelder
+        this.addSpecialFieldDecoration(group, type, index);
+        
         const baseGeometry = new THREE.CylinderGeometry(
             BOARD_CONFIG.fieldRadius * 1.05, 
             BOARD_CONFIG.fieldRadius * 1.15, 
@@ -878,6 +997,103 @@ class WiiPartyIsland {
         
         group.position.set(point.x, point.y, point.z);
         group.userData = { fieldIndex: index, fieldType: type };
+        
+        return group;
+    }
+
+    // NEU: Füge spezielle Dekorationen für Sonderfelder hinzu
+    addSpecialFieldDecoration(group, type, index) {
+        let decoration = null;
+        
+        switch(type) {
+            case 'catapult_forward':
+                // Grüner Pfeil nach oben
+                decoration = this.createArrowDecoration(0x4CAF50, 'up');
+                break;
+            case 'catapult_backward':
+                // Roter Pfeil nach unten
+                decoration = this.createArrowDecoration(0xF44336, 'down');
+                break;
+            case 'player_swap':
+                // Blaue Swirl-Dekoration
+                decoration = this.createSwirlDecoration(0x2196F3);
+                break;
+            case 'barrier':
+                // Graue X-Markierung
+                decoration = this.createBarrierDecoration(0x9E9E9E);
+                break;
+        }
+        
+        if (decoration) {
+            decoration.position.y = BOARD_CONFIG.fieldHeight + 0.05;
+            group.add(decoration);
+        }
+    }
+
+    createArrowDecoration(color, direction) {
+        const group = new THREE.Group();
+        
+        // Pfeil-Geometrie
+        const arrowGeometry = new THREE.ConeGeometry(0.15, 0.3, 6);
+        const arrowMaterial = new THREE.MeshLambertMaterial({ color: color });
+        const arrow = new THREE.Mesh(arrowGeometry, arrowMaterial);
+        
+        if (direction === 'up') {
+            arrow.position.y = 0.15;
+        } else {
+            arrow.position.y = 0.15;
+            arrow.rotation.z = Math.PI;
+        }
+        
+        group.add(arrow);
+        
+        // Basis des Pfeils
+        const baseGeometry = new THREE.CylinderGeometry(0.08, 0.08, 0.2, 6);
+        const base = new THREE.Mesh(baseGeometry, arrowMaterial);
+        base.position.y = 0.1;
+        group.add(base);
+        
+        return group;
+    }
+
+    createSwirlDecoration(color) {
+        const group = new THREE.Group();
+        
+        // Erstelle Swirl mit mehreren kleinen Zylindern
+        for (let i = 0; i < 8; i++) {
+            const angle = (i / 8) * Math.PI * 2;
+            const radius = 0.1 + (i / 8) * 0.2;
+            
+            const dotGeometry = new THREE.SphereGeometry(0.03, 6, 6);
+            const dotMaterial = new THREE.MeshLambertMaterial({ color: color });
+            const dot = new THREE.Mesh(dotGeometry, dotMaterial);
+            
+            dot.position.x = Math.cos(angle) * radius;
+            dot.position.z = Math.sin(angle) * radius;
+            dot.position.y = 0.1 + Math.sin(angle * 2) * 0.05;
+            
+            group.add(dot);
+        }
+        
+        return group;
+    }
+
+    createBarrierDecoration(color) {
+        const group = new THREE.Group();
+        
+        // Erstelle X-förmige Barriere
+        const barGeometry = new THREE.BoxGeometry(0.4, 0.05, 0.05);
+        const barMaterial = new THREE.MeshLambertMaterial({ color: color });
+        
+        const bar1 = new THREE.Mesh(barGeometry, barMaterial);
+        bar1.rotation.y = Math.PI / 4;
+        bar1.position.y = 0.1;
+        group.add(bar1);
+        
+        const bar2 = new THREE.Mesh(barGeometry, barMaterial);
+        bar2.rotation.y = -Math.PI / 4;
+        bar2.position.y = 0.1;
+        group.add(bar2);
         
         return group;
     }
@@ -1220,10 +1436,50 @@ class WiiPartyIsland {
                 );
             }
             
+            // NEU: Spezielle Effekte für blockierte Teams
+            if (team.is_blocked) {
+                this.addBlockedTeamEffect(this.miiCharacters[team.id]);
+            }
+            
             this.scene.add(this.miiCharacters[team.id]);
         }
         
         this.updateTeamDisplay();
+    }
+
+    // NEU: Füge visuellen Effekt für blockierte Teams hinzu
+    addBlockedTeamEffect(characterMesh) {
+        // Erstelle rötlichen Glow-Effekt um blockierte Characters
+        const glowGeometry = new THREE.SphereGeometry(BOARD_CONFIG.characterSize * 1.5, 16, 16);
+        const glowMaterial = new THREE.MeshBasicMaterial({
+            color: 0xFF4444,
+            transparent: true,
+            opacity: 0.3,
+            side: THREE.BackSide
+        });
+        
+        const glow = new THREE.Mesh(glowGeometry, glowMaterial);
+        glow.userData.isBlockedEffect = true;
+        characterMesh.add(glow);
+        
+        // Animation für den Glow-Effekt
+        glow.userData.animation = (time) => {
+            glow.material.opacity = 0.2 + Math.sin(time * 3) * 0.15;
+            glow.scale.setScalar(1 + Math.sin(time * 2) * 0.1);
+        };
+    }
+
+    // NEU: Entferne Blockierungs-Effekt
+    removeBlockedTeamEffect(characterMesh) {
+        const blockedEffects = characterMesh.children.filter(child => 
+            child.userData && child.userData.isBlockedEffect
+        );
+        
+        blockedEffects.forEach(effect => {
+            characterMesh.remove(effect);
+            if (effect.geometry) effect.geometry.dispose();
+            if (effect.material) effect.material.dispose();
+        });
     }
 
     fetchBoardStatusAndUpdate() {
@@ -1295,6 +1551,21 @@ class WiiPartyIsland {
                                 localTeam.position = serverTeam.position;
                                 localTeam.bonus_dice_sides = serverTeam.bonus_dice_sides;
                                 localTeam.minigame_placement = serverTeam.minigame_placement;
+                                
+                                // NEU: Sonderfeld-Status Update
+                                const wasBlocked = localTeam.is_blocked;
+                                localTeam.is_blocked = serverTeam.is_blocked || false;
+                                localTeam.blocked_target_number = serverTeam.blocked_target_number || null;
+                                
+                                // Update Blockierungs-Effekte
+                                const character = this.miiCharacters[localTeam.id];
+                                if (character) {
+                                    if (!wasBlocked && localTeam.is_blocked) {
+                                        this.addBlockedTeamEffect(character);
+                                    } else if (wasBlocked && !localTeam.is_blocked) {
+                                        this.removeBlockedTeamEffect(character);
+                                    }
+                                }
                             }
                         });
 
@@ -1496,7 +1767,11 @@ class WiiPartyIsland {
         } else if (GAME_STATE.currentServerTeamTurnId) {
             const nextTeam = localTeams.find(t => t.id === GAME_STATE.currentServerTeamTurnId);
             if (nextTeam) {
-                this.showStatusMessage(`${nextTeam.name} ist am Zug.`, 3000, 'info');
+                if (nextTeam.is_blocked) {
+                    this.showStatusMessage(`${nextTeam.name} ist am Zug (BLOCKIERT - muss ${nextTeam.blocked_target_number}+ würfeln).`, 4000, 'info');
+                } else {
+                    this.showStatusMessage(`${nextTeam.name} ist am Zug.`, 3000, 'info');
+                }
             }
         }
         this.updateTeamDisplay();
@@ -2308,6 +2583,13 @@ class WiiPartyIsland {
             if (characterModel.userData && characterModel.userData.animation) {
                 characterModel.userData.animation(time);
             }
+            
+            // NEU: Animiere Blockierungs-Effekte
+            characterModel.children.forEach(child => {
+                if (child.userData && child.userData.isBlockedEffect && child.userData.animation) {
+                    child.userData.animation(time);
+                }
+            });
         });
         
         this.boardFields.forEach(field => {
@@ -2349,10 +2631,200 @@ class WiiPartyIsland {
     }
 }
 
+// NEU: Erweiterte Fetch-Logik für Sonderfeld-Aktionen
+let previousSpecialFieldResponse = null;
+
+// NEU: Global verfügbare Funktion um Sonderfeld-Effekte zu verarbeiten
+function handleSpecialFieldResponse(data) {
+    if (!data || !data.special_field) return;
+    
+    const specialField = data.special_field;
+    if (!specialField.success) return;
+    
+    console.log('Sonderfeld-Aktion erkannt:', specialField.action, specialField);
+    
+    // Zeige spezielle Nachricht basierend auf Aktion
+    switch(specialField.action) {
+        case 'catapult_forward':
+            showSpecialFieldEffect(
+                'catapult_forward',
+                'Katapult Vorwärts!',
+                `${data.team_name} fliegt ${specialField.catapult_distance} Felder vorwärts!`,
+                5000
+            );
+            break;
+        case 'catapult_backward':
+            showSpecialFieldEffect(
+                'catapult_backward',
+                'Katapult Rückwärts!',
+                `${data.team_name} wird ${specialField.catapult_distance} Felder zurück geschleudert!`,
+                5000
+            );
+            break;
+        case 'player_swap':
+            showSpecialFieldEffect(
+                'player_swap',
+                'Positionstausch!',
+                `${data.team_name} tauscht mit ${specialField.swap_team_name}!`,
+                5000
+            );
+            break;
+        case 'barrier_set':
+            showSpecialFieldEffect(
+                'barrier_set',
+                'Blockiert!',
+                `${data.team_name} muss eine ${specialField.target_number} oder höher würfeln!`,
+                6000
+            );
+            break;
+    }
+    
+    // Zusätzliche Status-Nachricht
+    if (specialField.message) {
+        setTimeout(() => {
+            window.gameBoard.showStatusMessage(specialField.message, 4000, 'special');
+        }, 2000);
+    }
+}
+
+// NEU: Globale Funktion für Sperren-Checks
+function handleBarrierCheckResponse(data) {
+    if (!data || !data.barrier_check) return;
+    
+    const barrierCheck = data.barrier_check;
+    console.log('Sperren-Check erkannt:', barrierCheck);
+    
+    if (barrierCheck.released) {
+        showSpecialFieldEffect(
+            'barrier_released',
+            'Befreit!',
+            `${data.team_name} hat eine ${barrierCheck.dice_roll} gewürfelt und ist frei!`,
+            4000
+        );
+    } else {
+        // Team bleibt blockiert
+        setTimeout(() => {
+            window.gameBoard.showStatusMessage(
+                `${data.team_name} bleibt blockiert! (${barrierCheck.dice_roll} gewürfelt, ${barrierCheck.target_number}+ benötigt)`, 
+                4000, 
+                'error'
+            );
+        }, 1500);
+    }
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     try {
         if (document.getElementById('game-canvas')) {
             window.gameBoard = new WiiPartyIsland('game-canvas');
+            
+            // NEU: Überschreibe die fetchBoardStatusAndUpdate Methode um Sonderfeld-Aktionen zu handhaben
+            const originalFetch = window.gameBoard.fetchBoardStatusAndUpdate;
+            window.gameBoard.fetchBoardStatusAndUpdate = function() {
+                if (GAME_STATE.isCharacterMoving) {
+                    return;
+                }
+
+                fetch("{{ url_for('main.board_status') }}?t=" + new Date().getTime())
+                    .then(response => {
+                        if (!response.ok) {
+                            return response.json().then(errData => {
+                                throw new Error(errData.error || `Serverfehler: ${response.status}`);
+                            }).catch(() => {
+                                throw new Error(`Serverfehler: ${response.status} - ${response.statusText}`);
+                            });
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        if (data.error) {
+                            console.error("Server-Fehler:", data.error);
+                            this.showStatusMessage(`Serverproblem: ${data.error}`, 5000, 'error');
+                            return;
+                        }
+
+                        // Rest der ursprünglichen Logik...
+                        if (data.game_session) {
+                            let minigameInfoChanged = false;
+                            if (currentMinigameName !== data.game_session.current_minigame_name ||
+                                currentMinigameDescription !== data.game_session.current_minigame_description ||
+                                currentGamePhase !== data.game_session.current_phase) {
+                                minigameInfoChanged = true;
+                            }
+                            
+                            currentMinigameName = data.game_session.current_minigame_name;
+                            currentMinigameDescription = data.game_session.current_minigame_description;
+                            currentGamePhase = data.game_session.current_phase;
+
+                            if(minigameInfoChanged) {
+                                this.updateMinigameDisplay();
+                            }
+
+                            GAME_STATE.currentServerTeamTurnId = data.game_session.current_team_turn_id;
+                            
+                            if (typeof data.game_session.dice_roll_order === 'string' && data.game_session.dice_roll_order.length > 0) {
+                                GAME_STATE.diceRollOrderFromServer = data.game_session.dice_roll_order.split(',');
+                            } else if (Array.isArray(data.game_session.dice_roll_order)) {
+                                GAME_STATE.diceRollOrderFromServer = data.game_session.dice_roll_order;
+                            } else {
+                                GAME_STATE.diceRollOrderFromServer = [];
+                            }
+
+                            if (data.teams && Array.isArray(data.teams)) {
+                                let teamWhosePositionChanged = null;
+                                let newPositionForAnimation = 0;
+                                let oldPositionForAnimation = 0;
+
+                                data.teams.forEach(serverTeam => {
+                                    const localTeam = localTeams.find(t => t.id === serverTeam.id);
+                                    if (localTeam) {
+                                        if (localTeam.position !== serverTeam.position &&
+                                            !GAME_STATE.isCharacterMoving &&
+                                            (!this.activeMovementAnimation || this.activeMovementAnimation.teamId !== localTeam.id)
+                                        ) {
+                                            teamWhosePositionChanged = localTeam;
+                                            oldPositionForAnimation = localTeam.position;
+                                            newPositionForAnimation = serverTeam.position;
+                                        }
+                                        
+                                        localTeam.position = serverTeam.position;
+                                        localTeam.bonus_dice_sides = serverTeam.bonus_dice_sides;
+                                        localTeam.minigame_placement = serverTeam.minigame_placement;
+                                        
+                                        // NEU: Sonderfeld-Status Update
+                                        const wasBlocked = localTeam.is_blocked;
+                                        localTeam.is_blocked = serverTeam.is_blocked || false;
+                                        localTeam.blocked_target_number = serverTeam.blocked_target_number || null;
+                                        
+                                        // Update Blockierungs-Effekte
+                                        const character = this.miiCharacters[localTeam.id];
+                                        if (character) {
+                                            if (!wasBlocked && localTeam.is_blocked) {
+                                                this.addBlockedTeamEffect(character);
+                                            } else if (wasBlocked && !localTeam.is_blocked) {
+                                                this.removeBlockedTeamEffect(character);
+                                            }
+                                        }
+                                    }
+                                });
+
+                                this.updateAllTeamBadges();
+
+                                if (teamWhosePositionChanged && this.miiCharacters[teamWhosePositionChanged.id]) {
+                                    if (!GAME_STATE.isCharacterMoving) {
+                                        this.activeMovementAnimation = { teamId: teamWhosePositionChanged.id };
+                                        this.animateCharacterToNewPosition(teamWhosePositionChanged, oldPositionForAnimation, newPositionForAnimation);
+                                    }
+                                }
+                            }
+                            this.updateTeamDisplay();
+                        }
+                    })
+                    .catch(error => {
+                        console.error("Fehler beim Board-Status:", error);
+                        this.showStatusMessage(`Verbindungsproblem: ${error.message}`, 3000, "error");
+                    });
+            };
         } else {
             const canvasContainer = document.getElementById('game-canvas-container');
             if(canvasContainer) {

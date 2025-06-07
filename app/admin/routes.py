@@ -21,6 +21,13 @@ from .minigame_utils import (ensure_minigame_folders_exist, create_minigame_fold
                             get_all_content_from_folder, get_random_content_from_folder, get_played_count_for_folder,
                             get_available_content_from_folder, mark_content_as_played, reset_played_content_for_session)
 
+# NEU: Import der Sonderfeld-Logik
+from app.game_logic.special_fields import (
+    handle_special_field_action, 
+    check_barrier_release, 
+    get_field_type_at_position
+)
+
 admin_bp = Blueprint('admin', __name__, template_folder='../templates/admin', url_prefix='/admin')
 
 def get_or_create_active_session():
@@ -226,7 +233,7 @@ def admin_roll_dice():
         if not team:
             return jsonify({"success": False, "error": "Aktuelles Team nicht gefunden."}), 404
 
-        # VERBESSERT: Bonus-Würfel Logik mit Logging
+        # NEU: Prüfe ob Team blockiert ist (Sperren-Feld)
         standard_dice_roll = random.randint(1, 6)
         bonus_dice_roll = 0
         
@@ -240,15 +247,46 @@ def admin_roll_dice():
         
         total_roll = standard_dice_roll + bonus_dice_roll
         old_position = team.current_position
-        
-        max_field_index = current_app.config.get('MAX_BOARD_FIELDS', 72) 
-        new_position = min(team.current_position + total_roll, max_field_index)
-        team.current_position = new_position
+        new_position = old_position  # Default: keine Bewegung
+        special_field_result = None
+        barrier_check_result = None
 
+        # NEU: Prüfe Sperren-Status
+        if team.is_blocked:
+            # Team ist blockiert - prüfe ob es freikommt
+            barrier_check_result = check_barrier_release(team, standard_dice_roll, active_session)
+            
+            if barrier_check_result['released']:
+                # Team ist befreit und kann sich normal bewegen
+                max_field_index = current_app.config.get('MAX_BOARD_FIELDS', 72)
+                new_position = min(team.current_position + total_roll, max_field_index)
+                team.current_position = new_position
+                
+                # Prüfe Sonderfeld-Aktion nach Bewegung
+                all_teams = Team.query.all()
+                special_field_result = handle_special_field_action(team, all_teams, active_session)
+            else:
+                # Team bleibt blockiert, keine Bewegung
+                new_position = old_position
+        else:
+            # Team ist nicht blockiert - normale Bewegung
+            max_field_index = current_app.config.get('MAX_BOARD_FIELDS', 72)
+            new_position = min(team.current_position + total_roll, max_field_index)
+            team.current_position = new_position
+            
+            # Prüfe Sonderfeld-Aktion nach Bewegung
+            all_teams = Team.query.all()
+            special_field_result = handle_special_field_action(team, all_teams, active_session)
+
+        # Event für den Würfelwurf erstellen
         event_description = f"Admin würfelte für Team {team.name}: {standard_dice_roll}"
         if bonus_dice_roll > 0:
             event_description += f" (Bonus: {bonus_dice_roll}, Gesamt: {total_roll})"
-        event_description += f" und bewegte sich von Feld {old_position} zu Feld {new_position}."
+        
+        if team.is_blocked and not barrier_check_result.get('released', False):
+            event_description += f" - BLOCKIERT: Konnte sich nicht befreien."
+        else:
+            event_description += f" und bewegte sich von Feld {old_position} zu Feld {new_position}."
         
         dice_event = GameEvent(
             game_session_id=active_session.id,
@@ -261,11 +299,14 @@ def admin_roll_dice():
                 "total_roll": total_roll,
                 "old_position": old_position,
                 "new_position": new_position,
-                "rolled_by": "admin"
+                "rolled_by": "admin",
+                "was_blocked": team.is_blocked if barrier_check_result else False,
+                "barrier_released": barrier_check_result.get('released', False) if barrier_check_result else False
             })
         )
         db.session.add(dice_event)
 
+        # Nächstes Team ermitteln
         dice_order_ids_str = active_session.dice_roll_order
         if not dice_order_ids_str: 
             db.session.rollback()
@@ -307,7 +348,8 @@ def admin_roll_dice():
 
         db.session.commit()
 
-        return jsonify({
+        # Response zusammenstellen
+        response_data = {
             "success": True,
             "team_id": team.id,
             "team_name": team.name,
@@ -319,7 +361,16 @@ def admin_roll_dice():
             "next_team_id": active_session.current_team_turn_id,
             "next_team_name": next_team_name, 
             "new_phase": active_session.current_phase
-        })
+        }
+
+        # NEU: Füge Sonderfeld-Informationen hinzu
+        if barrier_check_result:
+            response_data["barrier_check"] = barrier_check_result
+            
+        if special_field_result and special_field_result.get("success"):
+            response_data["special_field"] = special_field_result
+
+        return jsonify(response_data)
 
     except Exception as e:
         db.session.rollback()
@@ -753,10 +804,12 @@ def reset_game_state_confirmed():
                 for team in teams:
                     team.minigame_placement = None
                     team.bonus_dice_sides = 0
-                    team.current_position = 0  
+                    team.current_position = 0
+                    # NEU: Sonderfeld-Status zurücksetzen
+                    team.reset_special_field_status()
 
                 db.session.commit()
-                flash('Spiel komplett zurückgesetzt (inkl. Positionen, Events, Fragen-Antworten, Session). Eine neue Session wird beim nächsten Aufruf gestartet.', 'success')
+                flash('Spiel komplett zurückgesetzt (inkl. Positionen, Events, Fragen-Antworten, Session, Sonderfeld-Status). Eine neue Session wird beim nächsten Aufruf gestartet.', 'success')
                 current_app.logger.info("Spiel komplett zurückgesetzt durch Admin.")
             except Exception as e:
                 db.session.rollback()
@@ -798,6 +851,42 @@ def reset_played_content():
         db.session.rollback()
         current_app.logger.error(f"Fehler beim Zurücksetzen der gespielten Inhalte: {e}", exc_info=True)
         flash('Fehler beim Zurücksetzen der gespielten Inhalte.', 'danger')
+    
+    return redirect(url_for('admin.admin_dashboard'))
+
+# NEU: Route zum manuellen Freigeben von blockierten Teams
+@admin_bp.route('/unblock_team/<int:team_id>', methods=['POST'])
+@login_required
+def unblock_team(team_id):
+    if not isinstance(current_user, Admin):
+        flash('Aktion nicht erlaubt.', 'danger')
+        return redirect(url_for('main.index'))
+    
+    try:
+        team = Team.query.get_or_404(team_id)
+        active_session = GameSession.query.filter_by(is_active=True).first()
+        
+        if team.is_blocked:
+            team.reset_special_field_status()
+            
+            if active_session:
+                event = GameEvent(
+                    game_session_id=active_session.id,
+                    event_type="admin_team_unblocked",
+                    description=f"Admin hat Team {team.name} manuell von der Sperre befreit.",
+                    related_team_id=team.id
+                )
+                db.session.add(event)
+            
+            db.session.commit()
+            flash(f'Team {team.name} wurde manuell von der Sperre befreit.', 'success')
+        else:
+            flash(f'Team {team.name} ist nicht blockiert.', 'info')
+            
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Fehler beim Freigeben von Team {team_id}: {e}", exc_info=True)
+        flash('Fehler beim Freigeben des Teams.', 'danger')
     
     return redirect(url_for('admin.admin_dashboard'))
 
