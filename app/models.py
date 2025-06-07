@@ -171,6 +171,9 @@ class GameSession(db.Model):
     selected_folder_minigame_id = db.Column(db.String(100), nullable=True)  # ID aus JSON-Datei
     minigame_source = db.Column(db.String(50), default='manual')  # 'manual', 'folder_random', 'folder_selected', 'direct_question'
 
+    # NEU: Tracking für bereits gespielte Inhalte
+    played_content_ids = db.Column(db.Text, nullable=True, default='')  # Komma-separierte Liste von gespielten IDs
+
     current_phase = db.Column(db.String(50), default='SETUP_MINIGAME') 
     # Mögliche Phasen: SETUP_MINIGAME, MINIGAME_ANNOUNCED, QUESTION_ACTIVE, QUESTION_COMPLETED, DICE_ROLLING, ROUND_OVER
     
@@ -179,6 +182,27 @@ class GameSession(db.Model):
     current_team_turn = db.relationship('Team', foreign_keys=[current_team_turn_id])
 
     events = db.relationship('GameEvent', backref='game_session', lazy='dynamic', cascade="all, delete-orphan")
+
+    def get_played_content_ids(self):
+        """Gibt eine Liste der bereits gespielten Content-IDs zurück"""
+        if not self.played_content_ids:
+            return []
+        return [content_id.strip() for content_id in self.played_content_ids.split(',') if content_id.strip()]
+
+    def add_played_content_id(self, content_id):
+        """Fügt eine Content-ID zur Liste der gespielten Inhalte hinzu"""
+        played_ids = self.get_played_content_ids()
+        if content_id not in played_ids:
+            played_ids.append(content_id)
+            self.played_content_ids = ','.join(played_ids)
+
+    def reset_played_content(self):
+        """Setzt die Liste der gespielten Inhalte zurück"""
+        self.played_content_ids = ''
+
+    def is_content_already_played(self, content_id):
+        """Prüft, ob ein Inhalt bereits gespielt wurde"""
+        return content_id in self.get_played_content_ids()
 
     def __repr__(self):
         return f'<GameSession {self.id} Round: {self.game_round_id} Active: {self.is_active} Phase: {self.current_phase}>'

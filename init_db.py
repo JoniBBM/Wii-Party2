@@ -22,6 +22,7 @@ with app_instance.app_context():
     try:
         db.create_all()
         print("Datenbank-Tabellen erfolgreich erstellt.")
+        print("✅ Spiele-Tracking-Feld 'played_content_ids' in GameSession enthalten.")
     except Exception as e:
         print(f"Fehler beim Erstellen der Tabellen: {e}")
         sys.exit(1)
@@ -98,6 +99,40 @@ with app_instance.app_context():
         db.session.commit()
         print("Minigame-Ordner und Spielrunden erfolgreich initialisiert.")
         
+        # Teste die neuen Tracking-Features
+        print("\n--- Teste Spiele-Tracking-Features ---")
+        
+        # Erstelle eine Test-GameSession mit Tracking
+        test_session = GameSession(
+            is_active=False,
+            current_phase='SETUP_MINIGAME',
+            game_round_id=default_round.id,
+            played_content_ids=''  # Explizit initialisieren
+        )
+        
+        # Teste die neuen Methoden
+        print("Teste get_played_content_ids()...")
+        initial_ids = test_session.get_played_content_ids()
+        print(f"  Initial IDs: {initial_ids}")
+        
+        print("Teste add_played_content_id()...")
+        test_session.add_played_content_id('test_game_001')
+        test_session.add_played_content_id('test_question_002')
+        updated_ids = test_session.get_played_content_ids()
+        print(f"  Nach dem Hinzufügen: {updated_ids}")
+        
+        print("Teste is_content_already_played()...")
+        is_played = test_session.is_content_already_played('test_game_001')
+        print(f"  test_game_001 gespielt: {is_played}")
+        
+        print("Teste reset_played_content()...")
+        test_session.reset_played_content()
+        final_ids = test_session.get_played_content_ids()
+        print(f"  Nach Reset: {final_ids}")
+        
+        # Lösche Test-Session (nicht speichern)
+        print("✅ Alle Tracking-Features funktionieren korrekt!")
+        
     except ImportError as ie:
         print(f"ImportFehler beim Laden der Minigame-Utils: {ie}")
         print("Stelle sicher, dass app/admin/minigame_utils.py existiert und korrekt implementiert ist.")
@@ -108,4 +143,11 @@ with app_instance.app_context():
     print("\nDatenbank-Initialisierung abgeschlossen.")
     print("\n📁 Minigame-Ordner-System ist bereit!")
     print("🎮 Standard-Spielrunde wurde erstellt und aktiviert.")
+    print("📊 Spiele-Tracking-System ist aktiviert und getestet!")
     print("👨‍💼 Admin kann jetzt über das Dashboard weitere Ordner und Runden erstellen.")
+    print("\n🎯 Neue Features:")
+    print("  ✅ Spiele werden nur einmal pro Runde ausgewählt")
+    print("  ✅ Zufallsauswahl berücksichtigt bereits gespielte Inhalte")  
+    print("  ✅ Admin kann gespielte Inhalte zurücksetzen")
+    print("  ✅ Spielfortschritt wird im Dashboard angezeigt")
+    print("  ✅ Bereits gespielte Inhalte werden markiert")

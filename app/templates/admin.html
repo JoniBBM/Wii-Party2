@@ -39,6 +39,26 @@
                             <span class="badge badge-info">{{ active_round.minigame_folder.name }}</span>
                             <small class="text-muted">({{ active_round.minigame_folder.get_minigames_count() }} Inhalte)</small>
                         </div>
+                        
+                        <!-- NEU: Spielstatistiken -->
+                        {% if played_stats %}
+                        <div class="mb-2">
+                            <strong>Spielfortschritt:</strong>
+                            <div class="progress mb-1" style="height: 20px;">
+                                {% set progress_percent = (played_stats.played / played_stats.total * 100) if played_stats.total > 0 else 0 %}
+                                <div class="progress-bar bg-info" role="progressbar" style="width: {{ progress_percent }}%">
+                                    {{ played_stats.played }}/{{ played_stats.total }}
+                                </div>
+                            </div>
+                            <small class="text-muted">
+                                {{ played_stats.played }} gespielt, {{ played_stats.remaining }} verfügbar
+                                {% if played_stats.remaining == 0 and played_stats.total > 0 %}
+                                    <span class="text-warning">⚠️ Alle Inhalte gespielt!</span>
+                                {% endif %}
+                            </small>
+                        </div>
+                        {% endif %}
+                        
                         <a href="{{ url_for('admin.manage_rounds') }}" class="btn btn-outline-success btn-sm">
                             <i class="fas fa-cog"></i> Runden verwalten
                         </a>
@@ -92,7 +112,7 @@
         </div>
         <div class="card-body" id="game-status-container">
             {% if active_session %}
-                <h5 class="card-title">Aktuelle Spielsitzung (ID: {{ active_session.id }})</h5>
+                <h5 class="card-title">Aktive Spielsitzung (ID: {{ active_session.id }})</h5>
                 <p><strong>Phase:</strong>
                     <span data-phase="{{ active_session.current_phase }}" id="current-phase-display">
                         {% if active_session.current_phase == 'SETUP_MINIGAME' %}
@@ -261,6 +281,31 @@
                 <div id="content-selection-section" 
                      style="{% if active_session.current_phase not in ['SETUP_MINIGAME', 'ROUND_OVER'] %}display: none;{% endif %}">
                     <h4>Nächsten Inhalt festlegen</h4>
+                    
+                    <!-- NEU: Verfügbarkeits-Info -->
+                    {% if played_stats and active_round %}
+                    <div class="alert alert-info mb-3">
+                        <div class="row">
+                            <div class="col-md-8">
+                                <strong><i class="fas fa-chart-pie"></i> Verfügbare Inhalte:</strong>
+                                {{ played_stats.remaining }} von {{ played_stats.total }} noch nicht gespielt
+                                {% if played_stats.remaining == 0 %}
+                                    <span class="text-warning">⚠️ Alle Inhalte wurden gespielt!</span>
+                                {% endif %}
+                            </div>
+                            <div class="col-md-4 text-right">
+                                <form method="POST" action="{{ url_for('admin.reset_played_content') }}" class="d-inline">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <button type="submit" class="btn btn-outline-warning btn-sm" 
+                                            onclick="return confirm('Alle gespielten Inhalte zurücksetzen? Damit werden alle Spiele wieder verfügbar.')">
+                                        <i class="fas fa-undo"></i> Zurücksetzen
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                    
                     <form method="POST" action="{{ url_for('admin.set_minigame') }}" class="mb-3 p-3 border rounded bg-light" id="minigame-form">
                         {{ set_minigame_form.hidden_tag() }}
                         
@@ -281,6 +326,9 @@
                                                 <i class="fas fa-plus-circle text-success"></i> {{ label }}
                                             {% elif value == 'folder_random' %}
                                                 <i class="fas fa-random text-warning"></i> {{ label }}
+                                                {% if played_stats and played_stats.remaining == 0 %}
+                                                    <small class="d-block text-muted">(Alle gespielt)</small>
+                                                {% endif %}
                                             {% elif value == 'folder_selected' %}
                                                 <i class="fas fa-hand-pointer text-info"></i> {{ label }}
                                             {% endif %}
@@ -383,7 +431,15 @@
                                 <div class="alert alert-success">
                                     <i class="fas fa-dice"></i> 
                                     <strong>Zufallsauswahl aus Ordner "{{ active_round.minigame_folder.name }}"</strong><br>
-                                    <small>{{ active_round.minigame_folder.get_minigames_count() }} Inhalte verfügbar</small>
+                                    <small>
+                                        {{ active_round.minigame_folder.get_minigames_count() }} Inhalte gesamt
+                                        {% if played_stats %}
+                                            | {{ played_stats.remaining }} verfügbar
+                                            {% if played_stats.remaining == 0 %}
+                                                <span class="text-warning">⚠️ Alle gespielt - wird recycelt</span>
+                                            {% endif %}
+                                        {% endif %}
+                                    </small>
                                 </div>
                             {% else %}
                                 <div class="alert alert-warning">
@@ -402,6 +458,7 @@
                                     <small class="form-text text-muted">
                                         Aus Ordner: <strong>{{ active_round.minigame_folder.name }}</strong><br>
                                         🎮 = Minispiel, ❓ = Frage
+                                        <span class="text-muted">| "(bereits gespielt)" = wurde schon ausgewählt</span>
                                     </small>
                                 </div>
                             {% else %}
@@ -620,6 +677,23 @@
         opacity: 1;
         transform: translateY(0);
     }
+}
+
+/* NEU: Spielstatistiken-Styling */
+.progress {
+    background-color: #e9ecef;
+}
+
+.progress-bar {
+    transition: width 0.3s ease;
+}
+
+.alert-info {
+    border-left: 4px solid #17a2b8;
+}
+
+.text-warning {
+    font-weight: bold;
 }
 </style>
 

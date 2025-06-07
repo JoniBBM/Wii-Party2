@@ -18,7 +18,8 @@ from .minigame_utils import (ensure_minigame_folders_exist, create_minigame_fold
                             update_minigame_in_folder, delete_minigame_from_folder, get_minigame_from_folder,
                             get_random_minigame_from_folder, list_available_folders, update_folder_info,
                             get_questions_from_folder, add_question_to_folder, get_question_from_folder,
-                            get_all_content_from_folder, get_random_content_from_folder)
+                            get_all_content_from_folder, get_random_content_from_folder, get_played_count_for_folder,
+                            get_available_content_from_folder, mark_content_as_played, reset_played_content_for_session)
 
 admin_bp = Blueprint('admin', __name__, template_folder='../templates/admin', url_prefix='/admin')
 
@@ -30,7 +31,8 @@ def get_or_create_active_session():
         active_session = GameSession(
             is_active=True, 
             current_phase='SETUP_MINIGAME',
-            game_round_id=active_round.id if active_round else None
+            game_round_id=active_round.id if active_round else None,
+            played_content_ids=''  # Initialisiere mit leerem String
         )
         db.session.add(active_session)
         db.session.flush() 
@@ -121,15 +123,32 @@ def admin_dashboard():
         content = get_all_content_from_folder(active_round.minigame_folder.folder_path)
         choices = [('', '-- Wähle aus Ordner --')]
         
+        # Markiere bereits gespielte Inhalte
+        played_ids = active_session.get_played_content_ids()
+        
         for mg in content['games']:
-            choices.append((mg['id'], f"🎮 {mg['name']}"))
+            label = f"🎮 {mg['name']}"
+            if mg['id'] in played_ids:
+                label += " (bereits gespielt)"
+            choices.append((mg['id'], label))
         
         for question in content['questions']:
-            choices.append((question['id'], f"❓ {question['name']}"))
+            label = f"❓ {question['name']}"
+            if question['id'] in played_ids:
+                label += " (bereits gespielt)"
+            choices.append((question['id'], label))
             
         set_minigame_form.selected_folder_minigame_id.choices = choices
     
     confirm_reset_form = AdminConfirmPasswordForm()
+
+    # Zusätzliche Informationen für das Dashboard
+    played_stats = None
+    if active_round and active_round.minigame_folder:
+        played_stats = get_played_count_for_folder(
+            active_round.minigame_folder.folder_path, 
+            active_session.get_played_content_ids()
+        )
 
     template_data = {
         "teams": teams,
@@ -141,7 +160,8 @@ def admin_dashboard():
         "current_minigame_description": active_session.current_minigame_description,
         "current_phase": active_session.current_phase,
         "set_minigame_form": set_minigame_form,
-        "confirm_reset_form": confirm_reset_form 
+        "confirm_reset_form": confirm_reset_form,
+        "played_stats": played_stats
     }
     
     return render_template('admin.html', **template_data)
@@ -300,11 +320,20 @@ def set_minigame():
         content = get_all_content_from_folder(active_round.minigame_folder.folder_path)
         choices = [('', '-- Wähle aus Ordner --')]
         
+        # Markiere bereits gespielte Inhalte
+        played_ids = active_session.get_played_content_ids()
+        
         for mg in content['games']:
-            choices.append((mg['id'], f"🎮 {mg['name']}"))
+            label = f"🎮 {mg['name']}"
+            if mg['id'] in played_ids:
+                label += " (bereits gespielt)"
+            choices.append((mg['id'], label))
         
         for question in content['questions']:
-            choices.append((question['id'], f"❓ {question['name']}"))
+            label = f"❓ {question['name']}"
+            if question['id'] in played_ids:
+                label += " (bereits gespielt)"
+            choices.append((question['id'], label))
             
         form.selected_folder_minigame_id.choices = choices
 
@@ -317,7 +346,7 @@ def set_minigame():
 
     try:
         if minigame_source == 'manual':
-            # Manuelle Eingabe
+            # Manuelle Eingabe - kein Tracking nötig
             manual_name = form.minigame_name.data
             manual_description = form.minigame_description.data
             
@@ -377,6 +406,9 @@ def set_minigame():
                 if active_round and active_round.minigame_folder:
                     add_question_to_folder(active_round.minigame_folder.folder_path, question_data)
                 
+                # Markiere als gespielt
+                mark_content_as_played(active_session, question_id)
+                
                 active_session.current_minigame_name = question_name
                 active_session.current_minigame_description = question_data['description']
                 active_session.selected_folder_minigame_id = question_id
@@ -388,22 +420,42 @@ def set_minigame():
                 flash('Bitte Fragetext eingeben.', 'warning')
 
         elif minigame_source == 'folder_random':
-            # Zufällig aus Ordner
+            # Zufällig aus Ordner - mit Tracking
             if active_round and active_round.minigame_folder:
-                random_content = get_random_content_from_folder(active_round.minigame_folder.folder_path)
+                played_ids = active_session.get_played_content_ids()
+                random_content = get_random_content_from_folder(
+                    active_round.minigame_folder.folder_path, 
+                    played_ids
+                )
+                
                 if random_content:
+                    # Markiere als gespielt
+                    mark_content_as_played(active_session, random_content['id'])
+                    
                     active_session.current_minigame_name = random_content['name']
                     active_session.current_minigame_description = random_content.get('description', '')
                     active_session.selected_folder_minigame_id = random_content['id']
                     active_session.minigame_source = 'folder_random'
                     
+                    # Check if all content has been played
+                    stats = get_played_count_for_folder(
+                        active_round.minigame_folder.folder_path, 
+                        active_session.get_played_content_ids()
+                    )
+                    
                     if random_content.get('type') == 'question':
                         active_session.current_question_id = random_content['id']
-                        flash(f"Zufällige Frage '{random_content['name']}' aus Ordner '{active_round.minigame_folder.name}' ausgewählt.", 'info')
+                        flash_msg = f"Zufällige Frage '{random_content['name']}' aus Ordner '{active_round.minigame_folder.name}' ausgewählt."
                     else:
                         active_session.current_question_id = None
-                        flash(f"Zufälliges Minispiel '{random_content['name']}' aus Ordner '{active_round.minigame_folder.name}' ausgewählt.", 'info')
+                        flash_msg = f"Zufälliges Minispiel '{random_content['name']}' aus Ordner '{active_round.minigame_folder.name}' ausgewählt."
                     
+                    if stats['remaining'] == 0:
+                        flash_msg += f" Alle {stats['total']} Inhalte wurden gespielt!"
+                    else:
+                        flash_msg += f" ({stats['remaining']} von {stats['total']} noch verfügbar)"
+                    
+                    flash(flash_msg, 'info')
                     minigame_set = True
                 else:
                     flash(f"Keine Inhalte im Ordner '{active_round.minigame_folder.name}' gefunden.", 'warning')
@@ -411,12 +463,15 @@ def set_minigame():
                 flash('Keine aktive Runde oder Minigame-Ordner zugewiesen.', 'warning')
 
         elif minigame_source == 'folder_selected':
-            # Aus Ordner auswählen
+            # Aus Ordner auswählen - mit Tracking
             selected_id = form.selected_folder_minigame_id.data
             if selected_id and active_round and active_round.minigame_folder:
                 selected_content = get_minigame_from_folder(active_round.minigame_folder.folder_path, selected_id)
                 
                 if selected_content:
+                    # Markiere als gespielt
+                    mark_content_as_played(active_session, selected_content['id'])
+                    
                     active_session.current_minigame_name = selected_content['name']
                     active_session.current_minigame_description = selected_content.get('description', '')
                     active_session.selected_folder_minigame_id = selected_content['id']
@@ -684,6 +739,38 @@ def reset_game_state_confirmed():
     else:
         flash('Passworteingabe für Reset ungültig oder fehlend.', 'warning')
 
+    return redirect(url_for('admin.admin_dashboard'))
+
+# NEU: Route zum Zurücksetzen der gespielten Inhalte
+@admin_bp.route('/reset_played_content', methods=['POST'])
+@login_required
+def reset_played_content():
+    if not isinstance(current_user, Admin):
+        flash('Aktion nicht erlaubt.', 'danger')
+        return redirect(url_for('main.index'))
+    
+    try:
+        active_session = GameSession.query.filter_by(is_active=True).first()
+        if active_session:
+            reset_played_content_for_session(active_session)
+            db.session.commit()
+            
+            event = GameEvent(
+                game_session_id=active_session.id,
+                event_type="played_content_reset",
+                description="Admin hat die Liste der gespielten Inhalte zurückgesetzt. Alle Spiele sind wieder verfügbar."
+            )
+            db.session.add(event)
+            db.session.commit()
+            
+            flash('Liste der gespielten Inhalte wurde zurückgesetzt. Alle Spiele sind wieder verfügbar.', 'success')
+        else:
+            flash('Keine aktive Spielsitzung gefunden.', 'warning')
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Fehler beim Zurücksetzen der gespielten Inhalte: {e}", exc_info=True)
+        flash('Fehler beim Zurücksetzen der gespielten Inhalte.', 'danger')
+    
     return redirect(url_for('admin.admin_dashboard'))
 
 # TEAM MANAGEMENT ROUTES
@@ -1292,7 +1379,20 @@ def activate_round(round_id):
         round_obj = GameRound.query.get_or_404(round_id)
         round_obj.activate()  # Verwendet die Model-Methode
         
-        flash(f"Spielrunde '{round_obj.name}' wurde aktiviert.", 'success')
+        # Beim Wechseln der Runde: Gespielte Inhalte zurücksetzen
+        active_session = GameSession.query.filter_by(is_active=True).first()
+        if active_session:
+            reset_played_content_for_session(active_session)
+            
+            event = GameEvent(
+                game_session_id=active_session.id,
+                event_type="round_activated",
+                description=f"Spielrunde '{round_obj.name}' wurde aktiviert. Gespielte Inhalte wurden zurückgesetzt."
+            )
+            db.session.add(event)
+            db.session.commit()
+        
+        flash(f"Spielrunde '{round_obj.name}' wurde aktiviert. Gespielte Inhalte wurden zurückgesetzt.", 'success')
     except Exception as e:
         current_app.logger.error(f"Fehler beim Aktivieren der Spielrunde: {e}", exc_info=True)
         flash('Ein Fehler ist beim Aktivieren der Spielrunde aufgetreten.', 'danger')

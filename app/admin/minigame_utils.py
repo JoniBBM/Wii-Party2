@@ -1,6 +1,7 @@
 """
 Utility-Funktionen für das Management von Minigame-Ordnern und JSON-Dateien
 Vereinfacht ohne komplexes Quiz-System - unterstützt nur Einzelfragen
+Erweitert um Tracking von bereits gespielten Inhalten
 """
 import os
 import json
@@ -226,15 +227,36 @@ def get_minigame_from_folder(folder_name: str, minigame_id: str) -> Optional[Dic
     
     return None
 
-def get_random_minigame_from_folder(folder_name: str) -> Optional[Dict[str, Any]]:
-    """Gibt ein zufälliges Minispiel oder eine Frage aus einem Ordner zurück"""
-    minigames = get_minigames_from_folder(folder_name)
+def get_random_minigame_from_folder(folder_name: str, exclude_played_ids: List[str] = None) -> Optional[Dict[str, Any]]:
+    """
+    Gibt ein zufälliges Minispiel oder eine Frage aus einem Ordner zurück.
     
-    if not minigames:
+    Args:
+        folder_name: Name des Ordners
+        exclude_played_ids: Liste von IDs, die ausgeschlossen werden sollen
+        
+    Returns:
+        Zufälliges Minispiel/Frage oder None wenn keines verfügbar
+    """
+    all_minigames = get_minigames_from_folder(folder_name)
+    
+    if not all_minigames:
         return None
     
+    # Filtere bereits gespielte Inhalte heraus
+    if exclude_played_ids:
+        available_minigames = [mg for mg in all_minigames if mg.get('id') not in exclude_played_ids]
+    else:
+        available_minigames = all_minigames
+    
+    # Wenn alle gespielt wurden, gib trotzdem einen zufälligen zurück (oder leere Liste)
+    if not available_minigames:
+        current_app.logger.warning(f"Alle Minispiele aus Ordner '{folder_name}' wurden bereits gespielt")
+        # Optional: Alle wieder verfügbar machen oder None zurückgeben
+        available_minigames = all_minigames  # Alle wieder verfügbar machen
+    
     import random
-    return random.choice(minigames)
+    return random.choice(available_minigames)
 
 def list_available_folders() -> List[str]:
     """Gibt eine Liste aller verfügbaren Minigame-Ordner zurück"""
@@ -334,18 +356,107 @@ def get_all_content_from_folder(folder_name: str) -> Dict[str, List[Dict[str, An
         'questions': questions
     }
 
-def get_random_content_from_folder(folder_name: str) -> Optional[Dict[str, Any]]:
-    """Gibt zufälligen Inhalt (Minispiel oder Frage) aus einem Ordner zurück"""
+def get_random_content_from_folder(folder_name: str, exclude_played_ids: List[str] = None) -> Optional[Dict[str, Any]]:
+    """
+    Gibt zufälligen Inhalt (Minispiel oder Frage) aus einem Ordner zurück.
+    
+    Args:
+        folder_name: Name des Ordners
+        exclude_played_ids: Liste von IDs, die ausgeschlossen werden sollen
+        
+    Returns:
+        Zufälliges Minispiel/Frage oder None wenn keines verfügbar
+    """
     all_items = get_minigames_from_folder(folder_name)
     
     if not all_items:
         return None
     
+    # Filtere bereits gespielte Inhalte heraus
+    if exclude_played_ids:
+        available_items = [item for item in all_items if item.get('id') not in exclude_played_ids]
+    else:
+        available_items = all_items
+    
+    # Wenn alle gespielt wurden, gib trotzdem einen zufälligen zurück
+    if not available_items:
+        current_app.logger.warning(f"Alle Inhalte aus Ordner '{folder_name}' wurden bereits gespielt. Alle werden wieder verfügbar gemacht.")
+        available_items = all_items  # Alle wieder verfügbar machen
+    
     import random
-    selected = random.choice(all_items)
+    selected = random.choice(available_items)
     
     # Füge Typ-Info hinzu falls nicht vorhanden
     if 'type' not in selected:
         selected['type'] = 'game'  # Default zu game
     
     return selected
+
+# NEUE TRACKING-FUNKTIONEN
+
+def get_played_count_for_folder(folder_name: str, played_ids: List[str]) -> Dict[str, int]:
+    """
+    Gibt Statistiken über gespielte Inhalte in einem Ordner zurück.
+    
+    Args:
+        folder_name: Name des Ordners
+        played_ids: Liste der bereits gespielten IDs
+        
+    Returns:
+        Dict mit 'total', 'played', 'remaining'
+    """
+    all_items = get_minigames_from_folder(folder_name)
+    total_count = len(all_items)
+    
+    played_count = 0
+    for item in all_items:
+        if item.get('id') in played_ids:
+            played_count += 1
+    
+    return {
+        'total': total_count,
+        'played': played_count,
+        'remaining': total_count - played_count
+    }
+
+def get_available_content_from_folder(folder_name: str, exclude_played_ids: List[str] = None) -> List[Dict[str, Any]]:
+    """
+    Gibt alle noch nicht gespielten Inhalte aus einem Ordner zurück.
+    
+    Args:
+        folder_name: Name des Ordners
+        exclude_played_ids: Liste von IDs, die ausgeschlossen werden sollen
+        
+    Returns:
+        Liste der verfügbaren Inhalte
+    """
+    all_items = get_minigames_from_folder(folder_name)
+    
+    if not exclude_played_ids:
+        return all_items
+    
+    available_items = [item for item in all_items if item.get('id') not in exclude_played_ids]
+    return available_items
+
+def reset_played_content_for_session(game_session):
+    """
+    Setzt die gespielten Inhalte für eine GameSession zurück.
+    
+    Args:
+        game_session: GameSession-Objekt
+    """
+    if hasattr(game_session, 'reset_played_content'):
+        game_session.reset_played_content()
+        current_app.logger.info(f"Gespielte Inhalte für Session {game_session.id} zurückgesetzt")
+
+def mark_content_as_played(game_session, content_id: str):
+    """
+    Markiert einen Inhalt als gespielt für eine GameSession.
+    
+    Args:
+        game_session: GameSession-Objekt
+        content_id: ID des gespielten Inhalts
+    """
+    if hasattr(game_session, 'add_played_content_id'):
+        game_session.add_played_content_id(content_id)
+        current_app.logger.info(f"Inhalt {content_id} als gespielt markiert für Session {game_session.id}")
