@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify
 from flask_login import login_user, logout_user, login_required, current_user
-from app.models import Team, db, Admin, GameSession, GameRound, QuestionResponse
+from app.models import Team, db, Admin, GameSession, GameRound, QuestionResponse, GameEvent
 from app.forms import TeamLoginForm, QuestionAnswerForm
 from app.admin.minigame_utils import get_question_from_folder
 import json
@@ -40,6 +40,65 @@ def team_logout():
     logout_user()
     flash('Team erfolgreich ausgeloggt.', 'info')
     return redirect(url_for('main.index'))
+
+def _get_team_game_progress(team_user):
+    """Sammelt die Spielverlauf-Daten für ein Team"""
+    active_session = GameSession.query.filter_by(is_active=True).first()
+    if not active_session:
+        return []
+    
+    # Hole alle Bewegungs-Events für dieses Team in der aktuellen Session
+    move_events = GameEvent.query.filter_by(
+        game_session_id=active_session.id,
+        related_team_id=team_user.id
+    ).filter(
+        GameEvent.event_type.in_(['dice_roll', 'admin_dice_roll', 'admin_dice_roll_legacy'])
+    ).order_by(GameEvent.timestamp).all()
+    
+    progress_data = []
+    move_number = 0
+    
+    # Startposition
+    progress_data.append({
+        'move': 0,
+        'position': 0,
+        'timestamp': active_session.start_time.strftime('%H:%M:%S') if active_session.start_time else '00:00:00',
+        'description': 'Spielstart'
+    })
+    
+    for event in move_events:
+        move_number += 1
+        
+        # Parse data_json für neue und alte Position
+        old_position = 0
+        new_position = team_user.current_position  # Fallback zur aktuellen Position
+        dice_total = 0
+        
+        if event.data_json:
+            try:
+                # Handle both string and dict formats
+                if isinstance(event.data_json, str):
+                    event_data = eval(event.data_json)  # Vorsicht: nur für vertrauenswürdige Daten
+                else:
+                    event_data = event.data_json
+                
+                old_position = event_data.get('old_position', 0)
+                new_position = event_data.get('new_position', team_user.current_position)
+                dice_total = event_data.get('total_roll', 0)
+                
+            except (ValueError, SyntaxError, TypeError):
+                # Falls Parsing fehlschlägt, verwende Fallback-Werte
+                pass
+        
+        progress_data.append({
+            'move': move_number,
+            'position': new_position,
+            'timestamp': event.timestamp.strftime('%H:%M:%S'),
+            'description': f'Würfelwurf: {dice_total}' if dice_total > 0 else 'Bewegung',
+            'dice_roll': dice_total
+        })
+    
+    return progress_data
 
 def _get_dashboard_data(team_user):
     """Hilfsfunktion um Dashboard-Daten zu sammeln"""
@@ -155,6 +214,9 @@ def _get_dashboard_data(team_user):
         game_status = "Kein aktives Spiel"
         game_status_class = "danger"
     
+    # NEU: Spielverlauf-Daten
+    game_progress = _get_team_game_progress(team_user)
+    
     return {
         'all_teams': all_teams,
         'active_session': active_session,
@@ -175,7 +237,9 @@ def _get_dashboard_data(team_user):
         # Fragen-Daten
         'current_question_data': current_question_data,
         'question_response': question_response,
-        'question_answered': question_answered
+        'question_answered': question_answered,
+        # NEU: Spielverlauf
+        'game_progress': game_progress
     }
 
 @teams_bp.route('/dashboard')
@@ -262,7 +326,9 @@ def dashboard_status_api():
                 'stats': {
                     'max_board_fields': data['max_board_fields'],
                     'teams_count': data['teams_count']
-                }
+                },
+                # NEU: Spielverlauf für Updates
+                'game_progress': data['game_progress']
             }
         }
         

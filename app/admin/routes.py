@@ -71,11 +71,13 @@ def calculate_automatic_placements():
     # Erst die richtigen Antworten in zeitlicher Reihenfolge
     for response in correct_responses:
         response.team.minigame_placement = placement
+        current_app.logger.info(f"Team {response.team.name} erhält Platzierung {placement} (richtige Antwort)")
         placement += 1
 
     # Dann die falschen Antworten (bekommen keinen Bonus-Würfel)
     for response in incorrect_responses:
         response.team.minigame_placement = placement
+        current_app.logger.info(f"Team {response.team.name} erhält Platzierung {placement} (falsche Antwort)")
         placement += 1
 
     # Teams die nicht geantwortet haben bekommen letzte Plätze
@@ -85,18 +87,28 @@ def calculate_automatic_placements():
     for team in all_teams:
         if team.id not in answered_team_ids:
             team.minigame_placement = placement
+            current_app.logger.info(f"Team {team.name} erhält Platzierung {placement} (keine Antwort)")
             placement += 1
 
-    # Setze Bonus-Würfel für Teams mit richtigen Antworten
+    # VERBESSERT: Setze Bonus-Würfel für Teams mit richtigen Antworten
     bonus_config = current_app.config.get('PLACEMENT_BONUS_DICE', {1: 6, 2: 4, 3: 2})
+    
+    # Erst alle Bonus-Würfel zurücksetzen
+    for team in all_teams:
+        team.bonus_dice_sides = 0
+    
+    # Dann nur für Teams mit richtigen Antworten setzen
+    correct_team_ids = {r.team_id for r in correct_responses}
+    
     for team in all_teams:
         if team.minigame_placement and team.minigame_placement in bonus_config:
-            # Nur wenn die Antwort richtig war
-            team_response = next((r for r in correct_responses if r.team_id == team.id), None)
-            if team_response:
+            # Nur wenn das Team eine richtige Antwort gegeben hat
+            if team.id in correct_team_ids:
                 team.bonus_dice_sides = bonus_config[team.minigame_placement]
+                current_app.logger.info(f"Team {team.name} (Platz {team.minigame_placement}) erhält Bonus-Würfel: 1-{team.bonus_dice_sides}")
             else:
                 team.bonus_dice_sides = 0
+                current_app.logger.info(f"Team {team.name} (Platz {team.minigame_placement}) erhält keinen Bonus-Würfel (falsche/keine Antwort)")
         else:
             team.bonus_dice_sides = 0
 
@@ -214,10 +226,17 @@ def admin_roll_dice():
         if not team:
             return jsonify({"success": False, "error": "Aktuelles Team nicht gefunden."}), 404
 
+        # VERBESSERT: Bonus-Würfel Logik mit Logging
         standard_dice_roll = random.randint(1, 6)
         bonus_dice_roll = 0
+        
+        current_app.logger.info(f"Team {team.name} würfelt - Bonus-Würfel-Seiten: {team.bonus_dice_sides}")
+        
         if team.bonus_dice_sides and team.bonus_dice_sides > 0:
             bonus_dice_roll = random.randint(1, team.bonus_dice_sides)
+            current_app.logger.info(f"Team {team.name} erhält Bonus-Würfel: {bonus_dice_roll} (von 1-{team.bonus_dice_sides})")
+        else:
+            current_app.logger.info(f"Team {team.name} erhält keinen Bonus-Würfel")
         
         total_roll = standard_dice_roll + bonus_dice_roll
         old_position = team.current_position
@@ -272,9 +291,12 @@ def admin_roll_dice():
             active_session.current_phase = 'ROUND_OVER'
             active_session.current_team_turn_id = None 
             
+            # VERBESSERT: Nur Bonus-Würfel zurücksetzen, Platzierungen beibehalten für Statistiken
             all_teams_in_db = Team.query.all()
             for t_obj in all_teams_in_db:
+                current_app.logger.info(f"Runde beendet - Bonus-Würfel für Team {t_obj.name} zurückgesetzt (war: {t_obj.bonus_dice_sides})")
                 t_obj.bonus_dice_sides = 0
+                # Platzierungen NICHT zurücksetzen - die bleiben für Statistiken
             
             round_over_event = GameEvent(
                 game_session_id=active_session.id,
@@ -491,15 +513,17 @@ def set_minigame():
                 flash('Bitte einen Inhalt aus dem Ordner auswählen.', 'warning')
 
         if minigame_set:
-            # Setze Spielphase und reset Team-Platzierungen
+            # Setze Spielphase und reset Team-Platzierungen NUR bei Phasenwechsel
             if active_session.current_question_id:
                 active_session.current_phase = 'QUESTION_ACTIVE'
             else:
                 active_session.current_phase = 'MINIGAME_ANNOUNCED'
             
+            # VERBESSERT: Nur Platzierungen zurücksetzen, nicht Bonus-Würfel (die werden erst beim Würfeln zurückgesetzt)
             teams_to_reset = Team.query.all()
             for t in teams_to_reset:
                 t.minigame_placement = None
+                # t.bonus_dice_sides NICHT hier zurücksetzen - das passiert erst nach dem Würfeln
 
             event = GameEvent(
                 game_session_id=active_session.id,
@@ -681,8 +705,12 @@ def record_placements():
         team_obj.minigame_placement = placement
         dice_roll_order_ids.append(str(team_obj.id))
 
+        # VERBESSERT: Bonus-Würfel Logik mit Logging
         bonus_config = current_app.config.get('PLACEMENT_BONUS_DICE', {1: 6, 2: 4, 3: 2})
-        team_obj.bonus_dice_sides = bonus_config.get(placement, 0)
+        bonus_dice = bonus_config.get(placement, 0)
+        team_obj.bonus_dice_sides = bonus_dice
+        
+        current_app.logger.info(f"Manuelle Platzierung - Team {team_obj.name} (Platz {placement}) erhält Bonus-Würfel: 1-{bonus_dice}")
         
     active_session.dice_roll_order = ",".join(dice_roll_order_ids)
     active_session.current_team_turn_id = int(dice_roll_order_ids[0]) if dice_roll_order_ids else None

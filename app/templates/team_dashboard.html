@@ -327,25 +327,6 @@
                     </h5>
                 </div>
                 <div class="card-body">
-                    <!-- Aktuelle Runde -->
-                    {% if active_round %}
-                    <div class="info-section mb-4">
-                        <h6 class="text-primary">
-                            <i class="fas fa-play-circle mr-1"></i>
-                            Aktuelle Spielrunde
-                        </h6>
-                        <p class="mb-1"><strong>{{ active_round.name }}</strong></p>
-                        {% if active_round.description %}
-                            <p class="text-muted mb-2">{{ active_round.description }}</p>
-                        {% endif %}
-                        <small class="text-info">
-                            <i class="fas fa-folder mr-1"></i>
-                            Ordner: {{ active_round.minigame_folder.name }}
-                            ({{ active_round.minigame_folder.get_minigames_count() }} Inhalte)
-                        </small>
-                    </div>
-                    {% endif %}
-
                     <!-- Würfelreihenfolge -->
                     <div class="info-section mb-4" id="dice-order-section" {% if not dice_roll_order_names %}style="display: none;"{% endif %}>
                         <h6 class="text-primary">
@@ -422,6 +403,72 @@
         </div>
     </div>
 
+    <!-- NEU: Spielverlauf Graph -->
+    <div class="row mt-4 mb-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header bg-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-chart-line mr-2 text-info"></i>
+                        Dein Spielverlauf
+                    </h5>
+                    <small class="text-muted">Zeigt deine Position nach jedem Würfelwurf</small>
+                </div>
+                <div class="card-body">
+                    <div class="progress-chart-container">
+                        <canvas id="progressChart" width="400" height="200"></canvas>
+                    </div>
+                    
+                    <!-- Zusätzliche Informationen zum Spielverlauf -->
+                    <div class="progress-info mt-3">
+                        <div class="row">
+                            <div class="col-md-3 col-6">
+                                <div class="progress-stat">
+                                    <div class="progress-stat-value" id="total-moves">{{ game_progress|length - 1 if game_progress else 0 }}</div>
+                                    <div class="progress-stat-label">Züge gespielt</div>
+                                </div>
+                            </div>
+                            <div class="col-md-3 col-6">
+                                <div class="progress-stat">
+                                    <div class="progress-stat-value" id="current-position-stat">{{ current_user.current_position }}</div>
+                                    <div class="progress-stat-label">Aktuelle Position</div>
+                                </div>
+                            </div>
+                            <div class="col-md-3 col-6">
+                                <div class="progress-stat">
+                                    <div class="progress-stat-value" id="average-move">
+                                        {% if game_progress and game_progress|length > 1 %}
+                                            {{ (current_user.current_position / (game_progress|length - 1))|round(1) }}
+                                        {% else %}
+                                            0
+                                        {% endif %}
+                                    </div>
+                                    <div class="progress-stat-label">Ø Felder/Zug</div>
+                                </div>
+                            </div>
+                            <div class="col-md-3 col-6">
+                                <div class="progress-stat">
+                                    <div class="progress-stat-value" id="progress-percentage">
+                                        {{ ((current_user.current_position / (max_board_fields - 1)) * 100)|round(1) }}%
+                                    </div>
+                                    <div class="progress-stat-label">Fortschritt</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    {% if not game_progress or game_progress|length <= 1 %}
+                        <div class="no-progress-data text-center py-4">
+                            <i class="fas fa-chart-line text-muted" style="font-size: 3rem; opacity: 0.3;"></i>
+                            <h6 class="text-muted mt-2">Noch keine Spielzüge</h6>
+                            <p class="text-muted mb-0">Sobald du anfängst zu würfeln, wird dein Fortschritt hier angezeigt.</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Action Buttons -->
     <div class="row mt-4">
         <div class="col-md-12 text-center">
@@ -440,6 +487,9 @@
         </div>
     </div>
 </div>
+
+<!-- Chart.js Library -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
 
 <style>
 /* Basis-Styling */
@@ -1034,6 +1084,51 @@
     100% { background-color: transparent; }
 }
 
+/* NEU: Spielverlauf Chart Styling */
+.progress-chart-container {
+    position: relative;
+    height: 300px;
+    width: 100%;
+}
+
+#progressChart {
+    width: 100% !important;
+    height: 300px !important;
+}
+
+.progress-info {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border-radius: 10px;
+    padding: 1.5rem;
+    border: 1px solid #dee2e6;
+}
+
+.progress-stat {
+    text-align: center;
+    padding: 0.5rem;
+}
+
+.progress-stat-value {
+    font-size: 2rem;
+    font-weight: bold;
+    color: #17a2b8;
+    line-height: 1;
+}
+
+.progress-stat-label {
+    font-size: 0.8rem;
+    color: #6c757d;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-top: 0.25rem;
+}
+
+.no-progress-data {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border-radius: 10px;
+    margin: 2rem 0;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
     .position-circle {
@@ -1102,6 +1197,22 @@
         font-size: 1rem;
         padding: 0.8rem 1.5rem;
     }
+    
+    .progress-chart-container {
+        height: 250px;
+    }
+    
+    #progressChart {
+        height: 250px !important;
+    }
+    
+    .progress-stat-value {
+        font-size: 1.5rem;
+    }
+    
+    .progress-stat-label {
+        font-size: 0.7rem;
+    }
 }
 </style>
 
@@ -1122,6 +1233,10 @@ let diceResultTimer = null;
 // Track if user is currently interacting with question form
 let userInteractingWithQuestion = false;
 let questionInterfaceInitialized = false;
+
+// Chart-Variablen
+let progressChart = null;
+let lastProgressData = {{ game_progress | tojson if game_progress else '[]' }};
 
 function updateDashboard(data) {
     if (!data || !data.success) return;
@@ -1202,7 +1317,186 @@ function updateDashboard(data) {
     // Update dice order
     updateDiceOrder(gameData.dice_roll_order);
     
+    // NEU: Update progress chart
+    if (gameData.game_progress) {
+        updateProgressChart(gameData.game_progress);
+        updateProgressStats(gameData.game_progress, currentUser, gameData.stats.max_board_fields);
+    }
+    
     lastGameData = gameData;
+}
+
+// NEU: Chart-Funktionen
+function initializeProgressChart() {
+    const ctx = document.getElementById('progressChart');
+    if (!ctx) return;
+    
+    const chartData = lastProgressData || [];
+    
+    if (chartData.length === 0) {
+        return; // Kein Chart wenn keine Daten
+    }
+    
+    const maxPosition = Math.max({{ max_board_fields - 1 }}, ...chartData.map(d => d.position));
+    
+    progressChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: chartData.map(d => `Zug ${d.move}`),
+            datasets: [{
+                label: 'Position',
+                data: chartData.map(d => d.position),
+                borderColor: '#17a2b8',
+                backgroundColor: 'rgba(23, 162, 184, 0.1)',
+                borderWidth: 3,
+                pointBackgroundColor: '#17a2b8',
+                pointBorderColor: '#ffffff',
+                pointBorderWidth: 2,
+                pointRadius: 6,
+                pointHoverRadius: 8,
+                fill: true,
+                tension: 0.3
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+                intersect: false,
+                mode: 'index'
+            },
+            plugins: {
+                legend: {
+                    display: false
+                },
+                tooltip: {
+                    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                    titleColor: '#ffffff',
+                    bodyColor: '#ffffff',
+                    borderColor: '#17a2b8',
+                    borderWidth: 1,
+                    callbacks: {
+                        label: function(context) {
+                            const dataPoint = chartData[context.dataIndex];
+                            let label = `Position: ${context.parsed.y}`;
+                            if (dataPoint.dice_roll && dataPoint.dice_roll > 0) {
+                                label += ` (Würfel: ${dataPoint.dice_roll})`;
+                            }
+                            return label;
+                        },
+                        afterLabel: function(context) {
+                            const dataPoint = chartData[context.dataIndex];
+                            return `Zeit: ${dataPoint.timestamp}`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    title: {
+                        display: true,
+                        text: 'Spielzug',
+                        color: '#666',
+                        font: {
+                            size: 12,
+                            weight: 'bold'
+                        }
+                    },
+                    grid: {
+                        color: 'rgba(0, 0, 0, 0.1)'
+                    }
+                },
+                y: {
+                    title: {
+                        display: true,
+                        text: 'Position auf dem Spielbrett',
+                        color: '#666',
+                        font: {
+                            size: 12,
+                            weight: 'bold'
+                        }
+                    },
+                    beginAtZero: true,
+                    max: maxPosition,
+                    grid: {
+                        color: 'rgba(0, 0, 0, 0.1)'
+                    },
+                    ticks: {
+                        stepSize: Math.max(1, Math.floor(maxPosition / 10))
+                    }
+                }
+            },
+            animations: {
+                tension: {
+                    duration: 1000,
+                    easing: 'linear',
+                    from: 0.3,
+                    to: 0.3,
+                    loop: false
+                }
+            }
+        }
+    });
+}
+
+function updateProgressChart(newProgressData) {
+    if (!progressChart) {
+        lastProgressData = newProgressData;
+        if (newProgressData && newProgressData.length > 0) {
+            initializeProgressChart();
+        }
+        return;
+    }
+    
+    // Prüfe ob sich die Daten geändert haben
+    if (JSON.stringify(newProgressData) === JSON.stringify(lastProgressData)) {
+        return; // Keine Änderung
+    }
+    
+    lastProgressData = newProgressData;
+    
+    if (!newProgressData || newProgressData.length === 0) {
+        return;
+    }
+    
+    // Aktualisiere Chart-Daten
+    const maxPosition = Math.max({{ max_board_fields - 1 }}, ...newProgressData.map(d => d.position));
+    
+    progressChart.data.labels = newProgressData.map(d => `Zug ${d.move}`);
+    progressChart.data.datasets[0].data = newProgressData.map(d => d.position);
+    progressChart.options.scales.y.max = maxPosition;
+    progressChart.options.scales.y.ticks.stepSize = Math.max(1, Math.floor(maxPosition / 10));
+    
+    progressChart.update('active');
+}
+
+function updateProgressStats(progressData, currentUser, maxFields) {
+    // Total moves
+    const totalMovesEl = document.getElementById('total-moves');
+    if (totalMovesEl) {
+        totalMovesEl.textContent = progressData.length > 1 ? progressData.length - 1 : 0;
+    }
+    
+    // Current position
+    const currentPositionEl = document.getElementById('current-position-stat');
+    if (currentPositionEl) {
+        currentPositionEl.textContent = currentUser.position;
+    }
+    
+    // Average move
+    const averageMoveEl = document.getElementById('average-move');
+    if (averageMoveEl) {
+        const totalMoves = progressData.length > 1 ? progressData.length - 1 : 0;
+        const average = totalMoves > 0 ? (currentUser.position / totalMoves).toFixed(1) : 0;
+        averageMoveEl.textContent = average;
+    }
+    
+    // Progress percentage
+    const progressPercentageEl = document.getElementById('progress-percentage');
+    if (progressPercentageEl) {
+        const percentage = ((currentUser.position / (maxFields - 1)) * 100).toFixed(1);
+        progressPercentageEl.textContent = percentage + '%';
+    }
 }
 
 function updateQuestionInterface(gameData) {
@@ -1882,6 +2176,11 @@ document.addEventListener('DOMContentLoaded', function() {
     startLiveUpdates();
     updateLastDiceResultDisplay();
     
+    // Initialize progress chart if data exists
+    if (lastProgressData && lastProgressData.length > 0) {
+        initializeProgressChart();
+    }
+    
     // Auto-hide flash messages
     setTimeout(() => {
         const alerts = document.querySelectorAll('.alert-dismissible');
@@ -1897,6 +2196,9 @@ window.addEventListener('beforeunload', function() {
     stopLiveUpdates();
     if (diceResultTimer) {
         clearTimeout(diceResultTimer);
+    }
+    if (progressChart) {
+        progressChart.destroy();
     }
 });
 </script>
