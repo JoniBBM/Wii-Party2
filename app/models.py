@@ -107,6 +107,242 @@ class Team(UserMixin, db.Model):
     def __repr__(self):
         return f'<Team {self.name}>'
 
+class FieldConfiguration(db.Model):
+    """Konfiguration für Spielfeld-Typen und deren Häufigkeiten"""
+    id = db.Column(db.Integer, primary_key=True)
+    field_type = db.Column(db.String(50), unique=True, nullable=False)
+    display_name = db.Column(db.String(100), nullable=False)
+    description = db.Column(db.String(500), nullable=True)
+    
+    # Aktivierung
+    is_enabled = db.Column(db.Boolean, default=True, nullable=False)
+    
+    # Häufigkeits-Konfiguration
+    frequency_type = db.Column(db.String(20), default='modulo', nullable=False)  # 'modulo', 'fixed_positions', 'probability'
+    frequency_value = db.Column(db.Integer, default=10, nullable=False)  # Modulo-Wert oder Häufigkeit
+    
+    # Farb-Konfiguration für Frontend
+    color_hex = db.Column(db.String(7), nullable=False)  # z.B. "#4CAF50"
+    emission_hex = db.Column(db.String(7), nullable=True)  # z.B. "#2E7D32"
+    
+    # Icon/Symbol
+    icon = db.Column(db.String(10), nullable=True)  # Emoji oder Unicode-Symbol
+    
+    # Zusätzliche Konfiguration (JSON)
+    config_data = db.Column(db.Text, nullable=True)  # JSON für feldspezifische Einstellungen
+    
+    # Metadaten
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    @property
+    def config_dict(self):
+        """Gibt config_data als Dictionary zurück"""
+        if self.config_data:
+            try:
+                return json.loads(self.config_data)
+            except (json.JSONDecodeError, TypeError):
+                return {}
+        return {}
+
+    @config_dict.setter
+    def config_dict(self, value):
+        """Setzt config_data aus Dictionary"""
+        if value is None:
+            self.config_data = None
+        else:
+            self.config_data = json.dumps(value)
+
+    @staticmethod
+    def get_config_for_field(field_type):
+        """Gibt die Konfiguration für einen bestimmten Feldtyp zurück"""
+        return FieldConfiguration.query.filter_by(field_type=field_type).first()
+    
+    @staticmethod
+    def get_all_enabled():
+        """Gibt alle aktivierten Feld-Konfigurationen zurück"""
+        return FieldConfiguration.query.filter_by(is_enabled=True).all()
+    
+    @staticmethod
+    def initialize_default_configs():
+        """Erstellt Standard-Feld-Konfigurationen falls sie nicht existieren"""
+        default_configs = [
+            {
+                'field_type': 'start',
+                'display_name': 'Startfeld',
+                'description': 'Das Startfeld, wo alle Teams beginnen',
+                'is_enabled': True,
+                'frequency_type': 'fixed_positions',
+                'frequency_value': 0,  # Nur Position 0
+                'color_hex': '#4FC3F7',
+                'emission_hex': '#0277BD',
+                'icon': '🏁',
+                'config_data': json.dumps({})
+            },
+            {
+                'field_type': 'goal',
+                'display_name': 'Zielfeld',
+                'description': 'Das Zielfeld - Hier gewinnt man!',
+                'is_enabled': True,
+                'frequency_type': 'fixed_positions',
+                'frequency_value': 72,  # Nur Position 72
+                'color_hex': '#FFB74D',
+                'emission_hex': '#F57C00',
+                'icon': '🎯',
+                'config_data': json.dumps({})
+            },
+            {
+                'field_type': 'normal',
+                'display_name': 'Normale Felder',
+                'description': 'Standard-Spielfelder ohne besondere Effekte',
+                'is_enabled': True,
+                'frequency_type': 'default',
+                'frequency_value': 0,  # Alle anderen Felder
+                'color_hex': '#81C784',
+                'emission_hex': '#4CAF50',
+                'icon': '⬜',
+                'config_data': json.dumps({})
+            },
+            {
+                'field_type': 'catapult_forward',
+                'display_name': 'Katapult Vorwärts',
+                'description': 'Schleudert Teams 3-5 Felder nach vorne',
+                'is_enabled': True,
+                'frequency_type': 'modulo',
+                'frequency_value': 15,  # Alle 15 Felder
+                'color_hex': '#4CAF50',
+                'emission_hex': '#2E7D32',
+                'icon': '🚀',
+                'config_data': json.dumps({
+                    'min_distance': 3,
+                    'max_distance': 5
+                })
+            },
+            {
+                'field_type': 'catapult_backward',
+                'display_name': 'Katapult Rückwärts',
+                'description': 'Schleudert Teams 2-4 Felder nach hinten',
+                'is_enabled': True,
+                'frequency_type': 'modulo',
+                'frequency_value': 13,  # Alle 13 Felder
+                'color_hex': '#F44336',
+                'emission_hex': '#C62828',
+                'icon': '💥',
+                'config_data': json.dumps({
+                    'min_distance': 2,
+                    'max_distance': 4
+                })
+            },
+            {
+                'field_type': 'player_swap',
+                'display_name': 'Spieler-Tausch',
+                'description': 'Tauscht Position mit zufälligem anderen Team',
+                'is_enabled': True,
+                'frequency_type': 'modulo',
+                'frequency_value': 17,  # Alle 17 Felder
+                'color_hex': '#2196F3',
+                'emission_hex': '#1565C0',
+                'icon': '🔄',
+                'config_data': json.dumps({
+                    'min_distance': 3
+                })
+            },
+            {
+                'field_type': 'barrier',
+                'display_name': 'Sperren-Feld',
+                'description': 'Blockiert Team bis bestimmte Zahl gewürfelt wird',
+                'is_enabled': True,
+                'frequency_type': 'modulo',
+                'frequency_value': 19,  # Alle 19 Felder
+                'color_hex': '#9E9E9E',
+                'emission_hex': '#424242',
+                'icon': '🚧',
+                'config_data': json.dumps({
+                    'target_numbers': [4, 5, 6]
+                })
+            },
+            {
+                'field_type': 'bonus',
+                'display_name': 'Bonusfeld',
+                'description': 'Gibt dem Team einen Vorteil',
+                'is_enabled': True,
+                'frequency_type': 'modulo',
+                'frequency_value': 8,  # Alle 8 Felder
+                'color_hex': '#FFD54F',
+                'emission_hex': '#FFA000',
+                'icon': '⭐',
+                'config_data': json.dumps({
+                    'bonus_type': 'extra_dice'
+                })
+            },
+            {
+                'field_type': 'minigame',
+                'display_name': 'Minispiel',
+                'description': 'Startet ein Minispiel oder eine Frage',
+                'is_enabled': True,
+                'frequency_type': 'modulo',
+                'frequency_value': 12,  # Alle 12 Felder
+                'color_hex': '#BA68C8',
+                'emission_hex': '#8E24AA',
+                'icon': '🎮',
+                'config_data': json.dumps({})
+            },
+            {
+                'field_type': 'chance',
+                'display_name': 'Ereignisfeld',
+                'description': 'Zufälliges Ereignis passiert',
+                'is_enabled': True,
+                'frequency_type': 'modulo',
+                'frequency_value': 20,  # Alle 20 Felder
+                'color_hex': '#AED581',
+                'emission_hex': '#689F38',
+                'icon': '🎲',
+                'config_data': json.dumps({
+                    'events': ['bonus_move', 'lose_turn', 'extra_roll']
+                })
+            },
+            {
+                'field_type': 'trap',
+                'display_name': 'Falle',
+                'description': 'Schadet dem Team oder blockiert es',
+                'is_enabled': True,
+                'frequency_type': 'modulo',
+                'frequency_value': 25,  # Alle 25 Felder
+                'color_hex': '#E57373',
+                'emission_hex': '#D32F2F',
+                'icon': '⚠️',
+                'config_data': json.dumps({
+                    'trap_effects': ['move_back', 'skip_turn', 'remove_bonus']
+                })
+            }
+        ]
+        
+        for config in default_configs:
+            existing = FieldConfiguration.query.filter_by(field_type=config['field_type']).first()
+            if not existing:
+                field_config = FieldConfiguration(
+                    field_type=config['field_type'],
+                    display_name=config['display_name'],
+                    description=config['description'],
+                    is_enabled=config['is_enabled'],
+                    frequency_type=config['frequency_type'],
+                    frequency_value=config['frequency_value'],
+                    color_hex=config['color_hex'],
+                    emission_hex=config['emission_hex'],
+                    icon=config['icon'],
+                    config_data=config['config_data']
+                )
+                db.session.add(field_config)
+        
+        try:
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            raise e
+
+    def __repr__(self):
+        return f'<FieldConfiguration {self.field_type}: {self.display_name}>'
+
 class MinigameFolder(db.Model):
     """Verwaltet persistente Minigame-Ordner im Static-Verzeichnis"""
     id = db.Column(db.Integer, primary_key=True)
