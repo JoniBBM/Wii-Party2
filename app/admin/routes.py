@@ -21,7 +21,7 @@ from .minigame_utils import (ensure_minigame_folders_exist, create_minigame_fold
                             get_all_content_from_folder, get_random_content_from_folder, get_played_count_for_folder,
                             get_available_content_from_folder, mark_content_as_played, reset_played_content_for_session)
 
-# NEU: Import der Sonderfeld-Logik
+# SONDERFELD-LOGIK IMPORT
 from app.game_logic.special_fields import (
     handle_special_field_action, 
     check_barrier_release, 
@@ -233,7 +233,7 @@ def admin_roll_dice():
         if not team:
             return jsonify({"success": False, "error": "Aktuelles Team nicht gefunden."}), 404
 
-        # NEU: Prüfe ob Team blockiert ist (Sperren-Feld)
+        # SONDERFELD: Prüfe ob Team blockiert ist (Sperren-Feld)
         standard_dice_roll = random.randint(1, 6)
         bonus_dice_roll = 0
         
@@ -251,7 +251,7 @@ def admin_roll_dice():
         special_field_result = None
         barrier_check_result = None
 
-        # NEU: Prüfe Sperren-Status
+        # SONDERFELD: Prüfe Sperren-Status
         if team.is_blocked:
             # Team ist blockiert - prüfe ob es freikommt
             barrier_check_result = check_barrier_release(team, standard_dice_roll, active_session)
@@ -274,7 +274,7 @@ def admin_roll_dice():
             new_position = min(team.current_position + total_roll, max_field_index)
             team.current_position = new_position
             
-            # Prüfe Sonderfeld-Aktion nach Bewegung
+            # SONDERFELD: Prüfe Sonderfeld-Aktion nach Bewegung
             all_teams = Team.query.all()
             special_field_result = handle_special_field_action(team, all_teams, active_session)
 
@@ -363,7 +363,7 @@ def admin_roll_dice():
             "new_phase": active_session.current_phase
         }
 
-        # NEU: Füge Sonderfeld-Informationen hinzu
+        # SONDERFELD: Füge Sonderfeld-Informationen hinzu
         if barrier_check_result:
             response_data["barrier_check"] = barrier_check_result
             
@@ -805,7 +805,7 @@ def reset_game_state_confirmed():
                     team.minigame_placement = None
                     team.bonus_dice_sides = 0
                     team.current_position = 0
-                    # NEU: Sonderfeld-Status zurücksetzen
+                    # SONDERFELD: Sonderfeld-Status zurücksetzen
                     team.reset_special_field_status()
 
                 db.session.commit()
@@ -822,7 +822,7 @@ def reset_game_state_confirmed():
 
     return redirect(url_for('admin.admin_dashboard'))
 
-# NEU: Route zum Zurücksetzen der gespielten Inhalte
+# Route zum Zurücksetzen der gespielten Inhalte
 @admin_bp.route('/reset_played_content', methods=['POST'])
 @login_required
 def reset_played_content():
@@ -854,7 +854,7 @@ def reset_played_content():
     
     return redirect(url_for('admin.admin_dashboard'))
 
-# NEU: Route zum manuellen Freigeben von blockierten Teams
+# SONDERFELD: Route zum manuellen Freigeben von blockierten Teams
 @admin_bp.route('/unblock_team/<int:team_id>', methods=['POST'])
 @login_required
 def unblock_team(team_id):

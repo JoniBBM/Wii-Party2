@@ -47,9 +47,12 @@ def board_status():
                 "character": char_info,
                 "bonus_dice_sides": team_obj.bonus_dice_sides if team_obj.bonus_dice_sides is not None else 0,
                 "minigame_placement": team_obj.minigame_placement, # Kann None sein
-                # NEU: Sonderfeld-Status
+                # SONDERFELD: Sonderfeld-Status hinzufügen
                 "is_blocked": team_obj.is_blocked if hasattr(team_obj, 'is_blocked') else False,
-                "blocked_target_number": team_obj.blocked_target_number if hasattr(team_obj, 'blocked_target_number') else None
+                "blocked_target_number": team_obj.blocked_target_number if hasattr(team_obj, 'blocked_target_number') else None,
+                "blocked_turns_remaining": team_obj.blocked_turns_remaining if hasattr(team_obj, 'blocked_turns_remaining') else 0,
+                "extra_moves_remaining": team_obj.extra_moves_remaining if hasattr(team_obj, 'extra_moves_remaining') else 0,
+                "has_shield": team_obj.has_shield if hasattr(team_obj, 'has_shield') else False
             })
 
         game_session_data = None
@@ -77,7 +80,10 @@ def board_status():
                 "current_minigame_description": active_session_query.current_minigame_description,
                 "current_phase": active_session_query.current_phase,
                 "current_team_turn_id": current_team_id,
-                "dice_roll_order": dice_order_ids
+                "dice_roll_order": dice_order_ids,
+                # SONDERFELD: Vulkan-Status (für zukünftige Implementierung)
+                "volcano_countdown": active_session_query.volcano_countdown if hasattr(active_session_query, 'volcano_countdown') else 0,
+                "volcano_active": active_session_query.volcano_active if hasattr(active_session_query, 'volcano_active') else False
             }
         
         return jsonify({
@@ -168,6 +174,18 @@ def roll_dice_action_admin_only():
         if not team:
             return jsonify({"success": False, "error": "Anfragendes Team nicht gefunden."}), 404
 
+        # SONDERFELD: Importiere Sonderfeld-Funktionen falls verfügbar
+        try:
+            from app.game_logic.special_fields import (
+                handle_special_field_action, 
+                check_barrier_release, 
+                get_field_type_at_position
+            )
+            special_fields_available = True
+        except ImportError:
+            current_app.logger.warning("Sonderfeld-Module nicht verfügbar - Legacy-Modus")
+            special_fields_available = False
+
         standard_dice_roll = random.randint(1, 6)
         bonus_dice_roll = 0
         if team.bonus_dice_sides and team.bonus_dice_sides > 0:
@@ -175,16 +193,47 @@ def roll_dice_action_admin_only():
         
         total_roll = standard_dice_roll + bonus_dice_roll
         old_position = team.current_position
+        new_position = old_position
+        special_field_result = None
+        barrier_check_result = None
         
-        # Annahme: Maximale Feldanzahl (z.B. 72 für 73 Felder 0-72)
-        max_field_index = 72 
-        new_position = min(team.current_position + total_roll, max_field_index)
-        team.current_position = new_position
-
+        # SONDERFELD: Prüfe Sperren-Status wenn verfügbar
+        if special_fields_available and hasattr(team, 'is_blocked') and team.is_blocked:
+            # Team ist blockiert - prüfe ob es freikommt
+            barrier_check_result = check_barrier_release(team, standard_dice_roll, active_session)
+            
+            if barrier_check_result['released']:
+                # Team ist befreit und kann sich normal bewegen
+                max_field_index = current_app.config.get('MAX_BOARD_FIELDS', 72)
+                new_position = min(team.current_position + total_roll, max_field_index)
+                team.current_position = new_position
+                
+                # Prüfe Sonderfeld-Aktion nach Bewegung
+                all_teams = Team.query.all()
+                special_field_result = handle_special_field_action(team, all_teams, active_session)
+            else:
+                # Team bleibt blockiert, keine Bewegung
+                new_position = old_position
+        else:
+            # Team ist nicht blockiert oder Sonderfelder nicht verfügbar - normale Bewegung
+            max_field_index = current_app.config.get('MAX_BOARD_FIELDS', 72)
+            new_position = min(team.current_position + total_roll, max_field_index)
+            team.current_position = new_position
+            
+            # SONDERFELD: Prüfe Sonderfeld-Aktion nach Bewegung wenn verfügbar
+            if special_fields_available:
+                all_teams = Team.query.all()
+                special_field_result = handle_special_field_action(team, all_teams, active_session)
+        
         event_description = f"Admin würfelte für Team {team.name}: {standard_dice_roll}"
         if bonus_dice_roll > 0:
             event_description += f" (Bonus: {bonus_dice_roll}, Gesamt: {total_roll})"
-        event_description += f" und bewegte sich von Feld {old_position} zu Feld {new_position}."
+        
+        if (special_fields_available and hasattr(team, 'is_blocked') and 
+            team.is_blocked and not barrier_check_result.get('released', False)):
+            event_description += f" - BLOCKIERT: Konnte sich nicht befreien."
+        else:
+            event_description += f" und bewegte sich von Feld {old_position} zu Feld {new_position}."
         
         dice_event = GameEvent(
             game_session_id=active_session.id,
@@ -197,7 +246,9 @@ def roll_dice_action_admin_only():
                 "total_roll": total_roll,
                 "old_position": old_position,
                 "new_position": new_position,
-                "rolled_by": "admin_legacy_route"
+                "rolled_by": "admin_legacy_route",
+                "was_blocked": getattr(team, 'is_blocked', False) if barrier_check_result else False,
+                "barrier_released": barrier_check_result.get('released', False) if barrier_check_result else False
             })
         )
         db.session.add(dice_event)
@@ -232,7 +283,8 @@ def roll_dice_action_admin_only():
 
         db.session.commit()
 
-        return jsonify({
+        # Response zusammenstellen
+        response_data = {
             "success": True,
             "team_id": team.id,
             "team_name": team.name,
@@ -242,9 +294,118 @@ def roll_dice_action_admin_only():
             "new_position": new_position,
             "next_team_id": active_session.current_team_turn_id,
             "new_phase": active_session.current_phase
-        })
+        }
+
+        # SONDERFELD: Füge Sonderfeld-Informationen hinzu wenn verfügbar
+        if barrier_check_result:
+            response_data["barrier_check"] = barrier_check_result
+            
+        if special_field_result and special_field_result.get("success"):
+            response_data["special_field"] = special_field_result
+
+        return jsonify(response_data)
+        
     except Exception as e:
         db.session.rollback()
         current_app.logger.error(f"Schwerer Fehler in /api/roll_dice_action_admin_only: {e}")
         current_app.logger.error(traceback.format_exc())
         return jsonify({"success": False, "error": "Ein interner Serverfehler beim Würfeln ist aufgetreten.", "details": str(e)}), 500
+
+# SONDERFELD: Neue API-Endpunkte für Sonderfeld-Interaktionen
+
+@main_bp.route('/api/special-field-status')
+def special_field_status():
+    """API für Sonderfeld-Status aller Teams"""
+    try:
+        teams = Team.query.all()
+        active_session = GameSession.query.filter_by(is_active=True).first()
+        
+        special_field_data = []
+        for team in teams:
+            team_data = {
+                "team_id": team.id,
+                "team_name": team.name,
+                "current_position": team.current_position,
+                "is_blocked": getattr(team, 'is_blocked', False),
+                "blocked_target_number": getattr(team, 'blocked_target_number', None),
+                "blocked_turns_remaining": getattr(team, 'blocked_turns_remaining', 0),
+                "extra_moves_remaining": getattr(team, 'extra_moves_remaining', 0),
+                "has_shield": getattr(team, 'has_shield', False)
+            }
+            
+            # Bestimme Feldtyp der aktuellen Position
+            try:
+                from app.game_logic.special_fields import get_field_type_at_position
+                team_data["current_field_type"] = get_field_type_at_position(team.current_position)
+            except ImportError:
+                team_data["current_field_type"] = "normal"
+            
+            special_field_data.append(team_data)
+        
+        return jsonify({
+            "success": True,
+            "teams": special_field_data,
+            "volcano_status": {
+                "countdown": getattr(active_session, 'volcano_countdown', 0) if active_session else 0,
+                "active": getattr(active_session, 'volcano_active', False) if active_session else False
+            }
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"Fehler in special-field-status: {e}", exc_info=True)
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@main_bp.route('/api/field-types')
+def field_types():
+    """API für verfügbare Feldtypen und ihre Positionen"""
+    try:
+        from app.game_logic.special_fields import get_all_special_field_positions
+        
+        # Hole alle Sonderfeld-Positionen
+        max_fields = current_app.config.get('MAX_BOARD_FIELDS', 72) + 1  # 0-72 = 73 Felder
+        special_positions = get_all_special_field_positions(max_fields)
+        
+        # Feldtyp-Informationen
+        field_type_info = {
+            'catapult_forward': {
+                'name': 'Katapult Vorwärts',
+                'description': 'Schleudert Teams 3-5 Felder nach vorne',
+                'color': '#4CAF50',
+                'icon': '🚀'
+            },
+            'catapult_backward': {
+                'name': 'Katapult Rückwärts', 
+                'description': 'Schleudert Teams 2-4 Felder nach hinten',
+                'color': '#F44336',
+                'icon': '💥'
+            },
+            'player_swap': {
+                'name': 'Spieler-Tausch',
+                'description': 'Tauscht Position mit zufälligem anderen Team',
+                'color': '#2196F3',
+                'icon': '🔄'
+            },
+            'barrier': {
+                'name': 'Sperre',
+                'description': 'Blockiert Team bis bestimmte Zahl gewürfelt wird',
+                'color': '#9E9E9E',
+                'icon': '🚧'
+            }
+        }
+        
+        return jsonify({
+            "success": True,
+            "field_types": field_type_info,
+            "special_positions": special_positions,
+            "total_fields": max_fields
+        })
+        
+    except ImportError:
+        # Fallback wenn Sonderfeld-Module nicht verfügbar
+        return jsonify({
+            "success": False,
+            "error": "Sonderfeld-System nicht verfügbar"
+        }), 503
+    except Exception as e:
+        current_app.logger.error(f"Fehler in field-types: {e}", exc_info=True)
+        return jsonify({"success": False, "error": str(e)}), 500
