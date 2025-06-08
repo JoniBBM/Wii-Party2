@@ -5,13 +5,15 @@ import random
 import json
 import uuid
 from datetime import datetime
-from flask import Blueprint, render_template, request, redirect, url_for, flash, session, current_app, g, jsonify
+from flask import Blueprint, render_template, request, redirect, url_for, flash, session, current_app, g, jsonify, make_response
 from flask_login import login_user, logout_user, login_required, current_user
-from ..models import Admin, Team, Character, GameSession, GameEvent, MinigameFolder, GameRound, QuestionResponse, db
+from ..models import (Admin, Team, Character, GameSession, GameEvent, MinigameFolder, GameRound, 
+                     QuestionResponse, FieldConfiguration, db)
 from ..forms import (AdminLoginForm, CreateTeamForm, EditTeamForm, SetNextMinigameForm, 
                      AdminConfirmPasswordForm, CreateMinigameFolderForm, EditMinigameFolderForm,
                      CreateGameRoundForm, EditGameRoundForm, FolderMinigameForm, EditFolderMinigameForm,
-                     DeleteConfirmationForm, CreateQuestionForm, EditQuestionForm)
+                     DeleteConfirmationForm, CreateQuestionForm, EditQuestionForm,
+                     FieldConfigurationForm, FieldPreviewForm, FieldImportExportForm, FieldBulkEditForm)
 from .init_characters import initialize_characters
 from .minigame_utils import (ensure_minigame_folders_exist, create_minigame_folder_if_not_exists,
                             delete_minigame_folder, get_minigames_from_folder, add_minigame_to_folder,
@@ -21,11 +23,21 @@ from .minigame_utils import (ensure_minigame_folders_exist, create_minigame_fold
                             get_all_content_from_folder, get_random_content_from_folder, get_played_count_for_folder,
                             get_available_content_from_folder, mark_content_as_played, reset_played_content_for_session)
 
+# NEU: FELD-MANAGEMENT IMPORTS
+from .field_config import (
+    get_field_type_color_mapping, get_field_preview_data, create_default_field_config,
+    update_field_config, get_frequency_type_options, get_field_type_templates,
+    export_field_configurations, import_field_configurations, reset_to_default_configurations,
+    validate_field_conflicts, get_field_usage_statistics
+)
+
 # SONDERFELD-LOGIK IMPORT
 from app.game_logic.special_fields import (
     handle_special_field_action, 
     check_barrier_release, 
-    get_field_type_at_position
+    get_field_type_at_position,
+    get_all_special_field_positions,
+    get_field_statistics
 )
 
 admin_bp = Blueprint('admin', __name__, template_folder='../templates/admin', url_prefix='/admin')
@@ -169,6 +181,10 @@ def admin_dashboard():
             active_session.get_played_content_ids()
         )
 
+    # NEU: Feld-Konfiguration Statistiken für Dashboard
+    field_stats = get_field_statistics()
+    field_color_mapping = get_field_type_color_mapping()
+
     template_data = {
         "teams": teams,
         "active_session": active_session,
@@ -180,7 +196,10 @@ def admin_dashboard():
         "current_phase": active_session.current_phase,
         "set_minigame_form": set_minigame_form,
         "confirm_reset_form": confirm_reset_form,
-        "played_stats": played_stats
+        "played_stats": played_stats,
+        # NEU: Feld-Management Daten
+        "field_stats": field_stats,
+        "field_color_mapping": field_color_mapping
     }
     
     return render_template('admin.html', **template_data)
@@ -890,7 +909,340 @@ def unblock_team(team_id):
     
     return redirect(url_for('admin.admin_dashboard'))
 
-# TEAM MANAGEMENT ROUTES
+# =============================================================================
+# NEU: FELD-MANAGEMENT ROUTES
+# =============================================================================
+
+@admin_bp.route('/manage_fields')
+@login_required
+def manage_fields():
+    """Hauptseite für Feld-Management"""
+    if not isinstance(current_user, Admin):
+        flash('Zugriff verweigert. Nur Admins können Felder verwalten.', 'danger')
+        return redirect(url_for('main.index'))
+    
+    try:
+        # Lade alle Feld-Konfigurationen
+        field_configs = FieldConfiguration.query.order_by(FieldConfiguration.field_type).all()
+        
+        # Feld-Statistiken
+        field_stats = get_field_statistics()
+        
+        # Farb-Mapping
+        color_mapping = get_field_type_color_mapping()
+        
+        # Feld-Verteilungs-Vorschau
+        preview_data = get_field_preview_data(73)
+        
+        # Nutzungsstatistiken
+        usage_stats = get_field_usage_statistics()
+        
+        # Konflikte prüfen
+        conflicts = validate_field_conflicts()
+        
+        return render_template('admin/manage_fields.html',
+                             field_configs=field_configs,
+                             field_stats=field_stats,
+                             color_mapping=color_mapping,
+                             preview_data=preview_data,
+                             usage_stats=usage_stats,
+                             conflicts=conflicts,
+                             frequency_options=get_frequency_type_options())
+                             
+    except Exception as e:
+        current_app.logger.error(f"Fehler beim Laden der Feld-Verwaltung: {e}", exc_info=True)
+        flash('Fehler beim Laden der Feld-Verwaltung.', 'danger')
+        return redirect(url_for('admin.admin_dashboard'))
+
+@admin_bp.route('/edit_field/<string:field_type>', methods=['GET', 'POST'])
+@login_required
+def edit_field(field_type):
+    """Einzelfeld-Konfiguration bearbeiten"""
+    if not isinstance(current_user, Admin):
+        flash('Zugriff verweigert. Nur Admins können Felder bearbeiten.', 'danger')
+        return redirect(url_for('main.index'))
+    
+    try:
+        # Lade existierende Konfiguration oder erstelle neue
+        config = FieldConfiguration.get_config_for_field(field_type)
+        
+        if not config:
+            # Erstelle neue Konfiguration mit Standard-Werten
+            templates = get_field_type_templates()
+            if field_type in templates:
+                template = templates[field_type]
+                config = create_default_field_config(field_type, template['display_name'], **template)
+            else:
+                config = create_default_field_config(field_type, field_type.replace('_', ' ').title())
+            
+            db.session.add(config)
+            db.session.commit()
+            flash(f"Neue Konfiguration für '{field_type}' erstellt.", 'info')
+        
+        form = FieldConfigurationForm(field_type=field_type, obj=config)
+        
+        if form.validate_on_submit():
+            # Aktualisiere Konfiguration
+            updated_config = update_field_config(config.id, form.data)
+            
+            db.session.commit()
+            flash(f"Feld-Konfiguration für '{updated_config.display_name}' erfolgreich aktualisiert.", 'success')
+            return redirect(url_for('admin.manage_fields'))
+        
+        # Lade Template-Informationen für Frontend
+        templates = get_field_type_templates()
+        template_info = templates.get(field_type, {})
+        
+        return render_template('admin/edit_field.html',
+                             form=form,
+                             config=config,
+                             field_type=field_type,
+                             template_info=template_info,
+                             frequency_options=get_frequency_type_options())
+                             
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Fehler beim Bearbeiten von Feld '{field_type}': {e}", exc_info=True)
+        flash('Fehler beim Bearbeiten der Feld-Konfiguration.', 'danger')
+        return redirect(url_for('admin.manage_fields'))
+
+@admin_bp.route('/field_preview')
+@login_required
+def field_preview():
+    """Spielfeld-Vorschau mit aktuellen Konfigurationen"""
+    if not isinstance(current_user, Admin):
+        return jsonify({"success": False, "error": "Zugriff verweigert"}), 403
+    
+    try:
+        form = FieldPreviewForm()
+        max_fields = int(request.args.get('max_fields', 73))
+        
+        # Generiere Vorschau-Daten
+        preview_data = get_field_preview_data(max_fields)
+        
+        # Feld-Statistiken
+        field_stats = get_field_statistics()
+        
+        # Spezielle Feld-Positionen
+        special_positions = get_all_special_field_positions(max_fields)
+        
+        if request.headers.get('Content-Type') == 'application/json':
+            return jsonify({
+                "success": True,
+                "preview_data": preview_data,
+                "field_stats": field_stats,
+                "special_positions": special_positions
+            })
+        
+        return render_template('admin/field_preview.html',
+                             form=form,
+                             preview_data=preview_data,
+                             field_stats=field_stats,
+                             special_positions=special_positions,
+                             max_fields=max_fields)
+                             
+    except Exception as e:
+        current_app.logger.error(f"Fehler bei der Feld-Vorschau: {e}", exc_info=True)
+        if request.headers.get('Content-Type') == 'application/json':
+            return jsonify({"success": False, "error": str(e)}), 500
+        
+        flash('Fehler bei der Feld-Vorschau.', 'danger')
+        return redirect(url_for('admin.manage_fields'))
+
+@admin_bp.route('/import_export_fields', methods=['GET', 'POST'])
+@login_required
+def import_export_fields():
+    """Import/Export von Feld-Konfigurationen"""
+    if not isinstance(current_user, Admin):
+        flash('Zugriff verweigert. Nur Admins können Konfigurationen importieren/exportieren.', 'danger')
+        return redirect(url_for('main.index'))
+    
+    form = FieldImportExportForm()
+    
+    if request.method == 'POST':
+        if form.import_submit.data and form.validate_on_submit():
+            # Import-Funktionalität
+            try:
+                import_data = json.loads(form.import_data.data)
+                result = import_field_configurations(import_data)
+                
+                if result['imported_count'] > 0:
+                    flash(f"Erfolgreich {result['imported_count']} Konfigurationen importiert.", 'success')
+                
+                if result['errors']:
+                    for error in result['errors']:
+                        flash(f"Import-Fehler: {error}", 'warning')
+                
+                return redirect(url_for('admin.manage_fields'))
+                
+            except json.JSONDecodeError:
+                flash('Ungültiges JSON-Format.', 'danger')
+            except Exception as e:
+                current_app.logger.error(f"Fehler beim Import: {e}", exc_info=True)
+                flash('Fehler beim Importieren der Konfigurationen.', 'danger')
+        
+        elif form.export_submit.data:
+            # Export-Funktionalität
+            try:
+                export_data = export_field_configurations()
+                
+                if form.export_format.data == 'json':
+                    response = make_response(json.dumps(export_data, indent=2))
+                    response.headers['Content-Type'] = 'application/json'
+                    response.headers['Content-Disposition'] = 'attachment; filename=field_configurations.json'
+                    return response
+                
+                elif form.export_format.data == 'csv':
+                    # CSV-Export implementieren
+                    import csv
+                    from io import StringIO
+                    
+                    output = StringIO()
+                    writer = csv.DictWriter(output, fieldnames=export_data[0].keys() if export_data else [])
+                    writer.writeheader()
+                    writer.writerows(export_data)
+                    
+                    response = make_response(output.getvalue())
+                    response.headers['Content-Type'] = 'text/csv'
+                    response.headers['Content-Disposition'] = 'attachment; filename=field_configurations.csv'
+                    return response
+                
+                else:
+                    flash('Unbekanntes Export-Format.', 'warning')
+                    
+            except Exception as e:
+                current_app.logger.error(f"Fehler beim Export: {e}", exc_info=True)
+                flash('Fehler beim Exportieren der Konfigurationen.', 'danger')
+        
+        elif form.reset_submit.data:
+            # Reset auf Standard-Konfigurationen
+            try:
+                if reset_to_default_configurations():
+                    flash('Alle Feld-Konfigurationen wurden auf Standard-Werte zurückgesetzt.', 'success')
+                else:
+                    flash('Fehler beim Zurücksetzen der Konfigurationen.', 'danger')
+                
+                return redirect(url_for('admin.manage_fields'))
+                
+            except Exception as e:
+                current_app.logger.error(f"Fehler beim Reset: {e}", exc_info=True)
+                flash('Fehler beim Zurücksetzen der Konfigurationen.', 'danger')
+    
+    # Bereite Export-Daten für Vorschau vor
+    export_preview = None
+    try:
+        export_data = export_field_configurations()
+        if export_data:
+            export_preview = json.dumps(export_data[:3], indent=2)  # Zeige nur ersten 3 Einträge
+            if len(export_data) > 3:
+                export_preview += f"\n... und {len(export_data) - 3} weitere Konfigurationen"
+    except Exception:
+        pass
+    
+    return render_template('admin/import_export_fields.html',
+                         form=form,
+                         export_preview=export_preview,
+                         total_configs=FieldConfiguration.query.count())
+
+@admin_bp.route('/bulk_edit_fields', methods=['GET', 'POST'])
+@login_required
+def bulk_edit_fields():
+    """Massen-Bearbeitung von Feld-Konfigurationen"""
+    if not isinstance(current_user, Admin):
+        flash('Zugriff verweigert. Nur Admins können Massen-Bearbeitungen durchführen.', 'danger')
+        return redirect(url_for('main.index'))
+    
+    form = FieldBulkEditForm()
+    
+    if form.validate_on_submit():
+        try:
+            selected_field_ids = [int(field_id) for field_id in form.selected_fields.data]
+            selected_configs = FieldConfiguration.query.filter(FieldConfiguration.id.in_(selected_field_ids)).all()
+            
+            if not selected_configs:
+                flash('Keine Felder für Bearbeitung ausgewählt.', 'warning')
+                return redirect(url_for('admin.bulk_edit_fields'))
+            
+            action = form.action.data
+            modified_count = 0
+            
+            if action == 'enable':
+                for config in selected_configs:
+                    config.is_enabled = True
+                    modified_count += 1
+                flash(f"{modified_count} Feld-Konfigurationen wurden aktiviert.", 'success')
+                
+            elif action == 'disable':
+                for config in selected_configs:
+                    config.is_enabled = False
+                    modified_count += 1
+                flash(f"{modified_count} Feld-Konfigurationen wurden deaktiviert.", 'success')
+                
+            elif action == 'change_frequency':
+                if form.new_frequency_type.data and form.new_frequency_value.data:
+                    for config in selected_configs:
+                        config.frequency_type = form.new_frequency_type.data
+                        config.frequency_value = form.new_frequency_value.data
+                        modified_count += 1
+                    flash(f"Häufigkeit für {modified_count} Feld-Konfigurationen geändert.", 'success')
+                else:
+                    flash('Neue Häufigkeits-Werte sind erforderlich.', 'warning')
+                    
+            elif action == 'change_colors':
+                if form.new_color_hex.data:
+                    for config in selected_configs:
+                        config.color_hex = form.new_color_hex.data
+                        if form.new_emission_hex.data:
+                            config.emission_hex = form.new_emission_hex.data
+                        modified_count += 1
+                    flash(f"Farben für {modified_count} Feld-Konfigurationen geändert.", 'success')
+                else:
+                    flash('Neue Hauptfarbe ist erforderlich.', 'warning')
+                    
+            elif action == 'delete':
+                for config in selected_configs:
+                    # Prüfe ob Feld in aktiver Nutzung
+                    if config.field_type in ['start', 'goal', 'normal']:
+                        flash(f"Basis-Feld '{config.field_type}' kann nicht gelöscht werden.", 'warning')
+                        continue
+                    db.session.delete(config)
+                    modified_count += 1
+                
+                if modified_count > 0:
+                    flash(f"{modified_count} Feld-Konfigurationen wurden gelöscht.", 'success')
+            
+            db.session.commit()
+            return redirect(url_for('admin.manage_fields'))
+            
+        except Exception as e:
+            db.session.rollback()
+            current_app.logger.error(f"Fehler bei Massen-Bearbeitung: {e}", exc_info=True)
+            flash('Fehler bei der Massen-Bearbeitung.', 'danger')
+    
+    return render_template('admin/bulk_edit_fields.html', form=form)
+
+@admin_bp.route('/api/field_colors')
+@login_required
+def api_field_colors():
+    """API-Endpunkt für Feld-Farb-Mapping (für Frontend-Integration)"""
+    if not isinstance(current_user, Admin):
+        return jsonify({"success": False, "error": "Zugriff verweigert"}), 403
+    
+    try:
+        color_mapping = get_field_type_color_mapping()
+        return jsonify({
+            "success": True,
+            "color_mapping": color_mapping
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"Fehler beim Laden der Feld-Farben: {e}", exc_info=True)
+        return jsonify({"success": False, "error": str(e)}), 500
+
+# =============================================================================
+# TEAM MANAGEMENT ROUTES (Bestehend)
+# =============================================================================
+
 @admin_bp.route('/create_team', methods=['GET', 'POST'])
 @login_required
 def create_team():
@@ -1050,7 +1402,10 @@ def init_chars():
         flash(f"Fehler bei der Charakterinitialisierung: {str(e)}", "danger")
     return redirect(url_for('admin.admin_dashboard'))
 
-# FOLDER MANAGEMENT ROUTES
+# =============================================================================
+# FOLDER & ROUND MANAGEMENT ROUTES (Bestehend)
+# =============================================================================
+
 @admin_bp.route('/manage_folders')
 @login_required
 def manage_folders():
