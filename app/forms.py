@@ -2,7 +2,7 @@
 from flask_wtf import FlaskForm
 from wtforms import StringField, PasswordField, SubmitField, IntegerField, BooleanField, SelectField, HiddenField, TextAreaField, RadioField, FloatField, SelectMultipleField
 from wtforms.validators import DataRequired, Length, EqualTo, NumberRange, Optional, ValidationError
-from app.models import Character, MinigameFolder, GameRound, Team
+from app.models import Character, MinigameFolder, GameRound, Team, FieldConfiguration
 
 class AdminLoginForm(FlaskForm):
     username = StringField('Benutzername', validators=[DataRequired(), Length(min=4, max=25)])
@@ -251,3 +251,211 @@ class DeleteConfirmationForm(FlaskForm):
     """Allgemeines Bestätigungsformular für Löschvorgänge"""
     confirm = BooleanField('Ja, ich möchte dies wirklich löschen', validators=[DataRequired()])
     submit = SubmitField('Endgültig löschen')
+
+# NEU: FELD-MANAGEMENT FORMS
+
+class FieldConfigurationForm(FlaskForm):
+    """Form für das Bearbeiten von Feld-Konfigurationen"""
+    display_name = StringField('Anzeige-Name', validators=[DataRequired(), Length(min=2, max=100)])
+    description = TextAreaField('Beschreibung', validators=[Optional(), Length(max=500)])
+    is_enabled = BooleanField('Aktiviert', default=True)
+    
+    # Häufigkeits-Konfiguration
+    frequency_type = SelectField('Häufigkeits-Typ', choices=[
+        ('modulo', 'Modulo-basiert (alle X Felder)'),
+        ('fixed_positions', 'Feste Positionen'),
+        ('probability', 'Wahrscheinlichkeitsbasiert (%)'),
+        ('default', 'Standard (für normale Felder)')
+    ], validators=[DataRequired()])
+    
+    frequency_value = IntegerField('Häufigkeits-Wert', validators=[NumberRange(min=0, max=100)], default=10)
+    
+    # Feste Positionen (nur bei frequency_type = 'fixed_positions')
+    fixed_positions = StringField('Feste Positionen (komma-getrennt)', validators=[Optional()],
+                                 render_kw={"placeholder": "z.B. 15,30,45,60"})
+    
+    # Farb-Konfiguration
+    color_hex = StringField('Hauptfarbe (Hex)', validators=[DataRequired(), Length(min=7, max=7)], 
+                           default='#81C784', render_kw={"type": "color"})
+    emission_hex = StringField('Effektfarbe (Hex)', validators=[Optional(), Length(min=7, max=7)], 
+                              default='#4CAF50', render_kw={"type": "color"})
+    
+    # Icon/Symbol
+    icon = StringField('Icon/Symbol', validators=[Optional(), Length(max=10)], 
+                      render_kw={"placeholder": "z.B. 🚀, ⭐, 🎮"})
+    
+    # Feldspezifische Konfigurationen
+    # Katapult Felder
+    min_distance = IntegerField('Min. Distanz', validators=[Optional(), NumberRange(min=1, max=20)], default=3)
+    max_distance = IntegerField('Max. Distanz', validators=[Optional(), NumberRange(min=1, max=20)], default=5)
+    
+    # Sperren-Feld
+    target_numbers = StringField('Ziel-Zahlen (komma-getrennt)', validators=[Optional()],
+                                default='4,5,6', render_kw={"placeholder": "z.B. 4,5,6"})
+    
+    # Bonus-Feld
+    bonus_type = SelectField('Bonus-Typ', choices=[
+        ('extra_dice', 'Extra-Würfel'),
+        ('extra_move', 'Extra-Bewegung'),
+        ('shield', 'Schutzschild')
+    ], validators=[Optional()], default='extra_dice')
+    
+    # Fallen-Feld
+    trap_effects = SelectMultipleField('Fallen-Effekte', choices=[
+        ('move_back', 'Zurück bewegen'),
+        ('skip_turn', 'Zug überspringen'),
+        ('remove_bonus', 'Bonus entfernen'),
+        ('lose_dice', 'Würfel verlieren')
+    ], validators=[Optional()])
+    
+    # Ereignis-Feld
+    chance_events = SelectMultipleField('Mögliche Ereignisse', choices=[
+        ('bonus_move', 'Bonus-Bewegung'),
+        ('lose_turn', 'Zug verlieren'),
+        ('extra_roll', 'Extra-Wurf'),
+        ('teleport', 'Teleportation'),
+        ('swap_random', 'Zufälliger Tausch')
+    ], validators=[Optional()])
+    
+    submit = SubmitField('Konfiguration speichern')
+
+    def __init__(self, field_type=None, *args, **kwargs):
+        super(FieldConfigurationForm, self).__init__(*args, **kwargs)
+        self.field_type = field_type
+        
+        # Setze Standard-Werte basierend auf Feld-Typ
+        if field_type and not kwargs.get('obj'):
+            from app.admin.field_config import get_field_type_templates
+            templates = get_field_type_templates()
+            if field_type in templates:
+                template = templates[field_type]
+                self.display_name.data = template['display_name']
+                self.description.data = template['description']
+                self.color_hex.data = template['color_hex']
+                self.emission_hex.data = template['emission_hex']
+                self.icon.data = template['icon']
+                self.frequency_type.data = template['frequency_type']
+                self.frequency_value.data = template['frequency_value']
+
+    def validate_frequency_value(self, frequency_value):
+        if self.frequency_type.data == 'modulo' and frequency_value.data <= 0:
+            raise ValidationError('Modulo-Wert muss größer als 0 sein.')
+        if self.frequency_type.data == 'probability' and (frequency_value.data < 0 or frequency_value.data > 100):
+            raise ValidationError('Wahrscheinlichkeit muss zwischen 0 und 100 liegen.')
+
+    def validate_color_hex(self, color_hex):
+        import re
+        if not re.match(r'^#[0-9A-Fa-f]{6}$', color_hex.data):
+            raise ValidationError('Farbe muss ein gültiger Hex-Code sein (z.B. #FF0000).')
+
+    def validate_emission_hex(self, emission_hex):
+        if emission_hex.data:
+            import re
+            if not re.match(r'^#[0-9A-Fa-f]{6}$', emission_hex.data):
+                raise ValidationError('Effektfarbe muss ein gültiger Hex-Code sein (z.B. #FF0000).')
+
+    def validate_fixed_positions(self, fixed_positions):
+        if self.frequency_type.data == 'fixed_positions' and fixed_positions.data:
+            try:
+                positions = [int(x.strip()) for x in fixed_positions.data.split(',') if x.strip()]
+                if not positions:
+                    raise ValidationError('Mindestens eine Position muss angegeben werden.')
+                for pos in positions:
+                    if pos < 0 or pos > 72:
+                        raise ValidationError('Positionen müssen zwischen 0 und 72 liegen.')
+            except ValueError:
+                raise ValidationError('Positionen müssen Zahlen sein, getrennt durch Kommas.')
+
+    def validate_target_numbers(self, target_numbers):
+        if self.field_type == 'barrier' and target_numbers.data:
+            try:
+                numbers = [int(x.strip()) for x in target_numbers.data.split(',') if x.strip()]
+                if not numbers:
+                    raise ValidationError('Mindestens eine Ziel-Zahl muss angegeben werden.')
+                for num in numbers:
+                    if num < 1 or num > 6:
+                        raise ValidationError('Ziel-Zahlen müssen zwischen 1 und 6 liegen.')
+            except ValueError:
+                raise ValidationError('Ziel-Zahlen müssen Zahlen sein, getrennt durch Kommas.')
+
+class FieldPreviewForm(FlaskForm):
+    """Form für Spielfeld-Vorschau-Einstellungen"""
+    max_fields = IntegerField('Anzahl Felder', validators=[NumberRange(min=10, max=100)], default=73)
+    show_field_numbers = BooleanField('Feld-Nummern anzeigen', default=True)
+    show_field_types = BooleanField('Feld-Typen anzeigen', default=True)
+    show_statistics = BooleanField('Statistiken anzeigen', default=True)
+    highlight_conflicts = BooleanField('Konflikte hervorheben', default=True)
+    
+    submit = SubmitField('Vorschau aktualisieren')
+
+class FieldImportExportForm(FlaskForm):
+    """Form für Import/Export von Feld-Konfigurationen"""
+    import_data = TextAreaField('JSON-Daten importieren', validators=[Optional()],
+                               render_kw={"rows": "10", "placeholder": "JSON-Konfiguration hier einfügen..."})
+    export_format = SelectField('Export-Format', choices=[
+        ('json', 'JSON'),
+        ('csv', 'CSV'),
+        ('backup', 'Backup-Datei')
+    ], default='json')
+    
+    include_disabled = BooleanField('Deaktivierte Felder einschließen', default=False)
+    
+    import_submit = SubmitField('Konfigurationen importieren')
+    export_submit = SubmitField('Konfigurationen exportieren')
+    reset_submit = SubmitField('Auf Standard zurücksetzen')
+
+    def validate_import_data(self, import_data):
+        if import_data.data:
+            try:
+                import json
+                data = json.loads(import_data.data)
+                if not isinstance(data, list):
+                    raise ValidationError('Import-Daten müssen eine JSON-Liste sein.')
+                
+                required_fields = ['field_type', 'display_name', 'color_hex']
+                for item in data:
+                    if not isinstance(item, dict):
+                        raise ValidationError('Jedes Element muss ein JSON-Objekt sein.')
+                    for field in required_fields:
+                        if field not in item:
+                            raise ValidationError(f'Erforderliches Feld "{field}" fehlt in einem der Elemente.')
+            except json.JSONDecodeError:
+                raise ValidationError('Ungültiges JSON-Format.')
+            except Exception as e:
+                raise ValidationError(f'Fehler beim Validieren der Import-Daten: {str(e)}')
+
+class FieldBulkEditForm(FlaskForm):
+    """Form für Massen-Bearbeitung von Feld-Konfigurationen"""
+    selected_fields = SelectMultipleField('Felder auswählen', choices=[], validators=[DataRequired()])
+    
+    action = SelectField('Aktion', choices=[
+        ('enable', 'Aktivieren'),
+        ('disable', 'Deaktivieren'),
+        ('change_frequency', 'Häufigkeit ändern'),
+        ('change_colors', 'Farben ändern'),
+        ('delete', 'Löschen')
+    ], validators=[DataRequired()])
+    
+    # Für Häufigkeits-Änderung
+    new_frequency_type = SelectField('Neuer Häufigkeits-Typ', choices=[
+        ('modulo', 'Modulo-basiert'),
+        ('fixed_positions', 'Feste Positionen'),
+        ('probability', 'Wahrscheinlichkeitsbasiert')
+    ], validators=[Optional()])
+    
+    new_frequency_value = IntegerField('Neuer Häufigkeits-Wert', validators=[Optional(), NumberRange(min=0, max=100)])
+    
+    # Für Farb-Änderung
+    new_color_hex = StringField('Neue Hauptfarbe', validators=[Optional(), Length(min=7, max=7)],
+                               render_kw={"type": "color"})
+    new_emission_hex = StringField('Neue Effektfarbe', validators=[Optional(), Length(min=7, max=7)],
+                                  render_kw={"type": "color"})
+    
+    submit = SubmitField('Massen-Bearbeitung ausführen')
+
+    def __init__(self, *args, **kwargs):
+        super(FieldBulkEditForm, self).__init__(*args, **kwargs)
+        # Lade verfügbare Felder
+        field_configs = FieldConfiguration.query.all()
+        self.selected_fields.choices = [(str(config.id), f"{config.display_name} ({config.field_type})") 
+                                       for config in field_configs]
