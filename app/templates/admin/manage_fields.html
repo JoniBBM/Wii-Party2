@@ -1,0 +1,392 @@
+{% extends "base.html" %}
+
+{% block title %}Feld-Management - Admin Dashboard{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1><i class="fas fa-chess-board"></i> Spielfeld-Management</h1>
+                <div class="btn-group" role="group">
+                    <a href="{{ url_for('admin.admin_dashboard') }}" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left"></i> Zurück zum Dashboard
+                    </a>
+                    <a href="{{ url_for('admin.field_preview') }}" class="btn btn-info">
+                        <i class="fas fa-eye"></i> Feld-Vorschau
+                    </a>
+                    <a href="{{ url_for('admin.import_export_fields') }}" class="btn btn-primary">
+                        <i class="fas fa-exchange-alt"></i> Import/Export
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Flash Nachrichten -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+            <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <!-- Statistiken Übersicht -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card bg-primary text-white">
+                <div class="card-body">
+                    <h5 class="card-title">
+                        <i class="fas fa-chess-board"></i> Gesamt Felder
+                    </h5>
+                    <h2 class="card-text">{{ field_stats.total_fields if field_stats else 73 }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-success text-white">
+                <div class="card-body">
+                    <h5 class="card-title">
+                        <i class="fas fa-star"></i> Sonderfelder
+                    </h5>
+                    <h2 class="card-text">{{ field_stats.special_field_count if field_stats else 0 }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-info text-white">
+                <div class="card-body">
+                    <h5 class="card-title">
+                        <i class="fas fa-square"></i> Normale Felder
+                    </h5>
+                    <h2 class="card-text">{{ field_stats.normal_field_count if field_stats else 0 }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-warning text-white">
+                <div class="card-body">
+                    <h5 class="card-title">
+                        <i class="fas fa-cog"></i> Konfiguriert
+                    </h5>
+                    <h2 class="card-text">{{ field_configs|length }}</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Konflikte Warnung -->
+    {% if conflicts %}
+    <div class="alert alert-warning" role="alert">
+        <h5><i class="fas fa-exclamation-triangle"></i> Feld-Konflikte erkannt!</h5>
+        <p>Die folgenden Positionen haben mehrere Feld-Typen zugewiesen:</p>
+        <ul>
+            {% for conflict in conflicts %}
+            <li>Position {{ conflict.position }}: {{ conflict.field_types|join(', ') }}</li>
+            {% endfor %}
+        </ul>
+        <p><small>Der erste Feld-Typ in der Liste hat Vorrang.</small></p>
+    </div>
+    {% endif %}
+
+    <!-- Feld-Konfigurationen Tabelle -->
+    <div class="card">
+        <div class="card-header bg-dark text-white">
+            <div class="d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="fas fa-list"></i> Feld-Konfigurationen
+                </h5>
+                <div class="btn-group" role="group" aria-label="Tabellen-Aktionen">
+                    <a href="{{ url_for('admin.bulk_edit_fields') }}" class="btn btn-outline-light btn-sm">
+                        <i class="fas fa-edit"></i> Massen-Bearbeitung
+                    </a>
+                    <button type="button" class="btn btn-outline-light btn-sm" data-toggle="modal" data-target="#colorLegendModal">
+                        <i class="fas fa-palette"></i> Farb-Legende
+                    </button>
+                </div>
+            </div>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-striped table-hover mb-0">
+                    <thead class="thead-light">
+                        <tr>
+                            <th>Status</th>
+                            <th>Feld-Typ</th>
+                            <th>Name</th>
+                            <th>Häufigkeit</th>
+                            <th>Farben</th>
+                            <th>Verteilung</th>
+                            <th>Nutzung</th>
+                            <th>Aktionen</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for config in field_configs %}
+                        {% set stats = field_stats.field_distribution.get(config.field_type, {}) if field_stats else {} %}
+                        {% set usage = usage_stats.get(config.field_type, 0) if usage_stats else 0 %}
+                        <tr class="{% if not config.is_enabled %}text-muted{% endif %}">
+                            <td>
+                                {% if config.is_enabled %}
+                                    <span class="badge badge-success">
+                                        <i class="fas fa-check"></i> Aktiv
+                                    </span>
+                                {% else %}
+                                    <span class="badge badge-secondary">
+                                        <i class="fas fa-times"></i> Deaktiviert
+                                    </span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <span class="field-type-badge" style="background-color: {{ config.color_hex }}; color: white; padding: 2px 8px; border-radius: 4px; font-size: 0.8em;">
+                                    {% if config.icon %}{{ config.icon }}{% endif %} {{ config.field_type }}
+                                </span>
+                            </td>
+                            <td>
+                                <strong>{{ config.display_name }}</strong>
+                                {% if config.description %}
+                                    <br><small class="text-muted">{{ config.description[:50] }}{% if config.description|length > 50 %}...{% endif %}</small>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if config.frequency_type == 'modulo' %}
+                                    <span class="badge badge-primary">Alle {{ config.frequency_value }} Felder</span>
+                                {% elif config.frequency_type == 'fixed_positions' %}
+                                    <span class="badge badge-info">Feste Positionen</span>
+                                {% elif config.frequency_type == 'probability' %}
+                                    <span class="badge badge-warning">{{ config.frequency_value }}% Wahrscheinlichkeit</span>
+                                {% elif config.frequency_type == 'default' %}
+                                    <span class="badge badge-light">Standard</span>
+                                {% else %}
+                                    <span class="badge badge-secondary">{{ config.frequency_type }}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="d-flex align-items-center">
+                                    <div class="color-preview mr-2" style="width: 20px; height: 20px; background-color: {{ config.color_hex }}; border: 1px solid #ccc; border-radius: 3px;" title="Hauptfarbe: {{ config.color_hex }}"></div>
+                                    {% if config.emission_hex and config.emission_hex != config.color_hex %}
+                                        <div class="color-preview" style="width: 20px; height: 20px; background-color: {{ config.emission_hex }}; border: 1px solid #ccc; border-radius: 3px;" title="Effektfarbe: {{ config.emission_hex }}"></div>
+                                    {% endif %}
+                                </div>
+                            </td>
+                            <td>
+                                {% if stats %}
+                                    <div class="progress" style="height: 20px;">
+                                        <div class="progress-bar" role="progressbar" 
+                                             style="width: {{ stats.percentage }}%; background-color: {{ config.color_hex }};" 
+                                             title="{{ stats.count }} Felder ({{ stats.percentage }}%)">
+                                            {% if stats.percentage > 10 %}
+                                                {{ stats.count }}
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    <small class="text-muted">{{ stats.percentage }}% ({{ stats.count }} Felder)</small>
+                                {% else %}
+                                    <span class="text-muted">Keine Daten</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if usage > 0 %}
+                                    <span class="badge badge-success" title="{{ usage }} mal verwendet">
+                                        <i class="fas fa-chart-line"></i> {{ usage }}x
+                                    </span>
+                                {% else %}
+                                    <span class="badge badge-light">
+                                        <i class="fas fa-minus"></i> Nicht verwendet
+                                    </span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="btn-group" role="group">
+                                    <a href="{{ url_for('admin.edit_field', field_type=config.field_type) }}" 
+                                       class="btn btn-outline-primary btn-sm" title="Bearbeiten">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                    {% if config.field_type not in ['start', 'goal', 'normal'] %}
+                                        <button type="button" class="btn btn-outline-danger btn-sm" 
+                                                onclick="confirmToggleField('{{ config.field_type }}', {{ config.is_enabled|tojson }})"
+                                                title="{% if config.is_enabled %}Deaktivieren{% else %}Aktivieren{% endif %}">
+                                            <i class="fas fa-{% if config.is_enabled %}toggle-on{% else %}toggle-off{% endif %}"></i>
+                                        </button>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Neue Feld-Typen hinzufügen -->
+    <div class="card mt-4">
+        <div class="card-header bg-success text-white">
+            <h5 class="mb-0">
+                <i class="fas fa-plus-circle"></i> Neuen Feld-Typ hinzufügen
+            </h5>
+        </div>
+        <div class="card-body">
+            <p>Sie können neue Feld-Typen erstellen, indem Sie einen nicht existierenden Feld-Typ bearbeiten:</p>
+            <form method="GET" action="{{ url_for('admin.edit_field', field_type='custom') }}" class="form-inline">
+                <div class="form-group mr-2">
+                    <label for="new_field_type" class="sr-only">Neuer Feld-Typ</label>
+                    <input type="text" class="form-control" id="new_field_type" name="custom_type" 
+                           placeholder="z.B. volcano, portal, mystery" required>
+                </div>
+                <button type="submit" class="btn btn-success">
+                    <i class="fas fa-plus"></i> Feld-Typ erstellen
+                </button>
+            </form>
+            <small class="form-text text-muted mt-2">
+                <i class="fas fa-info-circle"></i> 
+                Verwenden Sie nur Kleinbuchstaben und Unterstriche. Beispiele: volcano, ice_field, portal_blue
+            </small>
+        </div>
+    </div>
+</div>
+
+<!-- Farb-Legende Modal -->
+<div class="modal fade" id="colorLegendModal" tabindex="-1" role="dialog" aria-labelledby="colorLegendModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="colorLegendModalLabel">
+                    <i class="fas fa-palette"></i> Farb-Legende und Bedeutung
+                </h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    {% for field_type, color_info in color_mapping.items() %}
+                    <div class="col-md-6 mb-3">
+                        <div class="d-flex align-items-center">
+                            <div class="color-preview mr-3" 
+                                 style="width: 40px; height: 40px; background-color: {{ color_info.color }}; border: 2px solid #333; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 1.2em;">
+                                {% if color_info.icon %}{{ color_info.icon }}{% endif %}
+                            </div>
+                            <div>
+                                <strong>{{ color_info.display_name }}</strong>
+                                <br>
+                                <small class="text-muted">{{ color_info.color }}</small>
+                                {% if not color_info.enabled %}
+                                    <br><span class="badge badge-secondary">Deaktiviert</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                
+                <hr>
+                
+                <h6><i class="fas fa-info-circle"></i> Häufigkeits-Typen</h6>
+                <ul class="list-unstyled">
+                    <li><span class="badge badge-primary">Modulo</span> - Erscheint alle X Felder (z.B. alle 15 Felder)</li>
+                    <li><span class="badge badge-info">Feste Positionen</span> - Nur an bestimmten, fest definierten Positionen</li>
+                    <li><span class="badge badge-warning">Wahrscheinlichkeit</span> - Zufällige Verteilung mit definierter Wahrscheinlichkeit</li>
+                    <li><span class="badge badge-light">Standard</span> - Alle Felder die nicht anders zugewiesen sind</li>
+                </ul>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Schließen</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.progress {
+    background-color: #e9ecef;
+}
+
+.field-type-badge {
+    font-family: 'Courier New', monospace;
+    font-weight: bold;
+}
+
+.color-preview {
+    cursor: pointer;
+}
+
+.color-preview:hover {
+    transform: scale(1.1);
+    transition: transform 0.2s ease;
+}
+
+.table td {
+    vertical-align: middle;
+}
+
+.card {
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
+
+.badge {
+    font-size: 0.75em;
+}
+
+.btn-group .btn {
+    margin-right: 2px;
+}
+
+.btn-group .btn:last-child {
+    margin-right: 0;
+}
+</style>
+
+<script>
+function confirmToggleField(fieldType, isCurrentlyEnabled) {
+    const action = isCurrentlyEnabled ? 'deaktivieren' : 'aktivieren';
+    const message = `Möchten Sie den Feld-Typ "${fieldType}" wirklich ${action}?`;
+    
+    if (confirm(message)) {
+        // AJAX Request zum Togglen des Status
+        fetch(`/admin/toggle_field/${fieldType}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('meta[name=csrf-token]')?.getAttribute('content') || ''
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert('Fehler: ' + (data.error || 'Unbekannter Fehler'));
+            }
+        })
+        .catch(error => {
+            alert('Netzwerkfehler: ' + error.message);
+        });
+    }
+}
+
+// Neuen Feld-Typ erstellen
+document.getElementById('new_field_type').addEventListener('input', function(e) {
+    // Konvertiere zu lowercase und ersetze Leerzeichen mit Unterstrichen
+    let value = e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '_').replace(/_+/g, '_');
+    if (value !== e.target.value) {
+        e.target.value = value;
+    }
+});
+
+// Form submit anpassen für custom field type
+document.querySelector('form[action*="edit_field"]').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const customType = document.getElementById('new_field_type').value;
+    if (customType) {
+        window.location.href = `/admin/edit_field/${customType}`;
+    }
+});
+</script>
+{% endblock %}

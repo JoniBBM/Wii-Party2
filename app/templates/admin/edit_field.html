@@ -1,0 +1,541 @@
+{% extends "base.html" %}
+
+{% block title %}Feld bearbeiten: {{ config.display_name if config else field_type }} - Admin Dashboard{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h4 class="mb-0">
+                            <i class="fas fa-edit"></i> 
+                            {% if config %}
+                                {{ config.display_name }} bearbeiten
+                            {% else %}
+                                Neuen Feld-Typ erstellen: {{ field_type }}
+                            {% endif %}
+                        </h4>
+                        <a href="{{ url_for('admin.manage_fields') }}" class="btn btn-outline-light">
+                            <i class="fas fa-arrow-left"></i> Zurück
+                        </a>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <!-- Flash Nachrichten -->
+                    {% with messages = get_flashed_messages(with_categories=true) %}
+                        {% if messages %}
+                            {% for category, message in messages %}
+                            <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                                {{ message }}
+                                <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                                    <span aria-hidden="true">&times;</span>
+                                </button>
+                            </div>
+                            {% endfor %}
+                        {% endif %}
+                    {% endwith %}
+
+                    <form method="POST" action="{{ url_for('admin.edit_field', field_type=field_type) }}" novalidate>
+                        {{ form.hidden_tag() }}
+                        
+                        <!-- Basis-Informationen -->
+                        <div class="form-section mb-4">
+                            <h5 class="section-title">
+                                <i class="fas fa-info-circle"></i> Basis-Informationen
+                            </h5>
+                            
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        {{ form.display_name.label(class="form-control-label") }}
+                                        {{ form.display_name(class="form-control" + (" is-invalid" if form.display_name.errors else "")) }}
+                                        {% if form.display_name.errors %}
+                                            <div class="invalid-feedback">
+                                                {% for error in form.display_name.errors %}{{ error }}{% endfor %}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        {{ form.icon.label(class="form-control-label") }}
+                                        <div class="input-group">
+                                            {{ form.icon(class="form-control", placeholder="z.B. 🚀, ⭐, 🎮") }}
+                                            <div class="input-group-append">
+                                                <span class="input-group-text" id="icon-preview">
+                                                    {{ form.icon.data if form.icon.data else '❓' }}
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <small class="form-text text-muted">
+                                            Emoji oder Unicode-Symbol für bessere Erkennbarkeit
+                                        </small>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="form-group">
+                                {{ form.description.label(class="form-control-label") }}
+                                {{ form.description(class="form-control", rows="2") }}
+                                <small class="form-text text-muted">
+                                    Beschreibung der Funktion dieses Feld-Typs
+                                </small>
+                            </div>
+                            
+                            <div class="form-check form-check-lg">
+                                {{ form.is_enabled(class="form-check-input", id="is_enabled") }}
+                                {{ form.is_enabled.label(class="form-check-label", for="is_enabled") }}
+                                <small class="form-text text-muted">
+                                    Deaktivierte Felder werden nicht auf dem Spielfeld platziert
+                                </small>
+                            </div>
+                        </div>
+
+                        <!-- Häufigkeits-Konfiguration -->
+                        <div class="form-section mb-4">
+                            <h5 class="section-title">
+                                <i class="fas fa-chart-pie"></i> Häufigkeits-Konfiguration
+                            </h5>
+                            
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        {{ form.frequency_type.label(class="form-control-label") }}
+                                        {{ form.frequency_type(class="form-control", id="frequency_type") }}
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        {{ form.frequency_value.label(class="form-control-label", id="frequency_value_label") }}
+                                        {{ form.frequency_value(class="form-control", id="frequency_value") }}
+                                        <small class="form-text text-muted" id="frequency_help">
+                                            Bestimmt wie oft dieses Feld auf dem Spielbrett erscheint
+                                        </small>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Feste Positionen (nur bei frequency_type = 'fixed_positions') -->
+                            <div class="form-group" id="fixed_positions_group" style="display: none;">
+                                {{ form.fixed_positions.label(class="form-control-label") }}
+                                {{ form.fixed_positions(class="form-control", placeholder="z.B. 15,30,45,60") }}
+                                <small class="form-text text-muted">
+                                    Komma-getrennte Liste von Positionen (0-72)
+                                </small>
+                            </div>
+                        </div>
+
+                        <!-- Farb-Konfiguration -->
+                        <div class="form-section mb-4">
+                            <h5 class="section-title">
+                                <i class="fas fa-palette"></i> Farb-Konfiguration
+                            </h5>
+                            
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        {{ form.color_hex.label(class="form-control-label") }}
+                                        <div class="input-group">
+                                            {{ form.color_hex(class="form-control", id="color_hex") }}
+                                            <div class="input-group-append">
+                                                <div class="input-group-text color-preview" id="color-preview" 
+                                                     style="background-color: {{ form.color_hex.data or '#81C784' }}; width: 40px;">
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        {{ form.emission_hex.label(class="form-control-label") }}
+                                        <div class="input-group">
+                                            {{ form.emission_hex(class="form-control", id="emission_hex") }}
+                                            <div class="input-group-append">
+                                                <div class="input-group-text color-preview" id="emission-preview" 
+                                                     style="background-color: {{ form.emission_hex.data or '#4CAF50' }}; width: 40px;">
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <small class="form-text text-muted">
+                                            Wird für Glüh-Effekte und Hervorhebungen verwendet
+                                        </small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Feldspezifische Konfigurationen -->
+                        {% if template_info and template_info.config_fields %}
+                        <div class="form-section mb-4">
+                            <h5 class="section-title">
+                                <i class="fas fa-cogs"></i> Spezielle Einstellungen für {{ field_type }}
+                            </h5>
+                            
+                            {% for field_config in template_info.config_fields %}
+                                <div class="form-group">
+                                    {% if field_config.type == 'number' %}
+                                        <label for="{{ field_config.name }}" class="form-control-label">{{ field_config.label }}</label>
+                                        <input type="number" class="form-control" id="{{ field_config.name }}" 
+                                               name="{{ field_config.name }}" value="{{ field_config.default }}"
+                                               min="1" max="20">
+                                    {% elif field_config.type == 'text' %}
+                                        <label for="{{ field_config.name }}" class="form-control-label">{{ field_config.label }}</label>
+                                        <input type="text" class="form-control" id="{{ field_config.name }}" 
+                                               name="{{ field_config.name }}" value="{{ field_config.default }}"
+                                               placeholder="{{ field_config.get('placeholder', '') }}">
+                                    {% elif field_config.type == 'select' %}
+                                        <label for="{{ field_config.name }}" class="form-control-label">{{ field_config.label }}</label>
+                                        <select class="form-control" id="{{ field_config.name }}" name="{{ field_config.name }}">
+                                            {% for option_value, option_label in field_config.options %}
+                                                <option value="{{ option_value }}" 
+                                                        {% if option_value == field_config.default %}selected{% endif %}>
+                                                    {{ option_label }}
+                                                </option>
+                                            {% endfor %}
+                                        </select>
+                                    {% elif field_config.type == 'multiselect' %}
+                                        <label class="form-control-label">{{ field_config.label }}</label>
+                                        {% for option_value, option_label in field_config.options %}
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" 
+                                                       name="{{ field_config.name }}" value="{{ option_value }}"
+                                                       id="{{ field_config.name }}_{{ option_value }}"
+                                                       {% if option_value in field_config.default %}checked{% endif %}>
+                                                <label class="form-check-label" for="{{ field_config.name }}_{{ option_value }}">
+                                                    {{ option_label }}
+                                                </label>
+                                            </div>
+                                        {% endfor %}
+                                    {% endif %}
+                                </div>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+
+                        <!-- Formular-Aktionen -->
+                        <div class="form-actions">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    {{ form.submit(class="btn btn-success btn-lg") }}
+                                    <a href="{{ url_for('admin.manage_fields') }}" class="btn btn-secondary btn-lg ml-2">
+                                        Abbrechen
+                                    </a>
+                                </div>
+                                <div>
+                                    {% if config and config.field_type not in ['start', 'goal', 'normal'] %}
+                                        <button type="button" class="btn btn-outline-danger" 
+                                                onclick="confirmDeleteField('{{ config.field_type }}')">
+                                            <i class="fas fa-trash-alt"></i> Feld-Typ löschen
+                                        </button>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Sidebar mit Vorschau und Hilfe -->
+        <div class="col-lg-4">
+            <!-- Live-Vorschau -->
+            <div class="card mb-4">
+                <div class="card-header bg-info text-white">
+                    <h6 class="mb-0">
+                        <i class="fas fa-eye"></i> Live-Vorschau
+                    </h6>
+                </div>
+                <div class="card-body text-center">
+                    <div class="field-preview-container mb-3">
+                        <div class="field-preview" id="field-preview-element" 
+                             style="width: 60px; height: 60px; border-radius: 50%; margin: 0 auto; display: flex; align-items: center; justify-content: center; color: white; font-size: 1.5em; font-weight: bold; border: 3px solid #333;">
+                            {{ form.icon.data if form.icon.data else '?' }}
+                        </div>
+                    </div>
+                    <h6 id="preview-name">{{ form.display_name.data or field_type }}</h6>
+                    <p class="text-muted small" id="preview-description">
+                        {{ form.description.data or 'Keine Beschreibung' }}
+                    </p>
+                    <div class="preview-details">
+                        <span class="badge badge-secondary" id="preview-frequency">
+                            Häufigkeit wird berechnet...
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Hilfe und Tipps -->
+            <div class="card mb-4">
+                <div class="card-header bg-warning text-dark">
+                    <h6 class="mb-0">
+                        <i class="fas fa-lightbulb"></i> Tipps und Hilfe
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <h6>Häufigkeits-Typen:</h6>
+                    <ul class="small">
+                        <li><strong>Modulo:</strong> Alle X Felder (z.B. alle 15 Felder)</li>
+                        <li><strong>Feste Positionen:</strong> Nur an bestimmten Positionen</li>
+                        <li><strong>Wahrscheinlichkeit:</strong> Zufällige Verteilung mit %</li>
+                        <li><strong>Standard:</strong> Alle nicht anders zugewiesenen Felder</li>
+                    </ul>
+                    
+                    <h6 class="mt-3">Farb-Tipps:</h6>
+                    <ul class="small">
+                        <li><strong>Hauptfarbe:</strong> Grundfarbe des Feldes</li>
+                        <li><strong>Effektfarbe:</strong> Für Glühen und Hervorhebungen</li>
+                        <li>Verwenden Sie kontrastierende Farben für bessere Sichtbarkeit</li>
+                    </ul>
+                    
+                    {% if field_type in ['catapult_forward', 'catapult_backward'] %}
+                    <h6 class="mt-3">Katapult-Felder:</h6>
+                    <ul class="small">
+                        <li>Min/Max Distanz bestimmt die Sprungweite</li>
+                        <li>Vorwärts: Positive Bewegung</li>
+                        <li>Rückwärts: Negative Bewegung</li>
+                    </ul>
+                    {% elif field_type == 'barrier' %}
+                    <h6 class="mt-3">Sperren-Feld:</h6>
+                    <ul class="small">
+                        <li>Ziel-Zahlen: Welche Würfelzahlen befreien</li>
+                        <li>Höhere Zahlen = schwerer zu befreien</li>
+                        <li>Standard: 4,5,6 (50% Chance)</li>
+                    </ul>
+                    {% elif field_type == 'player_swap' %}
+                    <h6 class="mt-3">Spieler-Tausch:</h6>
+                    <ul class="small">
+                        <li>Min. Abstand verhindert Tausch mit nahen Teams</li>
+                        <li>Empfohlen: 3+ Felder Abstand</li>
+                    </ul>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Häufigkeits-Rechner -->
+            <div class="card">
+                <div class="card-header bg-success text-white">
+                    <h6 class="mb-0">
+                        <i class="fas fa-calculator"></i> Häufigkeits-Rechner
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div id="frequency-calculator">
+                        <p class="small text-muted">Auf einem Spielfeld mit 73 Feldern:</p>
+                        <div id="calculation-result">
+                            <span class="badge badge-info">Wird berechnet...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.form-section {
+    border-left: 4px solid #007bff;
+    padding-left: 15px;
+    margin-left: -15px;
+    background-color: #f8f9fa;
+    padding: 15px;
+    border-radius: 5px;
+}
+
+.section-title {
+    color: #007bff;
+    margin-bottom: 15px;
+}
+
+.field-preview {
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+}
+
+.color-preview {
+    transition: background-color 0.3s ease;
+}
+
+.form-check-lg .form-check-input {
+    transform: scale(1.2);
+    margin-right: 0.75rem;
+}
+
+.form-check-lg .form-check-label {
+    font-size: 1.1em;
+    font-weight: 500;
+}
+
+.form-actions {
+    border-top: 1px solid #dee2e6;
+    padding-top: 20px;
+    margin-top: 20px;
+}
+
+.badge {
+    font-size: 0.8em;
+}
+
+.card {
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Live-Vorschau Updates
+    const iconInput = document.getElementById('{{ form.icon.id }}');
+    const displayNameInput = document.getElementById('{{ form.display_name.id }}');
+    const descriptionInput = document.getElementById('{{ form.description.id }}');
+    const colorInput = document.getElementById('color_hex');
+    const emissionInput = document.getElementById('emission_hex');
+    const frequencyTypeSelect = document.getElementById('frequency_type');
+    const frequencyValueInput = document.getElementById('frequency_value');
+    
+    const previewElement = document.getElementById('field-preview-element');
+    const previewName = document.getElementById('preview-name');
+    const previewDescription = document.getElementById('preview-description');
+    const previewFrequency = document.getElementById('preview-frequency');
+    
+    // Icon Preview Update
+    if (iconInput) {
+        iconInput.addEventListener('input', function() {
+            const iconPreview = document.getElementById('icon-preview');
+            const icon = this.value || '❓';
+            iconPreview.textContent = icon;
+            previewElement.textContent = icon;
+        });
+    }
+    
+    // Name Preview Update
+    if (displayNameInput) {
+        displayNameInput.addEventListener('input', function() {
+            previewName.textContent = this.value || '{{ field_type }}';
+        });
+    }
+    
+    // Description Preview Update
+    if (descriptionInput) {
+        descriptionInput.addEventListener('input', function() {
+            previewDescription.textContent = this.value || 'Keine Beschreibung';
+        });
+    }
+    
+    // Color Preview Updates
+    if (colorInput) {
+        colorInput.addEventListener('input', function() {
+            const color = this.value;
+            document.getElementById('color-preview').style.backgroundColor = color;
+            previewElement.style.backgroundColor = color;
+        });
+    }
+    
+    if (emissionInput) {
+        emissionInput.addEventListener('input', function() {
+            const color = this.value;
+            document.getElementById('emission-preview').style.backgroundColor = color;
+            previewElement.style.boxShadow = `0 4px 8px rgba(0,0,0,0.3), 0 0 15px ${color}`;
+        });
+    }
+    
+    // Frequency Type Change Handler
+    if (frequencyTypeSelect) {
+        frequencyTypeSelect.addEventListener('change', updateFrequencyUI);
+        updateFrequencyUI(); // Initial call
+    }
+    
+    if (frequencyValueInput) {
+        frequencyValueInput.addEventListener('input', calculateFrequency);
+    }
+    
+    function updateFrequencyUI() {
+        const type = frequencyTypeSelect.value;
+        const fixedPositionsGroup = document.getElementById('fixed_positions_group');
+        const frequencyValueLabel = document.getElementById('frequency_value_label');
+        const frequencyHelp = document.getElementById('frequency_help');
+        
+        if (type === 'fixed_positions') {
+            fixedPositionsGroup.style.display = 'block';
+            frequencyValueLabel.textContent = 'Anzahl Positionen';
+            frequencyHelp.textContent = 'Anzahl der fest definierten Positionen';
+        } else {
+            fixedPositionsGroup.style.display = 'none';
+            if (type === 'modulo') {
+                frequencyValueLabel.textContent = 'Modulo-Wert';
+                frequencyHelp.textContent = 'Alle X Felder (z.B. 15 = alle 15 Felder)';
+            } else if (type === 'probability') {
+                frequencyValueLabel.textContent = 'Wahrscheinlichkeit (%)';
+                frequencyHelp.textContent = 'Wahrscheinlichkeit in Prozent (0-100)';
+            } else {
+                frequencyValueLabel.textContent = 'Wert';
+                frequencyHelp.textContent = 'Bestimmt die Häufigkeit des Feld-Typs';
+            }
+        }
+        
+        calculateFrequency();
+    }
+    
+    function calculateFrequency() {
+        const type = frequencyTypeSelect.value;
+        const value = parseInt(frequencyValueInput.value) || 0;
+        const totalFields = 73;
+        let resultText = '';
+        let count = 0;
+        
+        if (type === 'modulo' && value > 0) {
+            count = Math.floor(totalFields / value);
+            const percentage = ((count / totalFields) * 100).toFixed(1);
+            resultText = `${count} Felder (${percentage}%)`;
+            previewFrequency.textContent = `Alle ${value} Felder`;
+            previewFrequency.className = 'badge badge-primary';
+        } else if (type === 'fixed_positions') {
+            count = value;
+            const percentage = ((count / totalFields) * 100).toFixed(1);
+            resultText = `${count} Felder (${percentage}%)`;
+            previewFrequency.textContent = `${count} feste Positionen`;
+            previewFrequency.className = 'badge badge-info';
+        } else if (type === 'probability') {
+            count = Math.round((totalFields * value) / 100);
+            resultText = `~${count} Felder (${value}%)`;
+            previewFrequency.textContent = `${value}% Wahrscheinlichkeit`;
+            previewFrequency.className = 'badge badge-warning';
+        } else if (type === 'default') {
+            resultText = 'Alle übrigen Felder';
+            previewFrequency.textContent = 'Standard-Felder';
+            previewFrequency.className = 'badge badge-light';
+        } else {
+            resultText = 'Unbekannt';
+            previewFrequency.textContent = 'Wird berechnet...';
+            previewFrequency.className = 'badge badge-secondary';
+        }
+        
+        document.getElementById('calculation-result').innerHTML = `
+            <div class="badge badge-success">${resultText}</div>
+        `;
+    }
+    
+    // Initial calculations
+    calculateFrequency();
+});
+
+function confirmDeleteField(fieldType) {
+    if (confirm(`Möchten Sie den Feld-Typ "${fieldType}" wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.`)) {
+        // Create and submit delete form
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = `/admin/delete_field/${fieldType}`;
+        
+        const csrfToken = document.querySelector('input[name="csrf_token"]').value;
+        const csrfInput = document.createElement('input');
+        csrfInput.type = 'hidden';
+        csrfInput.name = 'csrf_token';
+        csrfInput.value = csrfToken;
+        
+        form.appendChild(csrfInput);
+        document.body.appendChild(form);
+        form.submit();
+    }
+}
+</script>
+{% endblock %}
