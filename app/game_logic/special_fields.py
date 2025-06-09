@@ -539,16 +539,32 @@ def get_field_statistics():
     special_positions = get_all_special_field_positions(73)
     
     total_special_fields = 0
-    for field_type, positions in special_positions.items():
-        field_distribution[field_type] = len(positions)
-        total_special_fields += len(positions)
+    total_fields = 73
     
-    field_distribution['normal'] = 73 - total_special_fields
+    # Zähle tatsächliche Felder auf dem Spielbrett
+    field_counts = {}
+    for position in range(total_fields):
+        field_type = get_field_type_at_position(position)
+        field_counts[field_type] = field_counts.get(field_type, 0) + 1
+    
+    # Erstelle Statistik-Objekte mit count und percentage
+    for field_type, count in field_counts.items():
+        percentage = (count / total_fields * 100) if total_fields > 0 else 0
+        field_distribution[field_type] = {
+            'count': count,
+            'percentage': round(percentage, 1)
+        }
+        
+        if field_type not in ['start', 'goal', 'normal']:
+            total_special_fields += count
     
     return {
         'total_configs': len(field_configs),
         'enabled_configs': enabled_count,
         'disabled_configs': disabled_count,
+        'total_fields': total_fields,
+        'special_field_count': total_special_fields,
+        'normal_field_count': field_counts.get('normal', 0),
         'field_distribution': field_distribution,
         'special_positions': special_positions
     }
