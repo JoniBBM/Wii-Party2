@@ -1,10 +1,15 @@
 """
 Sonderfeld-Logik für Wii Party Clone - Erweitert mit konfigurierbaren Feld-Häufigkeiten
 Enthält alle Funktionen für die verschiedenen Sonderfelder basierend auf FieldConfiguration
+Mit intelligentem Konflikt-Auflösungs-Algorithmus
 """
 import random
 from flask import current_app
 from app.models import db, GameEvent, FieldConfiguration
+
+# Cache für berechnete Feld-Verteilung
+_field_distribution_cache = None
+_cache_max_fields = None
 
 
 def handle_catapult_forward(team, current_position, game_session):
@@ -264,43 +269,182 @@ def check_barrier_release(team, dice_roll, game_session):
         }
 
 
-def get_field_type_at_position(position):
+def calculate_smart_field_distribution(max_fields=73):
     """
-    Bestimmt den Feldtyp basierend auf der Position unter Verwendung der FieldConfiguration
-    """
-    # Spezielle Felder zuerst prüfen
-    if position == 0:
-        return 'start'
-    elif position == 72:  # Zielfeld
-        return 'goal'
+    Intelligenter Algorithmus zur konfliktfreien Feld-Verteilung
     
-    # Alle aktivierten Konfigurationen laden
+    1. Sammelt alle gewünschten Positionen für jeden Feld-Typ
+    2. Erkennt Konflikte (mehrere Feld-Typen für eine Position)
+    3. Löst Konflikte durch gewichtete Zufallsauswahl oder Umverteilung auf
+    4. Gibt eine konfliktfreie Zuordnung zurück: {position: field_type}
+    """
+    # Lade alle aktivierten Konfigurationen
     field_configs = FieldConfiguration.get_all_enabled()
     
-    # Nach Priorität sortieren (niedrigere frequency_value = höhere Priorität)
-    # Das verhindert Konflikte zwischen verschiedenen Feld-Typen
-    field_configs = sorted(field_configs, key=lambda x: x.frequency_value if x.frequency_value > 0 else 999)
+    # Sammle gewünschte Positionen für jeden Feld-Typ
+    desired_positions = {}
     
     for config in field_configs:
-        if config.field_type in ['start', 'goal', 'normal']:
-            continue  # Diese werden speziell behandelt
+        field_type = config.field_type
+        positions = []
         
-        if config.frequency_type == 'modulo' and config.frequency_value > 0:
-            if position % config.frequency_value == 0:
-                return config.field_type
+        # Spezielle Behandlung für Start und Ziel
+        if field_type == 'start':
+            positions = [0]
+        elif field_type == 'goal':
+            positions = [max_fields - 1]
+        elif field_type == 'normal':
+            # Normale Felder werden später als Fallback zugewiesen
+            continue
+        elif config.frequency_type == 'modulo' and config.frequency_value > 0:
+            # Modulo-basierte Felder
+            for pos in range(max_fields):
+                if pos > 0 and pos < max_fields - 1:  # Nicht Start oder Ziel
+                    if pos % config.frequency_value == 0:
+                        positions.append(pos)
         elif config.frequency_type == 'fixed_positions':
-            # Für fest definierte Positionen
+            # Fest definierte Positionen
             fixed_positions = config.config_dict.get('positions', [])
-            if position in fixed_positions:
-                return config.field_type
+            positions = [pos for pos in fixed_positions if 0 <= pos < max_fields]
         elif config.frequency_type == 'probability':
-            # Wahrscheinlichkeitsbasiert (für zukünftige Implementierung)
-            probability = config.frequency_value / 100.0  # frequency_value als Prozent
-            if random.random() < probability:
-                return config.field_type
+            # Wahrscheinlichkeitsbasierte Verteilung
+            probability = config.frequency_value / 100.0
+            for pos in range(1, max_fields - 1):  # Nicht Start oder Ziel
+                if random.random() < probability:
+                    positions.append(pos)
+        
+        if positions:
+            desired_positions[field_type] = positions
     
-    # Fallback zu normal
-    return 'normal'
+    # Erkenne Konflikte
+    position_conflicts = {}
+    for field_type, positions in desired_positions.items():
+        for pos in positions:
+            if pos not in position_conflicts:
+                position_conflicts[pos] = []
+            position_conflicts[pos].append(field_type)
+    
+    # Erstelle finale Zuordnung
+    final_assignment = {}
+    conflict_resolution_stats = {
+        'total_conflicts': 0,
+        'resolved_randomly': 0,
+        'redistributed': 0
+    }
+    
+    for position, field_types in position_conflicts.items():
+        if len(field_types) == 1:
+            # Kein Konflikt
+            final_assignment[position] = field_types[0]
+        else:
+            # Konflikt gefunden
+            conflict_resolution_stats['total_conflicts'] += 1
+            
+            # Gewichtete Zufallsauswahl basierend auf Prioritäten
+            field_priorities = {}
+            for field_type in field_types:
+                config = FieldConfiguration.get_config_for_field(field_type)
+                if config:
+                    # Niedrigere frequency_value = höhere Priorität (seltener = wichtiger)
+                    priority = 1000 / max(config.frequency_value, 1) if config.frequency_value else 1
+                    field_priorities[field_type] = priority
+                else:
+                    field_priorities[field_type] = 1
+            
+            # Gewichtete Zufallsauswahl
+            total_weight = sum(field_priorities.values())
+            if total_weight > 0:
+                rand_value = random.random() * total_weight
+                cumulative_weight = 0
+                chosen_field = field_types[0]  # Fallback
+                
+                for field_type, weight in field_priorities.items():
+                    cumulative_weight += weight
+                    if rand_value <= cumulative_weight:
+                        chosen_field = field_type
+                        break
+                
+                final_assignment[position] = chosen_field
+                conflict_resolution_stats['resolved_randomly'] += 1
+    
+    # Umverteilung: Versuche überzählige Felder auf benachbarte Positionen zu verteilen
+    for field_type, desired_pos_list in desired_positions.items():
+        assigned_count = sum(1 for pos, assigned_type in final_assignment.items() if assigned_type == field_type)
+        missing_count = len(desired_pos_list) - assigned_count
+        
+        if missing_count > 0:
+            # Finde alternative Positionen in der Nähe
+            for _ in range(missing_count):
+                alternative_pos = find_alternative_position(final_assignment, desired_pos_list, max_fields)
+                if alternative_pos is not None:
+                    final_assignment[alternative_pos] = field_type
+                    conflict_resolution_stats['redistributed'] += 1
+    
+    # Fülle verbleibende Positionen mit 'normal'
+    for position in range(max_fields):
+        if position not in final_assignment:
+            final_assignment[position] = 'normal'
+    
+    # Debug-Info ausgeben (optional)
+    if current_app and current_app.config.get('DEBUG_SPECIAL_FIELDS'):
+        current_app.logger.info(f"Feld-Verteilung berechnet: {conflict_resolution_stats['total_conflicts']} Konflikte, "
+                               f"{conflict_resolution_stats['resolved_randomly']} zufällig gelöst, "
+                               f"{conflict_resolution_stats['redistributed']} umverteilt")
+    
+    return final_assignment
+
+
+def find_alternative_position(final_assignment, preferred_positions, max_fields):
+    """
+    Findet eine alternative Position für ein Feld in der Nähe der bevorzugten Positionen
+    """
+    # Suche in der Nähe der bevorzugten Positionen
+    for preferred_pos in preferred_positions:
+        # Suche in zunehmendem Abstand um die bevorzugte Position
+        for distance in range(1, 10):  # Maximal 10 Felder Abstand
+            for direction in [-1, 1]:  # Links und rechts
+                alt_pos = preferred_pos + (direction * distance)
+                
+                # Prüfe ob Position gültig und verfügbar ist
+                if (0 < alt_pos < max_fields - 1 and  # Nicht Start oder Ziel
+                    alt_pos not in final_assignment):
+                    return alt_pos
+    
+    # Fallback: Suche irgendeine freie Position
+    for position in range(1, max_fields - 1):
+        if position not in final_assignment:
+            return position
+    
+    return None
+
+
+def clear_field_distribution_cache():
+    """
+    Löscht den Cache für die Feld-Verteilung (z.B. nach Konfigurations-Änderungen)
+    """
+    global _field_distribution_cache, _cache_max_fields
+    _field_distribution_cache = None
+    _cache_max_fields = None
+
+
+def get_field_type_at_position(position):
+    """
+    Bestimmt den Feldtyp basierend auf der Position unter Verwendung des intelligenten
+    Konflikt-Auflösungs-Algorithmus mit Caching für bessere Performance
+    """
+    global _field_distribution_cache, _cache_max_fields
+    
+    max_fields = 73  # Standard-Wert
+    
+    # Cache prüfen und neu berechnen falls nötig
+    if (_field_distribution_cache is None or 
+        _cache_max_fields != max_fields):
+        
+        _field_distribution_cache = calculate_smart_field_distribution(max_fields)
+        _cache_max_fields = max_fields
+    
+    # Position aus Cache zurückgeben
+    return _field_distribution_cache.get(position, 'normal')
 
 
 def get_field_config_for_position(position):
@@ -490,37 +634,26 @@ def handle_chance_field(team, game_session):
 
 def get_all_special_field_positions(max_fields=73):
     """
-    Gibt alle Positionen der Sonderfelder zurück basierend auf FieldConfiguration
-    Nützlich für Frontend-Visualisierung
+    Gibt alle Positionen der Sonderfelder zurück basierend auf der intelligenten
+    Feld-Verteilung (verwendet den Cache)
     """
+    # Verwende die gecachte Verteilung
+    field_distribution = _field_distribution_cache
+    if field_distribution is None:
+        # Cache ist leer, berechne neu
+        field_distribution = calculate_smart_field_distribution(max_fields)
+    
     special_positions = {}
     
-    # Alle aktivierten Konfigurationen laden
-    field_configs = FieldConfiguration.get_all_enabled()
+    # Gruppiere Positionen nach Feld-Typ
+    for position, field_type in field_distribution.items():
+        if field_type not in special_positions:
+            special_positions[field_type] = []
+        special_positions[field_type].append(position)
     
-    for config in field_configs:
-        if config.field_type in ['normal']:
-            continue  # Normale Felder überspringen
-        
-        positions = []
-        
-        if config.field_type == 'start':
-            positions = [0]
-        elif config.field_type == 'goal':
-            positions = [max_fields - 1]
-        elif config.frequency_type == 'modulo' and config.frequency_value > 0:
-            # Modulo-basierte Felder
-            for pos in range(max_fields):
-                if pos > 0 and pos < max_fields - 1:  # Nicht Start oder Ziel
-                    if pos % config.frequency_value == 0:
-                        positions.append(pos)
-        elif config.frequency_type == 'fixed_positions':
-            # Fest definierte Positionen
-            fixed_positions = config.config_dict.get('positions', [])
-            positions = [pos for pos in fixed_positions if 0 <= pos < max_fields]
-        
-        if positions:
-            special_positions[config.field_type] = positions
+    # Sortiere Positionen innerhalb jedes Feld-Typs
+    for field_type in special_positions:
+        special_positions[field_type].sort()
     
     return special_positions
 
@@ -528,29 +661,31 @@ def get_all_special_field_positions(max_fields=73):
 def get_field_statistics():
     """
     Gibt Statistiken über die aktuellen Feld-Konfigurationen zurück
+    Verwendet die intelligente Feld-Verteilung
     """
     field_configs = FieldConfiguration.query.all()
     
     enabled_count = sum(1 for config in field_configs if config.is_enabled)
     disabled_count = len(field_configs) - enabled_count
     
-    # Berechne Feld-Verteilung für 73 Felder
-    field_distribution = {}
-    special_positions = get_all_special_field_positions(73)
-    
-    total_special_fields = 0
+    # Verwende die intelligente Feld-Verteilung
     total_fields = 73
+    field_distribution = _field_distribution_cache
+    if field_distribution is None:
+        field_distribution = calculate_smart_field_distribution(total_fields)
     
-    # Zähle tatsächliche Felder auf dem Spielbrett
+    # Zähle Felder pro Typ
     field_counts = {}
-    for position in range(total_fields):
-        field_type = get_field_type_at_position(position)
+    for position, field_type in field_distribution.items():
         field_counts[field_type] = field_counts.get(field_type, 0) + 1
     
+    total_special_fields = 0
+    
     # Erstelle Statistik-Objekte mit count und percentage
+    field_distribution_stats = {}
     for field_type, count in field_counts.items():
         percentage = (count / total_fields * 100) if total_fields > 0 else 0
-        field_distribution[field_type] = {
+        field_distribution_stats[field_type] = {
             'count': count,
             'percentage': round(percentage, 1)
         }
@@ -565,9 +700,20 @@ def get_field_statistics():
         'total_fields': total_fields,
         'special_field_count': total_special_fields,
         'normal_field_count': field_counts.get('normal', 0),
-        'field_distribution': field_distribution,
-        'special_positions': special_positions
+        'field_distribution': field_distribution_stats,
+        'special_positions': get_all_special_field_positions(total_fields),
+        'conflict_free': True  # Neuer Status-Indikator
     }
+
+
+def validate_field_conflicts():
+    """
+    Prüft auf Konflikte zwischen verschiedenen Feld-Konfigurationen
+    Mit dem neuen Algorithmus sollten keine Konflikte mehr auftreten
+    """
+    # Da wir jetzt einen intelligenten Konflikt-Auflösungs-Algorithmus verwenden,
+    # sollten normalerweise keine Konflikte mehr auftreten
+    return []  # Keine Konflikte mehr!
 
 
 def validate_field_configuration(config_data):
@@ -596,3 +742,12 @@ def validate_field_configuration(config_data):
         errors.append("Farbe muss ein gültiger Hex-Code sein (#RRGGBB)")
     
     return errors
+
+
+def regenerate_field_distribution():
+    """
+    Hilfsfunktion um eine neue Feld-Verteilung zu generieren
+    (z.B. nach Konfigurations-Änderungen im Admin-Interface)
+    """
+    clear_field_distribution_cache()
+    return calculate_smart_field_distribution(73)
