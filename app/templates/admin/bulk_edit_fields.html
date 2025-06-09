@@ -1,0 +1,809 @@
+{% extends "base.html" %}
+
+{% block title %}Massen-Bearbeitung Feld-Konfigurationen - Admin Dashboard{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1><i class="fas fa-edit"></i> Massen-Bearbeitung Feld-Konfigurationen</h1>
+                <a href="{{ url_for('admin.manage_fields') }}" class="btn btn-secondary">
+                    <i class="fas fa-arrow-left"></i> Zurück zur Verwaltung
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Flash Nachrichten -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+            <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <form method="POST" action="{{ url_for('admin.bulk_edit_fields') }}" id="bulkEditForm">
+        {{ form.hidden_tag() }}
+        
+        <div class="row">
+            <!-- Feld-Auswahl -->
+            <div class="col-lg-8">
+                <div class="card mb-4">
+                    <div class="card-header bg-primary text-white">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0">
+                                <i class="fas fa-check-square"></i> Feld-Konfigurationen auswählen
+                            </h5>
+                            <div class="selection-controls">
+                                <button type="button" class="btn btn-outline-light btn-sm" onclick="selectAll()">
+                                    <i class="fas fa-check-double"></i> Alle auswählen
+                                </button>
+                                <button type="button" class="btn btn-outline-light btn-sm" onclick="selectNone()">
+                                    <i class="fas fa-times"></i> Auswahl aufheben
+                                </button>
+                                <button type="button" class="btn btn-outline-light btn-sm" onclick="selectInverse()">
+                                    <i class="fas fa-exchange-alt"></i> Umkehren
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="field-selection-container">
+                            <div class="table-responsive">
+                                <table class="table table-hover mb-0">
+                                    <thead class="thead-light">
+                                        <tr>
+                                            <th style="width: 50px;">
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="checkbox" id="selectAllCheckbox">
+                                                    <label class="form-check-label" for="selectAllCheckbox"></label>
+                                                </div>
+                                            </th>
+                                            <th>Feld-Typ</th>
+                                            <th>Name</th>
+                                            <th>Status</th>
+                                            <th>Häufigkeit</th>
+                                            <th>Farbe</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <!-- Feld-Konfigurationen werden hier dynamisch geladen -->
+                                        <tr id="loadingRow">
+                                            <td colspan="6" class="text-center py-4">
+                                                <i class="fas fa-spinner fa-spin"></i> Lade Feld-Konfigurationen...
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-footer bg-light">
+                        <div class="row align-items-center">
+                            <div class="col-md-6">
+                                <small class="text-muted">
+                                    <span id="selectionCount">0</span> von <span id="totalCount">0</span> Feldern ausgewählt
+                                </small>
+                            </div>
+                            <div class="col-md-6 text-right">
+                                <div class="btn-group btn-group-sm" role="group">
+                                    <button type="button" class="btn btn-outline-primary" onclick="selectByStatus('enabled')">
+                                        <i class="fas fa-check"></i> Nur Aktive
+                                    </button>
+                                    <button type="button" class="btn btn-outline-secondary" onclick="selectByStatus('disabled')">
+                                        <i class="fas fa-times"></i> Nur Deaktivierte
+                                    </button>
+                                    <button type="button" class="btn btn-outline-info" onclick="selectByType('special')">
+                                        <i class="fas fa-star"></i> Nur Sonderfelder
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Aktions-Panel -->
+            <div class="col-lg-4">
+                <div class="card">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0">
+                            <i class="fas fa-tools"></i> Massen-Aktion
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="form-group">
+                            {{ form.action.label(class="form-control-label") }}
+                            {{ form.action(class="form-control", id="actionSelect") }}
+                            <small class="form-text text-muted">
+                                Wählen Sie die Aktion aus, die auf alle ausgewählten Felder angewendet werden soll
+                            </small>
+                        </div>
+
+                        <!-- Häufigkeits-Änderung -->
+                        <div class="action-options" id="changeFrequencyOptions" style="display: none;">
+                            <div class="form-group">
+                                {{ form.new_frequency_type.label(class="form-control-label") }}
+                                {{ form.new_frequency_type(class="form-control") }}
+                            </div>
+                            <div class="form-group">
+                                {{ form.new_frequency_value.label(class="form-control-label") }}
+                                {{ form.new_frequency_value(class="form-control", min="0", max="100") }}
+                                <small class="form-text text-muted">
+                                    Wert hängt vom Häufigkeits-Typ ab (Modulo-Wert, Prozent, etc.)
+                                </small>
+                            </div>
+                        </div>
+
+                        <!-- Farb-Änderung -->
+                        <div class="action-options" id="changeColorsOptions" style="display: none;">
+                            <div class="form-group">
+                                {{ form.new_color_hex.label(class="form-control-label") }}
+                                <div class="input-group">
+                                    {{ form.new_color_hex(class="form-control", id="newColorHex") }}
+                                    <div class="input-group-append">
+                                        <div class="input-group-text color-preview" id="newColorPreview" 
+                                             style="background-color: #81C784; width: 40px;">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                {{ form.new_emission_hex.label(class="form-control-label") }}
+                                <div class="input-group">
+                                    {{ form.new_emission_hex(class="form-control", id="newEmissionHex") }}
+                                    <div class="input-group-append">
+                                        <div class="input-group-text color-preview" id="newEmissionPreview" 
+                                             style="background-color: #4CAF50; width: 40px;">
+                                        </div>
+                                    </div>
+                                </div>
+                                <small class="form-text text-muted">
+                                    Leer lassen um Effektfarbe unverändert zu lassen
+                                </small>
+                            </div>
+                        </div>
+
+                        <!-- Lösch-Warnung -->
+                        <div class="action-options" id="deleteWarning" style="display: none;">
+                            <div class="alert alert-danger">
+                                <h6><i class="fas fa-exclamation-triangle"></i> Vorsicht!</h6>
+                                <p class="mb-0">
+                                    Gelöschte Feld-Konfigurationen können nicht wiederhergestellt werden. 
+                                    System-Felder (start, goal, normal) können nicht gelöscht werden.
+                                </p>
+                            </div>
+                        </div>
+
+                        <!-- Submit Button -->
+                        <div class="action-submit mt-4">
+                            {{ form.submit(class="btn btn-success btn-lg btn-block", id="submitButton", disabled=true) }}
+                        </div>
+
+                        <!-- Vorschau -->
+                        <div class="action-preview mt-3" id="actionPreview" style="display: none;">
+                            <h6><i class="fas fa-eye"></i> Vorschau</h6>
+                            <div class="preview-content bg-light p-3 rounded">
+                                <div id="previewText">Wählen Sie Felder und eine Aktion aus</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Schnell-Aktionen -->
+                <div class="card mt-4">
+                    <div class="card-header bg-info text-white">
+                        <h6 class="mb-0">
+                            <i class="fas fa-bolt"></i> Schnell-Aktionen
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="quick-actions">
+                            <button type="button" class="btn btn-outline-success btn-sm btn-block mb-2" 
+                                    onclick="quickAction('enable_all_special')">
+                                <i class="fas fa-check-circle"></i> Alle Sonderfelder aktivieren
+                            </button>
+                            <button type="button" class="btn btn-outline-warning btn-sm btn-block mb-2" 
+                                    onclick="quickAction('disable_all_special')">
+                                <i class="fas fa-pause-circle"></i> Alle Sonderfelder deaktivieren
+                            </button>
+                            <button type="button" class="btn btn-outline-primary btn-sm btn-block mb-2" 
+                                    onclick="quickAction('reset_colors')">
+                                <i class="fas fa-palette"></i> Standard-Farben wiederherstellen
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm btn-block" 
+                                    onclick="quickAction('balance_frequencies')">
+                                <i class="fas fa-balance-scale"></i> Häufigkeiten ausbalancieren
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+
+<style>
+.field-selection-container {
+    max-height: 500px;
+    overflow-y: auto;
+}
+
+.action-options {
+    border-left: 4px solid #28a745;
+    padding-left: 15px;
+    margin-left: -15px;
+    background-color: #f8f9fa;
+    padding: 15px;
+    border-radius: 5px;
+    margin-bottom: 15px;
+}
+
+.color-preview {
+    transition: background-color 0.3s ease;
+    cursor: pointer;
+}
+
+.field-row {
+    transition: background-color 0.2s ease;
+}
+
+.field-row:hover {
+    background-color: rgba(0,123,255,0.1);
+}
+
+.field-row.selected {
+    background-color: rgba(40,167,69,0.1);
+    border-left: 4px solid #28a745;
+}
+
+.selection-controls .btn {
+    margin-left: 5px;
+}
+
+.quick-actions .btn {
+    transition: all 0.2s ease;
+}
+
+.quick-actions .btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.action-preview {
+    border: 1px solid #dee2e6;
+    border-radius: 5px;
+}
+
+.preview-content {
+    font-size: 0.9em;
+}
+
+.card {
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
+
+.badge-custom {
+    font-size: 0.7em;
+    padding: 3px 6px;
+}
+
+.field-type-badge {
+    font-family: 'Courier New', monospace;
+    font-weight: bold;
+    padding: 2px 6px;
+    border-radius: 3px;
+    color: white;
+    font-size: 0.8em;
+}
+
+@media (max-width: 768px) {
+    .selection-controls {
+        margin-top: 10px;
+    }
+    
+    .selection-controls .btn {
+        margin-bottom: 5px;
+    }
+}
+</style>
+
+<script>
+let fieldConfigs = [];
+let selectedFields = new Set();
+
+document.addEventListener('DOMContentLoaded', function() {
+    loadFieldConfigurations();
+    setupEventListeners();
+});
+
+function loadFieldConfigurations() {
+    // Lade Feld-Konfigurationen vom Server
+    fetch('/admin/api/field_colors')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Konvertiere zu Array für einfachere Handhabung
+                fieldConfigs = Object.entries(data.color_mapping).map(([fieldType, config]) => ({
+                    field_type: fieldType,
+                    ...config
+                }));
+                renderFieldTable();
+            } else {
+                showError('Fehler beim Laden der Feld-Konfigurationen');
+            }
+        })
+        .catch(error => {
+            console.error('Fehler beim Laden der Feld-Konfigurationen:', error);
+            showError('Netzwerkfehler beim Laden der Daten');
+        });
+}
+
+function renderFieldTable() {
+    const tbody = document.querySelector('table tbody');
+    tbody.innerHTML = '';
+    
+    fieldConfigs.forEach((config, index) => {
+        const row = document.createElement('tr');
+        row.className = 'field-row';
+        row.dataset.fieldType = config.field_type;
+        
+        // Häufigkeits-Text
+        let frequencyText = 'Standard';
+        if (config.frequency_type === 'modulo') {
+            frequencyText = `Alle ${config.frequency_value}`;
+        } else if (config.frequency_type === 'fixed_positions') {
+            frequencyText = 'Feste Positionen';
+        } else if (config.frequency_type === 'probability') {
+            frequencyText = `${config.frequency_value}%`;
+        }
+        
+        row.innerHTML = `
+            <td>
+                <div class="form-check">
+                    <input class="form-check-input field-checkbox" type="checkbox" 
+                           value="${config.field_type}" id="field_${index}"
+                           ${isSystemField(config.field_type) ? 'data-system="true"' : ''}>
+                    <label class="form-check-label" for="field_${index}"></label>
+                </div>
+            </td>
+            <td>
+                <span class="field-type-badge" style="background-color: ${config.color};">
+                    ${config.icon || '?'} ${config.field_type}
+                </span>
+            </td>
+            <td>
+                <strong>${config.display_name}</strong>
+                ${isSystemField(config.field_type) ? '<span class="badge badge-warning badge-custom ml-1">System</span>' : ''}
+            </td>
+            <td>
+                ${config.enabled ? 
+                    '<span class="badge badge-success badge-custom">Aktiv</span>' : 
+                    '<span class="badge badge-secondary badge-custom">Deaktiviert</span>'
+                }
+            </td>
+            <td>
+                <span class="badge badge-primary badge-custom">${frequencyText}</span>
+            </td>
+            <td>
+                <div class="d-flex align-items-center">
+                    <div class="color-preview mr-2" 
+                         style="width: 20px; height: 20px; background-color: ${config.color}; border: 1px solid #ccc; border-radius: 3px;"
+                         title="Hauptfarbe: ${config.color}"></div>
+                    ${config.emission && config.emission !== config.color ? `
+                        <div class="color-preview" 
+                             style="width: 20px; height: 20px; background-color: ${config.emission}; border: 1px solid #ccc; border-radius: 3px;"
+                             title="Effektfarbe: ${config.emission}"></div>
+                    ` : ''}
+                </div>
+            </td>
+        `;
+        
+        tbody.appendChild(row);
+    });
+    
+    updateCounts();
+    setupRowEventListeners();
+}
+
+function setupEventListeners() {
+    const actionSelect = document.getElementById('actionSelect');
+    const submitButton = document.getElementById('submitButton');
+    const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+    const newColorHex = document.getElementById('newColorHex');
+    const newEmissionHex = document.getElementById('newEmissionHex');
+    
+    // Action Selection
+    if (actionSelect) {
+        actionSelect.addEventListener('change', function() {
+            updateActionOptions(this.value);
+            updatePreview();
+            updateSubmitButton();
+        });
+    }
+    
+    // Select All Checkbox
+    if (selectAllCheckbox) {
+        selectAllCheckbox.addEventListener('change', function() {
+            if (this.checked) {
+                selectAll();
+            } else {
+                selectNone();
+            }
+        });
+    }
+    
+    // Color Previews
+    if (newColorHex) {
+        newColorHex.addEventListener('input', function() {
+            document.getElementById('newColorPreview').style.backgroundColor = this.value;
+            updatePreview();
+        });
+    }
+    
+    if (newEmissionHex) {
+        newEmissionHex.addEventListener('input', function() {
+            document.getElementById('newEmissionPreview').style.backgroundColor = this.value;
+            updatePreview();
+        });
+    }
+    
+    // Form Submission
+    const form = document.getElementById('bulkEditForm');
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            if (selectedFields.size === 0) {
+                e.preventDefault();
+                alert('Bitte wählen Sie mindestens ein Feld aus.');
+                return;
+            }
+            
+            const action = actionSelect.value;
+            if (action === 'delete') {
+                const systemFields = Array.from(selectedFields).filter(isSystemField);
+                if (systemFields.length > 0) {
+                    e.preventDefault();
+                    alert(`System-Felder können nicht gelöscht werden: ${systemFields.join(', ')}`);
+                    return;
+                }
+                
+                if (!confirm(`Möchten Sie wirklich ${selectedFields.size} Feld-Konfigurationen löschen? Diese Aktion kann nicht rückgängig gemacht werden.`)) {
+                    e.preventDefault();
+                    return;
+                }
+            }
+            
+            // Ausgewählte Felder zum Form hinzufügen
+            selectedFields.forEach(fieldType => {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = 'selected_fields';
+                input.value = getFieldId(fieldType);
+                form.appendChild(input);
+            });
+        });
+    }
+}
+
+function setupRowEventListeners() {
+    const checkboxes = document.querySelectorAll('.field-checkbox');
+    checkboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            const fieldType = this.value;
+            const row = this.closest('tr');
+            
+            if (this.checked) {
+                selectedFields.add(fieldType);
+                row.classList.add('selected');
+            } else {
+                selectedFields.delete(fieldType);
+                row.classList.remove('selected');
+            }
+            
+            updateCounts();
+            updatePreview();
+            updateSubmitButton();
+            updateSelectAllCheckbox();
+        });
+    });
+}
+
+function selectAll() {
+    const checkboxes = document.querySelectorAll('.field-checkbox');
+    checkboxes.forEach(checkbox => {
+        checkbox.checked = true;
+        selectedFields.add(checkbox.value);
+        checkbox.closest('tr').classList.add('selected');
+    });
+    updateCounts();
+    updatePreview();
+    updateSubmitButton();
+    updateSelectAllCheckbox();
+}
+
+function selectNone() {
+    const checkboxes = document.querySelectorAll('.field-checkbox');
+    checkboxes.forEach(checkbox => {
+        checkbox.checked = false;
+        selectedFields.delete(checkbox.value);
+        checkbox.closest('tr').classList.remove('selected');
+    });
+    updateCounts();
+    updatePreview();
+    updateSubmitButton();
+    updateSelectAllCheckbox();
+}
+
+function selectInverse() {
+    const checkboxes = document.querySelectorAll('.field-checkbox');
+    checkboxes.forEach(checkbox => {
+        checkbox.checked = !checkbox.checked;
+        const fieldType = checkbox.value;
+        const row = checkbox.closest('tr');
+        
+        if (checkbox.checked) {
+            selectedFields.add(fieldType);
+            row.classList.add('selected');
+        } else {
+            selectedFields.delete(fieldType);
+            row.classList.remove('selected');
+        }
+    });
+    updateCounts();
+    updatePreview();
+    updateSubmitButton();
+    updateSelectAllCheckbox();
+}
+
+function selectByStatus(status) {
+    selectNone();
+    
+    fieldConfigs.forEach(config => {
+        const shouldSelect = (status === 'enabled' && config.enabled) || 
+                           (status === 'disabled' && !config.enabled);
+        
+        if (shouldSelect) {
+            const checkbox = document.querySelector(`input[value="${config.field_type}"]`);
+            if (checkbox) {
+                checkbox.checked = true;
+                selectedFields.add(config.field_type);
+                checkbox.closest('tr').classList.add('selected');
+            }
+        }
+    });
+    
+    updateCounts();
+    updatePreview();
+    updateSubmitButton();
+    updateSelectAllCheckbox();
+}
+
+function selectByType(type) {
+    selectNone();
+    
+    fieldConfigs.forEach(config => {
+        const isSpecial = !isSystemField(config.field_type);
+        const shouldSelect = (type === 'special' && isSpecial);
+        
+        if (shouldSelect) {
+            const checkbox = document.querySelector(`input[value="${config.field_type}"]`);
+            if (checkbox) {
+                checkbox.checked = true;
+                selectedFields.add(config.field_type);
+                checkbox.closest('tr').classList.add('selected');
+            }
+        }
+    });
+    
+    updateCounts();
+    updatePreview();
+    updateSubmitButton();
+    updateSelectAllCheckbox();
+}
+
+function updateActionOptions(action) {
+    // Verstecke alle Optionen
+    document.querySelectorAll('.action-options').forEach(el => {
+        el.style.display = 'none';
+    });
+    
+    // Zeige relevante Optionen
+    if (action === 'change_frequency') {
+        document.getElementById('changeFrequencyOptions').style.display = 'block';
+    } else if (action === 'change_colors') {
+        document.getElementById('changeColorsOptions').style.display = 'block';
+    } else if (action === 'delete') {
+        document.getElementById('deleteWarning').style.display = 'block';
+    }
+}
+
+function updatePreview() {
+    const action = document.getElementById('actionSelect').value;
+    const previewDiv = document.getElementById('actionPreview');
+    const previewText = document.getElementById('previewText');
+    
+    if (selectedFields.size === 0 || !action) {
+        previewDiv.style.display = 'none';
+        return;
+    }
+    
+    previewDiv.style.display = 'block';
+    
+    let preview = `<strong>${selectedFields.size}</strong> Feld(er) ausgewählt: `;
+    preview += Array.from(selectedFields).slice(0, 3).join(', ');
+    if (selectedFields.size > 3) {
+        preview += ` und ${selectedFields.size - 3} weitere`;
+    }
+    
+    preview += '<br><br>';
+    
+    switch (action) {
+        case 'enable':
+            preview += '<span class="text-success"><i class="fas fa-check"></i> Werden aktiviert</span>';
+            break;
+        case 'disable':
+            preview += '<span class="text-warning"><i class="fas fa-pause"></i> Werden deaktiviert</span>';
+            break;
+        case 'change_frequency':
+            const freqType = document.getElementById('id_new_frequency_type').value;
+            const freqValue = document.getElementById('id_new_frequency_value').value;
+            if (freqType && freqValue) {
+                preview += `<span class="text-info"><i class="fas fa-chart-pie"></i> Häufigkeit wird geändert zu: ${freqType} = ${freqValue}</span>`;
+            } else {
+                preview += '<span class="text-muted">Häufigkeits-Parameter erforderlich</span>';
+            }
+            break;
+        case 'change_colors':
+            const newColor = document.getElementById('newColorHex').value;
+            if (newColor) {
+                preview += `<span class="text-info"><i class="fas fa-palette"></i> Neue Hauptfarbe: </span>`;
+                preview += `<span class="badge" style="background-color: ${newColor}; color: white;">${newColor}</span>`;
+            } else {
+                preview += '<span class="text-muted">Neue Hauptfarbe erforderlich</span>';
+            }
+            break;
+        case 'delete':
+            const systemFields = Array.from(selectedFields).filter(isSystemField);
+            if (systemFields.length > 0) {
+                preview += `<span class="text-danger"><i class="fas fa-exclamation-triangle"></i> FEHLER: System-Felder können nicht gelöscht werden: ${systemFields.join(', ')}</span>`;
+            } else {
+                preview += '<span class="text-danger"><i class="fas fa-trash"></i> Werden unwiderruflich gelöscht</span>';
+            }
+            break;
+        default:
+            preview += '<span class="text-muted">Wählen Sie eine Aktion aus</span>';
+    }
+    
+    previewText.innerHTML = preview;
+}
+
+function updateCounts() {
+    document.getElementById('selectionCount').textContent = selectedFields.size;
+    document.getElementById('totalCount').textContent = fieldConfigs.length;
+}
+
+function updateSubmitButton() {
+    const submitButton = document.getElementById('submitButton');
+    const action = document.getElementById('actionSelect').value;
+    
+    let isValid = selectedFields.size > 0 && action;
+    
+    // Zusätzliche Validierung basierend auf Aktion
+    if (action === 'change_frequency') {
+        const freqType = document.getElementById('id_new_frequency_type').value;
+        const freqValue = document.getElementById('id_new_frequency_value').value;
+        isValid = isValid && freqType && freqValue;
+    } else if (action === 'change_colors') {
+        const newColor = document.getElementById('newColorHex').value;
+        isValid = isValid && newColor;
+    }
+    
+    submitButton.disabled = !isValid;
+    
+    // Button-Text aktualisieren
+    if (isValid) {
+        const actionNames = {
+            'enable': 'Aktivieren',
+            'disable': 'Deaktivieren',
+            'change_frequency': 'Häufigkeit ändern',
+            'change_colors': 'Farben ändern',
+            'delete': 'Löschen'
+        };
+        submitButton.textContent = `${actionNames[action] || 'Ausführen'} (${selectedFields.size})`;
+    } else {
+        submitButton.textContent = 'Massen-Bearbeitung ausführen';
+    }
+}
+
+function updateSelectAllCheckbox() {
+    const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+    const totalCheckboxes = document.querySelectorAll('.field-checkbox').length;
+    
+    if (selectedFields.size === 0) {
+        selectAllCheckbox.checked = false;
+        selectAllCheckbox.indeterminate = false;
+    } else if (selectedFields.size === totalCheckboxes) {
+        selectAllCheckbox.checked = true;
+        selectAllCheckbox.indeterminate = false;
+    } else {
+        selectAllCheckbox.checked = false;
+        selectAllCheckbox.indeterminate = true;
+    }
+}
+
+function quickAction(action) {
+    switch (action) {
+        case 'enable_all_special':
+            selectByType('special');
+            document.getElementById('actionSelect').value = 'enable';
+            updateActionOptions('enable');
+            break;
+        case 'disable_all_special':
+            selectByType('special');
+            document.getElementById('actionSelect').value = 'disable';
+            updateActionOptions('disable');
+            break;
+        case 'reset_colors':
+            selectAll();
+            document.getElementById('actionSelect').value = 'change_colors';
+            updateActionOptions('change_colors');
+            // Setze Standard-Farben
+            document.getElementById('newColorHex').value = '#81C784';
+            document.getElementById('newEmissionHex').value = '#4CAF50';
+            document.getElementById('newColorPreview').style.backgroundColor = '#81C784';
+            document.getElementById('newEmissionPreview').style.backgroundColor = '#4CAF50';
+            break;
+        case 'balance_frequencies':
+            selectByType('special');
+            document.getElementById('actionSelect').value = 'change_frequency';
+            updateActionOptions('change_frequency');
+            // Setze ausbalancierte Werte
+            document.getElementById('id_new_frequency_type').value = 'modulo';
+            document.getElementById('id_new_frequency_value').value = '15';
+            break;
+    }
+    
+    updatePreview();
+    updateSubmitButton();
+}
+
+function isSystemField(fieldType) {
+    return ['start', 'goal', 'normal'].includes(fieldType);
+}
+
+function getFieldId(fieldType) {
+    // Da wir keine IDs haben, verwenden wir den Feldtyp als Identifikator
+    // Das Backend muss entsprechend angepasst werden
+    const config = fieldConfigs.find(c => c.field_type === fieldType);
+    return config ? fieldType : null;
+}
+
+function showError(message) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = 'alert alert-danger alert-dismissible fade show';
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="close" data-dismiss="alert">
+            <span>&times;</span>
+        </button>
+    `;
+    
+    const container = document.querySelector('.container');
+    container.insertBefore(alertDiv, container.firstChild);
+    
+    // Auto-remove after 5 seconds
+    setTimeout(() => {
+        if (alertDiv.parentElement) {
+            alertDiv.remove();
+        }
+    }, 5000);
+}
+</script>
+{% endblock %}

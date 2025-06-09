@@ -1,0 +1,608 @@
+{% extends "base.html" %}
+
+{% block title %}Import/Export Feld-Konfigurationen - Admin Dashboard{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1><i class="fas fa-exchange-alt"></i> Import/Export Feld-Konfigurationen</h1>
+                <a href="{{ url_for('admin.manage_fields') }}" class="btn btn-secondary">
+                    <i class="fas fa-arrow-left"></i> Zurück zur Verwaltung
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Flash Nachrichten -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+            <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <div class="row">
+        <!-- Export-Sektion -->
+        <div class="col-lg-6 mb-4">
+            <div class="card h-100">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-download"></i> Export Konfigurationen
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <p class="card-text">
+                        Exportieren Sie Ihre aktuellen Feld-Konfigurationen zur Sicherung oder Übertragung auf andere Systeme.
+                    </p>
+                    
+                    <div class="export-stats mb-4">
+                        <div class="row text-center">
+                            <div class="col-4">
+                                <div class="stat-box">
+                                    <h4 class="text-primary">{{ total_configs }}</h4>
+                                    <small class="text-muted">Konfigurationen</small>
+                                </div>
+                            </div>
+                            <div class="col-4">
+                                <div class="stat-box">
+                                    <h4 class="text-success">{{ (total_configs * 0.8)|int }}</h4>
+                                    <small class="text-muted">Aktiviert</small>
+                                </div>
+                            </div>
+                            <div class="col-4">
+                                <div class="stat-box">
+                                    <h4 class="text-info">{{ (total_configs * 0.2)|int }}</h4>
+                                    <small class="text-muted">Angepasst</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <form method="POST" action="{{ url_for('admin.import_export_fields') }}">
+                        {{ form.hidden_tag() }}
+                        
+                        <div class="form-group">
+                            {{ form.export_format.label(class="form-control-label") }}
+                            {{ form.export_format(class="form-control", id="export_format") }}
+                            <small class="form-text text-muted">
+                                JSON eignet sich am besten für Re-Import, CSV für Tabellenbearbeitung
+                            </small>
+                        </div>
+                        
+                        <div class="form-check mb-3">
+                            {{ form.include_disabled(class="form-check-input") }}
+                            {{ form.include_disabled.label(class="form-check-label") }}
+                            <small class="form-text text-muted">
+                                Auch deaktivierte Feld-Konfigurationen einschließen
+                            </small>
+                        </div>
+                        
+                        {{ form.export_submit(class="btn btn-success btn-lg btn-block") }}
+                    </form>
+                    
+                    <!-- Export-Vorschau -->
+                    {% if export_preview %}
+                    <div class="mt-4">
+                        <h6>Export-Vorschau (erste 3 Einträge):</h6>
+                        <div class="export-preview">
+                            <pre class="bg-light p-3 rounded"><code>{{ export_preview }}</code></pre>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Import-Sektion -->
+        <div class="col-lg-6 mb-4">
+            <div class="card h-100">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-upload"></i> Import Konfigurationen
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <p class="card-text">
+                        Importieren Sie Feld-Konfigurationen aus einer JSON-Datei. Bestehende Konfigurationen werden überschrieben.
+                    </p>
+                    
+                    <div class="alert alert-warning" role="alert">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <strong>Warnung:</strong> Der Import überschreibt bestehende Konfigurationen mit demselben Feld-Typ. 
+                        Erstellen Sie vorher ein Backup!
+                    </div>
+
+                    <form method="POST" action="{{ url_for('admin.import_export_fields') }}" id="importForm">
+                        {{ form.hidden_tag() }}
+                        
+                        <div class="form-group">
+                            {{ form.import_data.label(class="form-control-label") }}
+                            {{ form.import_data(class="form-control" + (" is-invalid" if form.import_data.errors else ""), id="import_data") }}
+                            {% if form.import_data.errors %}
+                                <div class="invalid-feedback">
+                                    {% for error in form.import_data.errors %}{{ error }}{% endfor %}
+                                </div>
+                            {% endif %}
+                            <small class="form-text text-muted">
+                                Fügen Sie hier Ihre JSON-Konfiguration ein oder verwenden Sie den Datei-Upload unten
+                            </small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="fileUpload" class="form-control-label">
+                                <i class="fas fa-file-upload"></i> Oder Datei hochladen:
+                            </label>
+                            <input type="file" class="form-control-file" id="fileUpload" accept=".json,.txt">
+                            <small class="form-text text-muted">
+                                Unterstützte Formate: .json, .txt
+                            </small>
+                        </div>
+                        
+                        <div class="import-validation mb-3" id="importValidation" style="display: none;">
+                            <div class="alert alert-info">
+                                <h6><i class="fas fa-check-circle"></i> Validierung erfolgreich</h6>
+                                <div id="validationResults"></div>
+                            </div>
+                        </div>
+                        
+                        {{ form.import_submit(class="btn btn-primary btn-lg btn-block", disabled=true, id="importButton") }}
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Reset-Sektion -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card border-danger">
+                <div class="card-header bg-danger text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-undo"></i> Auf Standard zurücksetzen
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <p class="card-text">
+                        Setzen Sie alle Feld-Konfigurationen auf die ursprünglichen Standard-Werte zurück. 
+                        <strong class="text-danger">Diese Aktion kann nicht rückgängig gemacht werden!</strong>
+                    </p>
+                    
+                    <div class="row">
+                        <div class="col-md-8">
+                            <h6>Was wird zurückgesetzt:</h6>
+                            <ul class="text-muted">
+                                <li>Alle benutzerdefinierten Feld-Konfigurationen werden gelöscht</li>
+                                <li>Standard-Sonderfelder werden mit Original-Einstellungen wiederhergestellt</li>
+                                <li>Alle Anpassungen an Farben, Häufigkeiten und Einstellungen gehen verloren</li>
+                                <li>Das System kehrt zum Auslieferungszustand zurück</li>
+                            </ul>
+                        </div>
+                        <div class="col-md-4 text-right">
+                            <button type="button" class="btn btn-outline-danger btn-lg" 
+                                    data-toggle="modal" data-target="#resetConfirmModal">
+                                <i class="fas fa-exclamation-triangle"></i> Reset durchführen
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Hilfe-Sektion -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-question-circle"></i> Hilfe und Dokumentation
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6>JSON-Format für Import:</h6>
+                            <pre class="bg-light p-3 rounded small"><code>[
+  {
+    "field_type": "volcano",
+    "display_name": "Vulkan",
+    "description": "Episches Vulkan-Feld",
+    "is_enabled": true,
+    "frequency_type": "modulo",
+    "frequency_value": 20,
+    "color_hex": "#FF4500",
+    "emission_hex": "#FF6347",
+    "icon": "🌋",
+    "config_data": "{}"
+  }
+]</code></pre>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>Wichtige Hinweise:</h6>
+                            <ul class="small">
+                                <li><strong>field_type:</strong> Eindeutiger Bezeichner (nur Kleinbuchstaben und Unterstriche)</li>
+                                <li><strong>frequency_type:</strong> 'modulo', 'fixed_positions', 'probability', oder 'default'</li>
+                                <li><strong>color_hex:</strong> Muss ein gültiger Hex-Code sein (z.B. #FF0000)</li>
+                                <li><strong>config_data:</strong> JSON-String für erweiterte Einstellungen</li>
+                                <li><strong>Backup:</strong> Erstellen Sie immer ein Export-Backup vor dem Import</li>
+                            </ul>
+                            
+                            <h6 class="mt-3">Häufige Probleme:</h6>
+                            <ul class="small text-muted">
+                                <li>Ungültiges JSON-Format → Verwenden Sie einen JSON-Validator</li>
+                                <li>Fehlende Pflichtfelder → Alle Felder außer config_data sind erforderlich</li>
+                                <li>Ungültige Farb-Codes → Verwenden Sie #RRGGBB Format</li>
+                                <li>Konflikte → Prüfen Sie Feld-Häufigkeiten auf Überschneidungen</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Reset Bestätigungs-Modal -->
+<div class="modal fade" id="resetConfirmModal" tabindex="-1" role="dialog" aria-labelledby="resetConfirmModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title" id="resetConfirmModalLabel">
+                    <i class="fas fa-exclamation-triangle"></i> Zurücksetzen bestätigen
+                </h5>
+                <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-danger">
+                    <h6><i class="fas fa-skull-crossbones"></i> ACHTUNG: Unwiderrufliche Aktion!</h6>
+                    <p>Sie sind dabei, alle Feld-Konfigurationen auf die Standard-Werte zurückzusetzen.</p>
+                </div>
+                
+                <h6>Das wird passieren:</h6>
+                <ul>
+                    <li class="text-danger">Alle {{ total_configs }} benutzerdefinierten Konfigurationen werden gelöscht</li>
+                    <li class="text-danger">Alle Anpassungen an Farben, Häufigkeiten und Icons gehen verloren</li>
+                    <li class="text-success">Standard-Sonderfelder werden mit Original-Einstellungen wiederhergestellt</li>
+                    <li class="text-info">Das Spielfeld wird auf den Auslieferungszustand zurückgesetzt</li>
+                </ul>
+                
+                <div class="form-check mt-3">
+                    <input class="form-check-input" type="checkbox" id="confirmReset" required>
+                    <label class="form-check-label" for="confirmReset">
+                        <strong>Ja, ich verstehe die Konsequenzen und möchte alle Konfigurationen zurücksetzen</strong>
+                    </label>
+                </div>
+                
+                <div class="mt-3">
+                    <small class="text-muted">
+                        <i class="fas fa-lightbulb"></i>
+                        <strong>Tipp:</strong> Erstellen Sie vor dem Reset einen Export als Backup, 
+                        falls Sie später doch einige Ihrer Anpassungen wiederherstellen möchten.
+                    </small>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">
+                    <i class="fas fa-times"></i> Abbrechen
+                </button>
+                <form method="POST" action="{{ url_for('admin.import_export_fields') }}" class="d-inline">
+                    {{ form.hidden_tag() }}
+                    {{ form.reset_submit(class="btn btn-danger", id="confirmResetButton", disabled=true) }}
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.stat-box {
+    padding: 15px;
+    border-radius: 8px;
+    background: #f8f9fa;
+    margin-bottom: 10px;
+}
+
+.stat-box h4 {
+    margin-bottom: 5px;
+    font-weight: bold;
+}
+
+.export-preview {
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.export-preview pre {
+    font-size: 0.8em;
+    margin: 0;
+}
+
+.form-control-file {
+    border: 2px dashed #dee2e6;
+    padding: 15px;
+    border-radius: 8px;
+    background: #f8f9fa;
+    transition: all 0.3s ease;
+}
+
+.form-control-file:hover {
+    border-color: #007bff;
+    background: #e3f2fd;
+}
+
+.card {
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    transition: transform 0.2s ease;
+}
+
+.card:hover {
+    transform: translateY(-2px);
+}
+
+.import-validation .alert {
+    margin-bottom: 0;
+}
+
+.alert-danger .fas {
+    margin-right: 8px;
+}
+
+code {
+    color: #e83e8c;
+}
+
+pre code {
+    color: #212529;
+}
+
+.text-danger li {
+    color: #dc3545 !important;
+}
+
+.text-success li {
+    color: #28a745 !important;
+}
+
+.text-info li {
+    color: #17a2b8 !important;
+}
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const importDataTextarea = document.getElementById('import_data');
+    const fileUpload = document.getElementById('fileUpload');
+    const importButton = document.getElementById('importButton');
+    const importValidation = document.getElementById('importValidation');
+    const validationResults = document.getElementById('validationResults');
+    const confirmResetCheckbox = document.getElementById('confirmReset');
+    const confirmResetButton = document.getElementById('confirmResetButton');
+    
+    // File Upload Handler
+    if (fileUpload) {
+        fileUpload.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    importDataTextarea.value = e.target.result;
+                    validateImportData();
+                };
+                reader.readAsText(file);
+            }
+        });
+    }
+    
+    // Import Data Validation
+    if (importDataTextarea) {
+        importDataTextarea.addEventListener('input', validateImportData);
+    }
+    
+    // Reset Confirmation
+    if (confirmResetCheckbox && confirmResetButton) {
+        confirmResetCheckbox.addEventListener('change', function() {
+            confirmResetButton.disabled = !this.checked;
+        });
+    }
+    
+    function validateImportData() {
+        const data = importDataTextarea.value.trim();
+        
+        if (!data) {
+            hideValidation();
+            return;
+        }
+        
+        try {
+            const parsedData = JSON.parse(data);
+            
+            if (!Array.isArray(parsedData)) {
+                showValidationError('Daten müssen ein JSON-Array sein');
+                return;
+            }
+            
+            if (parsedData.length === 0) {
+                showValidationError('Array darf nicht leer sein');
+                return;
+            }
+            
+            // Validiere jedes Element
+            const errors = [];
+            const warnings = [];
+            let validCount = 0;
+            
+            parsedData.forEach((item, index) => {
+                const itemErrors = validateConfigItem(item, index);
+                errors.push(...itemErrors.errors);
+                warnings.push(...itemErrors.warnings);
+                if (itemErrors.errors.length === 0) validCount++;
+            });
+            
+            if (errors.length > 0) {
+                showValidationError('Validierungsfehler gefunden', errors);
+                return;
+            }
+            
+            showValidationSuccess(validCount, warnings);
+            
+        } catch (e) {
+            showValidationError('Ungültiges JSON-Format: ' + e.message);
+        }
+    }
+    
+    function validateConfigItem(item, index) {
+        const errors = [];
+        const warnings = [];
+        
+        // Pflichtfelder prüfen
+        const requiredFields = ['field_type', 'display_name', 'color_hex'];
+        requiredFields.forEach(field => {
+            if (!item[field]) {
+                errors.push(`Element ${index + 1}: Feld "${field}" ist erforderlich`);
+            }
+        });
+        
+        // Feld-Typ prüfen
+        if (item.field_type && !/^[a-z0-9_]+$/.test(item.field_type)) {
+            errors.push(`Element ${index + 1}: field_type darf nur Kleinbuchstaben, Zahlen und Unterstriche enthalten`);
+        }
+        
+        // Farb-Code prüfen
+        if (item.color_hex && !/^#[0-9A-Fa-f]{6}$/.test(item.color_hex)) {
+            errors.push(`Element ${index + 1}: color_hex muss ein gültiger Hex-Code sein (z.B. #FF0000)`);
+        }
+        
+        if (item.emission_hex && !/^#[0-9A-Fa-f]{6}$/.test(item.emission_hex)) {
+            errors.push(`Element ${index + 1}: emission_hex muss ein gültiger Hex-Code sein`);
+        }
+        
+        // Häufigkeits-Typ prüfen
+        const validFrequencyTypes = ['modulo', 'fixed_positions', 'probability', 'default'];
+        if (item.frequency_type && !validFrequencyTypes.includes(item.frequency_type)) {
+            errors.push(`Element ${index + 1}: frequency_type muss einer von: ${validFrequencyTypes.join(', ')} sein`);
+        }
+        
+        // Warnungen für potentielle Probleme
+        if (item.field_type === 'start' || item.field_type === 'goal' || item.field_type === 'normal') {
+            warnings.push(`Element ${index + 1}: Änderung von System-Feld "${item.field_type}" kann unerwartete Auswirkungen haben`);
+        }
+        
+        return { errors, warnings };
+    }
+    
+    function showValidationSuccess(validCount, warnings) {
+        importValidation.style.display = 'block';
+        importValidation.className = 'import-validation mb-3';
+        importValidation.innerHTML = `
+            <div class="alert alert-success">
+                <h6><i class="fas fa-check-circle"></i> Validierung erfolgreich</h6>
+                <div id="validationResults">
+                    <p><strong>${validCount}</strong> gültige Konfigurationen gefunden.</p>
+                    ${warnings.length > 0 ? `
+                        <div class="mt-2">
+                            <small class="text-warning"><strong>Warnungen:</strong></small>
+                            <ul class="small mb-0">
+                                ${warnings.map(w => `<li class="text-warning">${w}</li>`).join('')}
+                            </ul>
+                        </div>
+                    ` : ''}
+                </div>
+            </div>
+        `;
+        importButton.disabled = false;
+    }
+    
+    function showValidationError(message, errors = []) {
+        importValidation.style.display = 'block';
+        importValidation.className = 'import-validation mb-3';
+        importValidation.innerHTML = `
+            <div class="alert alert-danger">
+                <h6><i class="fas fa-exclamation-triangle"></i> Validierungsfehler</h6>
+                <div id="validationResults">
+                    <p>${message}</p>
+                    ${errors.length > 0 ? `
+                        <ul class="small mb-0">
+                            ${errors.map(e => `<li>${e}</li>`).join('')}
+                        </ul>
+                    ` : ''}
+                </div>
+            </div>
+        `;
+        importButton.disabled = true;
+    }
+    
+    function hideValidation() {
+        importValidation.style.display = 'none';
+        importButton.disabled = true;
+    }
+    
+    // Export Format Change Handler
+    const exportFormat = document.getElementById('export_format');
+    if (exportFormat) {
+        exportFormat.addEventListener('change', function() {
+            const helpText = this.parentElement.querySelector('.form-text');
+            if (this.value === 'json') {
+                helpText.textContent = 'JSON eignet sich am besten für Re-Import, CSV für Tabellenbearbeitung';
+            } else if (this.value === 'csv') {
+                helpText.textContent = 'CSV-Format für Bearbeitung in Excel oder anderen Tabellenkalkulationen';
+            } else {
+                helpText.textContent = 'Backup-Datei mit allen Konfigurationen und Metadaten';
+            }
+        });
+    }
+    
+    // Drag & Drop für File Upload
+    const fileUploadContainer = fileUpload?.parentElement;
+    if (fileUploadContainer) {
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            fileUploadContainer.addEventListener(eventName, preventDefaults, false);
+        });
+        
+        ['dragenter', 'dragover'].forEach(eventName => {
+            fileUploadContainer.addEventListener(eventName, highlight, false);
+        });
+        
+        ['dragleave', 'drop'].forEach(eventName => {
+            fileUploadContainer.addEventListener(eventName, unhighlight, false);
+        });
+        
+        fileUploadContainer.addEventListener('drop', handleDrop, false);
+    }
+    
+    function preventDefaults(e) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
+    
+    function highlight(e) {
+        fileUpload.style.borderColor = '#007bff';
+        fileUpload.style.backgroundColor = '#e3f2fd';
+    }
+    
+    function unhighlight(e) {
+        fileUpload.style.borderColor = '#dee2e6';
+        fileUpload.style.backgroundColor = '#f8f9fa';
+    }
+    
+    function handleDrop(e) {
+        const dt = e.dataTransfer;
+        const files = dt.files;
+        
+        if (files.length > 0) {
+            fileUpload.files = files;
+            fileUpload.dispatchEvent(new Event('change'));
+        }
+    }
+});
+</script>
+{% endblock %}
