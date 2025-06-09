@@ -23,7 +23,7 @@
 
     <!-- Runden & Ordner Management -->
     <div class="row mb-4">
-        <div class="col-md-6">
+        <div class="col-md-4">
             <div class="card border-success">
                 <div class="card-header bg-success text-white">
                     <h5 class="mb-0"><i class="fas fa-gamepad"></i> Aktuelle Spielrunde</h5>
@@ -72,7 +72,7 @@
             </div>
         </div>
         
-        <div class="col-md-6">
+        <div class="col-md-4">
             <div class="card border-primary">
                 <div class="card-header bg-primary text-white">
                     <h5 class="mb-0"><i class="fas fa-folder"></i> Minigame-Ordner</h5>
@@ -98,7 +98,125 @@
                 </div>
             </div>
         </div>
+
+        <!-- NEU: Feld-Management -->
+        <div class="col-md-4">
+            <div class="card border-warning">
+                <div class="card-header bg-warning text-dark">
+                    <h5 class="mb-0"><i class="fas fa-chess-board"></i> Spielfeld-Management</h5>
+                </div>
+                <div class="card-body">
+                    {% if field_stats %}
+                        <div class="row text-center mb-3">
+                            <div class="col-6">
+                                <div class="stat-box">
+                                    <h6 class="text-primary">{{ field_stats.total_configs }}</h6>
+                                    <small class="text-muted">Konfigurationen</small>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="stat-box">
+                                    <h6 class="text-success">{{ field_stats.enabled_configs }}</h6>
+                                    <small class="text-muted">Aktiv</small>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Farb-Übersicht -->
+                        <div class="field-colors-preview mb-3">
+                            <strong class="d-block mb-2">Feld-Farben:</strong>
+                            <div class="color-dots-container">
+                                {% for field_type, color_info in field_color_mapping.items() %}
+                                    {% if color_info.enabled and field_type not in ['normal'] %}
+                                        <div class="color-dot-item" title="{{ color_info.display_name }}">
+                                            <div class="color-dot" 
+                                                 style="background-color: {{ color_info.color }};">
+                                                {{ color_info.icon or '?' }}
+                                            </div>
+                                        </div>
+                                    {% endif %}
+                                {% endfor %}
+                            </div>
+                        </div>
+                    {% endif %}
+                    
+                    <div class="btn-group d-flex" role="group">
+                        <a href="{{ url_for('admin.manage_fields') }}" class="btn btn-outline-warning btn-sm">
+                            <i class="fas fa-cog"></i> Verwalten
+                        </a>
+                        <a href="{{ url_for('admin.field_preview') }}" class="btn btn-outline-warning btn-sm">
+                            <i class="fas fa-eye"></i> Vorschau
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
+
+    <!-- Feld-Farben Bedeutung (erweiterte Übersicht) -->
+    {% if field_color_mapping %}
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-info text-white">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h6 class="mb-0"><i class="fas fa-palette"></i> Spielfeld-Farben und Bedeutung</h6>
+                        <button class="btn btn-outline-light btn-sm" type="button" data-toggle="collapse" data-target="#fieldColorsCollapse">
+                            <i class="fas fa-chevron-down"></i> Details
+                        </button>
+                    </div>
+                </div>
+                <div class="collapse" id="fieldColorsCollapse">
+                    <div class="card-body">
+                        <div class="row">
+                            {% for field_type, color_info in field_color_mapping.items() %}
+                            <div class="col-md-3 col-sm-6 mb-3">
+                                <div class="field-legend-item d-flex align-items-center">
+                                    <div class="field-color-preview mr-3" 
+                                         style="width: 40px; height: 40px; background-color: {{ color_info.color }}; border: 2px solid #333; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.2em; color: white;">
+                                        {{ color_info.icon or '?' }}
+                                    </div>
+                                    <div>
+                                        <strong>{{ color_info.display_name }}</strong>
+                                        <br>
+                                        <small class="text-muted">{{ color_info.color }}</small>
+                                        {% if not color_info.enabled %}
+                                            <br><span class="badge badge-secondary">Deaktiviert</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        
+                        <hr>
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6><i class="fas fa-star"></i> Sonderfelder:</h6>
+                                <ul class="small">
+                                    <li><span style="color: #4CAF50;">🚀 Katapult Vorwärts</span> - Schleudert Teams 3-5 Felder nach vorne</li>
+                                    <li><span style="color: #F44336;">💥 Katapult Rückwärts</span> - Schleudert Teams 2-4 Felder nach hinten</li>
+                                    <li><span style="color: #2196F3;">🔄 Spieler-Tausch</span> - Tauscht Positionen zwischen Teams</li>
+                                    <li><span style="color: #9E9E9E;">🚧 Sperren-Feld</span> - Blockiert bis bestimmte Zahl gewürfelt wird</li>
+                                </ul>
+                            </div>
+                            <div class="col-md-6">
+                                <h6><i class="fas fa-dice"></i> Basis-Felder:</h6>
+                                <ul class="small">
+                                    <li><span style="color: #FFD54F;">⭐ Bonusfeld</span> - Gibt Teams einen Vorteil</li>
+                                    <li><span style="color: #BA68C8;">🎮 Minispiel</span> - Startet Minispiele oder Fragen</li>
+                                    <li><span style="color: #AED581;">🎲 Ereignisfeld</span> - Zufälliges Ereignis passiert</li>
+                                    <li><span style="color: #E57373;">⚠️ Falle</span> - Schadet Teams oder blockiert sie</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
 
     <!-- Spielstatus -->
     <div class="card mb-4">
@@ -571,6 +689,22 @@
                                 {% elif team.bonus_dice_sides == 2 %} 1-2
                                 {% else %} Standard
                                 {% endif %}
+                                
+                                <!-- NEU: Sonderfeld-Status anzeigen -->
+                                {% if team.is_blocked %}
+                                    <br><strong>Status:</strong> 
+                                    <span class="badge badge-warning">
+                                        🚧 Blockiert (benötigt {{ team.blocked_target_number }}+)
+                                    </span>
+                                    <form method="POST" action="{{ url_for('admin.unblock_team', team_id=team.id) }}" class="d-inline mt-1">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                        <button type="submit" class="btn btn-outline-warning btn-xs" 
+                                                onclick="return confirm('Team {{ team.name }} manuell freigeben?')"
+                                                title="Team manuell freigeben">
+                                            <i class="fas fa-unlock"></i> Freigeben
+                                        </button>
+                                    </form>
+                                {% endif %}
                             </p>
                             <div class="btn-group w-100" role="group">
                                 <a href="{{ url_for('admin.edit_team', team_id=team.id) }}" class="btn btn-outline-primary btn-sm">
@@ -694,6 +828,70 @@
 
 .text-warning {
     font-weight: bold;
+}
+
+/* NEU: Feld-Management Styling */
+.stat-box {
+    padding: 10px;
+    border-radius: 8px;
+    background: rgba(255,255,255,0.8);
+    margin-bottom: 10px;
+}
+
+.stat-box h6 {
+    margin-bottom: 2px;
+    font-weight: bold;
+}
+
+.color-dots-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+}
+
+.color-dot-item {
+    position: relative;
+}
+
+.color-dot {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    border: 2px solid #333;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.8em;
+    color: white;
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
+    cursor: pointer;
+    transition: transform 0.2s ease;
+}
+
+.color-dot:hover {
+    transform: scale(1.2);
+}
+
+.field-legend-item {
+    padding: 8px;
+    border-radius: 8px;
+    background: rgba(255,255,255,0.5);
+    transition: background-color 0.2s ease;
+}
+
+.field-legend-item:hover {
+    background: rgba(255,255,255,0.8);
+}
+
+.field-color-preview {
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+.btn-xs {
+    padding: 0.125rem 0.25rem;
+    font-size: 0.75rem;
+    line-height: 1.25;
+    border-radius: 0.15rem;
 }
 </style>
 
