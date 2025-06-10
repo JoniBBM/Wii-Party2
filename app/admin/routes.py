@@ -1014,21 +1014,29 @@ def edit_field(field_type):
 @login_required
 def toggle_field(field_type):
     """Toggle einzelne Feld-Konfiguration (AJAX-Endpunkt)"""
+    print(f"[DEBUG] toggle_field called with field_type: {field_type}")
     if not isinstance(current_user, Admin):
+        print(f"[DEBUG] Access denied - current_user is not Admin: {current_user}")
         return jsonify({"success": False, "error": "Zugriff verweigert"}), 403
     
     try:
+        current_app.logger.info(f"Toggle field request for: {field_type}")
+        
         # System-Felder vor Deaktivierung schützen
         system_fields = ['start', 'goal', 'normal']
         if field_type in system_fields:
+            current_app.logger.warning(f"Attempt to toggle system field: {field_type}")
             return jsonify({
                 "success": False, 
                 "error": f"System-Feld '{field_type}' kann nicht deaktiviert werden."
             }), 400
         
         # Feld-Konfiguration laden oder erstellen
+        current_app.logger.info(f"Looking for config for field: {field_type}")
         config = FieldConfiguration.get_config_for_field(field_type)
+        
         if not config:
+            current_app.logger.info(f"No config found for {field_type}, creating new one")
             # Erstelle neue Konfiguration falls nicht vorhanden
             from .field_config import create_default_field_config
             
@@ -1037,21 +1045,31 @@ def toggle_field(field_type):
             
             config = create_default_field_config(field_type, display_name)
             if not config:
+                current_app.logger.error(f"Failed to create default config for {field_type}")
                 return jsonify({
                     "success": False, 
                     "error": f"Konnte Konfiguration für '{field_type}' nicht erstellen."
                 }), 500
+            
+            # Füge neue Konfiguration zur Datenbank-Session hinzu
+            db.session.add(config)
+            current_app.logger.info(f"Neue Feld-Konfiguration für '{field_type}' erstellt und zur Session hinzugefügt.")
+        else:
+            current_app.logger.info(f"Found existing config for {field_type}: enabled={config.is_enabled}")
         
         # Status umschalten
         old_status = config.is_enabled
         config.is_enabled = not old_status
+        current_app.logger.info(f"Toggling {field_type} from {old_status} to {config.is_enabled}")
         
         # Cache invalidieren
         from app.game_logic.special_fields import clear_field_distribution_cache
         clear_field_distribution_cache()
         
         # Änderungen speichern
+        current_app.logger.info(f"Committing changes for {field_type}")
         db.session.commit()
+        current_app.logger.info(f"Successfully committed changes for {field_type}")
         
         action = "aktiviert" if config.is_enabled else "deaktiviert"
         return jsonify({
@@ -1067,7 +1085,7 @@ def toggle_field(field_type):
         current_app.logger.error(f"Fehler beim Umschalten von Feld '{field_type}': {e}", exc_info=True)
         return jsonify({
             "success": False, 
-            "error": "Fehler beim Umschalten der Feld-Konfiguration."
+            "error": f"Fehler beim Umschalten der Feld-Konfiguration: {str(e)}"
         }), 500
 
 @admin_bp.route('/field_preview')
