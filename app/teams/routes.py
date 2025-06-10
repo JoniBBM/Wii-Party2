@@ -5,7 +5,7 @@ from flask import current_app
 from app.forms import TeamLoginForm, QuestionAnswerForm
 from app.admin.minigame_utils import get_question_from_folder
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 
 teams_bp = Blueprint('teams', __name__, url_prefix='/teams')
 
@@ -373,7 +373,9 @@ def dashboard_status_api():
                     'teams_ahead': data['teams_ahead'],
                     'bonus_dice_sides': current_user.bonus_dice_sides,
                     'minigame_placement': current_user.minigame_placement,
-                    'is_current_turn': data['current_team_turn_name'] == current_user.name
+                    'is_current_turn': data['current_team_turn_name'] == current_user.name,
+                    'is_blocked': current_user.is_blocked,
+                    'blocked_target_number': current_user.blocked_target_number
                 },
                 'stats': {
                     'max_board_fields': data['max_board_fields'],
@@ -382,7 +384,9 @@ def dashboard_status_api():
                 # NEU: Spielverlauf für Updates
                 'game_progress': data['game_progress'],
                 # NEU: Letztes Würfelergebnis
-                'last_dice_result': data['last_dice_result']
+                'last_dice_result': data['last_dice_result'],
+                # Special field event (für Barrier-Felder)
+                'special_field_event': _get_recent_special_field_event(current_user, data['active_session'])
             }
         }
         
@@ -559,3 +563,47 @@ def question_status():
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+def _get_recent_special_field_event(team, session):
+    """Holt das letzte relevante Special Field Event für das Team"""
+    if not session:
+        return None
+        
+    try:
+        # Hole Events der letzten 10 Sekunden für dieses Team
+        recent_time = datetime.utcnow() - timedelta(seconds=10)
+        recent_event = GameEvent.query.filter_by(
+            game_session_id=session.id,
+            related_team_id=team.id,
+            event_type='field_action'
+        ).filter(
+            GameEvent.timestamp >= recent_time
+        ).order_by(GameEvent.timestamp.desc()).first()
+        
+        if recent_event and recent_event.data:
+            event_data = recent_event.data
+            # Check if it's a barrier-related event
+            if event_data.get('action') == 'barrier' and event_data.get('barrier_set'):
+                return {
+                    'type': 'barrier_set',
+                    'target_number': event_data.get('target_number')
+                }
+            elif event_data.get('action') == 'check_barrier_release':
+                if event_data.get('released'):
+                    return {
+                        'type': 'barrier_released',
+                        'dice_roll': event_data.get('dice_roll'),
+                        'target_number': event_data.get('target_number')
+                    }
+                else:
+                    return {
+                        'type': 'barrier_failed',
+                        'dice_roll': event_data.get('dice_roll'),
+                        'target_number': event_data.get('target_number')
+                    }
+        
+        return None
+        
+    except Exception as e:
+        print(f"Error getting special field event: {e}")
+        return None

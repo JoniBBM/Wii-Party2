@@ -182,6 +182,46 @@
         </div>
     </div>
 
+    <!-- Banner für Sperren-Feld Events -->
+    <div id="barrier-field-banner" class="announcement-banner barrier-banner">
+        <div class="banner-content">
+            <div class="banner-icon">
+                <i class="fas fa-lock"></i>
+            </div>
+            <div class="banner-text">
+                <div class="banner-title">Sperren-Feld!</div>
+                <div class="banner-subtitle" id="barrier-banner-message"></div>
+                <div class="banner-description" id="barrier-banner-requirement"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="barrier-release-banner" class="announcement-banner release-banner">
+        <div class="banner-content">
+            <div class="banner-icon">
+                <i class="fas fa-unlock"></i>
+            </div>
+            <div class="banner-text">
+                <div class="banner-title">Befreit!</div>
+                <div class="banner-subtitle" id="release-banner-message"></div>
+                <div class="banner-description">Du kannst dich wieder normal bewegen!</div>
+            </div>
+        </div>
+    </div>
+
+    <div id="barrier-failed-banner" class="announcement-banner barrier-failed-banner">
+        <div class="banner-content">
+            <div class="banner-icon">
+                <i class="fas fa-times-circle"></i>
+            </div>
+            <div class="banner-text">
+                <div class="banner-title">Noch blockiert!</div>
+                <div class="banner-subtitle" id="failed-banner-message"></div>
+                <div class="banner-description">Versuche es in der nächsten Runde erneut!</div>
+            </div>
+        </div>
+    </div>
+
     <!-- Hauptstatistiken -->
     <div class="row mb-4">
         <div class="col-md-3 col-sm-6 mb-3">
@@ -884,6 +924,18 @@
     background: linear-gradient(135deg, #17a2b8 0%, #138496 100%);
 }
 
+.barrier-banner .banner-content {
+    background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+}
+
+.release-banner .banner-content {
+    background: linear-gradient(135deg, #28a745 0%, #218838 100%);
+}
+
+.barrier-failed-banner .banner-content {
+    background: linear-gradient(135deg, #fd7e14 0%, #e55300 100%);
+}
+
 .banner-icon {
     font-size: 4rem;
     margin-bottom: 1rem;
@@ -1303,20 +1355,22 @@ function updateDashboard(data) {
             const positionChanged = lastGameData && 
                 lastGameData.current_user.position !== currentUser.position;
             
-            if (positionChanged) {
+            if (positionChanged || currentUser.is_blocked) {
                 // Verwende Server-Daten wenn verfügbar, sonst berechne aus Position
                 if (gameData.last_dice_result) {
                     const diceData = gameData.last_dice_result;
                     showDiceResultAnimation(diceData.standard_roll, diceData.bonus_roll, diceData.total_roll, 
-                                          lastGameData.current_user.position, currentUser.position);
+                                          lastGameData.current_user.position, currentUser.position,
+                                          currentUser.is_blocked, currentUser.blocked_target_number);
                 } else {
                     // Fallback zur alten Berechnung
                     const positionChange = currentUser.position - lastGameData.current_user.position;
-                    if (positionChange > 0) {
-                        const standardRoll = Math.min(6, positionChange);
+                    if (positionChange > 0 || currentUser.is_blocked) {
+                        const standardRoll = Math.min(6, Math.max(positionChange, 1));
                         const bonusRoll = Math.max(0, positionChange - 6);
                         showDiceResultAnimation(standardRoll, bonusRoll, positionChange, 
-                                              lastGameData.current_user.position, currentUser.position);
+                                              lastGameData.current_user.position, currentUser.position,
+                                              currentUser.is_blocked, currentUser.blocked_target_number);
                     }
                 }
             } else {
@@ -1324,6 +1378,17 @@ function updateDashboard(data) {
             }
         }
         isCurrentlyMyTurn = false;
+    }
+    
+    // Check for barrier field events
+    if (gameData.special_field_event) {
+        if (gameData.special_field_event.type === 'barrier_set') {
+            showBarrierFieldBanner(gameData.special_field_event.target_number);
+        } else if (gameData.special_field_event.type === 'barrier_released') {
+            showBarrierReleaseBanner(gameData.special_field_event.dice_roll, gameData.special_field_event.target_number);
+        } else if (gameData.special_field_event.type === 'barrier_failed') {
+            showBarrierFailedBanner(gameData.special_field_event.dice_roll, gameData.special_field_event.target_number);
+        }
     }
     
     // Update game status
@@ -1842,6 +1907,62 @@ function showMinigameAnnouncement(name, description) {
     }
 }
 
+function showBarrierFieldBanner(targetNumber) {
+    const banner = document.getElementById('barrier-field-banner');
+    const messageEl = document.getElementById('barrier-banner-message');
+    const requirementEl = document.getElementById('barrier-banner-requirement');
+    
+    if (banner && messageEl && requirementEl) {
+        messageEl.textContent = 'Du bist auf ein Sperren-Feld geraten!';
+        requirementEl.textContent = `Würfle mindestens eine ${targetNumber} um dich zu befreien!`;
+        
+        banner.classList.add('show');
+        
+        setTimeout(() => {
+            banner.classList.add('hide');
+            setTimeout(() => {
+                banner.classList.remove('show', 'hide');
+            }, 500);
+        }, 5000);
+    }
+}
+
+function showBarrierReleaseBanner(diceRoll, targetNumber) {
+    const banner = document.getElementById('barrier-release-banner');
+    const messageEl = document.getElementById('release-banner-message');
+    
+    if (banner && messageEl) {
+        messageEl.textContent = `Du hast eine ${diceRoll} gewürfelt (benötigt: ${targetNumber}+)`;
+        
+        banner.classList.add('show');
+        
+        setTimeout(() => {
+            banner.classList.add('hide');
+            setTimeout(() => {
+                banner.classList.remove('show', 'hide');
+            }, 500);
+        }, 4000);
+    }
+}
+
+function showBarrierFailedBanner(diceRoll, targetNumber) {
+    const banner = document.getElementById('barrier-failed-banner');
+    const messageEl = document.getElementById('failed-banner-message');
+    
+    if (banner && messageEl) {
+        messageEl.textContent = `Du hast nur eine ${diceRoll} gewürfelt (benötigt: ${targetNumber}+)`;
+        
+        banner.classList.add('show');
+        
+        setTimeout(() => {
+            banner.classList.add('hide');
+            setTimeout(() => {
+                banner.classList.remove('show', 'hide');
+            }, 500);
+        }, 5000);
+    }
+}
+
 function showMinigameResults(teams) {
     const banner = document.getElementById('minigame-results-banner');
     const resultsList = document.getElementById('minigame-results-list');
@@ -1894,7 +2015,7 @@ function showDiceWaitingAnimation() {
     }
 }
 
-function showDiceResultAnimation(standardRoll, bonusRoll, totalRoll, oldPos, newPos) {
+function showDiceResultAnimation(standardRoll, bonusRoll, totalRoll, oldPos, newPos, isBlocked = false, targetNumber = null) {
     const waitingDiv = document.getElementById('dice-waiting');
     const resultDiv = document.getElementById('dice-result-animation');
     
@@ -1922,6 +2043,16 @@ function showDiceResultAnimation(standardRoll, bonusRoll, totalRoll, oldPos, new
             document.getElementById('bonus-row').style.display = 'flex';
         } else {
             document.getElementById('bonus-row').style.display = 'none';
+        }
+        
+        // Update movement text based on barrier status
+        const movementText = document.getElementById('movement-text');
+        if (isBlocked && oldPos === newPos) {
+            movementText.innerHTML = `<span class="text-warning">Du bist weiterhin blockiert! (Benötigt: ${targetNumber}+)</span>`;
+        } else if (!isBlocked && oldPos === newPos) {
+            movementText.innerHTML = `<span class="text-success">Du hast die Sperre durchbrochen!</span>`;
+        } else {
+            movementText.innerHTML = `Du bewegst dich von Position <span id="old-pos">${oldPos}</span> auf Position <span id="new-pos">${newPos}</span>!`;
         }
         
         // Hide the banner after longer time (8 seconds instead of 3)
@@ -1984,6 +2115,11 @@ function updateGameStatus(gameData) {
     if (statusAlert && statusText) {
         statusAlert.className = `alert alert-${gameData.game_status_class} alert-dismissible fade show`;
         statusText.innerHTML = `<strong>${gameData.game_status}</strong>`;
+        
+        // Add blocked status indicator
+        if (gameData.current_user && gameData.current_user.is_blocked) {
+            statusText.innerHTML += `<br><span class="badge badge-danger">🔒 Blockiert - Benötigt ${gameData.current_user.blocked_target_number}+ zum Befreien</span>`;
+        }
         
         if (gameData.current_minigame_name && minigameInfo) {
             const isQuestion = gameData.question_data && gameData.question_data.name === gameData.current_minigame_name;
