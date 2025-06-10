@@ -1,6 +1,7 @@
 from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify
 from flask_login import login_user, logout_user, login_required, current_user
 from app.models import Team, db, Admin, GameSession, GameRound, QuestionResponse, GameEvent
+from flask import current_app
 from app.forms import TeamLoginForm, QuestionAnswerForm
 from app.admin.minigame_utils import get_question_from_folder
 import json
@@ -76,17 +77,26 @@ def _get_team_game_progress(team_user):
         
         if event.data_json:
             try:
-                # Handle both string and dict formats
+                # Versuche JSON parsing zuerst
                 if isinstance(event.data_json, str):
-                    event_data = eval(event.data_json)  # Vorsicht: nur für vertrauenswürdige Daten
+                    try:
+                        event_data = json.loads(event.data_json)
+                    except json.JSONDecodeError:
+                        # Fallback zu eval für Legacy-Daten
+                        try:
+                            event_data = eval(event.data_json)
+                        except:
+                            event_data = {}
                 else:
                     event_data = event.data_json
                 
                 old_position = event_data.get('old_position', 0)
                 new_position = event_data.get('new_position', team_user.current_position)
                 dice_total = event_data.get('total_roll', 0)
+                standard_roll = event_data.get('standard_roll', 0)
+                bonus_roll = event_data.get('bonus_roll', 0)
                 
-            except (ValueError, SyntaxError, TypeError):
+            except Exception as e:
                 # Falls Parsing fehlschlägt, verwende Fallback-Werte
                 pass
         
@@ -99,6 +109,46 @@ def _get_team_game_progress(team_user):
         })
     
     return progress_data
+
+def _get_last_dice_result(team_user, active_session):
+    """Holt das letzte Würfelergebnis für ein Team"""
+    if not active_session:
+        return None
+    
+    # Hole letztes Würfel-Event für dieses Team
+    last_dice_event = GameEvent.query.filter_by(
+        game_session_id=active_session.id,
+        related_team_id=team_user.id
+    ).filter(
+        GameEvent.event_type.in_(['dice_roll', 'admin_dice_roll', 'admin_dice_roll_legacy'])
+    ).order_by(GameEvent.timestamp.desc()).first()
+    
+    if last_dice_event and last_dice_event.data_json:
+        try:
+            # Parse data_json
+            if isinstance(last_dice_event.data_json, str):
+                # Versuche JSON parsing
+                try:
+                    event_data = json.loads(last_dice_event.data_json)
+                except json.JSONDecodeError:
+                    # Fallback zu eval für alte Daten
+                    event_data = eval(last_dice_event.data_json)
+            else:
+                event_data = last_dice_event.data_json
+            
+            return {
+                'standard_roll': event_data.get('standard_roll', 0),
+                'bonus_roll': event_data.get('bonus_roll', 0),
+                'total_roll': event_data.get('total_roll', 0),
+                'timestamp': last_dice_event.timestamp.strftime('%H:%M:%S'),
+                'was_blocked': event_data.get('was_blocked', False),
+                'barrier_released': event_data.get('barrier_released', False)
+            }
+        except Exception as e:
+            current_app.logger.error(f"Error parsing dice result: {e}")
+            return None
+    
+    return None
 
 def _get_dashboard_data(team_user):
     """Hilfsfunktion um Dashboard-Daten zu sammeln"""
@@ -239,7 +289,9 @@ def _get_dashboard_data(team_user):
         'question_response': question_response,
         'question_answered': question_answered,
         # NEU: Spielverlauf
-        'game_progress': game_progress
+        'game_progress': game_progress,
+        # NEU: Letztes Würfelergebnis
+        'last_dice_result': _get_last_dice_result(team_user, active_session)
     }
 
 @teams_bp.route('/dashboard')
@@ -328,7 +380,9 @@ def dashboard_status_api():
                     'teams_count': data['teams_count']
                 },
                 # NEU: Spielverlauf für Updates
-                'game_progress': data['game_progress']
+                'game_progress': data['game_progress'],
+                # NEU: Letztes Würfelergebnis
+                'last_dice_result': data['last_dice_result']
             }
         }
         

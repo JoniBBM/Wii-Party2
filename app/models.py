@@ -519,5 +519,28 @@ class GameEvent(db.Model):
 
     related_team = db.relationship('Team', foreign_keys=[related_team_id])
 
+    @property
+    def data(self):
+        """Gibt data_json als Dictionary zurück"""
+        if self.data_json:
+            try:
+                # Versuche erst JSON zu parsen
+                return json.loads(self.data_json)
+            except json.JSONDecodeError:
+                # Falls fehlschlägt, versuche eval für alte Daten
+                try:
+                    return eval(self.data_json)
+                except:
+                    return {}
+        return {}
+    
+    @data.setter
+    def data(self, value):
+        """Setzt data_json aus Dictionary"""
+        if value is None:
+            self.data_json = None
+        else:
+            self.data_json = json.dumps(value)
+
     def __repr__(self):
         return f'<GameEvent {self.id} Type: {self.event_type} Session: {self.game_session_id}>'

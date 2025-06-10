@@ -312,7 +312,7 @@ def admin_roll_dice():
             event_type="admin_dice_roll",
             description=event_description,
             related_team_id=team.id,
-            data_json=str({
+            data_json=json.dumps({
                 "standard_roll": standard_dice_roll,
                 "bonus_roll": bonus_dice_roll,
                 "total_roll": total_roll,

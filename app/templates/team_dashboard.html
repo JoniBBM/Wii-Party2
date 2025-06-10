@@ -393,7 +393,19 @@
                             <div class="col-12">
                                 <small class="text-muted">Letztes Würfelergebnis:</small><br>
                                 <span id="last-dice-result">
-                                    <span class="text-muted">Noch nicht gewürfelt</span>
+                                    {% if last_dice_result %}
+                                        <strong class="text-primary">{{ last_dice_result.standard_roll }}</strong>
+                                        {% if last_dice_result.bonus_roll > 0 %}
+                                            + <strong class="text-success">{{ last_dice_result.bonus_roll }}</strong>
+                                        {% endif %}
+                                        = <strong class="text-info">{{ last_dice_result.total_roll }}</strong>
+                                        {% if last_dice_result.was_blocked %}
+                                            <span class="badge badge-warning ml-1">Blockiert</span>
+                                        {% endif %}
+                                        <small class="text-muted ml-2">({{ last_dice_result.timestamp }})</small>
+                                    {% else %}
+                                        <span class="text-muted">Noch nicht gewürfelt</span>
+                                    {% endif %}
                                 </span>
                             </div>
                         </div>
@@ -1225,6 +1237,7 @@ let isDiceAnimationShowing = false;
 let lastMinigameName = "{{ active_session.current_minigame_name if active_session else '' }}";
 let hasShowMinigameResults = false;
 let lastPhase = "{{ active_session.current_phase if active_session else 'UNKNOWN' }}";
+let serverLastDiceResult = {{ last_dice_result | tojson if last_dice_result else 'null' }};
 let lastDiceResult = null;
 let lastQuestionData = null;
 let currentQuestionAnswered = {{ 'true' if question_answered else 'false' }};
@@ -1291,12 +1304,20 @@ function updateDashboard(data) {
                 lastGameData.current_user.position !== currentUser.position;
             
             if (positionChanged) {
-                const positionChange = currentUser.position - lastGameData.current_user.position;
-                if (positionChange > 0) {
-                    const standardRoll = Math.min(6, positionChange);
-                    const bonusRoll = Math.max(0, positionChange - 6);
-                    showDiceResultAnimation(standardRoll, bonusRoll, positionChange, 
+                // Verwende Server-Daten wenn verfügbar, sonst berechne aus Position
+                if (gameData.last_dice_result) {
+                    const diceData = gameData.last_dice_result;
+                    showDiceResultAnimation(diceData.standard_roll, diceData.bonus_roll, diceData.total_roll, 
                                           lastGameData.current_user.position, currentUser.position);
+                } else {
+                    // Fallback zur alten Berechnung
+                    const positionChange = currentUser.position - lastGameData.current_user.position;
+                    if (positionChange > 0) {
+                        const standardRoll = Math.min(6, positionChange);
+                        const bonusRoll = Math.max(0, positionChange - 6);
+                        showDiceResultAnimation(standardRoll, bonusRoll, positionChange, 
+                                              lastGameData.current_user.position, currentUser.position);
+                    }
                 }
             } else {
                 // No position change yet, keep waiting animation
@@ -1321,6 +1342,12 @@ function updateDashboard(data) {
     if (gameData.game_progress) {
         updateProgressChart(gameData.game_progress);
         updateProgressStats(gameData.game_progress, currentUser, gameData.stats.max_board_fields);
+    }
+    
+    // Update server dice result wenn verfügbar
+    if (gameData.last_dice_result) {
+        serverLastDiceResult = gameData.last_dice_result;
+        updateLastDiceResultDisplay();
     }
     
     lastGameData = gameData;
@@ -1924,14 +1951,26 @@ function hideDiceAnimation() {
 
 function updateLastDiceResultDisplay() {
     const lastDiceResultEl = document.getElementById('last-dice-result');
-    if (lastDiceResultEl && lastDiceResult) {
-        let resultText = `<strong class="text-primary">${lastDiceResult.standard}</strong>`;
+    const diceData = lastDiceResult || serverLastDiceResult;
+    
+    if (lastDiceResultEl && diceData) {
+        let resultText = `<strong class="text-primary">${diceData.standard_roll || diceData.standard}</strong>`;
         
-        if (lastDiceResult.bonus > 0) {
-            resultText += ` + <strong class="text-success">${lastDiceResult.bonus}</strong>`;
+        const bonusRoll = diceData.bonus_roll || diceData.bonus || 0;
+        if (bonusRoll > 0) {
+            resultText += ` + <strong class="text-success">${bonusRoll}</strong>`;
         }
         
-        resultText += ` = <strong class="text-info">${lastDiceResult.total}</strong>`;
+        const totalRoll = diceData.total_roll || diceData.total || 0;
+        resultText += ` = <strong class="text-info">${totalRoll}</strong>`;
+        
+        if (diceData.was_blocked) {
+            resultText += ' <span class="badge badge-warning ml-1">Blockiert</span>';
+        }
+        
+        if (diceData.timestamp) {
+            resultText += ` <small class="text-muted ml-2">(${diceData.timestamp})</small>`;
+        }
         
         lastDiceResultEl.innerHTML = resultText;
     }
