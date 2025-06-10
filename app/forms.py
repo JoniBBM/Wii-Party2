@@ -455,7 +455,7 @@ class FieldBulkEditForm(FlaskForm):
 
     def __init__(self, *args, **kwargs):
         super(FieldBulkEditForm, self).__init__(*args, **kwargs)
-        # Lade verfügbare Felder
+        # Lade verfügbare Felder - verwende field_type als Value (nicht ID)
         field_configs = FieldConfiguration.query.all()
-        self.selected_fields.choices = [(str(config.id), f"{config.display_name} ({config.field_type})") 
+        self.selected_fields.choices = [(config.field_type, f"{config.display_name} ({config.field_type})") 
                                        for config in field_configs]

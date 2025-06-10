@@ -425,6 +425,16 @@ def clear_field_distribution_cache():
     global _field_distribution_cache, _cache_max_fields
     _field_distribution_cache = None
     _cache_max_fields = None
+    
+    # Prüfe ob FieldConfiguration-Daten existieren
+    try:
+        field_configs = FieldConfiguration.get_all_enabled()
+        if field_configs:
+            current_app.logger.info(f"Cache geleert. {len(field_configs)} Feld-Konfigurationen verfügbar.")
+        else:
+            current_app.logger.warning("Cache geleert, aber keine FieldConfiguration-Daten gefunden!")
+    except Exception as e:
+        current_app.logger.error(f"Fehler beim Prüfen der FieldConfiguration: {e}")
 
 
 def get_field_type_at_position(position):

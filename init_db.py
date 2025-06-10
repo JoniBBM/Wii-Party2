@@ -7,7 +7,7 @@ sys.path.insert(0, PROJECT_ROOT)
 
 # Importiere create_app und db zuerst
 from app import create_app, db 
-from app.models import Admin, Team, Character, GameSession, GameEvent, MinigameFolder, GameRound
+from app.models import Admin, Team, Character, GameSession, GameEvent, MinigameFolder, GameRound, FieldConfiguration
 
 app_instance = create_app()
 
@@ -99,6 +99,30 @@ with app_instance.app_context():
         
         db.session.commit()
         print("Minigame-Ordner und Spielrunden erfolgreich initialisiert.")
+        
+        # NEU: Initialisiere FieldConfiguration
+        print("\n--- Initialisiere Sonderfeld-Konfigurationen ---")
+        try:
+            print("Erstelle Standard-Feld-Konfigurationen...")
+            FieldConfiguration.initialize_default_configs()
+            print("✅ FieldConfiguration-Tabelle erfolgreich initialisiert!")
+            
+            # Zeige initialisierte Konfigurationen
+            all_configs = FieldConfiguration.query.all()
+            print(f"📋 {len(all_configs)} Feld-Konfigurationen erstellt:")
+            for config in all_configs:
+                status = "✅" if config.is_enabled else "❌"
+                print(f"  {status} {config.field_type}: {config.display_name} {config.icon}")
+                
+            # Cache initialisieren
+            print("Initialisiere Sonderfeld-Cache...")
+            from app.game_logic.special_fields import clear_field_distribution_cache
+            clear_field_distribution_cache()
+            print("✅ Sonderfeld-Cache erfolgreich initialisiert!")
+            
+        except Exception as field_init_e:
+            print(f"❌ Fehler bei FieldConfiguration-Initialisierung: {field_init_e}")
+            print("Das Spiel wird trotzdem funktionieren, aber ohne Sonderfelder.")
         
         # Teste die neuen Tracking-Features
         print("\n--- Teste Spiele-Tracking-Features ---")

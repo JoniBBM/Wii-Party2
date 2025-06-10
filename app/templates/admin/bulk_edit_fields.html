@@ -779,8 +779,7 @@ function isSystemField(fieldType) {
 }
 
 function getFieldId(fieldType) {
-    // Da wir keine IDs haben, verwenden wir den Feldtyp als Identifikator
-    // Das Backend muss entsprechend angepasst werden
+    // Verwende Feldtyp als Identifikator (Backend arbeitet mit field_type)
     const config = fieldConfigs.find(c => c.field_type === fieldType);
     return config ? fieldType : null;
 }

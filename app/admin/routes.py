@@ -985,6 +985,10 @@ def edit_field(field_type):
             # Aktualisiere Konfiguration
             updated_config = update_field_config(config.id, form.data)
             
+            # Cache invalidieren
+            from app.game_logic.special_fields import clear_field_distribution_cache
+            clear_field_distribution_cache()
+            
             db.session.commit()
             flash(f"Feld-Konfiguration für '{updated_config.display_name}' erfolgreich aktualisiert.", 'success')
             return redirect(url_for('admin.manage_fields'))
@@ -1005,6 +1009,66 @@ def edit_field(field_type):
         current_app.logger.error(f"Fehler beim Bearbeiten von Feld '{field_type}': {e}", exc_info=True)
         flash('Fehler beim Bearbeiten der Feld-Konfiguration.', 'danger')
         return redirect(url_for('admin.manage_fields'))
+
+@admin_bp.route('/toggle_field/<string:field_type>', methods=['POST'])
+@login_required
+def toggle_field(field_type):
+    """Toggle einzelne Feld-Konfiguration (AJAX-Endpunkt)"""
+    if not isinstance(current_user, Admin):
+        return jsonify({"success": False, "error": "Zugriff verweigert"}), 403
+    
+    try:
+        # System-Felder vor Deaktivierung schützen
+        system_fields = ['start', 'goal', 'normal']
+        if field_type in system_fields:
+            return jsonify({
+                "success": False, 
+                "error": f"System-Feld '{field_type}' kann nicht deaktiviert werden."
+            }), 400
+        
+        # Feld-Konfiguration laden oder erstellen
+        config = FieldConfiguration.get_config_for_field(field_type)
+        if not config:
+            # Erstelle neue Konfiguration falls nicht vorhanden
+            from .field_config import create_default_field_config
+            
+            # Generiere lesbaren Display-Namen aus field_type
+            display_name = field_type.replace('_', ' ').title()
+            
+            config = create_default_field_config(field_type, display_name)
+            if not config:
+                return jsonify({
+                    "success": False, 
+                    "error": f"Konnte Konfiguration für '{field_type}' nicht erstellen."
+                }), 500
+        
+        # Status umschalten
+        old_status = config.is_enabled
+        config.is_enabled = not old_status
+        
+        # Cache invalidieren
+        from app.game_logic.special_fields import clear_field_distribution_cache
+        clear_field_distribution_cache()
+        
+        # Änderungen speichern
+        db.session.commit()
+        
+        action = "aktiviert" if config.is_enabled else "deaktiviert"
+        return jsonify({
+            "success": True,
+            "message": f"Feld-Konfiguration '{config.display_name}' wurde {action}.",
+            "field_type": field_type,
+            "is_enabled": config.is_enabled,
+            "display_name": config.display_name
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Fehler beim Umschalten von Feld '{field_type}': {e}", exc_info=True)
+        return jsonify({
+            "success": False, 
+            "error": "Fehler beim Umschalten der Feld-Konfiguration."
+        }), 500
 
 @admin_bp.route('/field_preview')
 @login_required
@@ -1048,6 +1112,31 @@ def field_preview():
         
         flash('Fehler bei der Feld-Vorschau.', 'danger')
         return redirect(url_for('admin.manage_fields'))
+
+@admin_bp.route('/api/field_data')
+def api_field_data():
+    """Öffentliche API für Feld-Daten (für Game-Board)"""
+    try:
+        max_fields = int(request.args.get('max_fields', 73))
+        
+        # Generiere Vorschau-Daten
+        from .field_config import get_field_preview_data
+        from app.game_logic.special_fields import get_all_special_field_positions
+        preview_data = get_field_preview_data(max_fields)
+        
+        # Spezielle Feld-Positionen
+        special_positions = get_all_special_field_positions(max_fields)
+        
+        return jsonify({
+            "success": True,
+            "preview_data": preview_data,
+            "special_positions": special_positions,
+            "max_fields": max_fields
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"Fehler bei der öffentlichen Feld-API: {e}", exc_info=True)
+        return jsonify({"success": False, "error": str(e)}), 500
 
 @admin_bp.route('/import_export_fields', methods=['GET', 'POST'])
 @login_required
@@ -1156,8 +1245,9 @@ def bulk_edit_fields():
     
     if form.validate_on_submit():
         try:
-            selected_field_ids = [int(field_id) for field_id in form.selected_fields.data]
-            selected_configs = FieldConfiguration.query.filter(FieldConfiguration.id.in_(selected_field_ids)).all()
+            # Frontend sendet Feld-Typen (Strings), nicht IDs
+            selected_field_types = form.selected_fields.data
+            selected_configs = FieldConfiguration.query.filter(FieldConfiguration.field_type.in_(selected_field_types)).all()
             
             if not selected_configs:
                 flash('Keine Felder für Bearbeitung ausgewählt.', 'warning')
@@ -1210,6 +1300,11 @@ def bulk_edit_fields():
                 
                 if modified_count > 0:
                     flash(f"{modified_count} Feld-Konfigurationen wurden gelöscht.", 'success')
+            
+            # Cache invalidieren wenn Änderungen gemacht wurden
+            if modified_count > 0:
+                from app.game_logic.special_fields import clear_field_distribution_cache
+                clear_field_distribution_cache()
             
             db.session.commit()
             return redirect(url_for('admin.manage_fields'))

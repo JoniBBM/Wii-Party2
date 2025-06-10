@@ -420,7 +420,7 @@ async function loadFieldConfigurations() {
         }
         
         // Lade dynamische Feld-Verteilung
-        const previewResponse = await fetch("{{ url_for('admin.field_preview') }}?max_fields=73", {
+        const previewResponse = await fetch("{{ url_for('admin.api_field_data') }}?max_fields=73", {
             method: 'GET',
             headers: {
                 'Content-Type': 'application/json'
