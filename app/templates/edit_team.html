@@ -4,49 +4,155 @@
 
 {% block content %}
 <div class="container mt-4">
-    <h2>Team "{{ team.name }}" bearbeiten</h2>
-    <form method="POST" action="" novalidate>
-        {{ form.hidden_tag() }}
-        <div class="form-group">
-            {{ form.team_name.label(class="form-control-label") }}
-            {{ form.team_name(class="form-control" + (" is-invalid" if form.team_name.errors else ""), placeholder="Teamname") }}
-            {% if form.team_name.errors %}
-                <div class="invalid-feedback">
-                    {% for error in form.team_name.errors %}<span>{{ error }}</span>{% endfor %}
+    <div class="row">
+        <div class="col-md-8">
+            <h2><i class="fas fa-users"></i> Team "{{ team.name }}" bearbeiten</h2>
+            <form method="POST" action="" novalidate>
+                {{ form.hidden_tag() }}
+                
+                <!-- Team-Grunddaten -->
+                <div class="card mb-4">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0"><i class="fas fa-info-circle"></i> Team-Grunddaten</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="form-group">
+                            {{ form.team_name.label(class="form-control-label") }}
+                            {{ form.team_name(class="form-control" + (" is-invalid" if form.team_name.errors else ""), placeholder="Teamname") }}
+                            {% if form.team_name.errors %}
+                                <div class="invalid-feedback">
+                                    {% for error in form.team_name.errors %}<span>{{ error }}</span>{% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                        <div class="form-group">
+                            {{ form.character_id.label(class="form-control-label") }}
+                            {{ form.character_id(class="form-control" + (" is-invalid" if form.character_id.errors else "")) }}
+                            {% if form.character_id.errors %}
+                                <div class="invalid-feedback">
+                                    {% for error in form.character_id.errors %}<span>{{ error }}</span>{% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
                 </div>
-            {% endif %}
-        </div>
-        <div class="form-group">
-            {{ form.password.label(class="form-control-label") }}
-            {{ form.password(class="form-control" + (" is-invalid" if form.password.errors else ""), placeholder="Neues Passwort (leer lassen, um nicht zu ändern)") }}
-            {% if form.password.errors %}
-                <div class="invalid-feedback">
-                    {% for error in form.password.errors %}<span>{{ error }}</span>{% endfor %}
+                
+                <!-- Passwort ändern -->
+                <div class="card mb-4">
+                    <div class="card-header bg-warning text-dark">
+                        <h5 class="mb-0"><i class="fas fa-key"></i> Passwort ändern</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="form-group">
+                            {{ form.password.label(class="form-control-label") }}
+                            {{ form.password(class="form-control" + (" is-invalid" if form.password.errors else ""), placeholder="Neues Passwort (leer lassen, um nicht zu ändern)") }}
+                            {% if form.password.errors %}
+                                <div class="invalid-feedback">
+                                    {% for error in form.password.errors %}<span>{{ error }}</span>{% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                        <div class="form-group">
+                            {{ form.confirm_password.label(class="form-control-label") }}
+                            {{ form.confirm_password(class="form-control" + (" is-invalid" if form.confirm_password.errors else ""), placeholder="Passwort bestätigen") }}
+                            {% if form.confirm_password.errors %}
+                                <div class="invalid-feedback">
+                                    {% for error in form.confirm_password.errors %}<span>{{ error }}</span>{% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
                 </div>
-            {% endif %}
-        </div>
-        <div class="form-group">
-            {{ form.confirm_password.label(class="form-control-label") }}
-            {{ form.confirm_password(class="form-control" + (" is-invalid" if form.confirm_password.errors else ""), placeholder="Passwort bestätigen") }}
-            {% if form.confirm_password.errors %}
-                <div class="invalid-feedback">
-                    {% for error in form.confirm_password.errors %}<span>{{ error }}</span>{% endfor %}
+                
+                <!-- Spielstatus -->
+                <div class="card mb-4">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0"><i class="fas fa-dice"></i> Spielstatus bearbeiten</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    {{ form.current_position.label(class="form-control-label") }}
+                                    {{ form.current_position(class="form-control" + (" is-invalid" if form.current_position.errors else ""), placeholder="0-72", value=team.current_position) }}
+                                    {% if form.current_position.errors %}
+                                        <div class="invalid-feedback">
+                                            {% for error in form.current_position.errors %}<span>{{ error }}</span>{% endfor %}
+                                        </div>
+                                    {% endif %}
+                                    <small class="form-text text-muted">Position auf dem Spielbrett (0 = Start, 72 = Ziel)</small>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    {{ form.last_dice_result.label(class="form-control-label") }}
+                                    {{ form.last_dice_result(class="form-control" + (" is-invalid" if form.last_dice_result.errors else ""), placeholder="1-6", value=team.last_dice_result) }}
+                                    {% if form.last_dice_result.errors %}
+                                        <div class="invalid-feedback">
+                                            {% for error in form.last_dice_result.errors %}<span>{{ error }}</span>{% endfor %}
+                                        </div>
+                                    {% endif %}
+                                    <small class="form-text text-muted">Letztes gewürfeltes Ergebnis (1-6, leer lassen für nicht gesetzt)</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-            {% endif %}
-        </div>
-        <div class="form-group">
-            {{ form.character_id.label(class="form-control-label") }}
-            {{ form.character_id(class="form-control" + (" is-invalid" if form.character_id.errors else "")) }}
-            {% if form.character_id.errors %}
-                <div class="invalid-feedback">
-                    {% for error in form.character_id.errors %}<span>{{ error }}</span>{% endfor %}
+                
+                <div class="form-group">
+                    {{ form.submit(class="btn btn-primary") }}
+                    <a href="{{ url_for('admin.admin_dashboard') }}" class="btn btn-secondary ml-2">Abbrechen</a>
                 </div>
-            {% endif %}
+            </form>
         </div>
-        <div class="form-group">
-            {{ form.submit(class="btn btn-primary") }}
-            <a href="{{ url_for('admin.admin_dashboard') }}" class="btn btn-secondary ml-2">Abbrechen</a>
+        
+        <!-- Team-Info Sidebar -->
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0"><i class="fas fa-info"></i> Team-Informationen</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm">
+                        <tr>
+                            <td><strong>Team ID:</strong></td>
+                            <td>{{ team.id }}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Aktuelle Position:</strong></td>
+                            <td>{{ team.current_position }}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Letzter Würfel:</strong></td>
+                            <td>{{ team.last_dice_result if team.last_dice_result else 'Nicht gesetzt' }}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Bonus-Würfel:</strong></td>
+                            <td>{{ team.bonus_dice_sides if team.bonus_dice_sides else 'Keine' }}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Blockiert:</strong></td>
+                            <td>
+                                {% if team.is_blocked %}
+                                    <span class="badge badge-danger">Ja</span>
+                                    {% if team.blocked_target_number %}
+                                        <br><small>Benötigt: {{ team.blocked_target_number }}+</small>
+                                    {% endif %}
+                                {% else %}
+                                    <span class="badge badge-success">Nein</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% if team.character %}
+                        <tr>
+                            <td><strong>Charakter:</strong></td>
+                            <td>{{ team.character.name }}</td>
+                        </tr>
+                        {% endif %}
+                    </table>
+                </div>
+            </div>
         </div>
-    </form>
+    </div>
 </div>
 {% endblock %}

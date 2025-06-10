@@ -45,6 +45,7 @@ class Team(UserMixin, db.Model):
     current_position = db.Column(db.Integer, default=0)
     minigame_placement = db.Column(db.Integer, nullable=True)
     bonus_dice_sides = db.Column(db.Integer, default=0)
+    last_dice_result = db.Column(db.Integer, nullable=True)  # Letztes Würfelergebnis
     is_admin_flag = db.Column(db.Boolean, default=False, nullable=False)
     
     # SONDERFELD-FELDER (vereinfacht)
@@ -174,8 +175,8 @@ class FieldConfiguration(db.Model):
                 'is_enabled': True,
                 'frequency_type': 'fixed_positions',
                 'frequency_value': 0,  # Nur Position 0
-                'color_hex': '#4FC3F7',
-                'emission_hex': '#0277BD',
+                'color_hex': '#00BFFF',
+                'emission_hex': '#0066CC',
                 'icon': '🏁',
                 'config_data': json.dumps({})
             },
@@ -186,8 +187,8 @@ class FieldConfiguration(db.Model):
                 'is_enabled': True,
                 'frequency_type': 'fixed_positions',
                 'frequency_value': 72,  # Nur Position 72
-                'color_hex': '#FFB74D',
-                'emission_hex': '#F57C00',
+                'color_hex': '#FF6600',
+                'emission_hex': '#CC4400',
                 'icon': '🎯',
                 'config_data': json.dumps({})
             },
@@ -198,8 +199,8 @@ class FieldConfiguration(db.Model):
                 'is_enabled': True,
                 'frequency_type': 'default',
                 'frequency_value': 0,  # Alle anderen Felder
-                'color_hex': '#81C784',
-                'emission_hex': '#4CAF50',
+                'color_hex': '#00FF00',
+                'emission_hex': '#00CC00',
                 'icon': '⬜',
                 'config_data': json.dumps({})
             },
@@ -210,8 +211,8 @@ class FieldConfiguration(db.Model):
                 'is_enabled': True,
                 'frequency_type': 'modulo',
                 'frequency_value': 15,  # Alle 15 Felder
-                'color_hex': '#4CAF50',
-                'emission_hex': '#2E7D32',
+                'color_hex': '#32CD32',
+                'emission_hex': '#228B22',
                 'icon': '🚀',
                 'config_data': json.dumps({
                     'min_distance': 3,
@@ -225,8 +226,8 @@ class FieldConfiguration(db.Model):
                 'is_enabled': True,
                 'frequency_type': 'modulo',
                 'frequency_value': 13,  # Alle 13 Felder
-                'color_hex': '#F44336',
-                'emission_hex': '#C62828',
+                'color_hex': '#FF0000',
+                'emission_hex': '#CC0000',
                 'icon': '💥',
                 'config_data': json.dumps({
                     'min_distance': 2,
@@ -240,8 +241,8 @@ class FieldConfiguration(db.Model):
                 'is_enabled': True,
                 'frequency_type': 'modulo',
                 'frequency_value': 17,  # Alle 17 Felder
-                'color_hex': '#2196F3',
-                'emission_hex': '#1565C0',
+                'color_hex': '#0080FF',
+                'emission_hex': '#0066CC',
                 'icon': '🔄',
                 'config_data': json.dumps({
                     'min_distance': 3
@@ -254,8 +255,8 @@ class FieldConfiguration(db.Model):
                 'is_enabled': True,
                 'frequency_type': 'modulo',
                 'frequency_value': 19,  # Alle 19 Felder
-                'color_hex': '#9E9E9E',
-                'emission_hex': '#424242',
+                'color_hex': '#666666',
+                'emission_hex': '#333333',
                 'icon': '🚧',
                 'config_data': json.dumps({
                     'target_numbers': [4, 5, 6]
@@ -268,8 +269,8 @@ class FieldConfiguration(db.Model):
                 'is_enabled': True,
                 'frequency_type': 'modulo',
                 'frequency_value': 8,  # Alle 8 Felder
-                'color_hex': '#FFD54F',
-                'emission_hex': '#FFA000',
+                'color_hex': '#FFD700',
+                'emission_hex': '#FF8C00',
                 'icon': '⭐',
                 'config_data': json.dumps({
                     'bonus_type': 'extra_dice'
@@ -282,8 +283,8 @@ class FieldConfiguration(db.Model):
                 'is_enabled': True,
                 'frequency_type': 'modulo',
                 'frequency_value': 12,  # Alle 12 Felder
-                'color_hex': '#BA68C8',
-                'emission_hex': '#8E24AA',
+                'color_hex': '#8A2BE2',
+                'emission_hex': '#6A1B9A',
                 'icon': '🎮',
                 'config_data': json.dumps({})
             },
@@ -294,8 +295,8 @@ class FieldConfiguration(db.Model):
                 'is_enabled': True,
                 'frequency_type': 'modulo',
                 'frequency_value': 20,  # Alle 20 Felder
-                'color_hex': '#AED581',
-                'emission_hex': '#689F38',
+                'color_hex': '#ADFF2F',
+                'emission_hex': '#9ACD32',
                 'icon': '🎲',
                 'config_data': json.dumps({
                     'events': ['bonus_move', 'lose_turn', 'extra_roll']
@@ -308,8 +309,8 @@ class FieldConfiguration(db.Model):
                 'is_enabled': True,
                 'frequency_type': 'modulo',
                 'frequency_value': 25,  # Alle 25 Felder
-                'color_hex': '#E57373',
-                'emission_hex': '#D32F2F',
+                'color_hex': '#FF4500',
+                'emission_hex': '#B22222',
                 'icon': '⚠️',
                 'config_data': json.dumps({
                     'trap_effects': ['move_back', 'skip_turn', 'remove_bonus']

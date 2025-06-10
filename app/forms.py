@@ -31,6 +31,8 @@ class EditTeamForm(FlaskForm):
     password = PasswordField('Neues Passwort (leer lassen, um nicht zu ändern)', validators=[Optional(), Length(min=6)])
     confirm_password = PasswordField('Neues Passwort bestätigen', validators=[EqualTo('password', message='Passwörter müssen übereinstimmen.')])
     character_id = SelectField('Charakter ändern', coerce=int, validators=[Optional()])
+    current_position = IntegerField('Aktuelle Position', validators=[NumberRange(min=0, max=72)], default=0)
+    last_dice_result = IntegerField('Letztes Würfelergebnis', validators=[Optional(), NumberRange(min=1, max=6)])
     submit = SubmitField('Änderungen speichern')
 
     def __init__(self, original_team_name, current_character_id, *args, **kwargs):

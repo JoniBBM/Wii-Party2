@@ -302,7 +302,7 @@ def admin_roll_dice():
         if bonus_dice_roll > 0:
             event_description += f" (Bonus: {bonus_dice_roll}, Gesamt: {total_roll})"
         
-        if team.is_blocked and not barrier_check_result.get('released', False):
+        if team.is_blocked and (not barrier_check_result or not barrier_check_result.get('released', False)):
             event_description += f" - BLOCKIERT: Konnte sich nicht befreien."
         else:
             event_description += f" und bewegte sich von Feld {old_position} zu Feld {new_position}."
@@ -1429,6 +1429,11 @@ def edit_team(team_id):
         
         if form.password.data:
             team.set_password(form.password.data)
+        
+        # Update Position und Dice Result
+        team.current_position = form.current_position.data
+        if form.last_dice_result.data is not None:
+            team.last_dice_result = form.last_dice_result.data
 
         new_character_id = form.character_id.data
         old_character_id = team.character_id
