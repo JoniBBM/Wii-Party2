@@ -72,9 +72,16 @@ document.addEventListener('DOMContentLoaded', function() {
 // Test Three.js
 document.addEventListener('DOMContentLoaded', function() {
   try {
+    // Prüfe ob canvas element existiert
+    const canvas = document.getElementById('game-canvas');
+    if (!canvas) {
+      console.log("Three.js Test übersprungen - kein game-canvas Element gefunden");
+      return;
+    }
+    
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
-    const renderer = new THREE.WebGLRenderer({canvas: document.getElementById('game-canvas')});
+    const renderer = new THREE.WebGLRenderer({canvas: canvas});
     renderer.setClearColor(0x0088ff);
     renderer.render(scene, camera);
     console.log("Three.js grundlegender Test erfolgreich!");

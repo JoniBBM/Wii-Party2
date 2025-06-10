@@ -1108,12 +1108,19 @@ def field_preview():
         # Spezielle Feld-Positionen
         special_positions = get_all_special_field_positions(max_fields)
         
+        # Farb-Mapping für Template
+        color_mapping = get_field_type_color_mapping()
+        
+        # Konflikte prüfen
+        conflicts = validate_field_conflicts()
+        
         if request.headers.get('Content-Type') == 'application/json':
             return jsonify({
                 "success": True,
                 "preview_data": preview_data,
                 "field_stats": field_stats,
-                "special_positions": special_positions
+                "special_positions": special_positions,
+                "color_mapping": color_mapping
             })
         
         return render_template('admin/field_preview.html',
@@ -1121,6 +1128,8 @@ def field_preview():
                              preview_data=preview_data,
                              field_stats=field_stats,
                              special_positions=special_positions,
+                             color_mapping=color_mapping,
+                             conflicts=conflicts,
                              max_fields=max_fields)
                              
     except Exception as e:
