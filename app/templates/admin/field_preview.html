@@ -473,13 +473,20 @@ function generateFieldBoard() {
     const conflicts = {{ conflicts|tojson if conflicts else '[]' }};
     const conflictPositions = conflicts.map(c => c.position);
     
-    for (let position = 0; position < maxFields; position++) {
-        const fieldType = getFieldTypeAtPosition(position);
-        const config = fieldConfigs[fieldType] || {
-            color: '#CCCCCC',
-            icon: '?',
-            display_name: fieldType,
-            enabled: true
+    // Nutze Backend-berechnete Daten anstatt Frontend-Duplikation
+    const fields = previewData.fields || [];
+    
+    for (let i = 0; i < Math.min(fields.length, maxFields); i++) {
+        const fieldData = fields[i];
+        const position = fieldData.position;
+        const fieldType = fieldData.field_type;
+        
+        // Verwende Backend-Daten als primäre Quelle
+        const config = {
+            color: fieldData.color,
+            icon: fieldData.icon,
+            display_name: fieldData.display_name,
+            enabled: fieldData.enabled
         };
         
         const fieldElement = document.createElement('div');
@@ -527,42 +534,10 @@ function generateFieldBoard() {
 }
 
 function getFieldTypeAtPosition(position) {
-    // Diese Funktion sollte die gleiche Logik wie im Backend verwenden
-    if (position === 0) return 'start';
-    if (position === 72) return 'goal';
-    
-    // Verwende die aktualisierten Konfigurationen falls verfügbar
-    for (const [fieldType, config] of Object.entries(fieldConfigs)) {
-        if (!config.enabled || fieldType === 'start' || fieldType === 'goal' || fieldType === 'normal') {
-            continue;
-        }
-        
-        // Für Modulo-basierte Felder
-        if (config.frequency_type === 'modulo' && config.frequency_value > 0) {
-            if (position % config.frequency_value === 0) {
-                return fieldType;
-            }
-        }
-        
-        // Für feste Positionen
-        if (config.frequency_type === 'fixed_positions' && config.positions) {
-            if (config.positions.includes(position)) {
-                return fieldType;
-            }
-        }
-    }
-    
-    // Fallback auf hardcodierte Logik
-    if (position % 15 === 0) return 'catapult_forward';
-    if (position % 13 === 0) return 'catapult_backward';
-    if (position % 17 === 0) return 'player_swap';
-    if (position % 19 === 0) return 'barrier';
-    if (position % 8 === 0) return 'bonus';
-    if (position % 12 === 0) return 'minigame';
-    if (position % 20 === 0) return 'chance';
-    if (position % 25 === 0) return 'trap';
-    
-    return 'normal';
+    // Nutze Backend-berechnete Daten anstatt eigene Logik
+    const fields = previewData.fields || [];
+    const fieldData = fields.find(f => f.position === position);
+    return fieldData ? fieldData.field_type : 'normal';
 }
 
 function setupEventListeners() {
@@ -586,19 +561,17 @@ function updateLegend() {
     const legendContainer = document.getElementById('colorLegend');
     legendContainer.innerHTML = '';
     
-    // Zähle Felder für jeden Typ
-    const fieldCounts = {};
-    for (let i = 0; i < maxFields; i++) {
-        const fieldType = getFieldTypeAtPosition(i);
-        fieldCounts[fieldType] = (fieldCounts[fieldType] || 0) + 1;
-    }
+    // Nutze Backend-berechnete Zählungen
+    const fieldCounts = previewData.counts || {};
     
     // Sortiere nach Anzahl
     const sortedTypes = Object.entries(fieldCounts)
         .sort(([,a], [,b]) => b - a);
     
     sortedTypes.forEach(([fieldType, count]) => {
-        const config = fieldConfigs[fieldType] || {
+        // Finde die entsprechenden Feld-Daten im Backend
+        const fieldData = previewData.fields ? previewData.fields.find(f => f.field_type === fieldType) : null;
+        const config = fieldData || {
             color: '#CCCCCC',
             icon: '?',
             display_name: fieldType,
@@ -632,18 +605,18 @@ function updateLegend() {
 }
 
 function updateStatistics() {
-    // Zähle Felder
-    let specialCount = 0;
-    let normalCount = 0;
+    // Nutze Backend-berechnete Zählungen
+    const fieldCounts = previewData.counts || {};
     
-    for (let i = 0; i < maxFields; i++) {
-        const fieldType = getFieldTypeAtPosition(i);
-        if (fieldType === 'normal') {
-            normalCount++;
-        } else if (fieldType !== 'start' && fieldType !== 'goal') {
-            specialCount++;
+    let specialCount = 0;
+    let normalCount = fieldCounts['normal'] || 0;
+    
+    // Zähle alle Sonderfelder (nicht start, goal, normal)
+    Object.entries(fieldCounts).forEach(([fieldType, count]) => {
+        if (fieldType !== 'normal' && fieldType !== 'start' && fieldType !== 'goal') {
+            specialCount += count;
         }
-    }
+    });
     
     document.getElementById('special-fields-count').textContent = specialCount;
     document.getElementById('normal-fields-count').textContent = normalCount;
@@ -653,18 +626,16 @@ function updateDistributionChart() {
     const chartContainer = document.getElementById('distributionChart');
     chartContainer.innerHTML = '';
     
-    // Zähle Felder für jeden Typ
-    const fieldCounts = {};
-    for (let i = 0; i < maxFields; i++) {
-        const fieldType = getFieldTypeAtPosition(i);
-        fieldCounts[fieldType] = (fieldCounts[fieldType] || 0) + 1;
-    }
+    // Nutze Backend-berechnete Zählungen
+    const fieldCounts = previewData.counts || {};
     
     // Erstelle Balkendiagramm
     Object.entries(fieldCounts)
         .sort(([,a], [,b]) => b - a)
         .forEach(([fieldType, count]) => {
-            const config = fieldConfigs[fieldType] || { color: '#CCCCCC', display_name: fieldType };
+            // Finde entsprechende Feld-Daten im Backend
+            const fieldData = previewData.fields ? previewData.fields.find(f => f.field_type === fieldType) : null;
+            const config = fieldData || { color: '#CCCCCC', display_name: fieldType };
             const percentage = (count / maxFields) * 100;
             
             const barContainer = document.createElement('div');
@@ -722,18 +693,30 @@ function refreshPreview() {
     btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Lädt...';
     btn.disabled = true;
     
-    // Lade neue Daten
-    loadFieldConfigs();
-    
-    setTimeout(() => {
-        generateFieldBoard();
-        updateLegend();
-        updateStatistics();
-        updateDistributionChart();
-        
-        btn.innerHTML = originalHtml;
-        btn.disabled = false;
-    }, 1000);
+    // Lade aktuelle Feld-Daten vom Backend
+    fetch(`/admin/api/field_data?max_fields=${maxFields}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Aktualisiere previewData mit aktuellen Backend-Daten
+                previewData = data.preview_data;
+                
+                // Regeneriere alles mit neuen Daten
+                generateFieldBoard();
+                updateLegend();
+                updateStatistics();
+                updateDistributionChart();
+            } else {
+                console.error('Fehler beim Laden der aktuellen Feld-Daten:', data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Netzwerkfehler beim Laden der Feld-Daten:', error);
+        })
+        .finally(() => {
+            btn.innerHTML = originalHtml;
+            btn.disabled = false;
+        });
 }
 
 function applyPreviewSettings() {
