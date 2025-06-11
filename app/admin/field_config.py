@@ -121,11 +121,12 @@ def update_field_config(config_id, form_data):
     elif config.field_type == 'player_swap':
         extended_config['min_distance'] = int(form_data.get('min_distance', 3))
     elif config.field_type == 'barrier':
-        target_numbers_str = form_data.get('target_numbers', '4,5,6')
-        try:
-            extended_config['target_numbers'] = [int(x.strip()) for x in target_numbers_str.split(',')]
-        except ValueError:
-            extended_config['target_numbers'] = [4, 5, 6]
+        target_numbers_str = form_data.get('target_numbers', '4,5,6').strip()
+        # Store as string to preserve special syntax (-4, 5+, etc.)
+        extended_config['target_numbers'] = target_numbers_str
+        
+        # Debug logging
+        current_app.logger.info(f"[BARRIER CONFIG] Received target_numbers: '{target_numbers_str}'")
     elif config.field_type == 'bonus':
         extended_config['bonus_type'] = form_data.get('bonus_type', 'extra_dice')
     elif config.field_type == 'trap':
@@ -150,6 +151,9 @@ def update_field_config(config_id, form_data):
             extended_config['positions'] = []
     
     config.config_dict = extended_config
+    
+    # Debug logging
+    current_app.logger.info(f"[FIELD CONFIG] Updated config_dict for {config.field_type}: {extended_config}")
     
     return config
 
@@ -218,7 +222,8 @@ def get_field_type_templates():
             'frequency_type': 'modulo',
             'frequency_value': 19,
             'config_fields': [
-                {'name': 'target_numbers', 'type': 'text', 'default': '4,5,6', 'label': 'Ziel-Zahlen (komma-getrennt)'}
+                {'name': 'target_numbers', 'type': 'text', 'default': '4,5,6', 'label': 'Befreiungsbedingung', 
+                 'placeholder': 'z.B. -3, 5+, 6, oder 2,4,6'}
             ]
         },
         'bonus': {

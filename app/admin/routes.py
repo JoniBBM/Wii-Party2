@@ -982,6 +982,11 @@ def edit_field(field_type):
         form = FieldConfigurationForm(field_type=field_type, obj=config)
         
         if form.validate_on_submit():
+            # Debug logging
+            current_app.logger.info(f"[EDIT_FIELD] Form validated for {field_type}")
+            current_app.logger.info(f"[EDIT_FIELD] Form data: {form.data}")
+            current_app.logger.info(f"[EDIT_FIELD] Request form data: {request.form}")
+            
             # Aktualisiere Konfiguration
             updated_config = update_field_config(config.id, form.data)
             
@@ -992,6 +997,11 @@ def edit_field(field_type):
             db.session.commit()
             flash(f"Feld-Konfiguration für '{updated_config.display_name}' erfolgreich aktualisiert.", 'success')
             return redirect(url_for('admin.manage_fields'))
+        
+        # Log form errors if validation failed
+        if form.errors:
+            current_app.logger.warning(f"[EDIT_FIELD] Form validation failed for {field_type}")
+            current_app.logger.warning(f"[EDIT_FIELD] Form errors: {form.errors}")
         
         # Lade Template-Informationen für Frontend
         templates = get_field_type_templates()

@@ -4,6 +4,7 @@ Enthält alle Funktionen für die verschiedenen Sonderfelder basierend auf Field
 Mit intelligentem Konflikt-Auflösungs-Algorithmus
 """
 import random
+import json
 from flask import current_app
 from app.models import db, GameEvent, FieldConfiguration
 
@@ -38,7 +39,7 @@ def handle_catapult_forward(team, current_position, game_session):
         event_type="special_field_catapult_forward",
         description=f"Team {team.name} wurde {catapult_distance} Felder nach vorne katapultiert (von Feld {old_position} zu Feld {new_position})!",
         related_team_id=team.id,
-        data_json=str({
+        data_json=json.dumps({
             "field_type": "catapult_forward",
             "catapult_distance": catapult_distance,
             "old_position": old_position,
@@ -82,7 +83,7 @@ def handle_catapult_backward(team, current_position, game_session):
         event_type="special_field_catapult_backward",
         description=f"Team {team.name} wurde {catapult_distance} Felder nach hinten katapultiert (von Feld {old_position} zu Feld {new_position})!",
         related_team_id=team.id,
-        data_json=str({
+        data_json=json.dumps({
             "field_type": "catapult_backward",
             "catapult_distance": catapult_distance,
             "old_position": old_position,
@@ -147,7 +148,7 @@ def handle_player_swap(current_team, all_teams, game_session):
         event_type="special_field_player_swap",
         description=f"Team {current_team.name} (Feld {old_current_position}) tauschte Positionen mit Team {swap_team.name} (Feld {old_swap_position})!",
         related_team_id=current_team.id,
-        data_json=str({
+        data_json=json.dumps({
             "field_type": "player_swap",
             "current_team_id": current_team.id,
             "current_team_old_position": old_current_position,
@@ -175,40 +176,62 @@ def handle_player_swap(current_team, all_teams, game_session):
 def handle_barrier_field(team, game_session):
     """
     Setzt ein Team auf ein Sperren-Feld (konfigurierbar)
-    Das Team muss eine bestimmte Zahl würfeln um freizukommen
+    Das Team muss bestimmte Zahlen würfeln um freizukommen
     """
-    config = FieldConfiguration.get_config_for_field('barrier')
-    if not config or not config.is_enabled:
-        return {"success": False, "action": "none"}
+    try:
+        config = FieldConfiguration.get_config_for_field('barrier')
+        if not config or not config.is_enabled:
+            return {"success": False, "action": "none"}
+        
+        config_data = config.config_dict
+        target_numbers = config_data.get('target_numbers', [4, 5, 6])
+        
+        # Parse target numbers and determine mode
+        parsed_config = _parse_barrier_config(target_numbers)
+        
+        # Team blockieren
+        team.is_blocked = True
+        team.blocked_target_number = parsed_config['min_number']  # For backward compatibility
+        try:
+            team.blocked_config = json.dumps(parsed_config)  # Store full config
+        except AttributeError:
+            # Fallback if blocked_config column doesn't exist
+            pass
+        
+        # Event erstellen
+        event = GameEvent(
+            game_session_id=game_session.id,
+            event_type="field_action",
+            description=f"Team {team.name} wurde auf Sperren-Feld blockiert",
+            related_team_id=team.id,
+            data_json=json.dumps({
+                'action': 'barrier',
+                'barrier_set': True,
+                'target_config': parsed_config,
+                'display_text': parsed_config['display_text']
+            })
+        )
+        db.session.add(event)
+        
+        return {
+            "success": True,
+            "action": "barrier_set",
+            "target_config": parsed_config,
+            "message": f"🚧 Blockiert! {team.name} - {parsed_config['display_text']}"
+        }
     
-    config_data = config.config_dict
-    target_numbers = config_data.get('target_numbers', [4, 5, 6])
-    target_number = random.choice(target_numbers)
-    
-    # Team blockieren
-    team.is_blocked = True
-    team.blocked_target_number = target_number
-    
-    # Event erstellen
-    event = GameEvent(
-        game_session_id=game_session.id,
-        event_type="special_field_barrier_set",
-        description=f"Team {team.name} ist auf ein Sperren-Feld geraten! Sie müssen eine {target_number} oder höher würfeln um freizukommen.",
-        related_team_id=team.id,
-        data_json=str({
-            "field_type": "barrier",
-            "target_number": target_number,
-            "position": team.current_position
-        })
-    )
-    db.session.add(event)
-    
-    return {
-        "success": True,
-        "action": "barrier_set",
-        "target_number": target_number,
-        "message": f"🚧 Blockiert! {team.name} muss eine {target_number} oder höher würfeln!"
-    }
+    except Exception as e:
+        # Fallback if anything goes wrong
+        try:
+            team.is_blocked = True
+            team.blocked_target_number = 6  # Safe fallback
+        except:
+            pass
+        return {
+            "success": False,
+            "action": "barrier_error",
+            "message": f"Fehler beim Setzen der Sperre: {str(e)}"
+        }
 
 
 def check_barrier_release(team, dice_roll, game_session):
@@ -216,56 +239,70 @@ def check_barrier_release(team, dice_roll, game_session):
     Prüft ob ein blockiertes Team durch den Würfelwurf freikommt
     """
     if not team.is_blocked:
-        return {"released": False}
+        return {"released": False, "message": "Team ist nicht blockiert"}
     
-    if dice_roll >= team.blocked_target_number:
+    # Get barrier configuration
+    try:
+        blocked_config_data = getattr(team, 'blocked_config', None)
+        if blocked_config_data:
+            barrier_config = json.loads(blocked_config_data)
+        else:
+            # Fallback for old data
+            barrier_config = {
+                'mode': 'minimum',
+                'numbers': list(range(team.blocked_target_number, 7)),
+                'min_number': team.blocked_target_number,
+                'display_text': f"Würfle mindestens eine {team.blocked_target_number}!"
+            }
+    except (json.JSONDecodeError, AttributeError):
+        # Fallback
+        target_number = team.blocked_target_number or 6
+        barrier_config = {
+            'mode': 'minimum',
+            'numbers': list(range(target_number, 7)),
+            'min_number': target_number,
+            'display_text': f"Würfle mindestens eine {target_number}!"
+        }
+    
+    # Check if dice roll releases the team
+    released = _check_barrier_dice_roll(dice_roll, barrier_config)
+    
+    # Event loggen
+    event = GameEvent(
+        game_session_id=game_session.id,
+        event_type='field_action',
+        description=f"Team {team.name} versuchte Befreiung mit Würfel {dice_roll}",
+        related_team_id=team.id,
+        data_json=json.dumps({
+            'action': 'check_barrier_release',
+            'dice_roll': dice_roll,
+            'barrier_config': barrier_config,
+            'released': released
+        })
+    )
+    db.session.add(event)
+    
+    if released:
         # Team freigeben
         team.is_blocked = False
-        old_target = team.blocked_target_number
         team.blocked_target_number = None
-        
-        # Event erstellen
-        event = GameEvent(
-            game_session_id=game_session.id,
-            event_type="special_field_barrier_released",
-            description=f"Team {team.name} hat eine {dice_roll} gewürfelt und ist von der Sperre befreit! (Benötigt: {old_target}+)",
-            related_team_id=team.id,
-            data_json=str({
-                "field_type": "barrier_release",
-                "dice_roll": dice_roll,
-                "target_number": old_target,
-                "position": team.current_position
-            })
-        )
-        db.session.add(event)
-        
+        try:
+            team.blocked_config = None
+        except AttributeError:
+            # Fallback if blocked_config column doesn't exist
+            pass
         return {
             "released": True,
             "dice_roll": dice_roll,
-            "target_number": old_target,
-            "message": f"🎉 Befreit! {team.name} hat eine {dice_roll} gewürfelt und ist frei!"
+            "barrier_config": barrier_config,
+            "message": f"🎉 Befreit! {team.name} hat eine {dice_roll} gewürfelt!"
         }
     else:
-        # Immer noch blockiert
-        event = GameEvent(
-            game_session_id=game_session.id,
-            event_type="special_field_barrier_failed",
-            description=f"Team {team.name} hat eine {dice_roll} gewürfelt, aber benötigt mindestens {team.blocked_target_number}. Immer noch blockiert!",
-            related_team_id=team.id,
-            data_json=str({
-                "field_type": "barrier_failed",
-                "dice_roll": dice_roll,
-                "target_number": team.blocked_target_number,
-                "position": team.current_position
-            })
-        )
-        db.session.add(event)
-        
         return {
             "released": False,
             "dice_roll": dice_roll,
-            "target_number": team.blocked_target_number,
-            "message": f"🚧 Immer noch blockiert! {team.name} braucht mindestens {team.blocked_target_number}!"
+            "barrier_config": barrier_config,
+            "message": f"🚧 Noch blockiert! {team.name} hat eine {dice_roll} gewürfelt. {barrier_config['display_text']}"
         }
 
 
@@ -418,6 +455,98 @@ def find_alternative_position(final_assignment, preferred_positions, max_fields)
     return None
 
 
+def _parse_barrier_config(target_numbers):
+    """
+    Parst die target_numbers Konfiguration und bestimmt den Modus
+    
+    Args:
+        target_numbers: Liste oder String mit Ziel-Zahlen
+        
+    Returns:
+        dict: Parsed configuration with mode, numbers, display_text
+    """
+    if isinstance(target_numbers, str):
+        target_str = target_numbers.strip()
+    elif isinstance(target_numbers, list):
+        # Convert list to string for parsing
+        target_str = ','.join(str(x) for x in target_numbers)
+    else:
+        target_str = "4,5,6"  # Default
+    
+    # Check for maximum mode (starts with -)
+    if target_str.startswith('-'):
+        try:
+            max_number = int(target_str[1:])
+            max_number = min(max(max_number, 1), 6)  # Clamp between 1 and 6
+            return {
+                'mode': 'maximum',
+                'numbers': list(range(1, max_number + 1)),  # 1 to max_number
+                'max_number': max_number,
+                'min_number': 1,
+                'display_text': f"Würfle höchstens eine {max_number}!"
+            }
+        except ValueError:
+            pass  # Fall through to other modes
+    
+    # Check for minimum mode (ends with +)
+    if target_str.endswith('+'):
+        try:
+            min_number = int(target_str[:-1])
+            min_number = min(max(min_number, 1), 6)  # Clamp between 1 and 6
+            return {
+                'mode': 'minimum',
+                'numbers': list(range(min_number, 7)),  # min_number to 6
+                'min_number': min_number,
+                'display_text': f"Würfle mindestens eine {min_number}!"
+            }
+        except ValueError:
+            pass  # Fall through to exact mode
+    
+    # Exact numbers mode
+    try:
+        numbers = [int(x.strip()) for x in target_str.split(',') if x.strip()]
+        numbers = [n for n in numbers if 1 <= n <= 6]  # Filter valid dice numbers
+        if not numbers:
+            numbers = [4, 5, 6]  # Default
+            
+        # Sort numbers for consistent display
+        numbers = sorted(numbers)
+        
+        if len(numbers) == 1:
+            display_text = f"Würfle eine {numbers[0]}!"
+        elif len(numbers) == 2:
+            display_text = f"Würfle eine {numbers[0]} oder {numbers[1]}!"
+        else:
+            display_text = f"Würfle eine {', '.join(str(n) for n in numbers[:-1])} oder {numbers[-1]}!"
+            
+        return {
+            'mode': 'exact',
+            'numbers': numbers,
+            'min_number': min(numbers),
+            'display_text': display_text
+        }
+    except ValueError:
+        # Fallback
+        return {
+            'mode': 'exact',
+            'numbers': [4, 5, 6],
+            'min_number': 4,
+            'display_text': "Würfle eine 4, 5 oder 6!"
+        }
+
+def _check_barrier_dice_roll(dice_roll, barrier_config):
+    """
+    Prüft ob ein Würfelwurf die Barrier-Bedingung erfüllt
+    
+    Args:
+        dice_roll: Die gewürfelte Zahl
+        barrier_config: Die Barrier-Konfiguration
+        
+    Returns:
+        bool: True wenn befreit, False wenn noch blockiert
+    """
+    return dice_roll in barrier_config['numbers']
+
 def clear_field_distribution_cache():
     """
     Löscht den Cache für die Feld-Verteilung (z.B. nach Konfigurations-Änderungen)
@@ -519,7 +648,7 @@ def handle_bonus_field(team, game_session):
         event_type="special_field_bonus",
         description=message,
         related_team_id=team.id,
-        data_json=str({
+        data_json=json.dumps({
             "field_type": "bonus",
             "bonus_type": bonus_type,
             "position": team.current_position
@@ -572,7 +701,7 @@ def handle_trap_field(team, game_session):
         event_type="special_field_trap",
         description=message,
         related_team_id=team.id,
-        data_json=str({
+        data_json=json.dumps({
             "field_type": "trap",
             "trap_effect": trap_effect,
             "position": team.current_position
@@ -626,7 +755,7 @@ def handle_chance_field(team, game_session):
         event_type="special_field_chance",
         description=message,
         related_team_id=team.id,
-        data_json=str({
+        data_json=json.dumps({
             "field_type": "chance",
             "event_type": event_type,
             "position": team.current_position

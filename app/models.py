@@ -50,7 +50,8 @@ class Team(UserMixin, db.Model):
     
     # SONDERFELD-FELDER (vereinfacht)
     is_blocked = db.Column(db.Boolean, default=False, nullable=False)  # Spieler blockiert
-    blocked_target_number = db.Column(db.Integer, nullable=True)  # Zahl die gewürfelt werden muss
+    blocked_target_number = db.Column(db.Integer, nullable=True)  # Zahl die gewürfelt werden muss (backward compatibility)
+    blocked_config = db.Column(db.Text, nullable=True)  # JSON config for barrier conditions
     blocked_turns_remaining = db.Column(db.Integer, default=0)  # Runden blockiert
     extra_moves_remaining = db.Column(db.Integer, default=0)  # Extra-Bewegungen
     has_shield = db.Column(db.Boolean, default=False, nullable=False)  # Schutz vor Fallen

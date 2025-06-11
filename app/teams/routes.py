@@ -375,7 +375,8 @@ def dashboard_status_api():
                     'minigame_placement': current_user.minigame_placement,
                     'is_current_turn': data['current_team_turn_name'] == current_user.name,
                     'is_blocked': current_user.is_blocked,
-                    'blocked_target_number': current_user.blocked_target_number
+                    'blocked_target_number': current_user.blocked_target_number,
+                    'blocked_config': current_user.blocked_config if hasattr(current_user, 'blocked_config') else None
                 },
                 'stats': {
                     'max_board_fields': data['max_board_fields'],
@@ -586,20 +587,20 @@ def _get_recent_special_field_event(team, session):
             if event_data.get('action') == 'barrier' and event_data.get('barrier_set'):
                 return {
                     'type': 'barrier_set',
-                    'target_number': event_data.get('target_number')
+                    'target_config': event_data.get('target_config')
                 }
             elif event_data.get('action') == 'check_barrier_release':
                 if event_data.get('released'):
                     return {
                         'type': 'barrier_released',
                         'dice_roll': event_data.get('dice_roll'),
-                        'target_number': event_data.get('target_number')
+                        'barrier_config': event_data.get('barrier_config')
                     }
                 else:
                     return {
                         'type': 'barrier_failed',
                         'dice_roll': event_data.get('dice_roll'),
-                        'target_number': event_data.get('target_number')
+                        'barrier_config': event_data.get('barrier_config')
                     }
         
         return None

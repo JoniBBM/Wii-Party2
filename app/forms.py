@@ -370,15 +370,36 @@ class FieldConfigurationForm(FlaskForm):
 
     def validate_target_numbers(self, target_numbers):
         if self.field_type == 'barrier' and target_numbers.data:
-            try:
-                numbers = [int(x.strip()) for x in target_numbers.data.split(',') if x.strip()]
-                if not numbers:
-                    raise ValidationError('Mindestens eine Ziel-Zahl muss angegeben werden.')
-                for num in numbers:
+            data = target_numbers.data.strip()
+            
+            # Check for special syntaxes
+            if data.startswith('-'):
+                # Maximum mode: -4 means "4 or less"
+                try:
+                    num = int(data[1:])
                     if num < 1 or num > 6:
-                        raise ValidationError('Ziel-Zahlen müssen zwischen 1 und 6 liegen.')
-            except ValueError:
-                raise ValidationError('Ziel-Zahlen müssen Zahlen sein, getrennt durch Kommas.')
+                        raise ValidationError('Bei negativen Zahlen muss der Wert zwischen 1 und 6 liegen.')
+                except ValueError:
+                    raise ValidationError('Nach dem Minus muss eine Zahl zwischen 1 und 6 stehen.')
+            elif data.endswith('+'):
+                # Minimum mode: 5+ means "5 or more"
+                try:
+                    num = int(data[:-1])
+                    if num < 1 or num > 6:
+                        raise ValidationError('Bei Plus-Notation muss der Wert zwischen 1 und 6 liegen.')
+                except ValueError:
+                    raise ValidationError('Vor dem Plus muss eine Zahl zwischen 1 und 6 stehen.')
+            else:
+                # Exact numbers mode
+                try:
+                    numbers = [int(x.strip()) for x in data.split(',') if x.strip()]
+                    if not numbers:
+                        raise ValidationError('Mindestens eine Ziel-Zahl muss angegeben werden.')
+                    for num in numbers:
+                        if num < 1 or num > 6:
+                            raise ValidationError('Ziel-Zahlen müssen zwischen 1 und 6 liegen.')
+                except ValueError:
+                    raise ValidationError('Ziel-Zahlen müssen Zahlen sein (z.B. "4,5,6"), oder spezielle Syntax verwenden (z.B. "-3" oder "5+").')
 
 class FieldPreviewForm(FlaskForm):
     """Form für Spielfeld-Vorschau-Einstellungen"""

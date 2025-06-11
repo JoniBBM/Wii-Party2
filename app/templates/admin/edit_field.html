@@ -178,31 +178,55 @@
                                     {% if field_config.type == 'number' %}
                                         <label for="{{ field_config.name }}" class="form-control-label">{{ field_config.label }}</label>
                                         <input type="number" class="form-control" id="{{ field_config.name }}" 
-                                               name="{{ field_config.name }}" value="{{ field_config.default }}"
+                                               name="{{ field_config.name }}" value="{{ config.config_dict.get(field_config.name, field_config.default) }}"
                                                min="1" max="20">
                                     {% elif field_config.type == 'text' %}
                                         <label for="{{ field_config.name }}" class="form-control-label">{{ field_config.label }}</label>
+                                        {% set current_value = config.config_dict.get(field_config.name, field_config.default) %}
+                                        {% if field_config.name == 'target_numbers' %}
+                                            {% if current_value is string %}
+                                                {% set display_value = current_value %}
+                                            {% elif current_value is iterable and current_value is not string %}
+                                                {% set display_value = current_value|join(',') %}
+                                            {% else %}
+                                                {% set display_value = field_config.default %}
+                                            {% endif %}
+                                        {% else %}
+                                            {% set display_value = current_value if current_value else field_config.default %}
+                                        {% endif %}
                                         <input type="text" class="form-control" id="{{ field_config.name }}" 
-                                               name="{{ field_config.name }}" value="{{ field_config.default }}"
+                                               name="{{ field_config.name }}" value="{{ display_value|e }}"
                                                placeholder="{{ field_config.get('placeholder', '') }}">
+                                        {% if field_config.name == 'target_numbers' %}
+                                        <small class="form-text text-muted">
+                                            <strong>Beispiele:</strong><br>
+                                            • <code>-3</code> = Würfle 1, 2 oder 3 (höchstens 3)<br>
+                                            • <code>5+</code> = Würfle 5 oder 6 (mindestens 5)<br>
+                                            • <code>6</code> = Nur 6 befreit<br>
+                                            • <code>2,4,6</code> = Nur gerade Zahlen<br>
+                                            • <code>4,5,6</code> = Standard (mittel)
+                                        </small>
+                                        {% endif %}
                                     {% elif field_config.type == 'select' %}
                                         <label for="{{ field_config.name }}" class="form-control-label">{{ field_config.label }}</label>
                                         <select class="form-control" id="{{ field_config.name }}" name="{{ field_config.name }}">
+                                            {% set current_select_value = config.config_dict.get(field_config.name, field_config.default) %}
                                             {% for option_value, option_label in field_config.options %}
                                                 <option value="{{ option_value }}" 
-                                                        {% if option_value == field_config.default %}selected{% endif %}>
+                                                        {% if option_value == current_select_value %}selected{% endif %}>
                                                     {{ option_label }}
                                                 </option>
                                             {% endfor %}
                                         </select>
                                     {% elif field_config.type == 'multiselect' %}
                                         <label class="form-control-label">{{ field_config.label }}</label>
+                                        {% set current_multi_values = config.config_dict.get(field_config.name, field_config.default) %}
                                         {% for option_value, option_label in field_config.options %}
                                             <div class="form-check">
                                                 <input class="form-check-input" type="checkbox" 
                                                        name="{{ field_config.name }}" value="{{ option_value }}"
                                                        id="{{ field_config.name }}_{{ option_value }}"
-                                                       {% if option_value in field_config.default %}checked{% endif %}>
+                                                       {% if option_value in current_multi_values %}checked{% endif %}>
                                                 <label class="form-check-label" for="{{ field_config.name }}_{{ option_value }}">
                                                     {{ option_label }}
                                                 </label>
@@ -299,9 +323,11 @@
                     {% elif field_type == 'barrier' %}
                     <h6 class="mt-3">Sperren-Feld:</h6>
                     <ul class="small">
-                        <li>Ziel-Zahlen: Welche Würfelzahlen befreien</li>
-                        <li>Höhere Zahlen = schwerer zu befreien</li>
-                        <li>Standard: 4,5,6 (50% Chance)</li>
+                        <li><strong>Negative Zahlen:</strong> <code>-3</code> = höchstens 3</li>
+                        <li><strong>Plus-Notation:</strong> <code>5+</code> = mindestens 5</li>
+                        <li><strong>Einzelne Zahl:</strong> <code>6</code> = nur die 6</li>
+                        <li><strong>Liste:</strong> <code>2,4,6</code> = mehrere Zahlen</li>
+                        <li>Je weniger Zahlen, desto schwerer!</li>
                     </ul>
                     {% elif field_type == 'player_swap' %}
                     <h6 class="mt-3">Spieler-Tausch:</h6>

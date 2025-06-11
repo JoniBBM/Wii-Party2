@@ -1383,11 +1383,11 @@ function updateDashboard(data) {
     // Check for barrier field events
     if (gameData.special_field_event) {
         if (gameData.special_field_event.type === 'barrier_set') {
-            showBarrierFieldBanner(gameData.special_field_event.target_number);
+            showBarrierFieldBanner(gameData.special_field_event.target_config);
         } else if (gameData.special_field_event.type === 'barrier_released') {
-            showBarrierReleaseBanner(gameData.special_field_event.dice_roll, gameData.special_field_event.target_number);
+            showBarrierReleaseBanner(gameData.special_field_event.dice_roll, gameData.special_field_event.barrier_config);
         } else if (gameData.special_field_event.type === 'barrier_failed') {
-            showBarrierFailedBanner(gameData.special_field_event.dice_roll, gameData.special_field_event.target_number);
+            showBarrierFailedBanner(gameData.special_field_event.dice_roll, gameData.special_field_event.barrier_config);
         }
     }
     
@@ -1907,14 +1907,23 @@ function showMinigameAnnouncement(name, description) {
     }
 }
 
-function showBarrierFieldBanner(targetNumber) {
+function showBarrierFieldBanner(targetConfig) {
     const banner = document.getElementById('barrier-field-banner');
     const messageEl = document.getElementById('barrier-banner-message');
     const requirementEl = document.getElementById('barrier-banner-requirement');
     
     if (banner && messageEl && requirementEl) {
         messageEl.textContent = 'Du bist auf ein Sperren-Feld geraten!';
-        requirementEl.textContent = `Würfle mindestens eine ${targetNumber} um dich zu befreien!`;
+        
+        // Use display_text from target_config or fallback
+        if (targetConfig && targetConfig.display_text) {
+            requirementEl.textContent = targetConfig.display_text;
+        } else if (typeof targetConfig === 'number') {
+            // Backward compatibility
+            requirementEl.textContent = `Würfle mindestens eine ${targetConfig} um dich zu befreien!`;
+        } else {
+            requirementEl.textContent = 'Würfle die richtige Zahl um dich zu befreien!';
+        }
         
         banner.classList.add('show');
         
@@ -1927,12 +1936,18 @@ function showBarrierFieldBanner(targetNumber) {
     }
 }
 
-function showBarrierReleaseBanner(diceRoll, targetNumber) {
+function showBarrierReleaseBanner(diceRoll, barrierConfig) {
     const banner = document.getElementById('barrier-release-banner');
     const messageEl = document.getElementById('release-banner-message');
     
     if (banner && messageEl) {
-        messageEl.textContent = `Du hast eine ${diceRoll} gewürfelt (benötigt: ${targetNumber}+)`;
+        if (barrierConfig && barrierConfig.display_text) {
+            messageEl.textContent = `Du hast eine ${diceRoll} gewürfelt und bist befreit!`;
+        } else {
+            // Backward compatibility
+            const targetNumber = barrierConfig && barrierConfig.min_number ? barrierConfig.min_number : diceRoll;
+            messageEl.textContent = `Du hast eine ${diceRoll} gewürfelt (benötigt: ${targetNumber}+)`;
+        }
         
         banner.classList.add('show');
         
@@ -1945,12 +1960,18 @@ function showBarrierReleaseBanner(diceRoll, targetNumber) {
     }
 }
 
-function showBarrierFailedBanner(diceRoll, targetNumber) {
+function showBarrierFailedBanner(diceRoll, barrierConfig) {
     const banner = document.getElementById('barrier-failed-banner');
     const messageEl = document.getElementById('failed-banner-message');
     
     if (banner && messageEl) {
-        messageEl.textContent = `Du hast nur eine ${diceRoll} gewürfelt (benötigt: ${targetNumber}+)`;
+        if (barrierConfig && barrierConfig.display_text) {
+            messageEl.textContent = `Du hast eine ${diceRoll} gewürfelt. ${barrierConfig.display_text}`;
+        } else {
+            // Backward compatibility
+            const targetNumber = barrierConfig && barrierConfig.min_number ? barrierConfig.min_number : 6;
+            messageEl.textContent = `Du hast nur eine ${diceRoll} gewürfelt (benötigt: ${targetNumber}+)`;
+        }
         
         banner.classList.add('show');
         
@@ -2048,7 +2069,13 @@ function showDiceResultAnimation(standardRoll, bonusRoll, totalRoll, oldPos, new
         // Update movement text based on barrier status
         const movementText = document.getElementById('movement-text');
         if (isBlocked && oldPos === newPos) {
-            movementText.innerHTML = `<span class="text-warning">Du bist weiterhin blockiert! (Benötigt: ${targetNumber}+)</span>`;
+            let blockedText = 'Du bist weiterhin blockiert!';
+            if (typeof targetNumber === 'object' && targetNumber.display_text) {
+                blockedText += ` ${targetNumber.display_text}`;
+            } else if (targetNumber) {
+                blockedText += ` (Benötigt: ${targetNumber}+)`;
+            }
+            movementText.innerHTML = `<span class="text-warning">${blockedText}</span>`;
         } else if (!isBlocked && oldPos === newPos) {
             movementText.innerHTML = `<span class="text-success">Du hast die Sperre durchbrochen!</span>`;
         } else {
@@ -2118,7 +2145,18 @@ function updateGameStatus(gameData) {
         
         // Add blocked status indicator
         if (gameData.current_user && gameData.current_user.is_blocked) {
-            statusText.innerHTML += `<br><span class="badge badge-danger">🔒 Blockiert - Benötigt ${gameData.current_user.blocked_target_number}+ zum Befreien</span>`;
+            let blockedText = '🔒 Blockiert';
+            if (gameData.current_user.blocked_config) {
+                try {
+                    const config = JSON.parse(gameData.current_user.blocked_config);
+                    blockedText += ` - ${config.display_text}`;
+                } catch (e) {
+                    blockedText += ` - Benötigt ${gameData.current_user.blocked_target_number}+ zum Befreien`;
+                }
+            } else if (gameData.current_user.blocked_target_number) {
+                blockedText += ` - Benötigt ${gameData.current_user.blocked_target_number}+ zum Befreien`;
+            }
+            statusText.innerHTML += `<br><span class="badge badge-danger">${blockedText}</span>`;
         }
         
         if (gameData.current_minigame_name && minigameInfo) {
