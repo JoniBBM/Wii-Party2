@@ -298,6 +298,58 @@ body {
         </div>
     </div>
 </div>
+
+<!-- Banner für Status-Nachrichten -->
+<div id="status-info-banner" class="game-status-banner status-banner-info">
+    <div class="status-banner-content">
+        <div class="status-banner-icon">
+            <i class="fas fa-info-circle"></i>
+        </div>
+        <div class="status-banner-title" id="status-info-title">Information</div>
+        <div class="status-banner-message" id="status-info-message"></div>
+    </div>
+</div>
+
+<div id="status-success-banner" class="game-status-banner status-banner-success">
+    <div class="status-banner-content">
+        <div class="status-banner-icon">
+            <i class="fas fa-check-circle"></i>
+        </div>
+        <div class="status-banner-title" id="status-success-title">Erfolg</div>
+        <div class="status-banner-message" id="status-success-message"></div>
+    </div>
+</div>
+
+<div id="status-error-banner" class="game-status-banner status-banner-error">
+    <div class="status-banner-content">
+        <div class="status-banner-icon">
+            <i class="fas fa-exclamation-triangle"></i>
+        </div>
+        <div class="status-banner-title" id="status-error-title">Fehler</div>
+        <div class="status-banner-message" id="status-error-message"></div>
+    </div>
+</div>
+
+<div id="status-special-banner" class="game-status-banner status-banner-special">
+    <div class="status-banner-content">
+        <div class="status-banner-icon">
+            <i class="fas fa-star"></i>
+        </div>
+        <div class="status-banner-title" id="status-special-title">Besonderes Ereignis</div>
+        <div class="status-banner-message" id="status-special-message"></div>
+    </div>
+</div>
+
+<div id="status-warning-banner" class="game-status-banner status-banner-warning">
+    <div class="status-banner-content">
+        <div class="status-banner-icon">
+            <i class="fas fa-exclamation-circle"></i>
+        </div>
+        <div class="status-banner-title" id="status-warning-title">Warnung</div>
+        <div class="status-banner-message" id="status-warning-message"></div>
+    </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -1376,7 +1428,12 @@ class WiiPartyIsland {
         });
     }
 
-    showStatusMessage(message, duration = 3000, type = 'info') {
+    showStatusMessage(message, duration = 3000, type = 'info', useBanner = false, title = null) {
+        if (useBanner) {
+            this.showBannerMessage(message, type, duration, title);
+            return;
+        }
+        
         const existingMessage = document.querySelector('.status-message');
         if (existingMessage) existingMessage.remove();
         
@@ -1388,6 +1445,69 @@ class WiiPartyIsland {
         setTimeout(() => {
             if (statusDiv.parentNode) statusDiv.remove();
         }, duration);
+    }
+
+    showBannerMessage(message, type = 'info', duration = 2500, title = null) {
+        const bannerTypes = {
+            'info': 'status-info-banner',
+            'success': 'status-success-banner', 
+            'error': 'status-error-banner',
+            'special': 'status-special-banner',
+            'warning': 'status-warning-banner'
+        };
+        
+        const bannerId = bannerTypes[type] || bannerTypes['info'];
+        const banner = document.getElementById(bannerId);
+        
+        if (!banner) {
+            console.warn(`Banner ${bannerId} not found, falling back to simple message`);
+            this.showStatusMessage(message, duration, type, false);
+            return;
+        }
+        
+        // Update banner content
+        const titleElement = banner.querySelector('.status-banner-title');
+        const messageElement = banner.querySelector('.status-banner-message');
+        
+        if (title && titleElement) {
+            titleElement.textContent = title;
+        }
+        if (messageElement) {
+            messageElement.textContent = message;
+        }
+        
+        // Hide any currently showing banner
+        this.hideBannerMessage();
+        
+        // Show banner with animation
+        banner.classList.add('show');
+        
+        // Auto-hide after duration (shorter than team dashboard)
+        setTimeout(() => {
+            this.hideBannerMessage(banner);
+        }, duration);
+    }
+
+    hideBannerMessage(specificBanner = null) {
+        if (specificBanner) {
+            if (specificBanner.classList.contains('show')) {
+                specificBanner.classList.add('hide');
+                setTimeout(() => {
+                    specificBanner.classList.remove('show', 'hide');
+                }, 400);
+            }
+        } else {
+            // Hide all banners
+            const allBanners = document.querySelectorAll('.game-status-banner');
+            allBanners.forEach(banner => {
+                if (banner.classList.contains('show')) {
+                    banner.classList.add('hide');
+                    setTimeout(() => {
+                        banner.classList.remove('show', 'hide');
+                    }, 400);
+                }
+            });
+        }
     }
 
     getCurrentTeam() {
@@ -1585,7 +1705,7 @@ class WiiPartyIsland {
             .then(data => {
                 if (data.error) {
                     console.error("Server-Fehler:", data.error);
-                    this.showStatusMessage(`Serverproblem: ${data.error}`, 5000, 'error');
+                    this.showStatusMessage(`Serverproblem: ${data.error}`, 4000, 'error', true, 'Server-Fehler');
                     return;
                 }
 
@@ -1665,7 +1785,7 @@ class WiiPartyIsland {
             })
             .catch(error => {
                 console.error("Fehler beim Board-Status:", error);
-                this.showStatusMessage(`Verbindungsproblem: ${error.message}`, 3000, "error");
+                this.showStatusMessage(`Verbindungsproblem: ${error.message}`, 3000, "error", true, 'Verbindungsfehler');
             });
     }
 
@@ -1854,16 +1974,16 @@ class WiiPartyIsland {
         // Status-Nachrichten für Spielphasen
         if (currentGamePhase === 'ROUND_OVER') {
             setTimeout(() => {
-                this.showStatusMessage("Alle Teams haben gewürfelt. Admin kann nächstes Minispiel setzen.", 4000, 'success');
+                this.showStatusMessage("Alle Teams haben gewürfelt. Admin kann nächstes Minispiel setzen.", 3000, 'success', true, 'Runde beendet');
             }, 3500);
         } else if (GAME_STATE.currentServerTeamTurnId) {
             const nextTeam = localTeams.find(t => t.id === GAME_STATE.currentServerTeamTurnId);
             if (nextTeam) {
                 setTimeout(() => {
                     if (nextTeam.is_blocked) {
-                        this.showStatusMessage(`${nextTeam.name} ist am Zug (BLOCKIERT - muss ${nextTeam.blocked_target_number}+ würfeln).`, 4000, 'info');
+                        this.showStatusMessage(`${nextTeam.name} ist am Zug (BLOCKIERT - muss ${nextTeam.blocked_target_number}+ würfeln).`, 3000, 'warning', true, 'Blockiertes Team am Zug');
                     } else {
-                        this.showStatusMessage(`${nextTeam.name} ist am Zug.`, 3000, 'info');
+                        this.showStatusMessage(`${nextTeam.name} ist am Zug.`, 2500, 'info', true, 'Team am Zug');
                     }
                 }, 3500);
             }
@@ -2960,7 +3080,7 @@ function handleSpecialFieldResponse(data) {
     
     if (specialField.message) {
         setTimeout(() => {
-            window.gameBoard.showStatusMessage(specialField.message, 4000, 'special');
+            window.gameBoard.showStatusMessage(specialField.message, 3000, 'special', true, 'Besonderes Feld');
         }, 2000);
     }
 }
@@ -2982,8 +3102,10 @@ function handleBarrierCheckResponse(data) {
         setTimeout(() => {
             window.gameBoard.showStatusMessage(
                 `${data.team_name} bleibt blockiert! (${barrierCheck.dice_roll} gewürfelt, ${barrierCheck.target_number}+ benötigt)`, 
-                4000, 
-                'error'
+                3000, 
+                'warning', 
+                true, 
+                'Blockiert'
             );
         }, 1500);
     }
