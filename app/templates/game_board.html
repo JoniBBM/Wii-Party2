@@ -26,10 +26,7 @@ body {
     color: #ffffff;
 }
 
-html body div.game-container[id], 
-html body .game-container[id],
-body div.game-container,
-div.game-container {
+.game-container {
     display: block !important;
     position: fixed !important;
     top: 50% !important;
@@ -2818,16 +2815,13 @@ class WiiPartyIsland {
             height = window.innerHeight;
             GAME_STATE.isFullscreen = true;
         } else {
-            if (window.innerWidth <= 768) {
-                width = Math.min(window.innerWidth * 0.95, 600);
-                height = Math.min(window.innerHeight * 0.7, 450);
-            } else {
-                width = 800;
-                height = 600;
-            }
+            // Respektiere die CSS-Zentrierung - verwende die festen Container-Dimensionen
+            width = 800;
+            height = 600;
             GAME_STATE.isFullscreen = false;
         }
         
+        // Setze nur die Renderer-Größe, nicht die Container-Größe (CSS bleibt intakt)
         this.renderer.setSize(width, height, false);
         
         if (this.camera) {

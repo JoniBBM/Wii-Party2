@@ -6,9 +6,19 @@ body {
 
 /* Spielbrett-Container */
 .game-container {
-    display: flex;
-    flex-direction: column;
-    gap: 20px;
+    position: fixed !important;
+    top: 50% !important;
+    left: 50% !important;
+    transform: translate(-50%, -50%) !important;
+    width: 800px !important;
+    height: 600px !important;
+    background: radial-gradient(ellipse at center, #B3E5FC 0%, #4FC3F7 50%, #0288D1 100%) !important;
+    border-radius: 25px !important;
+    overflow: hidden !important;
+    box-shadow: 0 15px 50px rgba(0, 0, 0, 0.25) !important;
+    z-index: 999999 !important;
+    display: block !important;
+    margin: 0 !important;
 }
 
 /* Info-Panel oben */
