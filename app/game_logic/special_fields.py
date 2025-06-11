@@ -234,9 +234,15 @@ def handle_barrier_field(team, game_session):
         }
 
 
-def check_barrier_release(team, dice_roll, game_session):
+def check_barrier_release(team, dice_roll, game_session, bonus_roll=0):
     """
     Prüft ob ein blockiertes Team durch den Würfelwurf freikommt
+    
+    Args:
+        team: Das blockierte Team
+        dice_roll: Der Standard-Würfelwurf (1-6)
+        game_session: Die aktuelle Spielsitzung
+        bonus_roll: Der Bonus-Würfelwurf (0 wenn kein Bonus)
     """
     if not team.is_blocked:
         return {"released": False, "message": "Team ist nicht blockiert"}
@@ -264,20 +270,51 @@ def check_barrier_release(team, dice_roll, game_session):
             'display_text': f"Würfle mindestens eine {target_number}!"
         }
     
+    # Calculate total roll
+    total_roll = dice_roll + bonus_roll
+    
     # Check if dice roll releases the team
-    released = _check_barrier_dice_roll(dice_roll, barrier_config)
+    # For barrier release, we check BOTH individual dice AND the total
+    # This gives the team the best chance to escape
+    released = False
+    release_method = None
+    
+    # Check standard die
+    if _check_barrier_dice_roll(dice_roll, barrier_config):
+        released = True
+        release_method = "standard"
+    # Check bonus die if available
+    elif bonus_roll > 0 and _check_barrier_dice_roll(bonus_roll, barrier_config):
+        released = True
+        release_method = "bonus"
+    # Check total roll
+    elif _check_barrier_dice_roll(total_roll, barrier_config):
+        released = True
+        release_method = "total"
+    
+    # Build dice description for event
+    dice_description = f"{dice_roll}"
+    if bonus_roll > 0:
+        dice_description += f" + {bonus_roll} (Bonus) = {total_roll}"
     
     # Event loggen
+    event_description = f"Team {team.name} versuchte Befreiung mit Würfel {dice_description}"
+    if released and release_method:
+        event_description += f" - Befreit durch {release_method}!"
+    
     event = GameEvent(
         game_session_id=game_session.id,
         event_type='field_action',
-        description=f"Team {team.name} versuchte Befreiung mit Würfel {dice_roll}",
+        description=event_description,
         related_team_id=team.id,
         data_json=json.dumps({
             'action': 'check_barrier_release',
             'dice_roll': dice_roll,
+            'bonus_roll': bonus_roll,
+            'total_roll': total_roll,
             'barrier_config': barrier_config,
-            'released': released
+            'released': released,
+            'release_method': release_method
         })
     )
     db.session.add(event)
@@ -294,15 +331,20 @@ def check_barrier_release(team, dice_roll, game_session):
         return {
             "released": True,
             "dice_roll": dice_roll,
+            "bonus_roll": bonus_roll,
+            "total_roll": total_roll,
             "barrier_config": barrier_config,
-            "message": f"🎉 Befreit! {team.name} hat eine {dice_roll} gewürfelt!"
+            "release_method": release_method,
+            "message": f"🎉 Befreit! {team.name} hat {dice_description} gewürfelt!"
         }
     else:
         return {
             "released": False,
             "dice_roll": dice_roll,
+            "bonus_roll": bonus_roll,
+            "total_roll": total_roll,
             "barrier_config": barrier_config,
-            "message": f"🚧 Noch blockiert! {team.name} hat eine {dice_roll} gewürfelt. {barrier_config['display_text']}"
+            "message": f"🚧 Noch blockiert! {team.name} hat {dice_description} gewürfelt. {barrier_config['display_text']}"
         }
 
 

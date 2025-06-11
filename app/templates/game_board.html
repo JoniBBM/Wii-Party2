@@ -1524,6 +1524,30 @@ class WiiPartyIsland {
         return null;
     }
 
+    checkBarrierRelease(diceRoll, bonusRoll, totalRoll, barrierConfig) {
+        // Mirror the server-side logic for barrier release
+        if (!barrierConfig || !barrierConfig.numbers) {
+            return { released: false, method: null };
+        }
+        
+        // Check standard die
+        if (barrierConfig.numbers.includes(diceRoll)) {
+            return { released: true, method: 'standard' };
+        }
+        
+        // Check bonus die if available
+        if (bonusRoll > 0 && barrierConfig.numbers.includes(bonusRoll)) {
+            return { released: true, method: 'bonus' };
+        }
+        
+        // Check total roll
+        if (barrierConfig.numbers.includes(totalRoll)) {
+            return { released: true, method: 'total' };
+        }
+        
+        return { released: false, method: null };
+    }
+
     updateTeamDisplay() {}
     updateMinigameDisplay() {}
 
@@ -2502,9 +2526,60 @@ class WiiPartyIsland {
         
         this.scene.add(group);
 
-        // Zeige auch das UI-Element
+        // Berechne Bonus-Würfel und Gesamtergebnis
         const bonusRoll = bonusDiceSides > 0 ? Math.floor(Math.random() * bonusDiceSides) + 1 : 0;
-        this.showDiceResult(standardRoll, bonusRoll, standardRoll + bonusRoll);
+        const totalRoll = standardRoll + bonusRoll;
+        
+        // Zeige Würfelergebnis als Banner
+        let diceMessage = `Würfelergebnis: ${standardRoll}`;
+        if (bonusRoll > 0) {
+            diceMessage += ` + ${bonusRoll} (Bonus) = ${totalRoll} Felder`;
+        } else {
+            diceMessage += ` Felder`;
+        }
+        
+        // Prüfe ob es ein Befreiungsversuch ist
+        const currentTeam = this.getCurrentTeam();
+        if (currentTeam && currentTeam.is_blocked) {
+            // Note: The actual barrier check logic is done server-side which considers
+            // both individual dice and the total. This is just a preview.
+            const requiredNumber = currentTeam.blocked_target_number || 4;
+            let requirementText = `benötigt ${requiredNumber}+`;
+            let barrierConfig = null;
+            
+            // Try to get more detailed requirement from blocked_config if available
+            if (currentTeam.blocked_config) {
+                try {
+                    barrierConfig = JSON.parse(currentTeam.blocked_config);
+                    if (barrierConfig.display_text) {
+                        requirementText = barrierConfig.display_text;
+                    }
+                } catch (e) {
+                    // Fallback to simple requirement
+                }
+            }
+            
+            // Check barrier release with the same logic as server-side
+            const canBeFreed = this.checkBarrierRelease(standardRoll, bonusRoll, totalRoll, barrierConfig || {numbers: Array.from({length: 7-requiredNumber}, (_, i) => i + requiredNumber)});
+            
+            if (canBeFreed.released) {
+                let freeMethod = '';
+                if (canBeFreed.method === 'standard') {
+                    freeMethod = ' (Standard-Würfel befreit!)';
+                } else if (canBeFreed.method === 'bonus') {
+                    freeMethod = ' (Bonus-Würfel befreit!)';
+                } else if (canBeFreed.method === 'total') {
+                    freeMethod = ' (Gesamtwurf befreit!)';
+                }
+                diceMessage += freeMethod;
+                this.showBannerMessage(diceMessage, "success", 2500, "🎉 Könnte befreien!");
+            } else {
+                diceMessage += ` - ${requirementText}`;
+                this.showBannerMessage(diceMessage, "warning", 2500, "🚧 Noch blockiert");
+            }
+        } else {
+            this.showBannerMessage(diceMessage, "info", 2500, "🎲 Würfelergebnis");
+        }
 
         // Animation der 3D-Anzeige
         let time = 0;
@@ -2512,7 +2587,6 @@ class WiiPartyIsland {
             time += 0.02;
             if (time > 1) {
                 this.scene.remove(group);
-                this.hideDiceResult();
                 return;
             }
             
@@ -2540,83 +2614,96 @@ class WiiPartyIsland {
         let description = "";
         let icon = fieldConfig.icon || "⬜";
         let bannerColor = "#4FC3F7"; // Standard-Blau
+        let bannerType = "info"; // Für das bestehende Banner-System
         
-        // Spezielle Nachrichten für verschiedene Feldtypen
+        // Spezielle Nachrichten für verschiedene Feldtypen mit detaillierten Informationen
         switch(fieldType) {
             case 'start':
                 title = "Startfeld";
-                description = `${teamName} ist am Start!`;
+                description = `${teamName} ist am Startfeld angekommen!`;
                 icon = "🏁";
                 bannerColor = "#4FC3F7";
+                bannerType = "info";
                 break;
             case 'goal':
                 title = "ZIEL ERREICHT!";
-                description = `🎉 ${teamName} hat gewonnen! 🎉`;
+                description = `🎉 ${teamName} hat das Spiel gewonnen! 🎉`;
                 icon = "🎯";
                 bannerColor = "#FFD700";
+                bannerType = "success";
                 break;
             case 'normal':
                 title = "Normales Feld";
-                description = `${teamName} auf einem ruhigen Feld.`;
+                description = `${teamName} ist auf einem ruhigen Feld gelandet. Nichts Besonderes passiert.`;
                 icon = "⬜";
                 bannerColor = "#81C784";
+                bannerType = "info";
                 break;
             case 'bonus':
                 title = "Bonusfeld!";
-                description = `${teamName} erhält einen Vorteil!`;
+                description = `${teamName} hat ein Bonusfeld erreicht! Du erhältst einen Vorteil für den nächsten Zug oder bekommst einen Extrawurf.`;
                 icon = "⭐";
                 bannerColor = "#FFD54F";
+                bannerType = "success";
                 break;
             case 'minigame':
                 title = "Minispiel-Feld";
-                description = `${teamName} betritt ein Minispiel-Feld!`;
+                description = `${teamName} ist auf einem Minispiel-Feld gelandet! Bereite dich auf eine Herausforderung vor.`;
                 icon = "🎮";
                 bannerColor = "#BA68C8";
+                bannerType = "special";
                 break;
             case 'chance':
                 title = "Ereignisfeld";
-                description = `${teamName} löst ein zufälliges Ereignis aus!`;
+                description = `${teamName} hat ein Ereignisfeld erreicht! Ein zufälliges Ereignis wird ausgelöst - das kann gut oder schlecht sein.`;
                 icon = "🎲";
                 bannerColor = "#AED581";
+                bannerType = "special";
                 break;
             case 'trap':
                 title = "Falle!";
-                description = `${teamName} ist in eine Falle geraten!`;
+                description = `${teamName} ist in eine Falle geraten! Du verlierst möglicherweise deinen nächsten Zug oder wirst zurückgesetzt.`;
                 icon = "⚠️";
                 bannerColor = "#E57373";
+                bannerType = "error";
                 break;
             case 'catapult_forward':
                 title = "Katapult Vorwärts!";
-                description = `${teamName} wird nach vorne geschleudert!`;
+                description = `${teamName} wurde von einem Katapult erfasst! Du wirst 3-5 Felder nach vorne geschleudert.`;
                 icon = "🚀";
                 bannerColor = "#4CAF50";
+                bannerType = "success";
                 break;
             case 'catapult_backward':
                 title = "Katapult Rückwärts!";
-                description = `${teamName} wird zurück geschleudert!`;
+                description = `${teamName} wurde von einem Katapult erfasst! Du wirst 2-4 Felder zurück geschleudert.`;
                 icon = "💥";
                 bannerColor = "#F44336";
+                bannerType = "error";
                 break;
             case 'player_swap':
                 title = "Spieler-Tausch!";
-                description = `${teamName} tauscht die Position!`;
+                description = `${teamName} aktiviert einen Positionstausch! Du tauschst deine Position mit einem anderen zufällig ausgewählten Team.`;
                 icon = "🔄";
                 bannerColor = "#2196F3";
+                bannerType = "special";
                 break;
             case 'barrier':
-                title = "Sperre!";
-                description = `${teamName} ist blockiert!`;
+                title = "Sperrfeld!";
+                description = `${teamName} ist auf einem Sperrfeld gelandet! Du bist blockiert und musst beim nächsten Zug 4 oder höher würfeln, um dich zu befreien.`;
                 icon = "🚧";
                 bannerColor = "#9E9E9E";
+                bannerType = "warning";
                 break;
             default:
                 title = fieldConfig.name || "Unbekanntes Feld";
                 description = `${teamName} betritt ${title}.`;
+                bannerType = "info";
                 break;
         }
 
-        // Zeige das Feld-Ankündigungs-Banner
-        this.showFieldAnnouncementBanner(title, description, icon, bannerColor);
+        // Zeige das Feld-Ankündigungs-Banner mit dem bestehenden Banner-System
+        this.showBannerMessage(description, bannerType, 3000, title);
     }
 
     showFieldAnnouncementBanner(title, description, icon, color) {
@@ -3091,17 +3178,37 @@ function handleBarrierCheckResponse(data) {
     const barrierCheck = data.barrier_check;
     console.log('Sperren-Check erkannt:', barrierCheck);
     
+    // Build detailed dice description
+    let diceDescription = `${barrierCheck.dice_roll}`;
+    if (barrierCheck.bonus_roll > 0) {
+        diceDescription += ` + ${barrierCheck.bonus_roll} (Bonus) = ${barrierCheck.total_roll}`;
+    }
+    
     if (barrierCheck.released) {
+        let releaseMessage = `${data.team_name} hat ${diceDescription} gewürfelt und ist frei!`;
+        
+        // Add specific information about which die freed the team
+        if (barrierCheck.release_method === 'standard') {
+            releaseMessage += ' (Standard-Würfel hat befreit!)';
+        } else if (barrierCheck.release_method === 'bonus') {
+            releaseMessage += ' (Bonus-Würfel hat befreit!)';
+        } else if (barrierCheck.release_method === 'total') {
+            releaseMessage += ' (Gesamtwurf hat befreit!)';
+        }
+        
         showSpecialFieldEffect(
             'barrier_released',
             'Befreit!',
-            `${data.team_name} hat eine ${barrierCheck.dice_roll} gewürfelt und ist frei!`,
+            releaseMessage,
             4000
         );
     } else {
+        // Get display text from barrier config
+        let requiredText = barrierCheck.barrier_config?.display_text || `${barrierCheck.barrier_config?.min_number || 4}+ benötigt`;
+        
         setTimeout(() => {
             window.gameBoard.showStatusMessage(
-                `${data.team_name} bleibt blockiert! (${barrierCheck.dice_roll} gewürfelt, ${barrierCheck.target_number}+ benötigt)`, 
+                `${data.team_name} bleibt blockiert! (${diceDescription} gewürfelt, ${requiredText})`, 
                 3000, 
                 'warning', 
                 true, 

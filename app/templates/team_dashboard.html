@@ -1941,12 +1941,21 @@ function showBarrierReleaseBanner(diceRoll, barrierConfig) {
     const messageEl = document.getElementById('release-banner-message');
     
     if (banner && messageEl) {
+        // Build dice description if we have detailed data
+        let diceDescription = diceRoll;
+        if (typeof diceRoll === 'object') {
+            diceDescription = `${diceRoll.dice_roll}`;
+            if (diceRoll.bonus_roll > 0) {
+                diceDescription += ` + ${diceRoll.bonus_roll} (Bonus) = ${diceRoll.total_roll}`;
+            }
+        }
+        
         if (barrierConfig && barrierConfig.display_text) {
-            messageEl.textContent = `Du hast eine ${diceRoll} gewürfelt und bist befreit!`;
+            messageEl.textContent = `Du hast ${diceDescription} gewürfelt und bist befreit!`;
         } else {
             // Backward compatibility
-            const targetNumber = barrierConfig && barrierConfig.min_number ? barrierConfig.min_number : diceRoll;
-            messageEl.textContent = `Du hast eine ${diceRoll} gewürfelt (benötigt: ${targetNumber}+)`;
+            const targetNumber = barrierConfig && barrierConfig.min_number ? barrierConfig.min_number : 4;
+            messageEl.textContent = `Du hast ${diceDescription} gewürfelt (benötigt: ${targetNumber}+)`;
         }
         
         banner.classList.add('show');
@@ -1965,12 +1974,21 @@ function showBarrierFailedBanner(diceRoll, barrierConfig) {
     const messageEl = document.getElementById('failed-banner-message');
     
     if (banner && messageEl) {
+        // Build dice description if we have detailed data
+        let diceDescription = diceRoll;
+        if (typeof diceRoll === 'object') {
+            diceDescription = `${diceRoll.dice_roll}`;
+            if (diceRoll.bonus_roll > 0) {
+                diceDescription += ` + ${diceRoll.bonus_roll} (Bonus) = ${diceRoll.total_roll}`;
+            }
+        }
+        
         if (barrierConfig && barrierConfig.display_text) {
-            messageEl.textContent = `Du hast eine ${diceRoll} gewürfelt. ${barrierConfig.display_text}`;
+            messageEl.textContent = `Du hast ${diceDescription} gewürfelt. ${barrierConfig.display_text}`;
         } else {
             // Backward compatibility
             const targetNumber = barrierConfig && barrierConfig.min_number ? barrierConfig.min_number : 6;
-            messageEl.textContent = `Du hast nur eine ${diceRoll} gewürfelt (benötigt: ${targetNumber}+)`;
+            messageEl.textContent = `Du hast nur ${diceDescription} gewürfelt (benötigt: ${targetNumber}+)`;
         }
         
         banner.classList.add('show');

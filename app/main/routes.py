@@ -200,7 +200,7 @@ def roll_dice_action_admin_only():
         # SONDERFELD: Prüfe Sperren-Status wenn verfügbar
         if special_fields_available and hasattr(team, 'is_blocked') and team.is_blocked:
             # Team ist blockiert - prüfe ob es freikommt
-            barrier_check_result = check_barrier_release(team, standard_dice_roll, active_session)
+            barrier_check_result = check_barrier_release(team, standard_dice_roll, active_session, bonus_dice_roll)
             
             if barrier_check_result['released']:
                 # Team ist befreit und kann sich normal bewegen

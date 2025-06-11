@@ -590,16 +590,24 @@ def _get_recent_special_field_event(team, session):
                     'target_config': event_data.get('target_config')
                 }
             elif event_data.get('action') == 'check_barrier_release':
+                # Build dice roll data with all components
+                dice_roll_data = {
+                    'dice_roll': event_data.get('dice_roll'),
+                    'bonus_roll': event_data.get('bonus_roll', 0),
+                    'total_roll': event_data.get('total_roll', event_data.get('dice_roll'))
+                }
+                
                 if event_data.get('released'):
                     return {
                         'type': 'barrier_released',
-                        'dice_roll': event_data.get('dice_roll'),
-                        'barrier_config': event_data.get('barrier_config')
+                        'dice_roll': dice_roll_data,
+                        'barrier_config': event_data.get('barrier_config'),
+                        'release_method': event_data.get('release_method')
                     }
                 else:
                     return {
                         'type': 'barrier_failed',
-                        'dice_roll': event_data.get('dice_roll'),
+                        'dice_roll': dice_roll_data,
                         'barrier_config': event_data.get('barrier_config')
                     }
         
