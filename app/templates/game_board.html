@@ -83,7 +83,7 @@ body {
     align-items: center;
     justify-content: center;
     box-shadow: 0 0 50px rgba(255, 215, 0, 0.9), 0 15px 40px rgba(0, 0, 0, 0.4);
-    z-index: 200;
+    z-index: 999999;
     opacity: 0;
     transition: all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
     border: 3px solid rgba(255, 255, 255, 0.8);
@@ -348,7 +348,20 @@ body {
         <div class="status-banner-title" id="status-warning-title">Warnung</div>
         <div class="status-banner-message" id="status-warning-message"></div>
     </div>
+</div>
+
+<!-- Persistent Minigame Status Banner -->
+<div id="current-minigame-banner" class="current-minigame-banner" style="display: none;">
+    <div class="minigame-banner-content">
+        <div class="minigame-banner-icon">🎮</div>
+        <div class="minigame-banner-info">
+            <div class="minigame-banner-title" id="minigame-banner-title">Aktuelles Minispiel</div>
+            <div class="minigame-banner-name" id="minigame-banner-name">-</div>
+            <div class="minigame-banner-description" id="minigame-banner-description">-</div>
+        </div>
+        <div class="minigame-banner-close" onclick="gameBoard.hideMinigameBanner()">×</div>
     </div>
+</div>
 </div>
 {% endblock %}
 
@@ -604,6 +617,9 @@ let localTeams = [
 let currentMinigameName = "{{ active_session.current_minigame_name | e if active_session else '' }}";
 let currentMinigameDescription = "{{ active_session.current_minigame_description | e if active_session else '' }}";
 let currentGamePhase = "{{ active_session.current_phase | e if active_session else 'UNKNOWN' }}";
+
+// Minigame folder name for category display
+const minigameFolderName = "{{ minigame_folder_name | e }}";
 
 const isAdmin = {{ is_admin|tojson }};
 
@@ -1424,8 +1440,51 @@ class WiiPartyIsland {
                 if (!GAME_STATE.isAnimating && !GAME_STATE.isDiceRolling && !GAME_STATE.isCharacterMoving && !GAME_STATE.playerTurnInProgress) {
                     this.rollDice();
                 }
+            } else if (event.key.toLowerCase() === 'o') {
+                // Test camera overview (O key)
+                if (!GAME_STATE.isAnimating) {
+                    this.setCameraOverview(3000, () => {
+                        // After overview, focus back on current player
+                        if (!GAME_STATE.freeCameraMode && this.getCurrentTeam()) {
+                            this.focusCameraOnCurrentTeam(false);
+                        }
+                    });
+                }
+            } else if (event.key.toLowerCase() === 's' && isAdmin) {
+                // Test game sequence (S key for admin)
+                this.executeGameSequence();
+            } else if (event.key.toLowerCase() === 't' && isAdmin) {
+                // Test minigame results (T key for admin)
+                this.testMinigameResults();
             }
         });
+    }
+
+    testMinigameResults() {
+        console.log("🧪 Testing minigame results display...");
+        
+        // Create test results based on current teams
+        const testResults = [];
+        if (localTeams && localTeams.length > 0) {
+            localTeams.forEach((team, index) => {
+                testResults.push({
+                    team_id: team.id,
+                    team_name: team.name,
+                    placement: index + 1
+                });
+            });
+        } else {
+            // Create dummy test data if no teams available
+            testResults.push(
+                { team_id: 1, team_name: "Team Alpha", placement: 1 },
+                { team_id: 2, team_name: "Team Beta", placement: 2 },
+                { team_id: 3, team_name: "Team Gamma", placement: 3 }
+            );
+        }
+        
+        console.log("🎯 Test results created:", testResults);
+        this.showMinigameResults(testResults);
+        this.showStatusMessage("Minigame Results Test ausgeführt (T-Taste)", 2000, 'info');
     }
 
     showStatusMessage(message, duration = 3000, type = 'info', useBanner = false, title = null) {
@@ -1510,6 +1569,269 @@ class WiiPartyIsland {
         }
     }
 
+    // ====== NEW GAME SEQUENCE FUNCTIONS ======
+
+    showMinigameAnnouncement(minigameName, description = null) {
+        const title = "🎮 Minispiel angekündigt!";
+        
+        // Use the dynamic minigame folder name as category, fallback to static one
+        const minigameType = window.currentMinigameFolderName || minigameFolderName || "Minispiel";
+        
+        let message;
+        if (description) {
+            message = `📁 Kategorie: ${minigameType}\n🎯 ${minigameName}\n\n${description}`;
+        } else {
+            message = `📁 Kategorie: ${minigameType}\n🎯 Das nächste Minispiel ist: ${minigameName}`;
+        }
+        
+        // Use special banner type for minigame announcements
+        this.showBannerMessage(message, 'special', 4000, title);
+        
+        console.log(`📢 Minispiel angekündigt: ${minigameName} (Kategorie: ${minigameType})`);
+    }
+
+    showMinigameResults(results) {
+        if (!results || results.length === 0) {
+            console.warn("❌ Keine Minispiel-Ergebnisse zu zeigen");
+            // Show debug info about current state
+            console.log("🔍 Debug Info - Current State:", {
+                currentGamePhase,
+                localTeams: localTeams ? localTeams.map(t => ({
+                    id: t.id, 
+                    name: t.name, 
+                    placement: t.minigame_placement
+                })) : null,
+                currentMinigameName
+            });
+            return;
+        }
+
+        console.log("🏆 Zeige Minispiel-Ergebnisse an:", results);
+
+        // Sort results by placement (1st, 2nd, 3rd, etc.)
+        const sortedResults = [...results].sort((a, b) => (a.placement || 999) - (b.placement || 999));
+        
+        // Create results message with enhanced formatting
+        let message = `${currentMinigameName || 'Minispiel'} - Ergebnisse:\n\n`;
+        sortedResults.forEach((result, index) => {
+            const placement = result.placement || (index + 1);
+            const medal = placement === 1 ? "🥇" : placement === 2 ? "🥈" : placement === 3 ? "🥉" : `${placement}.`;
+            message += `${medal} ${result.team_name || `Team ${result.team_id}`}\n`;
+        });
+
+        console.log("📊 Enhanced Banner-Nachricht:", message.trim());
+        this.showBannerMessage(message.trim(), 'success', 6000, "🏆 Minispiel beendet!");
+        
+        // Also hide the persistent minigame banner after results
+        setTimeout(() => {
+            this.hideMinigameBanner();
+        }, 1000);
+        
+        // Reset the game phase after showing results to prevent repeated displays
+        setTimeout(() => {
+            currentGamePhase = null;
+            console.log("🔄 Game phase reset nach Minispiel-Ergebnissen");
+        }, 6200);
+        
+        console.log("✅ Minispiel-Ergebnisse erfolgreich angezeigt:", sortedResults);
+    }
+
+    showTurnCompleteBanner(teamName) {
+        const title = "✅ Zug beendet";
+        const message = `${teamName} hat den Zug beendet.`;
+        
+        this.showBannerMessage(message, 'info', 2000, title);
+        
+        console.log(`Zug beendet für Team: ${teamName}`);
+    }
+
+    showDiceResultBanner(standard, bonus, total, teamName) {
+        const title = "🎲 Würfelergebnis";
+        let message = `${teamName || 'Team'} würfelt:\n`;
+        
+        if (bonus > 0) {
+            message += `🎯 Standard: ${standard}\n💎 Bonus: ${bonus}\n`;
+        } else {
+            message += `🎯 Würfel: ${standard}\n`;
+        }
+        
+        message += `📍 Gesamt: ${total} Felder`;
+        
+        // Use shorter duration to not conflict with dice overlay
+        this.showBannerMessage(message, 'info', 1800, title);
+        
+        console.log(`🎲 Dice result banner shown for ${teamName}: ${standard}+${bonus}=${total}`);
+    }
+
+    showMinigameBanner(name, description, folderName) {
+        const banner = document.getElementById('current-minigame-banner');
+        const nameEl = document.getElementById('minigame-banner-name');
+        const descEl = document.getElementById('minigame-banner-description');
+        
+        if (!banner || !nameEl || !descEl) {
+            console.warn('Minigame banner elements not found');
+            return;
+        }
+        
+        // Update content
+        nameEl.textContent = name || 'Unbekannt';
+        descEl.textContent = description || 'Beschreibung nicht verfügbar';
+        
+        // Add folder name if available
+        if (folderName) {
+            descEl.textContent = `${folderName}: ${descEl.textContent}`;
+        }
+        
+        // Show banner
+        banner.style.display = 'block';
+        setTimeout(() => banner.classList.add('show'), 10);
+        
+        console.log(`🎮 Minigame banner shown: ${name}`);
+    }
+
+    hideMinigameBanner() {
+        const banner = document.getElementById('current-minigame-banner');
+        if (!banner) return;
+        
+        banner.classList.remove('show');
+        setTimeout(() => {
+            banner.style.display = 'none';
+        }, 400);
+        
+        console.log('🎮 Minigame banner hidden');
+    }
+
+    setCameraOverview(duration = 3000, callback = null) {
+        if (GAME_STATE.freeCameraMode) {
+            console.log("Kamera-Übersicht übersprungen (freie Kamera aktiv)");
+            if (callback) callback();
+            return;
+        }
+
+        console.log("Setze Kamera auf Übersichts-Position");
+        GAME_STATE.isAnimating = true;
+
+        // Calculate overview position - higher and further back to see whole island
+        const overviewPosition = {
+            x: 0,
+            y: 35, // Higher than normal camera
+            z: 45  // Further back than normal camera
+        };
+
+        const overviewTarget = {
+            x: 0,
+            y: 0,
+            z: 0  // Look at center of island
+        };
+
+        // Animate camera to overview position
+        const startPos = this.camera.position.clone();
+        const startTarget = this.controls.target.clone();
+        const startTime = Date.now();
+
+        const animateToOverview = () => {
+            const elapsed = Date.now() - startTime;
+            const progress = Math.min(elapsed / 1500, 1); // 1.5 second animation
+            const eased = 1 - Math.pow(1 - progress, 3); // Ease out cubic
+
+            // Interpolate camera position
+            this.camera.position.lerpVectors(startPos, new THREE.Vector3(overviewPosition.x, overviewPosition.y, overviewPosition.z), eased);
+            
+            // Interpolate look-at target
+            this.controls.target.lerpVectors(startTarget, new THREE.Vector3(overviewTarget.x, overviewTarget.y, overviewTarget.z), eased);
+            this.controls.update();
+
+            if (progress < 1) {
+                requestAnimationFrame(animateToOverview);
+            } else {
+                // Overview complete, wait for duration then callback
+                setTimeout(() => {
+                    GAME_STATE.isAnimating = false;
+                    if (callback) callback();
+                    console.log("Kamera-Übersicht beendet");
+                }, duration);
+            }
+        };
+
+        animateToOverview();
+    }
+
+    checkAllPlayersFinished() {
+        // Check if all teams have completed their turns for the current round
+        if (!localTeams || localTeams.length === 0) {
+            return false;
+        }
+
+        // Simple check: if game phase is ROUND_OVER, all players finished
+        if (currentGamePhase === 'ROUND_OVER') {
+            return true;
+        }
+
+        // Alternative check: if no team is currently active, might indicate round end
+        if (!GAME_STATE.currentServerTeamTurnId) {
+            return currentGamePhase === 'ROUND_OVER';
+        }
+
+        return false;
+    }
+
+    executeGameSequence() {
+        console.log("🎯 Starte Spielsequenz-Ausführung - Phase:", currentGamePhase, "Minigame:", currentMinigameName);
+        
+        // Check if minigame was just announced
+        if (currentMinigameName && currentGamePhase === 'MINIGAME_ANNOUNCED') {
+            console.log("📢 Zeige Minispiel-Ankündigung:", currentMinigameName);
+            this.showMinigameAnnouncement(currentMinigameName, currentMinigameDescription);
+            return;
+        }
+
+        // Check if minigame results should be displayed
+        if (currentGamePhase === 'MINIGAME_RESULTS' && localTeams) {
+            console.log("🏆 Prüfe Minispiel-Ergebnisse Phase - Teams:", localTeams.map(t => ({id: t.id, name: t.name, placement: t.minigame_placement})));
+            
+            const results = localTeams.filter(team => team.minigame_placement !== null && team.minigame_placement !== undefined)
+                                   .map(team => ({
+                                       team_id: team.id,
+                                       team_name: team.name,
+                                       placement: team.minigame_placement
+                                   }));
+            
+            console.log("🎯 Gefilterte Minispiel-Ergebnisse:", results);
+            
+            if (results.length > 0) {
+                console.log("✅ Zeige Minispiel-Ergebnisse an");
+                this.showMinigameResults(results);
+                return;
+            } else {
+                console.log("⚠️ Keine Minispiel-Ergebnisse zu zeigen (keine Platzierungen gesetzt)");
+                console.log("🔍 Debug: Team placements details:", localTeams.map(t => ({
+                    id: t.id, 
+                    name: t.name, 
+                    placement: t.minigame_placement, 
+                    placementType: typeof t.minigame_placement
+                })));
+            }
+        } else {
+            console.log("🔍 Minigame results check failed:", {
+                currentGamePhase,
+                expectedPhase: 'MINIGAME_RESULTS',
+                hasLocalTeams: !!localTeams,
+                localTeamsLength: localTeams ? localTeams.length : 0
+            });
+        }
+
+        // Check if all players finished their turns - show overview
+        if (this.checkAllPlayersFinished()) {
+            this.setCameraOverview(3000, () => {
+                // Don't focus back on player when round is over - stay in overview
+                console.log("Round overview complete - staying in overview mode");
+            });
+            return;
+        }
+
+        console.log("Keine besonderen Sequenz-Aktionen erforderlich");
+    }
+
     getCurrentTeam() {
         if (localTeams && localTeams.length > 0 && GAME_STATE.currentServerTeamTurnId != null) {
             return localTeams.find(t => t.id === GAME_STATE.currentServerTeamTurnId);
@@ -1549,7 +1871,23 @@ class WiiPartyIsland {
     }
 
     updateTeamDisplay() {}
-    updateMinigameDisplay() {}
+    
+    updateMinigameDisplay() {
+        // Update any minigame-related UI elements
+        console.log(`Minigame Display Update - Name: ${currentMinigameName}, Phase: ${currentGamePhase}`);
+        
+        // Show or hide the persistent minigame banner based on current state
+        if (currentMinigameName && currentGamePhase !== 'UNKNOWN' && currentGamePhase !== null) {
+            // Show persistent banner for active minigame
+            const folderName = window.currentMinigameFolderName || minigameFolderName;
+            this.showMinigameBanner(currentMinigameName, currentMinigameDescription, folderName);
+            console.log(`✅ Minigame banner updated: ${currentMinigameName} (${currentGamePhase})`);
+        } else {
+            // Hide banner when no active minigame
+            this.hideMinigameBanner();
+            console.log(`❌ Minigame banner hidden (no active minigame)`);
+        }
+    }
 
     async loadCharacterScript(jsPath) {
         let rawFunctionName = jsPath.split('/').pop().replace(/\.js$/, '');
@@ -1744,9 +2082,19 @@ class WiiPartyIsland {
                     currentMinigameName = data.game_session.current_minigame_name;
                     currentMinigameDescription = data.game_session.current_minigame_description;
                     currentGamePhase = data.game_session.current_phase;
+                    
+                    // Update minigame folder name if provided by server
+                    if (data.game_session.minigame_folder_name) {
+                        window.currentMinigameFolderName = data.game_session.minigame_folder_name;
+                        console.log("📁 Minigame Folder aktualisiert:", data.game_session.minigame_folder_name);
+                    }
 
                     if(minigameInfoChanged) {
                         this.updateMinigameDisplay();
+                        // Trigger game sequence for minigame-related changes
+                        setTimeout(() => {
+                            this.executeGameSequence();
+                        }, 500);
                     }
 
                     GAME_STATE.currentServerTeamTurnId = data.game_session.current_team_turn_id;
@@ -1993,27 +2341,63 @@ class WiiPartyIsland {
                 this.triggerVictoryFireworks();
                 this.animateVictory(mii, currentTeam);
             }, 3500);
+            // Victory ends the sequence
+            return;
         }
 
+        // Show turn complete banner after field effect displays
+        setTimeout(() => {
+            this.showTurnCompleteBanner(currentTeam.name);
+            
+            // After turn complete banner, check for sequence continuation
+            setTimeout(() => {
+                this.continueGameSequence(currentTeam);
+            }, 2200); // Wait for turn complete banner to finish
+        }, 3200); // Wait for field banner to finish
+
+        this.updateTeamDisplay();
+    }
+
+    continueGameSequence(completedTeam) {
         // Status-Nachrichten für Spielphasen
         if (currentGamePhase === 'ROUND_OVER') {
+            // All players finished - show overview then next minigame message
             setTimeout(() => {
-                this.showStatusMessage("Alle Teams haben gewürfelt. Admin kann nächstes Minispiel setzen.", 3000, 'success', true, 'Runde beendet');
-            }, 3500);
-        } else if (GAME_STATE.currentServerTeamTurnId) {
+                this.executeGameSequence(); // This will trigger camera overview
+                
+                setTimeout(() => {
+                    this.showStatusMessage("Alle Teams haben gewürfelt. Admin kann nächstes Minispiel setzen.", 3000, 'success', true, 'Runde beendet');
+                }, 3200); // After overview
+            }, 500);
+        } else if (GAME_STATE.currentServerTeamTurnId && currentGamePhase === 'DICE_ROLLING') {
+            // Only focus camera on next team if it's actively their turn to roll dice
             const nextTeam = localTeams.find(t => t.id === GAME_STATE.currentServerTeamTurnId);
             if (nextTeam) {
+                console.log("📹 Fokussiere Kamera auf nächsten Spieler:", nextTeam.name, "Phase:", currentGamePhase);
                 setTimeout(() => {
-                    if (nextTeam.is_blocked) {
-                        this.showStatusMessage(`${nextTeam.name} ist am Zug (BLOCKIERT - muss ${nextTeam.blocked_target_number}+ würfeln).`, 3000, 'warning', true, 'Blockiertes Team am Zug');
+                    // Focus camera on next player
+                    if (!GAME_STATE.freeCameraMode) {
+                        this.focusCameraOnCurrentTeam(false, () => {
+                            // Show next team message after camera focuses
+                            if (nextTeam.is_blocked) {
+                                this.showStatusMessage(`${nextTeam.name} ist am Zug (BLOCKIERT - muss ${nextTeam.blocked_target_number}+ würfeln).`, 3000, 'warning', true, 'Blockiertes Team am Zug');
+                            } else {
+                                this.showStatusMessage(`${nextTeam.name} ist am Zug.`, 2500, 'info', true, 'Team am Zug');
+                            }
+                        });
                     } else {
-                        this.showStatusMessage(`${nextTeam.name} ist am Zug.`, 2500, 'info', true, 'Team am Zug');
+                        // If free camera mode, just show the message
+                        if (nextTeam.is_blocked) {
+                            this.showStatusMessage(`${nextTeam.name} ist am Zug (BLOCKIERT - muss ${nextTeam.blocked_target_number}+ würfeln).`, 3000, 'warning', true, 'Blockiertes Team am Zug');
+                        } else {
+                            this.showStatusMessage(`${nextTeam.name} ist am Zug.`, 2500, 'info', true, 'Team am Zug');
+                        }
                     }
-                }, 3500);
+                }, 1000); // Brief pause before switching to next player
             }
+        } else {
+            console.log("🚫 Kein Kamera-Fokus: Phase =", currentGamePhase, "Team =", GAME_STATE.currentServerTeamTurnId);
         }
-        
-        this.updateTeamDisplay();
     }
 
     showFieldEffect(position, color, duration = 800) {
@@ -2087,7 +2471,14 @@ class WiiPartyIsland {
     nextTeam() {
         GAME_STATE.currentTeamIndex = (GAME_STATE.currentTeamIndex + 1) % localTeams.length;
         this.updateTeamDisplay();
-        if (!GAME_STATE.freeCameraMode) {
+        
+        // Check if all players finished their turns after updating team index
+        if (this.checkAllPlayersFinished()) {
+            // Trigger game sequence which will handle camera overview
+            setTimeout(() => {
+                this.executeGameSequence();
+            }, 500);
+        } else if (!GAME_STATE.freeCameraMode) {
             this.prepareNextPlayerTurn(false);
         }
     }
@@ -2459,9 +2850,9 @@ class WiiPartyIsland {
             GAME_STATE.diceResult = diceResult;
             
             // Zeige Würfelergebnis direkt auf dem Spielfeld
-            this.showDiceResultOnField(mii.position, diceResult, currentTeam.bonus_dice_sides);
+            this.showDiceResultOnField(mii.position, diceResult, currentTeam.bonus_dice_sides, currentTeam.name);
             
-            // Warte 2 Sekunden bevor die Bewegung startet
+            // Warte 3.2 Sekunden bevor die Bewegung startet (sync mit Banner/Display)
             setTimeout(() => {
                 this.interactiveDice.visible = false;
 
@@ -2484,11 +2875,11 @@ class WiiPartyIsland {
                     }
                     this.actuallyMoveCharacter(currentTeam, mii, diceResult, currentPositionIndex);
                 });
-            }, 2000);
+            }, 3200);
         });
     }
 
-    showDiceResultOnField(position, standardRoll, bonusDiceSides) {
+    showDiceResultOnField(position, standardRoll, bonusDiceSides, teamName = null) {
         // Entferne vorherige Würfelergebnis-Anzeige
         const existingResult = this.scene.getObjectByName('diceResultDisplay');
         if (existingResult) this.scene.remove(existingResult);
@@ -2531,7 +2922,8 @@ class WiiPartyIsland {
         const totalRoll = standardRoll + bonusRoll;
         
         // Zeige Würfelergebnis als Banner
-        let diceMessage = `Würfelergebnis: ${standardRoll}`;
+        const teamPrefix = teamName ? `${teamName} würfelt: ` : 'Würfelergebnis: ';
+        let diceMessage = `${teamPrefix}${standardRoll}`;
         if (bonusRoll > 0) {
             diceMessage += ` + ${bonusRoll} (Bonus) = ${totalRoll} Felder`;
         } else {
@@ -2572,14 +2964,19 @@ class WiiPartyIsland {
                     freeMethod = ' (Gesamtwurf befreit!)';
                 }
                 diceMessage += freeMethod;
-                this.showBannerMessage(diceMessage, "success", 2500, "🎉 Könnte befreien!");
+                this.showBannerMessage(diceMessage, "success", 3000, "🎉 Könnte befreien!");
             } else {
                 diceMessage += ` - ${requirementText}`;
-                this.showBannerMessage(diceMessage, "warning", 2500, "🚧 Noch blockiert");
+                this.showBannerMessage(diceMessage, "warning", 3000, "🚧 Noch blockiert");
             }
         } else {
-            this.showBannerMessage(diceMessage, "info", 2500, "🎲 Würfelergebnis");
+            this.showBannerMessage(diceMessage, "info", 3000, "🎲 Würfelergebnis");
         }
+        
+        // Also show the dice result overlay for better visibility
+        // Note: bonusRoll and totalRoll are already calculated above
+        console.log("🎲 Zeige Dice Result Display:", {standard: standardRoll, bonus: bonusRoll, total: totalRoll});
+        this.showDiceResult(standardRoll, bonusRoll, totalRoll, 3000); // Increased to 3 seconds
 
         // Animation der 3D-Anzeige
         let time = 0;
@@ -2690,7 +3087,7 @@ class WiiPartyIsland {
                 break;
             case 'barrier':
                 title = "Sperrfeld!";
-                description = `${teamName} ist auf einem Sperrfeld gelandet! Du bist blockiert und musst beim nächsten Zug 4 oder höher würfeln, um dich zu befreien.`;
+                description = `${teamName} ist auf einem Sperrfeld gelandet! Du bist blockiert und musst die konfigurierte Anforderung erfüllen, um dich zu befreien.`;
                 icon = "🚧";
                 bannerColor = "#9E9E9E";
                 bannerType = "warning";
@@ -2739,24 +3136,45 @@ class WiiPartyIsland {
         }, 3000);
     }
 
-    showDiceResult(standard, bonus, total) {
+    showDiceResult(standard, bonus, total, autoHideDuration = 2500) {
+        console.log("🎯 showDiceResult aufgerufen:", {standard, bonus, total, autoHideDuration});
+        
         const display = document.getElementById('dice-result-display');
-        const standardEl = document.getElementById('dice-result-standard').querySelector('span');
+        const standardEl = document.getElementById('dice-result-standard')?.querySelector('span');
         const bonusElGroup = document.getElementById('dice-result-bonus');
-        const bonusEl = bonusElGroup.querySelector('span');
-        const totalEl = display.querySelector('.dice-result-number');
+        const bonusEl = bonusElGroup?.querySelector('span');
+        const totalEl = display?.querySelector('.dice-result-number');
 
         if (display && standardEl && bonusElGroup && bonusEl && totalEl) {
+            console.log("✅ Alle Dice Result Elemente gefunden, zeige Display an");
+            
             standardEl.textContent = standard;
             if (bonus > 0) {
                 bonusEl.textContent = bonus;
                 bonusElGroup.style.display = 'block';
+                console.log("💰 Bonus-Würfel angezeigt:", bonus);
             } else {
                 bonusElGroup.style.display = 'none';
             }
             totalEl.textContent = total;
             display.style.display = 'flex';
             display.classList.add('show');
+            
+            // Auto-hide after specified duration
+            if (autoHideDuration > 0) {
+                setTimeout(() => {
+                    console.log("⏰ Auto-hide Dice Result nach", autoHideDuration, "ms");
+                    this.hideDiceResult();
+                }, autoHideDuration);
+            }
+        } else {
+            console.error("❌ Dice Result Display Elemente nicht gefunden:", {
+                display: !!display,
+                standardEl: !!standardEl,
+                bonusElGroup: !!bonusElGroup,
+                bonusEl: !!bonusEl,
+                totalEl: !!totalEl
+            });
         }
     }
 
@@ -2766,7 +3184,7 @@ class WiiPartyIsland {
             display.classList.remove('show');
             setTimeout(() => {
                 display.style.display = 'none';
-            }, 400);
+            }, 300);
         }
     }
 
