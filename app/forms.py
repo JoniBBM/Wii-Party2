@@ -44,6 +44,16 @@ class EditTeamForm(FlaskForm):
         self.character_id.choices = [(0, '-- Keinen Charakter --')] + [(c.id, c.name) for c in available_characters]
         self.character_id.data = current_character_id if current_character_id else 0
 
+class EditPlayerForm(FlaskForm):
+    player_name = StringField('Spielername', validators=[DataRequired(), Length(min=2, max=100)])
+    assigned_team_id = SelectField('Team zuweisen', coerce=int, validators=[Optional()])
+    submit = SubmitField('Spieler aktualisieren')
+
+    def __init__(self, *args, **kwargs):
+        super(EditPlayerForm, self).__init__(*args, **kwargs)
+        teams = Team.query.order_by(Team.name).all()
+        self.assigned_team_id.choices = [(0, '-- Kein Team --')] + [(t.id, t.name) for t in teams]
+
 class SetNextMinigameForm(FlaskForm):
     # Erweiterte Minigame-Auswahl mit direkter Fragen-Erstellung
     minigame_source = RadioField('Inhalts-Quelle', 

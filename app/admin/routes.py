@@ -1508,7 +1508,9 @@ def edit_team(team_id):
             form.team_name.data = team.name
             form.character_id.data = team.character_id
 
-    return render_template('edit_team.html', title='Team bearbeiten', form=form, team=team)
+    # Alle Teams für Dropdown in Spieler-Zuordnung laden
+    all_teams = Team.query.order_by(Team.name).all()
+    return render_template('edit_team.html', title='Team bearbeiten', form=form, team=team, all_teams=all_teams)
 
 @admin_bp.route('/delete_team/<int:team_id>', methods=['POST'])
 @login_required
@@ -1541,6 +1543,72 @@ def delete_team(team_id):
     db.session.commit()
     flash('Team und zugehörige Referenzen erfolgreich gelöscht/aktualisiert.', 'success')
     return redirect(url_for('admin.admin_dashboard'))
+
+# =============================================================================
+# PLAYER MANAGEMENT AJAX ROUTES
+# =============================================================================
+
+@admin_bp.route('/update_player_name', methods=['POST'])
+@login_required
+def update_player_name():
+    if not isinstance(current_user, Admin):
+        return jsonify({'success': False, 'error': 'Nicht autorisiert'})
+    
+    try:
+        data = request.get_json()
+        player_id = data.get('player_id')
+        new_name = data.get('new_name', '').strip()
+        
+        if not player_id or not new_name:
+            return jsonify({'success': False, 'error': 'Ungültige Parameter'})
+        
+        if len(new_name) < 2:
+            return jsonify({'success': False, 'error': 'Spielername muss mindestens 2 Zeichen lang sein'})
+        
+        player = PlayerRegistration.query.get_or_404(player_id)
+        player.player_name = new_name
+        db.session.commit()
+        
+        return jsonify({'success': True})
+    
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Fehler beim Update des Spielernamens: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': 'Serverfehler beim Speichern'})
+
+@admin_bp.route('/reassign_player', methods=['POST'])
+@login_required
+def reassign_player():
+    if not isinstance(current_user, Admin):
+        return jsonify({'success': False, 'error': 'Nicht autorisiert'})
+    
+    try:
+        data = request.get_json()
+        player_id = data.get('player_id')
+        new_team_id = data.get('new_team_id')
+        
+        if not player_id:
+            return jsonify({'success': False, 'error': 'Ungültige Spieler-ID'})
+        
+        player = PlayerRegistration.query.get_or_404(player_id)
+        
+        # Validiere neues Team (falls angegeben)
+        if new_team_id and new_team_id != 0:
+            new_team = Team.query.get(new_team_id)
+            if not new_team:
+                return jsonify({'success': False, 'error': 'Team nicht gefunden'})
+            player.assigned_team_id = new_team_id
+        else:
+            # Kein Team zuweisen
+            player.assigned_team_id = None
+        
+        db.session.commit()
+        return jsonify({'success': True})
+    
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Fehler bei der Team-Zuweisung: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': 'Serverfehler bei der Team-Zuweisung'})
 
 @admin_bp.route('/init_chars')
 @login_required

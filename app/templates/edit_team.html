@@ -104,6 +104,80 @@
                     <a href="{{ url_for('admin.admin_dashboard') }}" class="btn btn-secondary ml-2">Abbrechen</a>
                 </div>
             </form>
+            
+            <!-- Team-Spieler Management - außerhalb des Forms -->
+            <div class="card mb-4">
+                <div class="card-header bg-secondary text-white">
+                    <h5 class="mb-0"><i class="fas fa-user-friends"></i> Team-Spieler</h5>
+                </div>
+                <div class="card-body">
+                    {% if team.player_registrations %}
+                        <div class="table-responsive">
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>Spielername</th>
+                                        <th>Registriert am</th>
+                                        <th>Aktionen</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for player in team.player_registrations %}
+                                    <tr id="player-row-{{ player.id }}">
+                                        <td>
+                                            <span id="player-name-{{ player.id }}">{{ player.player_name }}</span>
+                                            <input type="text" class="form-control form-control-sm d-none" 
+                                                   id="player-name-input-{{ player.id }}" 
+                                                   value="{{ player.player_name }}" 
+                                                   maxlength="100">
+                                        </td>
+                                        <td>{{ player.registration_time.strftime('%d.%m.%Y %H:%M') if player.registration_time else 'Unbekannt' }}</td>
+                                        <td>
+                                            <div class="btn-group btn-group-sm">
+                                                <button class="btn btn-outline-primary btn-sm" 
+                                                        type="button"
+                                                        onclick="editPlayerName({{ player.id }})" 
+                                                        id="edit-btn-{{ player.id }}">
+                                                    <i class="fas fa-edit"></i> Bearbeiten
+                                                </button>
+                                                <button class="btn btn-outline-success btn-sm d-none" 
+                                                        type="button"
+                                                        onclick="savePlayerName({{ player.id }})" 
+                                                        id="save-btn-{{ player.id }}">
+                                                    <i class="fas fa-save"></i> Speichern
+                                                </button>
+                                                <button class="btn btn-outline-secondary btn-sm d-none" 
+                                                        type="button"
+                                                        onclick="cancelPlayerEdit({{ player.id }})" 
+                                                        id="cancel-btn-{{ player.id }}">
+                                                    <i class="fas fa-times"></i> Abbrechen
+                                                </button>
+                                                <select class="form-control form-control-sm" 
+                                                        style="width: auto; display: inline-block;"
+                                                        onchange="handleTeamChange(this, {{ player.id }})"
+                                                        id="team-select-{{ player.id }}">
+                                                    <option value="">-- Team ändern --</option>
+                                                    {% for other_team in all_teams %}
+                                                        {% if other_team.id != team.id %}
+                                                        <option value="{{ other_team.id }}">{{ other_team.name }}</option>
+                                                        {% endif %}
+                                                    {% endfor %}
+                                                    <option value="0">Kein Team zuweisen</option>
+                                                </select>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle"></i> Diesem Team sind noch keine Spieler zugeordnet.
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
         </div>
         
         <!-- Team-Info Sidebar -->
@@ -155,4 +229,183 @@
         </div>
     </div>
 </div>
+
+<script>
+// JavaScript für Spieler-Management
+function editPlayerName(playerId) {
+    console.log('editPlayerName called with ID:', playerId);
+    try {
+        // Zeige Input-Feld und verstecke Anzeige
+        document.getElementById('player-name-' + playerId).classList.add('d-none');
+        document.getElementById('player-name-input-' + playerId).classList.remove('d-none');
+        
+        // Zeige Save/Cancel Buttons und verstecke Edit Button
+        document.getElementById('edit-btn-' + playerId).classList.add('d-none');
+        document.getElementById('save-btn-' + playerId).classList.remove('d-none');
+        document.getElementById('cancel-btn-' + playerId).classList.remove('d-none');
+        
+        // Focus auf Input-Feld
+        document.getElementById('player-name-input-' + playerId).focus();
+    } catch (error) {
+        console.error('Error in editPlayerName:', error);
+        alert('Fehler beim Aktivieren des Bearbeitungsmodus.');
+    }
+}
+
+function cancelPlayerEdit(playerId) {
+    // Verstecke Input-Feld und zeige Anzeige
+    document.getElementById('player-name-' + playerId).classList.remove('d-none');
+    document.getElementById('player-name-input-' + playerId).classList.add('d-none');
+    
+    // Verstecke Save/Cancel Buttons und zeige Edit Button
+    document.getElementById('edit-btn-' + playerId).classList.remove('d-none');
+    document.getElementById('save-btn-' + playerId).classList.add('d-none');
+    document.getElementById('cancel-btn-' + playerId).classList.add('d-none');
+    
+    // Setze ursprünglichen Wert zurück
+    const originalName = document.getElementById('player-name-' + playerId).textContent;
+    document.getElementById('player-name-input-' + playerId).value = originalName;
+}
+
+function savePlayerName(playerId) {
+    const newName = document.getElementById('player-name-input-' + playerId).value.trim();
+    
+    if (newName.length < 2) {
+        alert('Spielername muss mindestens 2 Zeichen lang sein.');
+        return;
+    }
+    
+    // AJAX Request zum Speichern
+    fetch('/admin/update_player_name', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('[name=csrf_token]').value
+        },
+        body: JSON.stringify({
+            player_id: playerId,
+            new_name: newName
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Update anzeigen
+            document.getElementById('player-name-' + playerId).textContent = newName;
+            cancelPlayerEdit(playerId);
+            
+            // Success-Meldung
+            showAlert('Spielername erfolgreich aktualisiert.', 'success');
+        } else {
+            alert('Fehler beim Speichern: ' + (data.error || 'Unbekannter Fehler'));
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Fehler beim Speichern des Spielernamens.');
+    });
+}
+
+function handleTeamChange(selectElement, playerId) {
+    const newTeamId = parseInt(selectElement.value);
+    if (!newTeamId && newTeamId !== 0) {
+        return; // Keine Auswahl getroffen
+    }
+    
+    const newTeamName = selectElement.options[selectElement.selectedIndex].text;
+    
+    // Reset select nach Bestätigung/Abbruch
+    const resetSelect = () => {
+        selectElement.selectedIndex = 0;
+    };
+    
+    const confirmMsg = newTeamId === 0 
+        ? 'Möchten Sie den Spieler wirklich keinem Team zuweisen?' 
+        : `Möchten Sie den Spieler wirklich dem Team "${newTeamName}" zuweisen?`;
+    
+    if (!confirm(confirmMsg)) {
+        resetSelect();
+        return;
+    }
+    
+    reassignPlayer(playerId, newTeamId, newTeamName, resetSelect);
+}
+
+function reassignPlayer(playerId, newTeamId, newTeamName, callback = null) {
+    console.log('reassignPlayer called:', {playerId, newTeamId, newTeamName});
+    
+    // AJAX Request für Team-Zuordnung
+    fetch('/admin/reassign_player', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('[name=csrf_token]').value
+        },
+        body: JSON.stringify({
+            player_id: playerId,
+            new_team_id: newTeamId
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            if (newTeamId === 0) {
+                // Spieler aus aktuellem Team entfernen
+                document.getElementById('player-row-' + playerId).remove();
+                showAlert('Spieler erfolgreich aus dem Team entfernt.', 'info');
+            } else {
+                // Spieler aus aktuellem Team entfernen
+                document.getElementById('player-row-' + playerId).remove();
+                showAlert(`Spieler erfolgreich dem Team "${newTeamName}" zugewiesen.`, 'success');
+            }
+            
+            // Prüfe ob noch Spieler im Team sind
+            const remainingRows = document.querySelectorAll('tbody tr[id^="player-row-"]');
+            if (remainingRows.length === 0) {
+                location.reload(); // Reload um "Keine Spieler" Nachricht anzuzeigen
+            }
+        } else {
+            alert('Fehler bei der Team-Zuweisung: ' + (data.error || 'Unbekannter Fehler'));
+            if (callback) callback(); // Reset select bei Fehler
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Fehler bei der Team-Zuweisung.');
+        if (callback) callback(); // Reset select bei Fehler
+    });
+}
+
+function showAlert(message, type) {
+    // Erstelle temporäre Alert-Box
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="close" data-dismiss="alert">
+            <span>&times;</span>
+        </button>
+    `;
+    
+    // Füge Alert oben auf der Seite hinzu
+    const container = document.querySelector('.container');
+    container.insertBefore(alertDiv, container.firstChild);
+    
+    // Entferne Alert nach 5 Sekunden
+    setTimeout(() => {
+        alertDiv.remove();
+    }, 5000);
+}
+
+// Enter-Taste für Speichern
+document.addEventListener('keydown', function(event) {
+    if (event.key === 'Enter') {
+        const target = event.target;
+        if (target.id && target.id.startsWith('player-name-input-')) {
+            const playerId = target.id.replace('player-name-input-', '');
+            savePlayerName(playerId);
+        }
+    }
+});
+</script>
 {% endblock %}
