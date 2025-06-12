@@ -121,6 +121,24 @@
                             <i class="fas fa-external-link-alt"></i> Öffnen
                         </a>
                     </div>
+                    
+                    <!-- Team-Management-Controls -->
+                    <div id="team-management-controls" class="mt-3" style="display: none;">
+                        <div class="form-group">
+                            <label for="team-count-select" class="form-label">Anzahl Teams:</label>
+                            <select id="team-count-select" class="form-control form-control-sm">
+                                <option value="">-- Wählen --</option>
+                                <option value="2">2 Teams</option>
+                                <option value="3">3 Teams</option>
+                                <option value="4">4 Teams</option>
+                                <option value="5">5 Teams</option>
+                                <option value="6">6 Teams</option>
+                            </select>
+                        </div>
+                        <button id="create-teams-admin-btn" class="btn btn-warning btn-sm btn-block" disabled>
+                            <i class="fas fa-magic"></i> Teams erstellen
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -663,7 +681,8 @@
             <i class="fas fa-power-off"></i> Spiel komplett zurücksetzen
         </button>
         <a href="{{ url_for('admin.init_chars') }}" class="btn btn-secondary btn-sm mb-2 d-inline-block"><i class="fas fa-users-cog"></i> Charaktere initialisieren</a>
-        <a href="{{ url_for('main.game_board') }}" class="btn btn-info btn-sm mb-2 d-inline-block ml-md-2" target="_blank"><i class="fas fa-gamepad"></i> Spielbrett öffnen</a>
+        <a href="{{ url_for('admin.open_board') }}" class="btn btn-info btn-sm mb-2 d-inline-block ml-md-2" target="_blank"><i class="fas fa-gamepad"></i> Spielbrett öffnen</a>
+        <button id="start-fullscreen-game-btn" class="btn btn-success btn-lg mb-2 d-inline-block ml-md-2"><i class="fas fa-play"></i> Spiel im Vollbild starten</button>
     </div>
 
     <!-- Reset Modal -->
@@ -922,9 +941,11 @@
 </style>
 
 <script>
+// Global CSRF Token
+const csrfToken = "{{ csrf_token() }}";
+
 document.addEventListener('DOMContentLoaded', function() {
     const rollDiceBtn = document.getElementById('admin-roll-dice');
-    const csrfToken = "{{ csrf_token() }}";
     let isRollingDice = false;
     let questionResponsesInterval = null;
     let currentPhase = "{{ active_session.current_phase if active_session else '' }}";
@@ -1299,8 +1320,11 @@ document.addEventListener('DOMContentLoaded', function() {
     updateWelcomeStatus();
     setInterval(updateWelcomeStatus, 5000);
 
-    // Welcome-System Event Listeners
-    document.getElementById('start-welcome-btn').addEventListener('click', function() {
+    // Welcome-System Event Listeners (mit Event-Delegation da Button dynamisch ersetzt wird)
+    // Event-Listener werden jetzt direkt in updateWelcomeStatus() gesetzt
+    
+    // Entferne alten Event-Listener Code da er durch dynamischen HTML ersetzt wird
+    /*document.getElementById('start-welcome-btn').addEventListener('click', function() {
         fetch('/admin/api/start-welcome', {
             method: 'POST',
             headers: {
@@ -1333,7 +1357,7 @@ document.addEventListener('DOMContentLoaded', function() {
             console.error('Error:', error);
             alert('Ein Fehler ist aufgetreten: ' + error.message);
         });
-    });
+    });*/
 });
 
 function updateWelcomeStatus() {
@@ -1344,6 +1368,28 @@ function updateWelcomeStatus() {
             const startBtn = document.getElementById('start-welcome-btn');
             
             if (data.active) {
+                let teamsDisplay = '';
+                if (data.teams_created && data.teams && data.teams.length > 0) {
+                    teamsDisplay = `
+                        <div class="mt-3">
+                            <small class="text-info"><strong>Teams & Passwörter:</strong></small>
+                            <div class="mt-2">
+                                ${data.teams.map(team => `
+                                    <div class="card card-body p-2 mb-2" style="font-size: 0.85em;">
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <strong>Team ${team.name}</strong>
+                                            <span class="badge badge-dark" style="font-family: monospace;">🔑 ${team.password}</span>
+                                        </div>
+                                        <div style="font-size: 0.75em; color: #666;">
+                                            ${team.members.join(', ')}
+                                        </div>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    `;
+                }
+                
                 statusCard.innerHTML = `
                     <div class="text-success">
                         <i class="fas fa-check-circle"></i> <strong>Aktiv</strong>
@@ -1358,6 +1404,7 @@ function updateWelcomeStatus() {
                         <div class="mt-2">
                             <span class="badge badge-success">Bereit zum Spielstart</span>
                         </div>
+                        ${teamsDisplay}
                     ` : `
                         <div class="mt-2">
                             <span class="badge badge-warning">Warten auf Teamaufteilung</span>
@@ -1377,9 +1424,30 @@ function updateWelcomeStatus() {
                             },
                             credentials: 'same-origin',
                             body: JSON.stringify({})
-                        }).then(() => updateWelcomeStatus());
+                        })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.success) {
+                                updateWelcomeStatus();
+                                alert('Welcome-System erfolgreich beendet.');
+                            } else {
+                                alert('Fehler beim Beenden: ' + data.error);
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error:', error);
+                            alert('Ein Fehler ist aufgetreten beim Beenden des Welcome-Systems');
+                        });
                     }
                 };
+                
+                // Zeige Team-Management-Controls wenn aktiv aber noch keine Teams erstellt
+                const teamControls = document.getElementById('team-management-controls');
+                if (data.teams_created) {
+                    teamControls.style.display = 'none';
+                } else {
+                    teamControls.style.display = 'block';
+                }
             } else {
                 statusCard.innerHTML = `
                     <div class="text-muted">
@@ -1403,9 +1471,8 @@ function updateWelcomeStatus() {
                         body: JSON.stringify({})
                     }).then(response => {
                         if (!response.ok) {
-                            return response.text().then(text => {
-                                console.error('Response error:', text);
-                                throw new Error(`HTTP error! status: ${response.status}`);
+                            return response.json().then(errorData => {
+                                throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
                             });
                         }
                         return response.json();
@@ -1413,16 +1480,25 @@ function updateWelcomeStatus() {
                     .then(data => {
                         if (data.success) {
                             updateWelcomeStatus();
-                            window.open('/welcome', '_blank');
+                            // Admin bleibt im Dashboard - kein automatisches Öffnen der Welcome-Seite
+                            alert('Welcome-System erfolgreich gestartet! Welcome-Seite ist jetzt aktiv.');
                         } else {
-                            alert('Fehler: ' + data.error);
+                            alert('Fehler beim Starten: ' + data.error);
+                            // Aktualisiere Status da etwas nicht stimmt
+                            updateWelcomeStatus();
                         }
                     })
                     .catch(error => {
                         console.error('Error:', error);
                         alert('Ein Fehler ist aufgetreten: ' + error.message);
+                        // Aktualisiere Status da etwas nicht stimmt
+                        updateWelcomeStatus();
                     });
                 };
+                
+                // Verstecke Team-Management-Controls wenn inaktiv
+                const teamControls = document.getElementById('team-management-controls');
+                teamControls.style.display = 'none';
             }
         })
         .catch(error => {
@@ -1435,5 +1511,62 @@ function updateWelcomeStatus() {
             `;
         });
 }
+
+// Team-Management-Controls Event-Listener
+document.getElementById('team-count-select').addEventListener('change', function() {
+    const createBtn = document.getElementById('create-teams-admin-btn');
+    createBtn.disabled = this.value === '';
+});
+
+document.getElementById('create-teams-admin-btn').addEventListener('click', function() {
+    const teamCount = document.getElementById('team-count-select').value;
+    if (!teamCount) {
+        alert('Bitte wähle zuerst die Anzahl der Teams!');
+        return;
+    }
+    
+    if (confirm(`${teamCount} Teams erstellen? Dies teilt die registrierten Spieler automatisch auf.`)) {
+        fetch('/admin/api/create-teams', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
+            body: JSON.stringify({ team_count: parseInt(teamCount) })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                updateWelcomeStatus();
+                alert('Teams erfolgreich erstellt! Passwörter sind im Admin-Dashboard sichtbar.');
+            } else {
+                alert('Fehler beim Erstellen der Teams: ' + data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Ein Fehler ist aufgetreten beim Erstellen der Teams');
+        });
+    }
+});
+
+// Vollbild-Spielstart Button
+document.getElementById('start-fullscreen-game-btn').addEventListener('click', function() {
+    // Öffne Spielbrett in neuem Fenster/Tab
+    const gameWindow = window.open('/admin/open-board', '_blank');
+    
+    // Warte kurz, dann aktiviere Vollbild
+    setTimeout(() => {
+        if (gameWindow) {
+            // Versuche Vollbild zu aktivieren
+            gameWindow.postMessage({action: 'requestFullscreen'}, '*');
+            
+            // Falls postMessage nicht funktioniert, öffne Dialog
+            if (!gameWindow.document.fullscreenElement) {
+                gameWindow.alert('Für die beste Erfahrung drücke F11 für Vollbild!');
+            }
+        }
+    }, 1000);
+});
 </script>
 {% endblock %}

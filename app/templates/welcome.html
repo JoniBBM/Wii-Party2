@@ -90,6 +90,10 @@
         transition: all 0.3s ease;
         animation: fadeInUp 0.5s ease-out;
     }
+    
+    .player-card.static {
+        animation: none;
+    }
 
     .player-card:hover {
         transform: translateY(-5px);
@@ -303,63 +307,53 @@
     <div class="container">
         <div class="welcome-content">
             <h1 class="welcome-title">Willkommen!</h1>
-            <p class="welcome-subtitle">
-                <span class="status-indicator status-active"></span>
-                Registrierung läuft - Melde dich jetzt an!
-            </p>
+            
+            {% if welcome_session %}
+                <p class="welcome-subtitle">
+                    <span class="status-indicator status-active"></span>
+                    Registrierung läuft - Melde dich jetzt an!
+                </p>
 
-            <!-- Spieler-Bereich -->
-            <div class="players-section">
-                <h3><i class="fas fa-users"></i> Registrierte Spieler (<span id="player-count">0</span>)</h3>
-                <div id="players-container">
-                    <div class="no-players">
-                        <i class="fas fa-user-plus fa-3x mb-3"></i>
-                        <p>Noch keine Spieler registriert. Besuche die <a href="{{ url_for('main.index') }}" class="text-warning">Startseite</a> und melde dich an!</p>
+                <!-- Spieler-Bereich -->
+                <div class="players-section">
+                    <h3><i class="fas fa-users"></i> Registrierte Spieler (<span id="player-count">0</span>)</h3>
+                    <div id="players-container">
+                        <div class="no-players">
+                            <i class="fas fa-user-plus fa-3x mb-3"></i>
+                            <p>Noch keine Spieler registriert. Besuche die <a href="{{ url_for('main.index') }}" class="text-warning">Startseite</a> und melde dich an!</p>
+                        </div>
                     </div>
                 </div>
-            </div>
+            {% else %}
+                <p class="welcome-subtitle">
+                    <span class="status-indicator status-waiting"></span>
+                    Das Spiel-System wartet auf die Aktivierung durch den Admin.
+                </p>
+
+                <!-- Info-Bereich wenn keine Session aktiv -->
+                <div class="players-section">
+                    <h3><i class="fas fa-info-circle"></i> Spiel-Information</h3>
+                    <div class="text-center p-4">
+                        <i class="fas fa-gamepad fa-4x mb-3" style="opacity: 0.7;"></i>
+                        <p style="font-size: 1.2rem; margin-bottom: 2rem;">
+                            Das Wii Party Spiel ist bereit!
+                        </p>
+                        <p style="opacity: 0.8;">
+                            Der Administrator wird das Welcome-System starten, wenn es Zeit ist, Teams zu bilden.
+                            <br><br>
+                            Bis dahin können Sie sich entspannen und auf den Spielspaß freuen!
+                        </p>
+                    </div>
+                </div>
+            {% endif %}
 
             <!-- Team-Bereich (nur sichtbar wenn Teams erstellt) -->
             <div id="teams-section" class="teams-section" style="display: none;">
-                <h3><i class="fas fa-flag"></i> Teams & Passwörter</h3>
+                <h3><i class="fas fa-flag"></i> Teams</h3>
                 <div id="teams-container"></div>
             </div>
 
-            <!-- Admin-Controls (nur für Admins sichtbar) -->
-            {% if current_user.is_authenticated and current_user.is_admin %}
-            <div class="admin-controls">
-                <h4><i class="fas fa-cog"></i> Admin-Steuerung</h4>
-                
-                <!-- Bevor Teams erstellt sind -->
-                <div id="pre-teams-controls">
-                    <p>Wähle die Anzahl der Teams:</p>
-                    <div class="team-count-selector">
-                        <button type="button" class="team-count-btn" data-count="2">2</button>
-                        <button type="button" class="team-count-btn" data-count="3">3</button>
-                        <button type="button" class="team-count-btn" data-count="4">4</button>
-                        <button type="button" class="team-count-btn" data-count="5">5</button>
-                        <button type="button" class="team-count-btn" data-count="6">6</button>
-                    </div>
-                    <button id="create-teams-btn" class="btn btn-welcome btn-welcome-primary" disabled>
-                        <i class="fas fa-magic"></i> Teams erstellen
-                    </button>
-                </div>
-
-                <!-- Nach Team-Erstellung -->
-                <div id="post-teams-controls" style="display: none;">
-                    <p>Teams wurden erstellt! Spieler können sich jetzt anmelden.</p>
-                    <button id="end-welcome-btn" class="btn btn-welcome btn-welcome-success">
-                        <i class="fas fa-play"></i> Spiel starten
-                    </button>
-                </div>
-
-                <hr style="margin: 2rem 0; border-color: rgba(255,255,255,0.3);">
-                
-                <button id="end-registration-btn" class="btn btn-welcome btn-welcome-primary">
-                    <i class="fas fa-stop"></i> Registrierung beenden
-                </button>
-            </div>
-            {% endif %}
+            <!-- Admin-Controls entfernt - alle Steuerung läuft über das Admin-Dashboard -->
 
             <!-- Zurück zur Startseite -->
             <div class="text-center mt-4">
@@ -372,121 +366,133 @@
 </div>
 
 <script>
-let selectedTeamCount = null;
 let updateInterval;
 
-// CSRF Token holen
-const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
-
 document.addEventListener('DOMContentLoaded', function() {
-    // Team-Anzahl Auswahl
-    document.querySelectorAll('.team-count-btn').forEach(btn => {
-        btn.addEventListener('click', function() {
-            document.querySelectorAll('.team-count-btn').forEach(b => b.classList.remove('selected'));
-            this.classList.add('selected');
-            selectedTeamCount = parseInt(this.dataset.count);
-            document.getElementById('create-teams-btn').disabled = false;
-        });
-    });
-
-    // Teams erstellen
-    document.getElementById('create-teams-btn')?.addEventListener('click', function() {
-        if (!selectedTeamCount) {
-            alert('Bitte wähle zuerst die Anzahl der Teams!');
-            return;
-        }
+    // Live-Updates nur starten wenn Welcome-Session aktiv ist
+    {% if welcome_session %}
+        updateWelcomeStatus();
+        updateInterval = setInterval(updateWelcomeStatus, 2000);
+    {% else %}
+        // Keine Live-Updates wenn keine Session aktiv - zeige statische Welcome-Seite
+        console.log('Welcome-Seite im Standby-Modus - keine Live-Updates');
         
-        fetch('/admin/api/create-teams', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': csrfToken
-            },
-            body: JSON.stringify({ team_count: selectedTeamCount })
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                document.getElementById('pre-teams-controls').style.display = 'none';
-                document.getElementById('post-teams-controls').style.display = 'block';
-                updateWelcomeStatus();
-            } else {
-                alert('Fehler beim Erstellen der Teams: ' + data.error);
+        // Prüfe alle 5 Sekunden ob Welcome-System aktiviert wurde oder Teams erstellt wurden
+        window.standbyInterval = setInterval(function() {
+            fetch('/api/welcome-status')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // Welcome-System wurde aktiviert! Wechsle in Live-Modus
+                        console.log('Welcome-System wurde aktiviert - Wechsle in Live-Modus');
+                        switchToLiveMode();
+                    }
+                })
+                .catch(error => {
+                    // Bei Fehlern prüfen ob Teams auf andere Weise erstellt wurden
+                    fetch('/api/board-status')
+                        .then(response => response.json())
+                        .then(boardData => {
+                            if (boardData.teams && boardData.teams.length > 0) {
+                                console.log('Teams gefunden - Weiterleitung zum Spielbrett im Vollbild');
+                                window.location.href = '/board?fullscreen=true';
+                            }
+                        })
+                        .catch(err => {
+                            console.log('Keine Teams gefunden, bleibe auf Welcome-Seite');
+                        });
+                });
+        }, 5000);
+        
+        // Funktion zum Wechsel in Live-Modus
+        function switchToLiveMode() {
+            // Stoppe Standby-Interval
+            if (window.standbyInterval) {
+                clearInterval(window.standbyInterval);
+                window.standbyInterval = null;
             }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            alert('Ein Fehler ist aufgetreten');
-        });
-    });
-
-    // Spiel starten
-    document.getElementById('end-welcome-btn')?.addEventListener('click', function() {
-        fetch('/admin/api/end-welcome', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': csrfToken
+            
+            // Ändere UI zu Live-Modus
+            console.log('🔄 Wechsle UI zu Live-Modus');
+            const subtitle = document.querySelector('.welcome-subtitle');
+            if (subtitle) {
+                subtitle.innerHTML = `
+                    <span class="status-indicator status-active"></span>
+                    Registrierung läuft - Melde dich jetzt an!
+                `;
             }
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                window.location.href = '/board';
-            } else {
-                alert('Fehler beim Starten des Spiels: ' + data.error);
+            
+            // Ändere Info-Bereich zu Spieler-Bereich
+            const playersSection = document.querySelector('.players-section');
+            if (playersSection) {
+                playersSection.innerHTML = `
+                    <h3><i class="fas fa-users"></i> Registrierte Spieler (<span id="player-count">0</span>)</h3>
+                    <div id="players-container">
+                        <div class="no-players">
+                            <i class="fas fa-user-plus fa-3x mb-3"></i>
+                            <p>Noch keine Spieler registriert. Besuche die <a href="/register" class="text-warning">Startseite</a> und melde dich an!</p>
+                        </div>
+                    </div>
+                `;
             }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            alert('Ein Fehler ist aufgetreten');
-        });
-    });
-
-    // Registrierung beenden
-    document.getElementById('end-registration-btn')?.addEventListener('click', function() {
-        if (confirm('Möchtest du die Registrierung wirklich beenden?')) {
-            fetch('/admin/api/end-registration', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': csrfToken
+            
+            // Zeige Teams-Bereich (falls noch nicht vorhanden)
+            let teamsSection = document.getElementById('teams-section');
+            if (!teamsSection) {
+                const playersSection = document.querySelector('.players-section');
+                if (playersSection && playersSection.parentNode) {
+                    teamsSection = document.createElement('div');
+                    teamsSection.id = 'teams-section';
+                    teamsSection.className = 'teams-section';
+                    teamsSection.style.display = 'none';
+                    teamsSection.innerHTML = `
+                        <h3><i class="fas fa-flag"></i> Teams</h3>
+                        <div id="teams-container"></div>
+                    `;
+                    playersSection.parentNode.insertBefore(teamsSection, playersSection.nextSibling);
                 }
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    window.location.href = '/admin';
-                } else {
-                    alert('Fehler beim Beenden der Registrierung: ' + data.error);
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                alert('Ein Fehler ist aufgetreten');
-            });
+            }
+            
+            // Starte Live-Updates
+            console.log('🔄 Starte Live-Updates für Welcome-System');
+            updateWelcomeStatus();
+            updateInterval = setInterval(updateWelcomeStatus, 2000);
         }
-    });
-
-    // Live-Updates starten
-    updateWelcomeStatus();
-    updateInterval = setInterval(updateWelcomeStatus, 2000);
+    {% endif %}
 });
 
+// Welcome-Status Update Funktion (immer verfügbar)
 function updateWelcomeStatus() {
     fetch('/api/welcome-status')
         .then(response => response.json())
         .then(data => {
             if (data.success) {
+                // Reset error counter bei erfolgreichem Request
+                window.welcomeErrorCount = 0;
+                
                 updatePlayersList(data.players);
                 if (data.teams && data.teams.length > 0) {
                     updateTeamsList(data.teams);
                     document.getElementById('teams-section').style.display = 'block';
                 }
+            } else {
+                // Welcome-System wurde beendet - weiterleiten zum Spielbrett im Vollbild
+                console.log('Welcome-System wurde beendet - Weiterleitung zum Spielbrett im Vollbild');
+                window.location.href = '/board?fullscreen=true';
             }
         })
         .catch(error => {
             console.error('Error updating status:', error);
+            // Nur bei wiederholten Fehlern weiterleiten (Welcome-System könnte beendet worden sein)
+            if (!window.welcomeErrorCount) {
+                window.welcomeErrorCount = 0;
+            }
+            window.welcomeErrorCount++;
+            
+            if (window.welcomeErrorCount >= 3) {
+                console.log('Mehrere aufeinanderfolgende Fehler - Welcome-System wurde wahrscheinlich beendet');
+                window.location.href = '/board?fullscreen=true';
+            }
         });
 }
 
@@ -506,25 +512,73 @@ function updatePlayersList(players) {
         return;
     }
     
-    const playersGrid = document.createElement('div');
-    playersGrid.className = 'players-grid';
+    // Prüfe ob bereits ein Grid existiert
+    let playersGrid = container.querySelector('.players-grid');
+    if (!playersGrid) {
+        // Erstelle Grid nur wenn es noch nicht existiert
+        playersGrid = document.createElement('div');
+        playersGrid.className = 'players-grid';
+        container.innerHTML = '';
+        container.appendChild(playersGrid);
+    }
     
-    players.forEach(player => {
-        const playerCard = document.createElement('div');
-        playerCard.className = 'player-card';
-        playerCard.innerHTML = `
-            <div class="player-name">
-                <i class="fas fa-user"></i> ${player.name}
-            </div>
-            <div class="player-time">
-                ${new Date(player.registration_time).toLocaleTimeString()}
-            </div>
-        `;
-        playersGrid.appendChild(playerCard);
+    // Markiere alle bereits vorhandenen Karten als statisch (keine Animation mehr)
+    playersGrid.querySelectorAll('.player-card').forEach(card => {
+        card.classList.add('static');
     });
     
-    container.innerHTML = '';
-    container.appendChild(playersGrid);
+    // Hole bereits vorhandene Spieler-Namen
+    const existingPlayers = Array.from(playersGrid.querySelectorAll('.player-card')).map(card => {
+        const nameElement = card.querySelector('.player-name');
+        if (nameElement) {
+            // Entferne das Font Awesome Icon-Element und hole nur den Text
+            const clonedElement = nameElement.cloneNode(true);
+            const iconElement = clonedElement.querySelector('i');
+            if (iconElement) iconElement.remove();
+            return clonedElement.textContent.trim();
+        }
+        return '';
+    });
+    
+    // Füge nur neue Spieler hinzu
+    players.forEach(player => {
+        if (!existingPlayers.includes(player.name)) {
+            const playerCard = document.createElement('div');
+            playerCard.className = 'player-card';
+            playerCard.innerHTML = `
+                <div class="player-name">
+                    <i class="fas fa-user"></i> ${player.name}
+                </div>
+                <div class="player-time">
+                    ${new Date(player.registration_time).toLocaleTimeString()}
+                </div>
+            `;
+            
+            // Nach der Animation als statisch markieren
+            playerCard.addEventListener('animationend', function() {
+                this.classList.add('static');
+            }, { once: true });
+            
+            playersGrid.appendChild(playerCard);
+        }
+    });
+    
+    // Entferne Spieler die nicht mehr in der Liste sind (falls welche sich abmelden)
+    const currentPlayerNames = players.map(p => p.name);
+    Array.from(playersGrid.querySelectorAll('.player-card')).forEach(card => {
+        const nameElement = card.querySelector('.player-name');
+        if (nameElement) {
+            // Entferne das Font Awesome Icon-Element und hole nur den Text
+            const clonedElement = nameElement.cloneNode(true);
+            const iconElement = clonedElement.querySelector('i');
+            if (iconElement) iconElement.remove();
+            const playerName = clonedElement.textContent.trim();
+            
+            if (!currentPlayerNames.includes(playerName)) {
+                card.remove();
+            }
+        }
+    });
 }
 
 function updateTeamsList(teams) {
@@ -537,7 +591,6 @@ function updateTeamsList(teams) {
         teamCard.innerHTML = `
             <div class="team-header">
                 <div class="team-name">Team ${team.name}</div>
-                <div class="team-password">🔑 ${team.password}</div>
             </div>
             <div class="team-members">
                 ${team.members.map(member => `<span class="member-badge">${member}</span>`).join('')}
@@ -553,5 +606,7 @@ window.addEventListener('beforeunload', function() {
         clearInterval(updateInterval);
     }
 });
+
+// Cleanup und Ende
 </script>
 {% endblock %}

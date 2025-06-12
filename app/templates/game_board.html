@@ -3597,6 +3597,15 @@ document.addEventListener('DOMContentLoaded', async function() {
             
             console.log('✅ Spielbrett mit dynamischen Feld-Konfigurationen geladen!');
             
+            // Prüfe URL-Parameter für automatischen Vollbild-Start
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.get('fullscreen') === 'true') {
+                console.log('🖥️ Automatischer Vollbild-Start erkannt');
+                setTimeout(() => {
+                    requestFullscreenAndStartOrbit();
+                }, 1000);
+            }
+            
         } else {
             const canvasContainer = document.getElementById('game-canvas-container');
             if(canvasContainer) {
@@ -3609,6 +3618,132 @@ document.addEventListener('DOMContentLoaded', async function() {
         if(canvasContainer) {
             canvasContainer.innerHTML = "<p style='color:red; text-align:center; padding-top: 50px;'>Fehler beim Laden des Spielbretts. Details in der Konsole.</p>";
         }
+    }
+});
+
+// Funktion für automatischen Vollbild-Start mit Orbit-Animation
+function requestFullscreenAndStartOrbit() {
+    console.log('🎬 Starte automatischen Vollbild-Modus mit Kamera-Orbit');
+    
+    // Prüfe ob Spielbrett bereit ist
+    if (!window.gameBoard || !window.gameBoard.camera) {
+        console.log('⏳ Spielbrett noch nicht bereit - warte...');
+        setTimeout(() => requestFullscreenAndStartOrbit(), 500);
+        return;
+    }
+    
+    // Versuche Vollbild zu aktivieren
+    if (document.documentElement.requestFullscreen) {
+        document.documentElement.requestFullscreen()
+            .then(() => {
+                console.log('✅ Vollbild aktiviert - starte Orbit-Animation');
+                setTimeout(() => startCameraOrbitAnimation(), 1000);
+            })
+            .catch(error => {
+                console.log('❌ Vollbild fehlgeschlagen:', error);
+                startCameraOrbitAnimation();
+            });
+    } else if (document.documentElement.webkitRequestFullscreen) {
+        document.documentElement.webkitRequestFullscreen();
+        setTimeout(() => startCameraOrbitAnimation(), 1000);
+    } else if (document.documentElement.msRequestFullscreen) {
+        document.documentElement.msRequestFullscreen();
+        setTimeout(() => startCameraOrbitAnimation(), 1000);
+    } else {
+        // Fallback: Nur Orbit-Animation ohne Vollbild
+        console.log('Vollbild nicht unterstützt - starte nur Kamera-Orbit');
+        startCameraOrbitAnimation();
+    }
+}
+
+// Vollbild- und Kamera-Orbit-Animation beim Spielstart
+window.addEventListener('message', function(event) {
+    if (event.data.action === 'requestFullscreen') {
+        // Versuche Vollbild zu aktivieren
+        if (document.documentElement.requestFullscreen) {
+            document.documentElement.requestFullscreen();
+        } else if (document.documentElement.webkitRequestFullscreen) {
+            document.documentElement.webkitRequestFullscreen();
+        } else if (document.documentElement.msRequestFullscreen) {
+            document.documentElement.msRequestFullscreen();
+        }
+        
+        // Starte Kamera-Orbit-Animation nach kurzer Verzögerung
+        setTimeout(() => {
+            startCameraOrbitAnimation();
+        }, 500);
+    }
+});
+
+function startCameraOrbitAnimation() {
+    if (!window.gameBoard || !window.gameBoard.camera || !window.gameBoard.controls) {
+        console.warn('Spielbrett oder Kamera noch nicht initialisiert für Orbit-Animation');
+        return;
+    }
+    
+    console.log('🎥 Starte Kamera-Orbit-Animation...');
+    
+    // Speichere ursprüngliche Kamera-Position
+    const originalPosition = window.gameBoard.camera.position.clone();
+    const originalTarget = window.gameBoard.controls.target.clone();
+    
+    // Setze Kamera für Orbit-Start
+    window.gameBoard.camera.position.set(0, 15, 15);
+    window.gameBoard.controls.target.set(0, 0, 0);
+    window.gameBoard.controls.enabled = false; // Deaktiviere manuelle Kontrolle
+    
+    let orbitAngle = 0;
+    const orbitRadius = 20;
+    const orbitHeight = 12;
+    const orbitSpeed = 0.03;
+    const orbitDuration = 8000; // 8 Sekunden
+    
+    const startTime = Date.now();
+    
+    function animateOrbit() {
+        const elapsedTime = Date.now() - startTime;
+        
+        if (elapsedTime < orbitDuration) {
+            // Berechne Kamera-Position im Orbit
+            orbitAngle += orbitSpeed;
+            const x = Math.cos(orbitAngle) * orbitRadius;
+            const z = Math.sin(orbitAngle) * orbitRadius;
+            
+            window.gameBoard.camera.position.set(x, orbitHeight, z);
+            window.gameBoard.camera.lookAt(0, 2, 0); // Schaue auf die Insel-Mitte
+            
+            requestAnimationFrame(animateOrbit);
+        } else {
+            // Animation beendet - gehe zu Standard-Spielposition
+            window.gameBoard.camera.position.copy(originalPosition);
+            window.gameBoard.controls.target.copy(originalTarget);
+            window.gameBoard.controls.enabled = true; // Aktiviere manuelle Kontrolle wieder
+            window.gameBoard.controls.update();
+            
+            console.log('✅ Kamera-Orbit-Animation beendet - Spiel bereit!');
+            
+            // Zeige "Spiel bereit" Nachricht
+            if (window.gameBoard.showStatusMessage) {
+                window.gameBoard.showStatusMessage(
+                    'Spiel bereit - viel Spaß!', 
+                    3000, 
+                    'success', 
+                    true, 
+                    'Willkommen'
+                );
+            }
+        }
+    }
+    
+    animateOrbit();
+}
+
+// Alternative: Starte Animation automatisch im Vollbild-Modus
+document.addEventListener('fullscreenchange', function() {
+    if (document.fullscreenElement) {
+        setTimeout(() => {
+            startCameraOrbitAnimation();
+        }, 500);
     }
 });
 </script>

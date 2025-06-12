@@ -9,6 +9,12 @@ class Config:
     SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or \
         'sqlite:///' + os.path.join(basedir, 'app.db') # Stellt sicher, dass app.db im Root-Verzeichnis des Projekts landet
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+    
+    # Session-Konfiguration für Teams (kurze Session-Dauer)
+    PERMANENT_SESSION_LIFETIME = 1800  # 30 Minuten
+    SESSION_COOKIE_HTTPONLY = True
+    SESSION_COOKIE_SECURE = False  # Für HTTP (Development)
+    SESSION_COOKIE_SAMESITE = 'Lax'
     ADMIN_USERNAME = os.environ.get('ADMIN_USERNAME') or 'admin'
     # Geändertes Standard-Admin-Passwort
     ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD') or '1234qwer!' 

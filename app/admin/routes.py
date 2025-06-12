@@ -204,6 +204,24 @@ def admin_dashboard():
     
     return render_template('admin.html', **template_data)
 
+@admin_bp.route('/open-board')
+@login_required
+def open_board():
+    """Route für 'Spielbrett öffnen' - prüft ob Teams existieren"""
+    if not isinstance(current_user, Admin):
+        flash('Zugriff verweigert. Nur Admins können das Spielbrett öffnen.', 'danger')
+        return redirect(url_for('main.index'))
+    
+    # Prüfe ob Teams registriert sind
+    teams_count = Team.query.count()
+    if teams_count == 0:
+        # Keine Teams -> zur Welcome-Seite umleiten
+        flash('Noch keine Teams registriert. Nutze das Welcome-System, um Teams zu erstellen.', 'info')
+        return redirect(url_for('main.welcome'))
+    
+    # Teams vorhanden -> zum Spielbrett weiterleiten
+    return redirect(url_for('main.game_board'))
+
 @admin_bp.route('/login', methods=['GET', 'POST'])
 def login():
     if current_user.is_authenticated and isinstance(current_user, Admin):
@@ -2075,9 +2093,17 @@ def create_teams():
         if len(players) < team_count:
             return jsonify({"success": False, "error": f"Nicht genügend Spieler (mindestens {team_count} erforderlich)"}), 400
         
-        # Mische Spieler zufällig
+        # Mische Spieler zufällig mit verschiedenen Methoden für maximale Zufälligkeit
         players_list = list(players)
-        random.shuffle(players_list)
+        current_app.logger.info(f"Spieler vor Mischen: {[p.player_name for p in players_list]}")
+        
+        # Mehrfaches Mischen für bessere Zufälligkeit
+        import time
+        random.seed(int(time.time() * 1000000) % 1000000)  # Microsekunden-basierter Seed
+        for _ in range(3):
+            random.shuffle(players_list)
+        
+        current_app.logger.info(f"Spieler nach Mischen: {[p.player_name for p in players_list]}")
         
         # Erstelle Teams mit zufälligen 6-stelligen Passwörtern
         created_teams = []
@@ -2180,19 +2206,32 @@ def end_welcome():
 @login_required
 def end_registration():
     """Beendet die Registrierung komplett (ohne Teams zu erstellen)"""
+    current_app.logger.info(f"end-registration aufgerufen von User: {current_user}")
+    
+    # CSRF Token Validierung mit JSON-Response bei Fehlern
+    try:
+        from flask_wtf.csrf import validate_csrf
+        validate_csrf(request.headers.get('X-CSRFToken'))
+    except Exception as csrf_error:
+        current_app.logger.error(f"CSRF validation failed: {csrf_error}")
+        return jsonify({"success": False, "error": "CSRF token validation failed"}), 400
+    
     if not isinstance(current_user, Admin):
+        current_app.logger.warning(f"Unauthorized access attempt by: {current_user}")
         return jsonify({"success": False, "error": "Nur Admins können die Registrierung beenden"}), 403
     
     try:
-        
+        current_app.logger.info("Suche nach aktiver Welcome-Session")
         welcome_session = WelcomeSession.get_active_session()
         if not welcome_session:
+            current_app.logger.warning("Keine aktive Welcome-Session gefunden")
             return jsonify({"success": False, "error": "Keine aktive Welcome-Session"}), 400
         
+        current_app.logger.info(f"Deaktiviere Welcome-Session {welcome_session.id}")
         # Beende Welcome-Session
         welcome_session.deactivate()
         
-        current_app.logger.info(f"Registrierung beendet von Admin: {current_user.username}")
+        current_app.logger.info(f"Registrierung erfolgreich beendet von Admin: {current_user.username}")
         
         return jsonify({
             "success": True,

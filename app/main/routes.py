@@ -13,6 +13,11 @@ def index():
 @main_bp.route('/board')
 def game_board():
     teams = Team.query.order_by(Team.name).all()
+    
+    # Prüfe ob Teams angemeldet sind - wenn nicht, zur Welcome-Seite weiterleiten
+    if len(teams) == 0:
+        return redirect(url_for('main.welcome'))
+    
     active_session = GameSession.query.filter_by(is_active=True).first()
     is_admin = session.get('is_admin', False)
     team_colors = ["#FF5252", "#448AFF", "#4CAF50", "#FFC107", "#9C27B0", "#FF9800"]
@@ -471,13 +476,12 @@ def field_types():
 
 @main_bp.route('/welcome')
 def welcome():
-    """Welcome-Seite anzeigen"""
+    """Welcome-Seite anzeigen - immer verfügbar, auch ohne aktive Session"""
     
     welcome_session = WelcomeSession.get_active_session()
-    if not welcome_session:
-        flash('Keine aktive Registrierung gefunden.', 'warning')
-        return redirect(url_for('main.index'))
     
+    # Welcome-Seite wird immer angezeigt - auch ohne aktive Session
+    # Das Template behandelt den Fall wenn welcome_session None ist
     return render_template('welcome.html', welcome_session=welcome_session)
 
 @main_bp.route('/api/registration-status')
@@ -615,20 +619,41 @@ def welcome_admin_status():
         
         player_count = welcome_session.player_registrations.count()
         team_count = 0
+        teams_data = []
         
         if welcome_session.teams_created:
-            # Zähle Teams die in dieser Session erstellt wurden
-            team_count = Team.query.join(PlayerRegistration).filter(
+            # Hole alle Teams die in dieser Session erstellt wurden
+            team_ids = db.session.query(PlayerRegistration.assigned_team_id).filter(
                 PlayerRegistration.welcome_session_id == welcome_session.id,
                 PlayerRegistration.assigned_team_id.isnot(None)
-            ).distinct().count()
+            ).distinct().all()
+            
+            team_count = len(team_ids)
+            
+            # Hole vollständige Team-Informationen mit Passwörtern
+            for team_id_tuple in team_ids:
+                team = Team.query.get(team_id_tuple[0])
+                if team:
+                    # Hole Teammitglieder aus der Session
+                    members = PlayerRegistration.query.filter_by(
+                        welcome_session_id=welcome_session.id,
+                        assigned_team_id=team.id
+                    ).all()
+                    
+                    teams_data.append({
+                        "id": team.id,
+                        "name": team.name,
+                        "password": team.welcome_password or "Kein Passwort",
+                        "members": [member.player_name for member in members]
+                    })
         
         return jsonify({
             "success": True,
             "active": True,
             "player_count": player_count,
             "teams_created": welcome_session.teams_created,
-            "team_count": team_count
+            "team_count": team_count,
+            "teams": teams_data
         })
         
     except Exception as e:

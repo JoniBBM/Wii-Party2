@@ -503,14 +503,44 @@ function submitSetup() {
         character_id: selectedCharacterId
     };
 
+    // CSRF Token aus Meta-Tag holen
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+    
+    console.log('Sending team setup with data:', formData);
+    console.log('CSRF Token:', csrfToken);
+
     fetch(window.location.href, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken
         },
         body: JSON.stringify(formData)
     })
-    .then(response => response.json())
+    .then(response => {
+        console.log('Response status:', response.status);
+        console.log('Response headers:', response.headers);
+        
+        if (!response.ok) {
+            // Versuche Response-Text zu lesen für bessere Fehlermeldung
+            return response.text().then(text => {
+                console.error('Error response body:', text);
+                throw new Error(`HTTP ${response.status}: ${text.substring(0, 200)}`);
+            });
+        }
+        
+        const contentType = response.headers.get('content-type');
+        console.log('Content-Type:', contentType);
+        
+        if (contentType && contentType.includes('application/json')) {
+            return response.json();
+        } else {
+            return response.text().then(text => {
+                console.error('Non-JSON response:', text);
+                throw new Error('Server hat keine JSON-Antwort gesendet: ' + text.substring(0, 100));
+            });
+        }
+    })
     .then(data => {
         if (data.success) {
             showStatus(data.message, 'success');
@@ -523,7 +553,11 @@ function submitSetup() {
     })
     .catch(error => {
         console.error('Error:', error);
-        showStatus('Ein Fehler ist aufgetreten. Versuche es nochmal!', 'error');
+        if (error.message.includes('JSON')) {
+            showStatus('Server-Fehler: Ungültige Antwort erhalten', 'error');
+        } else {
+            showStatus('Ein Fehler ist aufgetreten. Versuche es nochmal!', 'error');
+        }
     })
     .finally(() => {
         // Button wieder aktivieren

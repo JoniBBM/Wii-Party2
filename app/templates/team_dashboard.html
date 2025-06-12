@@ -2402,10 +2402,29 @@ document.addEventListener('visibilitychange', function() {
     }
 });
 
+// Session-Validierung für automatischen Logout
+function validateSession() {
+    fetch('/teams/api/dashboard-status')
+        .then(response => {
+            if (response.status === 401 || response.status === 403) {
+                // Session abgelaufen oder ungültig
+                console.log('Session abgelaufen - Weiterleitung zum Login');
+                window.location.href = '/teams/login';
+            }
+            return response.json();
+        })
+        .catch(error => {
+            console.error('Session-Validierung fehlgeschlagen:', error);
+        });
+}
+
 // Initialize
 document.addEventListener('DOMContentLoaded', function() {
     startLiveUpdates();
     updateLastDiceResultDisplay();
+    
+    // Session-Validierung alle 5 Minuten
+    setInterval(validateSession, 300000); // 5 Minuten
     
     // Initialize progress chart if data exists
     if (lastProgressData && lastProgressData.length > 0) {

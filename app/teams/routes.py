@@ -11,9 +11,12 @@ teams_bp = Blueprint('teams', __name__, url_prefix='/teams')
 
 @teams_bp.route('/login', methods=['GET', 'POST'])
 def team_login():
+    # Teams müssen immer das Passwort eingeben - automatische Auslogung
     if current_user.is_authenticated:
         if isinstance(current_user, Team):
-            return redirect(url_for('teams.team_dashboard'))
+            # Team ist eingeloggt -> automatisch ausloggen für neue Anmeldung
+            logout_user()
+            flash('Bitte melde dich erneut an.', 'info')
         elif isinstance(current_user, Admin):
              flash('Du bist bereits als Admin eingeloggt.', 'info')
              return redirect(url_for('admin.admin_dashboard'))
