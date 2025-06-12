@@ -8,7 +8,7 @@ from datetime import datetime
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session, current_app, g, jsonify, make_response
 from flask_login import login_user, logout_user, login_required, current_user
 from ..models import (Admin, Team, Character, GameSession, GameEvent, MinigameFolder, GameRound, 
-                     QuestionResponse, FieldConfiguration, db)
+                     QuestionResponse, FieldConfiguration, WelcomeSession, PlayerRegistration, db)
 from ..forms import (AdminLoginForm, CreateTeamForm, EditTeamForm, SetNextMinigameForm, 
                      AdminConfirmPasswordForm, CreateMinigameFolderForm, EditMinigameFolderForm,
                      CreateGameRoundForm, EditGameRoundForm, FolderMinigameForm, EditFolderMinigameForm,
@@ -2007,3 +2007,199 @@ def activate_round(round_id):
         flash('Ein Fehler ist beim Aktivieren der Spielrunde aufgetreten.', 'danger')
     
     return redirect(url_for('admin.manage_rounds'))
+
+# WELCOME-SYSTEM ADMIN API-ENDPUNKTE
+
+@admin_bp.route('/api/start-welcome', methods=['POST'])
+@login_required
+def start_welcome():
+    """Startet das Welcome-System"""
+    if not isinstance(current_user, Admin):
+        current_app.logger.error(f"Unauthorized access attempt to start-welcome by: {current_user}")
+        return jsonify({"success": False, "error": "Nur Admins können das Welcome-System starten"}), 403
+    
+    try:
+        current_app.logger.info(f"Starting welcome system - requested by: {current_user.username}")
+        
+        # Prüfe ob bereits eine Session aktiv ist
+        existing_session = WelcomeSession.get_active_session()
+        if existing_session:
+            return jsonify({"success": False, "error": "Welcome-System ist bereits aktiv"}), 400
+        
+        # Erstelle neue Welcome-Session
+        welcome_session = WelcomeSession()
+        welcome_session.activate()
+        
+        db.session.add(welcome_session)
+        db.session.commit()
+        
+        current_app.logger.info(f"Welcome-System gestartet von Admin: {current_user.username}")
+        
+        return jsonify({
+            "success": True,
+            "message": "Welcome-System erfolgreich gestartet"
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Fehler beim Starten des Welcome-Systems: {e}", exc_info=True)
+        return jsonify({"success": False, "error": "Ein Fehler ist aufgetreten"}), 500
+
+@admin_bp.route('/api/create-teams', methods=['POST'])
+@login_required
+def create_teams():
+    """Erstellt Teams und verteilt Spieler zufällig"""
+    if not isinstance(current_user, Admin):
+        return jsonify({"success": False, "error": "Nur Admins können Teams erstellen"}), 403
+    
+    try:
+        import random
+        import string
+        
+        data = request.get_json()
+        team_count = data.get('team_count')
+        
+        if not team_count or not isinstance(team_count, int) or team_count < 2 or team_count > 6:
+            return jsonify({"success": False, "error": "Ungültige Team-Anzahl (2-6 erlaubt)"}), 400
+        
+        # Prüfe aktive Welcome-Session
+        welcome_session = WelcomeSession.get_active_session()
+        if not welcome_session:
+            return jsonify({"success": False, "error": "Keine aktive Welcome-Session"}), 400
+        
+        if welcome_session.teams_created:
+            return jsonify({"success": False, "error": "Teams wurden bereits erstellt"}), 400
+        
+        # Hole alle registrierten Spieler
+        players = welcome_session.get_registered_players()
+        if len(players) < team_count:
+            return jsonify({"success": False, "error": f"Nicht genügend Spieler (mindestens {team_count} erforderlich)"}), 400
+        
+        # Mische Spieler zufällig
+        players_list = list(players)
+        random.shuffle(players_list)
+        
+        # Erstelle Teams mit zufälligen 6-stelligen Passwörtern
+        created_teams = []
+        
+        for i in range(team_count):
+            # Generiere 6-stelliges Passwort
+            password = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
+            
+            # Erstelle Team
+            team = Team(
+                name=f"Team {i+1}",
+                members="",  # Wird später mit Spielernamen gefüllt
+                welcome_password=password  # Speichere Klartext-Passwort für Welcome-System
+            )
+            team.set_password(password)
+            
+            db.session.add(team)
+            db.session.flush()  # Damit wir die Team-ID bekommen
+            
+            created_teams.append({
+                "team": team,
+                "password": password,
+                "members": []
+            })
+        
+        # Verteile Spieler gleichmäßig auf Teams
+        for i, player in enumerate(players_list):
+            team_index = i % team_count
+            selected_team = created_teams[team_index]
+            
+            # Setze Team-Zuordnung für Spieler
+            player.assigned_team_id = selected_team["team"].id
+            selected_team["members"].append(player.player_name)
+        
+        # Aktualisiere Team-Members String
+        for team_data in created_teams:
+            team_data["team"].members = ", ".join(team_data["members"])
+        
+        # Markiere Welcome-Session als teams_created
+        welcome_session.teams_created = True
+        welcome_session.team_count = team_count
+        
+        db.session.commit()
+        
+        current_app.logger.info(f"Teams erstellt von Admin {current_user.username}: {team_count} Teams mit {len(players_list)} Spielern")
+        
+        # Erstelle Response mit Team-Informationen (inkl. Passwörter für Admin)
+        teams_info = []
+        for team_data in created_teams:
+            teams_info.append({
+                "id": team_data["team"].id,
+                "name": team_data["team"].name,
+                "password": team_data["password"],
+                "members": team_data["members"]
+            })
+        
+        return jsonify({
+            "success": True,
+            "message": f"{team_count} Teams erfolgreich erstellt",
+            "teams": teams_info
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Fehler beim Erstellen der Teams: {e}", exc_info=True)
+        return jsonify({"success": False, "error": "Ein Fehler ist aufgetreten"}), 500
+
+@admin_bp.route('/api/end-welcome', methods=['POST'])
+@login_required
+def end_welcome():
+    """Beendet Welcome-Modus und wechselt zum Spielbrett"""
+    if not isinstance(current_user, Admin):
+        return jsonify({"success": False, "error": "Nur Admins können das Welcome-System beenden"}), 403
+    
+    try:
+        
+        welcome_session = WelcomeSession.get_active_session()
+        if not welcome_session:
+            return jsonify({"success": False, "error": "Keine aktive Welcome-Session"}), 400
+        
+        if not welcome_session.teams_created:
+            return jsonify({"success": False, "error": "Teams müssen erst erstellt werden"}), 400
+        
+        # Beende Welcome-Session
+        welcome_session.deactivate()
+        
+        current_app.logger.info(f"Welcome-System beendet von Admin: {current_user.username}")
+        
+        return jsonify({
+            "success": True,
+            "message": "Welcome-System beendet, Spiel kann beginnen"
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Fehler beim Beenden des Welcome-Systems: {e}", exc_info=True)
+        return jsonify({"success": False, "error": "Ein Fehler ist aufgetreten"}), 500
+
+@admin_bp.route('/api/end-registration', methods=['POST'])
+@login_required
+def end_registration():
+    """Beendet die Registrierung komplett (ohne Teams zu erstellen)"""
+    if not isinstance(current_user, Admin):
+        return jsonify({"success": False, "error": "Nur Admins können die Registrierung beenden"}), 403
+    
+    try:
+        
+        welcome_session = WelcomeSession.get_active_session()
+        if not welcome_session:
+            return jsonify({"success": False, "error": "Keine aktive Welcome-Session"}), 400
+        
+        # Beende Welcome-Session
+        welcome_session.deactivate()
+        
+        current_app.logger.info(f"Registrierung beendet von Admin: {current_user.username}")
+        
+        return jsonify({
+            "success": True,
+            "message": "Registrierung erfolgreich beendet"
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Fehler beim Beenden der Registrierung: {e}", exc_info=True)
+        return jsonify({"success": False, "error": "Ein Fehler ist aufgetreten"}), 500

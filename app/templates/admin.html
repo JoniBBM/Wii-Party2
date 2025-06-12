@@ -99,6 +99,32 @@
             </div>
         </div>
 
+        <!-- NEU: Welcome-System -->
+        <div class="col-md-4">
+            <div class="card border-info">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0"><i class="fas fa-hand-paper"></i> Welcome-System</h5>
+                </div>
+                <div class="card-body">
+                    <div id="welcome-status-card">
+                        <!-- Status wird via JavaScript geladen -->
+                        <div class="text-center">
+                            <i class="fas fa-spinner fa-spin"></i> Lade Status...
+                        </div>
+                    </div>
+                    
+                    <div class="btn-group d-flex mt-3" role="group">
+                        <button id="start-welcome-btn" class="btn btn-success btn-sm">
+                            <i class="fas fa-play"></i> Starten
+                        </button>
+                        <a href="/welcome" class="btn btn-outline-info btn-sm" target="_blank">
+                            <i class="fas fa-external-link-alt"></i> Öffnen
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- NEU: Feld-Management -->
         <div class="col-md-4">
             <div class="card border-warning">
@@ -1268,6 +1294,146 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Auto-Update alle 3 Sekunden (häufiger für bessere Responsivität)
     setInterval(updateGameStatus, 3000);
+
+    // Welcome-System initialisierung
+    updateWelcomeStatus();
+    setInterval(updateWelcomeStatus, 5000);
+
+    // Welcome-System Event Listeners
+    document.getElementById('start-welcome-btn').addEventListener('click', function() {
+        fetch('/admin/api/start-welcome', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRFToken': csrfToken
+            },
+            credentials: 'same-origin',
+            body: JSON.stringify({})  // Leerer Body, aber als JSON
+        })
+        .then(response => {
+            if (!response.ok) {
+                return response.text().then(text => {
+                    console.error('Response error:', text);
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                });
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.success) {
+                updateWelcomeStatus();
+                // Öffne Welcome-Seite in neuem Tab
+                window.open('/welcome', '_blank');
+            } else {
+                alert('Fehler beim Starten des Welcome-Systems: ' + data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Ein Fehler ist aufgetreten: ' + error.message);
+        });
+    });
 });
+
+function updateWelcomeStatus() {
+    fetch('/api/welcome-admin-status')
+        .then(response => response.json())
+        .then(data => {
+            const statusCard = document.getElementById('welcome-status-card');
+            const startBtn = document.getElementById('start-welcome-btn');
+            
+            if (data.active) {
+                statusCard.innerHTML = `
+                    <div class="text-success">
+                        <i class="fas fa-check-circle"></i> <strong>Aktiv</strong>
+                    </div>
+                    <div class="mt-2">
+                        <small class="text-muted">Spieler registriert: <strong>${data.player_count || 0}</strong></small>
+                    </div>
+                    ${data.teams_created ? `
+                        <div class="mt-2">
+                            <small class="text-info">Teams erstellt: <strong>${data.team_count || 0}</strong></small>
+                        </div>
+                        <div class="mt-2">
+                            <span class="badge badge-success">Bereit zum Spielstart</span>
+                        </div>
+                    ` : `
+                        <div class="mt-2">
+                            <span class="badge badge-warning">Warten auf Teamaufteilung</span>
+                        </div>
+                    `}
+                `;
+                startBtn.innerHTML = '<i class="fas fa-stop"></i> Beenden';
+                startBtn.className = 'btn btn-danger btn-sm';
+                startBtn.onclick = function() {
+                    if (confirm('Welcome-System wirklich beenden?')) {
+                        fetch('/admin/api/end-registration', {
+                            method: 'POST',
+                            headers: { 
+                                'Content-Type': 'application/json',
+                                'X-Requested-With': 'XMLHttpRequest',
+                                'X-CSRFToken': csrfToken
+                            },
+                            credentials: 'same-origin',
+                            body: JSON.stringify({})
+                        }).then(() => updateWelcomeStatus());
+                    }
+                };
+            } else {
+                statusCard.innerHTML = `
+                    <div class="text-muted">
+                        <i class="fas fa-pause-circle"></i> <strong>Inaktiv</strong>
+                    </div>
+                    <div class="mt-2">
+                        <small class="text-muted">Welcome-System ist nicht aktiv</small>
+                    </div>
+                `;
+                startBtn.innerHTML = '<i class="fas fa-play"></i> Starten';
+                startBtn.className = 'btn btn-success btn-sm';
+                startBtn.onclick = function() {
+                    fetch('/admin/api/start-welcome', {
+                        method: 'POST',
+                        headers: { 
+                            'Content-Type': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'X-CSRFToken': csrfToken
+                        },
+                        credentials: 'same-origin',
+                        body: JSON.stringify({})
+                    }).then(response => {
+                        if (!response.ok) {
+                            return response.text().then(text => {
+                                console.error('Response error:', text);
+                                throw new Error(`HTTP error! status: ${response.status}`);
+                            });
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        if (data.success) {
+                            updateWelcomeStatus();
+                            window.open('/welcome', '_blank');
+                        } else {
+                            alert('Fehler: ' + data.error);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        alert('Ein Fehler ist aufgetreten: ' + error.message);
+                    });
+                };
+            }
+        })
+        .catch(error => {
+            console.error('Error updating welcome status:', error);
+            const statusCard = document.getElementById('welcome-status-card');
+            statusCard.innerHTML = `
+                <div class="text-danger">
+                    <i class="fas fa-exclamation-triangle"></i> Fehler beim Laden
+                </div>
+            `;
+        });
+}
 </script>
 {% endblock %}

@@ -36,6 +36,8 @@ class Team(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), unique=True, nullable=False)
     password_hash = db.Column(db.String(256), nullable=True)
+    # Neues Feld für Welcome-System (nur 6-stellige Passwörter, temporär gespeichert)
+    welcome_password = db.Column(db.String(10), nullable=True)
     members = db.Column(db.String(255), nullable=True)
 
     character_name = db.Column(db.String(100), nullable=True)
@@ -546,3 +548,55 @@ class GameEvent(db.Model):
 
     def __repr__(self):
         return f'<GameEvent {self.id} Type: {self.event_type} Session: {self.game_session_id}>'
+
+class WelcomeSession(db.Model):
+    """Verwaltet Willkommensmodus und Spielerregistrierung"""
+    id = db.Column(db.Integer, primary_key=True)
+    is_active = db.Column(db.Boolean, default=False, nullable=False)
+    start_time = db.Column(db.DateTime, default=datetime.utcnow)
+    end_time = db.Column(db.DateTime, nullable=True)
+    
+    # Team-Konfiguration
+    team_count = db.Column(db.Integer, nullable=True)
+    teams_created = db.Column(db.Boolean, default=False, nullable=False)
+    
+    # Beziehungen
+    player_registrations = db.relationship('PlayerRegistration', backref='welcome_session', lazy='dynamic', cascade="all, delete-orphan")
+    
+    @classmethod
+    def get_active_session(cls):
+        """Gibt die aktuelle aktive Welcome-Session zurück"""
+        return cls.query.filter_by(is_active=True).first()
+    
+    def activate(self):
+        """Aktiviert diese Session und deaktiviert alle anderen"""
+        WelcomeSession.query.update({'is_active': False})
+        self.is_active = True
+        db.session.commit()
+    
+    def deactivate(self):
+        """Deaktiviert diese Session"""
+        self.is_active = False
+        self.end_time = datetime.utcnow()
+        db.session.commit()
+    
+    def get_registered_players(self):
+        """Gibt alle registrierten Spieler zurück"""
+        return self.player_registrations.order_by(PlayerRegistration.registration_time).all()
+    
+    def __repr__(self):
+        return f'<WelcomeSession {self.id} Active: {self.is_active}>'
+
+class PlayerRegistration(db.Model):
+    """Einzelne Spielerregistrierung für Welcome-Session"""
+    id = db.Column(db.Integer, primary_key=True)
+    welcome_session_id = db.Column(db.Integer, db.ForeignKey('welcome_session.id'), nullable=False)
+    player_name = db.Column(db.String(100), nullable=False)
+    registration_time = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Team-Zuordnung (wird nach Teamaufteilung gesetzt)
+    assigned_team_id = db.Column(db.Integer, db.ForeignKey('team.id'), nullable=True)
+    assigned_team = db.relationship('Team', backref='player_registrations')
+    
+    def __repr__(self):
+        return f'<PlayerRegistration {self.player_name} Session: {self.welcome_session_id}>'

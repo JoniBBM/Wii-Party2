@@ -1,6 +1,6 @@
-from flask import render_template, jsonify, request, session, current_app
+from flask import render_template, jsonify, request, session, current_app, redirect, url_for, flash
 from app.main import main_bp
-from app.models import Team, Character, GameSession, GameEvent, Admin # Admin importiert für Check
+from app.models import Team, Character, GameSession, GameEvent, Admin, WelcomeSession, PlayerRegistration
 from app import db
 import random # Für Würfellogik
 import traceback # Für detaillierte Fehlermeldungen
@@ -465,4 +465,172 @@ def field_types():
         }), 503
     except Exception as e:
         current_app.logger.error(f"Fehler in field-types: {e}", exc_info=True)
+        return jsonify({"success": False, "error": str(e)}), 500
+
+# WELCOME-SYSTEM API ENDPUNKTE
+
+@main_bp.route('/welcome')
+def welcome():
+    """Welcome-Seite anzeigen"""
+    
+    welcome_session = WelcomeSession.get_active_session()
+    if not welcome_session:
+        flash('Keine aktive Registrierung gefunden.', 'warning')
+        return redirect(url_for('main.index'))
+    
+    return render_template('welcome.html', welcome_session=welcome_session)
+
+@main_bp.route('/api/registration-status')
+def registration_status():
+    """Status der Registrierung für index.html Pop-up"""
+    try:
+        
+        welcome_session = WelcomeSession.get_active_session()
+        
+        return jsonify({
+            "success": True,
+            "registration_active": welcome_session is not None,
+            "teams_created": welcome_session.teams_created if welcome_session else False
+        })
+    except Exception as e:
+        current_app.logger.error(f"Fehler in registration-status: {e}", exc_info=True)
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@main_bp.route('/api/register-player', methods=['POST'])
+def register_player():
+    """Spieler registrieren"""
+    try:
+        
+        data = request.get_json()
+        player_name = data.get('player_name', '').strip()
+        
+        if not player_name:
+            return jsonify({"success": False, "error": "Name ist erforderlich"}), 400
+        
+        if len(player_name) > 50:
+            return jsonify({"success": False, "error": "Name ist zu lang (max. 50 Zeichen)"}), 400
+        
+        # Prüfe ob Registrierung aktiv ist
+        welcome_session = WelcomeSession.get_active_session()
+        if not welcome_session:
+            return jsonify({"success": False, "error": "Keine aktive Registrierung"}), 400
+        
+        if welcome_session.teams_created:
+            return jsonify({"success": False, "error": "Registrierung ist bereits abgeschlossen"}), 400
+        
+        # Prüfe ob Name bereits existiert
+        existing = PlayerRegistration.query.filter_by(
+            welcome_session_id=welcome_session.id,
+            player_name=player_name
+        ).first()
+        
+        if existing:
+            return jsonify({"success": False, "error": "Name ist bereits vergeben"}), 400
+        
+        # Erstelle neue Registrierung
+        registration = PlayerRegistration(
+            welcome_session_id=welcome_session.id,
+            player_name=player_name
+        )
+        
+        db.session.add(registration)
+        db.session.commit()
+        
+        current_app.logger.info(f"Neuer Spieler registriert: {player_name}")
+        
+        return jsonify({
+            "success": True,
+            "message": f"Spieler '{player_name}' erfolgreich registriert"
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Fehler bei Spielerregistrierung: {e}", exc_info=True)
+        return jsonify({"success": False, "error": "Ein Fehler ist aufgetreten"}), 500
+
+@main_bp.route('/api/welcome-status')
+def welcome_status():
+    """Status-Informationen für Welcome-Seite"""
+    try:
+        
+        welcome_session = WelcomeSession.get_active_session()
+        if not welcome_session:
+            return jsonify({"success": False, "error": "Keine aktive Session"}), 404
+        
+        # Hole registrierte Spieler
+        players = []
+        for registration in welcome_session.get_registered_players():
+            players.append({
+                "id": registration.id,
+                "name": registration.player_name,
+                "registration_time": registration.registration_time.isoformat()
+            })
+        
+        # Hole Team-Informationen falls bereits erstellt
+        teams = []
+        if welcome_session.teams_created:
+            # Hole alle Teams die in dieser Welcome-Session erstellt wurden
+            team_objects = Team.query.join(PlayerRegistration).filter(
+                PlayerRegistration.welcome_session_id == welcome_session.id,
+                PlayerRegistration.assigned_team_id.isnot(None)
+            ).distinct().all()
+            
+            for team in team_objects:
+                # Hole Mitglieder dieses Teams
+                team_players = PlayerRegistration.query.filter_by(
+                    welcome_session_id=welcome_session.id,
+                    assigned_team_id=team.id
+                ).all()
+                
+                teams.append({
+                    "id": team.id,
+                    "name": team.name,
+                    "password": team.welcome_password or "Passwort nicht verfügbar",
+                    "members": [p.player_name for p in team_players]
+                })
+        
+        return jsonify({
+            "success": True,
+            "players": players,
+            "teams": teams,
+            "teams_created": welcome_session.teams_created
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"Fehler in welcome-status: {e}", exc_info=True)
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@main_bp.route('/api/welcome-admin-status')
+def welcome_admin_status():
+    """Admin-Status für Welcome-System im Dashboard"""
+    try:
+        
+        welcome_session = WelcomeSession.get_active_session()
+        
+        if not welcome_session:
+            return jsonify({
+                "success": True,
+                "active": False
+            })
+        
+        player_count = welcome_session.player_registrations.count()
+        team_count = 0
+        
+        if welcome_session.teams_created:
+            # Zähle Teams die in dieser Session erstellt wurden
+            team_count = Team.query.join(PlayerRegistration).filter(
+                PlayerRegistration.welcome_session_id == welcome_session.id,
+                PlayerRegistration.assigned_team_id.isnot(None)
+            ).distinct().count()
+        
+        return jsonify({
+            "success": True,
+            "active": True,
+            "player_count": player_count,
+            "teams_created": welcome_session.teams_created,
+            "team_count": team_count
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"Fehler in welcome-admin-status: {e}", exc_info=True)
         return jsonify({"success": False, "error": str(e)}), 500

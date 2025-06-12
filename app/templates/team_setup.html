@@ -1,0 +1,551 @@
+{% extends "base.html" %}
+
+{% block title %}Team-Setup - Wii Party U Deluxe{% endblock %}
+
+{% block styles %}
+{{ super() }}
+<style>
+    .setup-container {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        color: white;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .setup-container::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: linear-gradient(45deg, rgba(255,255,255,0.1) 25%, transparent 25%),
+                    linear-gradient(-45deg, rgba(255,255,255,0.1) 25%, transparent 25%);
+        background-size: 60px 60px;
+        animation: movePattern 20s linear infinite;
+        opacity: 0.3;
+    }
+
+    @keyframes movePattern {
+        0% { transform: translateX(0px) translateY(0px); }
+        100% { transform: translateX(60px) translateY(60px); }
+    }
+
+    .setup-content {
+        position: relative;
+        z-index: 2;
+        padding: 2rem 0;
+    }
+
+    .setup-card {
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 20px;
+        padding: 2rem;
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        max-width: 600px;
+        margin: 0 auto;
+    }
+
+    .setup-title {
+        font-size: 2.5rem;
+        font-weight: 900;
+        margin-bottom: 1rem;
+        text-align: center;
+        text-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        background: linear-gradient(45deg, #fff, #f8f9ff, #fff);
+        background-size: 200% 200%;
+        background-clip: text;
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        animation: shimmer 3s ease-in-out infinite;
+    }
+
+    @keyframes shimmer {
+        0% { background-position: 0% 50%; }
+        50% { background-position: 100% 50%; }
+        100% { background-position: 0% 50%; }
+    }
+
+    .setup-subtitle {
+        text-align: center;
+        font-size: 1.2rem;
+        margin-bottom: 2rem;
+        opacity: 0.95;
+    }
+
+    .form-section {
+        margin-bottom: 2rem;
+    }
+
+    .section-title {
+        font-size: 1.3rem;
+        font-weight: 600;
+        margin-bottom: 1rem;
+        color: #FFD700;
+    }
+
+    .form-group {
+        margin-bottom: 1.5rem;
+    }
+
+    .form-label {
+        display: block;
+        margin-bottom: 0.5rem;
+        font-weight: 600;
+        font-size: 1.1rem;
+    }
+
+    .form-input {
+        width: 100%;
+        padding: 1rem;
+        border: 2px solid rgba(255, 255, 255, 0.3);
+        border-radius: 15px;
+        background: rgba(255, 255, 255, 0.1);
+        color: white;
+        font-size: 1.1rem;
+        backdrop-filter: blur(10px);
+        transition: all 0.3s ease;
+    }
+
+    .form-input::placeholder {
+        color: rgba(255, 255, 255, 0.7);
+    }
+
+    .form-input:focus {
+        outline: none;
+        border-color: #FFD700;
+        background: rgba(255, 255, 255, 0.2);
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(255, 215, 0, 0.2);
+    }
+
+    .characters-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        gap: 1rem;
+        margin-top: 1rem;
+    }
+
+    .character-card {
+        background: rgba(255, 255, 255, 0.1);
+        border: 2px solid rgba(255, 255, 255, 0.3);
+        border-radius: 15px;
+        padding: 1rem;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .character-card:hover {
+        transform: translateY(-5px);
+        background: rgba(255, 255, 255, 0.2);
+        border-color: #FFD700;
+        box-shadow: 0 10px 30px rgba(255, 215, 0, 0.3);
+    }
+
+    .character-card.selected {
+        background: rgba(255, 215, 0, 0.3);
+        border-color: #FFD700;
+        box-shadow: 0 10px 30px rgba(255, 215, 0, 0.4);
+    }
+
+    .character-card input[type="radio"] {
+        position: absolute;
+        opacity: 0;
+        pointer-events: none;
+    }
+
+    .character-image {
+        width: 60px;
+        height: 60px;
+        border-radius: 50%;
+        margin: 0 auto 0.5rem;
+        background: rgba(255, 255, 255, 0.2);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+    }
+
+    .character-name {
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+        font-size: 0.9rem;
+    }
+
+    .character-color {
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        margin: 0 auto;
+        border: 2px solid rgba(255, 255, 255, 0.5);
+    }
+
+    .no-characters {
+        text-align: center;
+        padding: 2rem;
+        opacity: 0.8;
+        font-style: italic;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 15px;
+        border: 2px dashed rgba(255, 255, 255, 0.3);
+    }
+
+    .setup-buttons {
+        display: flex;
+        gap: 1rem;
+        justify-content: center;
+        margin-top: 2rem;
+    }
+
+    .btn-setup {
+        padding: 1rem 2rem;
+        font-size: 1.1rem;
+        font-weight: 600;
+        border-radius: 50px;
+        border: none;
+        transition: all 0.3s ease;
+        text-decoration: none;
+        display: inline-block;
+        position: relative;
+        overflow: hidden;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        cursor: pointer;
+    }
+
+    .btn-setup::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: -100%;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+        transition: left 0.5s;
+    }
+
+    .btn-setup:hover::before {
+        left: 100%;
+    }
+
+    .btn-setup-primary {
+        background: linear-gradient(45deg, #FFD700, #FFC107);
+        color: #333;
+        box-shadow: 0 8px 25px rgba(255, 215, 0, 0.3);
+    }
+
+    .btn-setup-primary:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 15px 35px rgba(255, 215, 0, 0.4);
+        color: #333;
+    }
+
+    .btn-setup-primary:disabled {
+        background: rgba(255, 255, 255, 0.3);
+        color: rgba(255, 255, 255, 0.7);
+        cursor: not-allowed;
+        transform: none;
+        box-shadow: none;
+    }
+
+    .btn-setup-secondary {
+        background: rgba(255, 255, 255, 0.2);
+        color: white;
+        border: 2px solid rgba(255, 255, 255, 0.3);
+        box-shadow: 0 8px 25px rgba(255, 255, 255, 0.1);
+    }
+
+    .btn-setup-secondary:hover {
+        background: rgba(255, 255, 255, 0.3);
+        transform: translateY(-3px);
+        box-shadow: 0 15px 35px rgba(255, 255, 255, 0.2);
+        color: white;
+    }
+
+    .status-message {
+        text-align: center;
+        margin-top: 1rem;
+        padding: 1rem;
+        border-radius: 15px;
+        display: none;
+        font-weight: 600;
+    }
+
+    .status-success {
+        background: rgba(76, 175, 80, 0.3);
+        border: 2px solid rgba(76, 175, 80, 0.5);
+        color: #4CAF50;
+    }
+
+    .status-error {
+        background: rgba(244, 67, 54, 0.3);
+        border: 2px solid rgba(244, 67, 54, 0.5);
+        color: #F44336;
+    }
+
+    .team-info {
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 15px;
+        padding: 1rem;
+        margin-bottom: 2rem;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .team-info h4 {
+        margin: 0 0 0.5rem 0;
+        color: #FFD700;
+    }
+
+    .team-members {
+        font-size: 0.9rem;
+        opacity: 0.9;
+    }
+
+    @media (max-width: 768px) {
+        .setup-title {
+            font-size: 2rem;
+        }
+        
+        .characters-grid {
+            grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+        }
+        
+        .setup-buttons {
+            flex-direction: column;
+        }
+        
+        .setup-card {
+            padding: 1.5rem;
+            margin: 1rem;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="setup-container">
+    <div class="container">
+        <div class="setup-content">
+            <div class="setup-card">
+                <h1 class="setup-title">Team-Setup</h1>
+                <p class="setup-subtitle">Wähle deinen Team-Namen und Charakter!</p>
+
+                <!-- Team-Info -->
+                <div class="team-info">
+                    <h4><i class="fas fa-info-circle"></i> Aktuelle Team-Info</h4>
+                    <p><strong>Standard-Name:</strong> {{ team.name }}</p>
+                    {% if team.members %}
+                        <p class="team-members"><strong>Mitglieder:</strong> {{ team.members }}</p>
+                    {% endif %}
+                </div>
+
+                <!-- Flash Nachrichten -->
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                        {% for category, message in messages %}
+                        <div class="status-message status-{{ 'success' if category == 'success' else 'error' }}" style="display: block;">
+                            {{ message }}
+                        </div>
+                        {% endfor %}
+                    {% endif %}
+                {% endwith %}
+
+                <form id="setup-form" method="POST">
+                    <!-- Team-Name Sektion -->
+                    <div class="form-section">
+                        <h3 class="section-title"><i class="fas fa-flag"></i> Team-Name</h3>
+                        <div class="form-group">
+                            <label for="team-name" class="form-label">Neuer Team-Name:</label>
+                            <input type="text" 
+                                   id="team-name" 
+                                   name="team_name" 
+                                   class="form-input" 
+                                   placeholder="Gib deinen Wunsch-Team-Namen ein..." 
+                                   value="{{ team.name }}"
+                                   maxlength="50" 
+                                   required>
+                        </div>
+                    </div>
+
+                    <!-- Charakter-Auswahl Sektion -->
+                    <div class="form-section">
+                        <h3 class="section-title"><i class="fas fa-user"></i> Charakter auswählen</h3>
+                        
+                        {% if available_characters %}
+                            <div class="characters-grid">
+                                {% for character in available_characters %}
+                                <div class="character-card" onclick="selectCharacter({{ character.id }})">
+                                    <input type="radio" 
+                                           name="character_id" 
+                                           value="{{ character.id }}" 
+                                           id="character-{{ character.id }}"
+                                           {% if team.character_id == character.id %}checked{% endif %}>
+                                    
+                                    <div class="character-image">
+                                        {% if character.image_file %}
+                                            <img src="{{ url_for('static', filename='images/' + character.image_file) }}" 
+                                                 alt="{{ character.name }}" 
+                                                 style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">
+                                        {% else %}
+                                            <i class="fas fa-user"></i>
+                                        {% endif %}
+                                    </div>
+                                    
+                                    <div class="character-name">{{ character.name }}</div>
+                                    
+                                    <div class="character-color" 
+                                         style="background-color: {{ character.color or '#FFFFFF' }};"></div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <div class="no-characters">
+                                <i class="fas fa-exclamation-triangle fa-2x mb-3"></i>
+                                <p>Keine Charaktere verfügbar. Alle sind bereits ausgewählt.</p>
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Buttons -->
+                    <div class="setup-buttons">
+                        <button type="submit" class="btn-setup btn-setup-primary" id="submit-btn">
+                            <i class="fas fa-check"></i> Setup abschließen
+                        </button>
+                        <a href="{{ url_for('teams.team_dashboard') }}" class="btn-setup btn-setup-secondary">
+                            <i class="fas fa-arrow-left"></i> Später
+                        </a>
+                    </div>
+                </form>
+
+                <div id="status-message" class="status-message">
+                    <span id="status-text"></span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let selectedCharacterId = null;
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Prüfe bereits ausgewählten Charakter
+    const checkedRadio = document.querySelector('input[name="character_id"]:checked');
+    if (checkedRadio) {
+        selectedCharacterId = parseInt(checkedRadio.value);
+        updateCharacterSelection();
+    }
+
+    // Form submission
+    document.getElementById('setup-form').addEventListener('submit', function(e) {
+        e.preventDefault();
+        submitSetup();
+    });
+
+    // Enter-Taste für Formular
+    document.getElementById('team-name').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            submitSetup();
+        }
+    });
+});
+
+function selectCharacter(characterId) {
+    selectedCharacterId = characterId;
+    
+    // Radio button auswählen
+    const radio = document.getElementById(`character-${characterId}`);
+    if (radio) {
+        radio.checked = true;
+    }
+    
+    updateCharacterSelection();
+}
+
+function updateCharacterSelection() {
+    // Alle Karten zurücksetzen
+    document.querySelectorAll('.character-card').forEach(card => {
+        card.classList.remove('selected');
+    });
+    
+    // Ausgewählte Karte markieren
+    if (selectedCharacterId) {
+        const selectedCard = document.querySelector(`#character-${selectedCharacterId}`).closest('.character-card');
+        if (selectedCard) {
+            selectedCard.classList.add('selected');
+        }
+    }
+}
+
+function submitSetup() {
+    const teamName = document.getElementById('team-name').value.trim();
+    const submitBtn = document.getElementById('submit-btn');
+    const statusDiv = document.getElementById('status-message');
+    const statusText = document.getElementById('status-text');
+    
+    if (!teamName) {
+        showStatus('Team-Name ist erforderlich!', 'error');
+        return;
+    }
+
+    // Button deaktivieren
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Wird gespeichert...';
+
+    const formData = {
+        team_name: teamName,
+        character_id: selectedCharacterId
+    };
+
+    fetch(window.location.href, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formData)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showStatus(data.message, 'success');
+            setTimeout(() => {
+                window.location.href = '{{ url_for("teams.team_dashboard") }}';
+            }, 2000);
+        } else {
+            showStatus(data.error || 'Ein Fehler ist aufgetreten', 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showStatus('Ein Fehler ist aufgetreten. Versuche es nochmal!', 'error');
+    })
+    .finally(() => {
+        // Button wieder aktivieren
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<i class="fas fa-check"></i> Setup abschließen';
+    });
+}
+
+function showStatus(message, type) {
+    const statusDiv = document.getElementById('status-message');
+    const statusText = document.getElementById('status-text');
+    
+    statusDiv.className = `status-message status-${type}`;
+    statusText.textContent = message;
+    statusDiv.style.display = 'block';
+    
+    // Auto-hide nach 5 Sekunden bei Fehlern
+    if (type === 'error') {
+        setTimeout(() => {
+            statusDiv.style.display = 'none';
+        }, 5000);
+    }
+}
+</script>
+{% endblock %}

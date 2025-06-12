@@ -301,8 +301,113 @@ def team_dashboard():
         flash('Nur eingeloggte Teams können ihr Dashboard sehen.', 'warning')
         return redirect(url_for('teams.team_login'))
     
+    # Prüfe ob Team-Setup erforderlich ist (aus Welcome-System kommend)
+    if current_user.welcome_password and not current_user.character_id:
+        # Team ist aus Welcome-System und muss noch Setup durchführen
+        return redirect(url_for('teams.team_setup'))
+    
     template_data = _get_dashboard_data(current_user)
     return render_template('team_dashboard.html', **template_data)
+
+@teams_bp.route('/setup', methods=['GET', 'POST'])
+@login_required
+def team_setup():
+    """Team-Setup für Teams aus dem Welcome-System"""
+    if not isinstance(current_user, Team):
+        flash('Nur eingeloggte Teams können das Setup durchführen.', 'warning')
+        return redirect(url_for('teams.team_login'))
+    
+    # Nur für Teams aus Welcome-System (haben welcome_password)
+    if not current_user.welcome_password:
+        flash('Team-Setup ist nicht erforderlich.', 'info')
+        return redirect(url_for('teams.team_dashboard'))
+    
+    # Hole verfügbare Charaktere
+    from app.models import Character
+    available_characters = Character.query.filter_by(is_selected=False).all()
+    
+    if request.method == 'POST':
+        try:
+            data = request.get_json() if request.is_json else request.form
+            new_team_name = data.get('team_name', '').strip()
+            character_id = data.get('character_id')
+            
+            # Validierung
+            if not new_team_name:
+                if request.is_json:
+                    return jsonify({"success": False, "error": "Team-Name ist erforderlich"}), 400
+                flash('Team-Name ist erforderlich.', 'danger')
+                return redirect(url_for('teams.team_setup'))
+            
+            if len(new_team_name) > 50:
+                if request.is_json:
+                    return jsonify({"success": False, "error": "Team-Name ist zu lang (max. 50 Zeichen)"}), 400
+                flash('Team-Name ist zu lang (max. 50 Zeichen).', 'danger')
+                return redirect(url_for('teams.team_setup'))
+            
+            # Prüfe ob Name bereits existiert (außer dem aktuellen Team)
+            existing_team = Team.query.filter(Team.name == new_team_name, Team.id != current_user.id).first()
+            if existing_team:
+                if request.is_json:
+                    return jsonify({"success": False, "error": "Team-Name ist bereits vergeben"}), 400
+                flash('Team-Name ist bereits vergeben.', 'danger')
+                return redirect(url_for('teams.team_setup'))
+            
+            # Charakter-Validierung falls angegeben
+            character = None
+            if character_id:
+                try:
+                    character_id = int(character_id)
+                    character = Character.query.filter_by(id=character_id, is_selected=False).first()
+                    if not character:
+                        if request.is_json:
+                            return jsonify({"success": False, "error": "Charakter ist nicht verfügbar"}), 400
+                        flash('Charakter ist nicht verfügbar.', 'danger')
+                        return redirect(url_for('teams.team_setup'))
+                except ValueError:
+                    if request.is_json:
+                        return jsonify({"success": False, "error": "Ungültige Charakter-ID"}), 400
+                    flash('Ungültige Charakter-ID.', 'danger')
+                    return redirect(url_for('teams.team_setup'))
+            
+            # Markiere alten Charakter als verfügbar falls vorhanden
+            if current_user.character_id:
+                old_character = Character.query.get(current_user.character_id)
+                if old_character:
+                    old_character.is_selected = False
+            
+            # Aktualisiere Team
+            current_user.name = new_team_name
+            if character:
+                current_user.character_id = character.id
+                current_user.character_name = character.name
+                character.is_selected = True
+            
+            db.session.commit()
+            
+            current_app.logger.info(f"Team-Setup abgeschlossen: {current_user.id} -> {new_team_name}, Charakter: {character.name if character else 'None'}")
+            
+            if request.is_json:
+                return jsonify({
+                    "success": True,
+                    "message": "Team-Setup erfolgreich abgeschlossen",
+                    "team_name": new_team_name,
+                    "character_name": character.name if character else None
+                })
+            
+            flash(f'Team-Setup erfolgreich abgeschlossen! Willkommen {new_team_name}!', 'success')
+            return redirect(url_for('teams.team_dashboard'))
+            
+        except Exception as e:
+            db.session.rollback()
+            current_app.logger.error(f"Fehler beim Team-Setup: {e}", exc_info=True)
+            if request.is_json:
+                return jsonify({"success": False, "error": "Ein Fehler ist aufgetreten"}), 500
+            flash('Ein Fehler ist aufgetreten. Versuche es nochmal.', 'danger')
+    
+    return render_template('team_setup.html', 
+                         team=current_user, 
+                         available_characters=available_characters)
 
 @teams_bp.route('/api/dashboard-status')
 @login_required

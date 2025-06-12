@@ -426,6 +426,221 @@
             transform: translateY(0);
         }
     }
+
+    /* Registration Pop-up Styles */
+    .registration-popup {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.8);
+        z-index: 10000;
+        display: none;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .registration-popup.show {
+        display: flex;
+    }
+
+    .registration-modal {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-radius: 20px;
+        padding: 2rem;
+        max-width: 400px;
+        width: 90%;
+        position: relative;
+        color: white;
+        box-shadow: 0 25px 50px rgba(0, 0, 0, 0.3);
+        animation: popupSlideIn 0.3s ease-out;
+    }
+
+    @keyframes popupSlideIn {
+        from {
+            opacity: 0;
+            transform: scale(0.8) translateY(-50px);
+        }
+        to {
+            opacity: 1;
+            transform: scale(1) translateY(0);
+        }
+    }
+
+    .registration-header {
+        text-align: center;
+        margin-bottom: 1.5rem;
+    }
+
+    .registration-title {
+        font-size: 1.8rem;
+        font-weight: 700;
+        margin-bottom: 0.5rem;
+    }
+
+    .registration-subtitle {
+        opacity: 0.9;
+        font-size: 1rem;
+    }
+
+    .registration-form {
+        margin-bottom: 1rem;
+    }
+
+    .form-group {
+        margin-bottom: 1rem;
+    }
+
+    .form-label {
+        display: block;
+        margin-bottom: 0.5rem;
+        font-weight: 600;
+    }
+
+    .form-input {
+        width: 100%;
+        padding: 0.8rem;
+        border: 2px solid rgba(255, 255, 255, 0.3);
+        border-radius: 10px;
+        background: rgba(255, 255, 255, 0.1);
+        color: white;
+        font-size: 1rem;
+        backdrop-filter: blur(10px);
+    }
+
+    .form-input::placeholder {
+        color: rgba(255, 255, 255, 0.7);
+    }
+
+    .form-input:focus {
+        outline: none;
+        border-color: #FFD700;
+        background: rgba(255, 255, 255, 0.2);
+    }
+
+    .registration-buttons {
+        display: flex;
+        gap: 1rem;
+        justify-content: center;
+    }
+
+    .btn-popup {
+        padding: 0.8rem 1.5rem;
+        border: none;
+        border-radius: 25px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        font-size: 1rem;
+    }
+
+    .btn-popup-primary {
+        background: #FFD700;
+        color: #333;
+    }
+
+    .btn-popup-primary:hover {
+        background: #FFC107;
+        transform: translateY(-2px);
+    }
+
+    .btn-popup-secondary {
+        background: rgba(255, 255, 255, 0.2);
+        color: white;
+        border: 2px solid rgba(255, 255, 255, 0.3);
+    }
+
+    .btn-popup-secondary:hover {
+        background: rgba(255, 255, 255, 0.3);
+        transform: translateY(-2px);
+    }
+
+    .registration-status {
+        text-align: center;
+        margin-top: 1rem;
+        padding: 0.5rem;
+        border-radius: 10px;
+        display: none;
+    }
+
+    .status-success {
+        background: rgba(76, 175, 80, 0.3);
+        border: 1px solid rgba(76, 175, 80, 0.5);
+    }
+
+    .status-error {
+        background: rgba(244, 67, 54, 0.3);
+        border: 1px solid rgba(244, 67, 54, 0.5);
+    }
+
+    .popup-close {
+        position: absolute;
+        top: 1rem;
+        right: 1rem;
+        background: none;
+        border: none;
+        color: white;
+        font-size: 1.5rem;
+        cursor: pointer;
+        opacity: 0.7;
+        transition: opacity 0.3s ease;
+    }
+
+    .popup-close:hover {
+        opacity: 1;
+    }
+
+    .registration-indicator {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: linear-gradient(45deg, #4CAF50, #45a049);
+        color: white;
+        padding: 1rem 1.5rem;
+        border-radius: 50px;
+        box-shadow: 0 8px 25px rgba(76, 175, 80, 0.3);
+        z-index: 9999;
+        display: none;
+        align-items: center;
+        gap: 0.5rem;
+        animation: slideInRight 0.5s ease-out;
+        cursor: pointer;
+    }
+
+    .registration-indicator.show {
+        display: flex;
+    }
+
+    @keyframes slideInRight {
+        from {
+            opacity: 0;
+            transform: translateX(100px);
+        }
+        to {
+            opacity: 1;
+            transform: translateX(0);
+        }
+    }
+
+    .indicator-pulse {
+        width: 12px;
+        height: 12px;
+        background: #FFD700;
+        border-radius: 50%;
+        animation: pulse 2s infinite;
+    }
+
+    @media (max-width: 480px) {
+        .registration-modal {
+            padding: 1.5rem;
+            margin: 1rem;
+        }
+        
+        .registration-buttons {
+            flex-direction: column;
+        }
+    }
 </style>
 {% endblock %}
 
@@ -553,6 +768,44 @@
     </div>
 </section>
 
+<!-- Registrierungs-Indikator -->
+<div id="registration-indicator" class="registration-indicator">
+    <div class="indicator-pulse"></div>
+    Jetzt anmelden!
+</div>
+
+<!-- Registrierungs-Pop-up -->
+<div id="registration-popup" class="registration-popup">
+    <div class="registration-modal">
+        <button class="popup-close" onclick="closeRegistrationPopup()">&times;</button>
+        
+        <div class="registration-header">
+            <h3 class="registration-title">🎮 Jetzt anmelden!</h3>
+            <p class="registration-subtitle">Trage deinen Namen ein und sei beim Spiel dabei!</p>
+        </div>
+
+        <form id="registration-form" class="registration-form">
+            <div class="form-group">
+                <label for="player-name" class="form-label">Dein Name:</label>
+                <input type="text" id="player-name" class="form-input" placeholder="Gib deinen Namen ein..." maxlength="50" required>
+            </div>
+            
+            <div class="registration-buttons">
+                <button type="submit" class="btn-popup btn-popup-primary">
+                    <i class="fas fa-user-plus"></i> Anmelden
+                </button>
+                <button type="button" class="btn-popup btn-popup-secondary" onclick="closeRegistrationPopup()">
+                    Abbrechen
+                </button>
+            </div>
+        </form>
+
+        <div id="registration-status" class="registration-status">
+            <span id="status-message"></span>
+        </div>
+    </div>
+</div>
+
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     // Intersection Observer für Animations-Trigger
@@ -597,6 +850,108 @@ document.addEventListener('DOMContentLoaded', function() {
             heroSection.style.transform = `translateY(${rate}px)`;
         });
     }
+
+    // Registrierungs-Funktionalität
+    checkRegistrationStatus();
+    setInterval(checkRegistrationStatus, 5000); // Alle 5 Sekunden prüfen
+
+    // Registrierungs-Pop-up Event Listeners
+    document.getElementById('registration-indicator').addEventListener('click', showRegistrationPopup);
+    document.getElementById('registration-form').addEventListener('submit', handleRegistration);
+    
+    // ESC-Taste zum Schließen
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && document.getElementById('registration-popup').classList.contains('show')) {
+            closeRegistrationPopup();
+        }
+    });
 });
+
+function checkRegistrationStatus() {
+    fetch('/api/registration-status')
+        .then(response => response.json())
+        .then(data => {
+            console.log('Registration status:', data);  // Debug
+            const indicator = document.getElementById('registration-indicator');
+            if (data.success && data.registration_active && !data.teams_created) {
+                indicator.classList.add('show');
+            } else {
+                indicator.classList.remove('show');
+                // Schließe Pop-up falls offen
+                document.getElementById('registration-popup').classList.remove('show');
+            }
+        })
+        .catch(error => {
+            console.error('Error checking registration status:', error);
+        });
+}
+
+function showRegistrationPopup() {
+    document.getElementById('registration-popup').classList.add('show');
+    document.getElementById('player-name').focus();
+}
+
+function closeRegistrationPopup() {
+    document.getElementById('registration-popup').classList.remove('show');
+    document.getElementById('registration-form').reset();
+    document.getElementById('registration-status').style.display = 'none';
+}
+
+function handleRegistration(event) {
+    event.preventDefault();
+    
+    const playerName = document.getElementById('player-name').value.trim();
+    if (!playerName) {
+        showRegistrationStatus('Bitte gib einen Namen ein!', 'error');
+        return;
+    }
+
+    // CSRF Token holen
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+
+    // Button deaktivieren während Request
+    const submitBtn = event.target.querySelector('button[type="submit"]');
+    const originalText = submitBtn.innerHTML;
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Wird angemeldet...';
+
+    fetch('/api/register-player', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken
+        },
+        body: JSON.stringify({ player_name: playerName })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showRegistrationStatus('Erfolgreich angemeldet! 🎉', 'success');
+            setTimeout(() => {
+                closeRegistrationPopup();
+            }, 2000);
+        } else {
+            showRegistrationStatus(data.error || 'Fehler bei der Anmeldung', 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Registration error:', error);
+        showRegistrationStatus('Ein Fehler ist aufgetreten. Versuche es nochmal!', 'error');
+    })
+    .finally(() => {
+        // Button wieder aktivieren
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = originalText;
+    });
+}
+
+function showRegistrationStatus(message, type) {
+    const statusDiv = document.getElementById('registration-status');
+    const messageSpan = document.getElementById('status-message');
+    
+    statusDiv.className = `registration-status status-${type}`;
+    messageSpan.textContent = message;
+    statusDiv.style.display = 'block';
+}
 </script>
 {% endblock %}

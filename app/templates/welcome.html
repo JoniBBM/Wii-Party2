@@ -1,0 +1,557 @@
+{% extends "base.html" %}
+
+{% block title %}Willkommen - Wii Party U Deluxe{% endblock %}
+
+{% block styles %}
+{{ super() }}
+<style>
+    .welcome-container {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        color: white;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .welcome-container::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: linear-gradient(45deg, rgba(255,255,255,0.1) 25%, transparent 25%),
+                    linear-gradient(-45deg, rgba(255,255,255,0.1) 25%, transparent 25%);
+        background-size: 60px 60px;
+        animation: movePattern 20s linear infinite;
+        opacity: 0.3;
+    }
+
+    @keyframes movePattern {
+        0% { transform: translateX(0px) translateY(0px); }
+        100% { transform: translateX(60px) translateY(60px); }
+    }
+
+    .welcome-content {
+        position: relative;
+        z-index: 2;
+        padding: 2rem 0;
+    }
+
+    .welcome-title {
+        font-size: 4rem;
+        font-weight: 900;
+        margin-bottom: 1rem;
+        text-align: center;
+        text-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        background: linear-gradient(45deg, #fff, #f8f9ff, #fff);
+        background-size: 200% 200%;
+        background-clip: text;
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        animation: shimmer 3s ease-in-out infinite;
+    }
+
+    @keyframes shimmer {
+        0% { background-position: 0% 50%; }
+        50% { background-position: 100% 50%; }
+        100% { background-position: 0% 50%; }
+    }
+
+    .welcome-subtitle {
+        text-align: center;
+        font-size: 1.5rem;
+        margin-bottom: 3rem;
+        opacity: 0.95;
+    }
+
+    .players-section {
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 20px;
+        padding: 2rem;
+        backdrop-filter: blur(10px);
+        margin-bottom: 2rem;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .players-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+        gap: 1rem;
+        margin-top: 1rem;
+    }
+
+    .player-card {
+        background: rgba(255, 255, 255, 0.15);
+        border-radius: 15px;
+        padding: 1rem;
+        text-align: center;
+        border: 2px solid rgba(255, 255, 255, 0.3);
+        transition: all 0.3s ease;
+        animation: fadeInUp 0.5s ease-out;
+    }
+
+    .player-card:hover {
+        transform: translateY(-5px);
+        background: rgba(255, 255, 255, 0.2);
+    }
+
+    @keyframes fadeInUp {
+        from {
+            opacity: 0;
+            transform: translateY(20px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .player-name {
+        font-size: 1.2rem;
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+    }
+
+    .player-time {
+        font-size: 0.9rem;
+        opacity: 0.8;
+    }
+
+    .teams-section {
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 20px;
+        padding: 2rem;
+        backdrop-filter: blur(10px);
+        margin-bottom: 2rem;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .team-card {
+        background: rgba(255, 255, 255, 0.15);
+        border-radius: 15px;
+        padding: 1.5rem;
+        margin-bottom: 1rem;
+        border: 2px solid rgba(255, 255, 255, 0.3);
+    }
+
+    .team-header {
+        display: flex;
+        justify-content: between;
+        align-items: center;
+        margin-bottom: 1rem;
+    }
+
+    .team-name {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: #FFD700;
+    }
+
+    .team-password {
+        background: rgba(0, 0, 0, 0.3);
+        padding: 0.5rem 1rem;
+        border-radius: 10px;
+        font-family: monospace;
+        font-size: 1.2rem;
+        border: 1px solid rgba(255, 255, 255, 0.3);
+    }
+
+    .team-members {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+
+    .member-badge {
+        background: rgba(255, 255, 255, 0.2);
+        padding: 0.3rem 0.8rem;
+        border-radius: 20px;
+        font-size: 0.9rem;
+        border: 1px solid rgba(255, 255, 255, 0.3);
+    }
+
+    .admin-controls {
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 20px;
+        padding: 2rem;
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        text-align: center;
+    }
+
+    .btn-welcome {
+        padding: 1rem 2rem;
+        font-size: 1.1rem;
+        font-weight: 600;
+        border-radius: 50px;
+        margin: 0.5rem;
+        border: none;
+        transition: all 0.3s ease;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+
+    .btn-welcome-primary {
+        background: linear-gradient(45deg, #ff6b6b, #ee5a52);
+        color: white;
+        box-shadow: 0 8px 25px rgba(255, 107, 107, 0.3);
+    }
+
+    .btn-welcome-primary:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 15px 35px rgba(255, 107, 107, 0.4);
+        color: white;
+    }
+
+    .btn-welcome-success {
+        background: linear-gradient(45deg, #4CAF50, #45a049);
+        color: white;
+        box-shadow: 0 8px 25px rgba(76, 175, 80, 0.3);
+    }
+
+    .btn-welcome-success:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 15px 35px rgba(76, 175, 80, 0.4);
+        color: white;
+    }
+
+    .status-indicator {
+        display: inline-block;
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        margin-right: 0.5rem;
+        animation: pulse 2s infinite;
+    }
+
+    .status-active {
+        background: #4CAF50;
+    }
+
+    .status-waiting {
+        background: #FF9800;
+    }
+
+    @keyframes pulse {
+        0% {
+            transform: scale(0.95);
+            opacity: 0.8;
+        }
+        70% {
+            transform: scale(1);
+            opacity: 1;
+        }
+        100% {
+            transform: scale(0.95);
+            opacity: 0.8;
+        }
+    }
+
+    .no-players {
+        text-align: center;
+        padding: 2rem;
+        opacity: 0.8;
+        font-style: italic;
+    }
+
+    .team-count-selector {
+        display: flex;
+        gap: 1rem;
+        justify-content: center;
+        margin: 1rem 0;
+    }
+
+    .team-count-btn {
+        width: 60px;
+        height: 60px;
+        border-radius: 50%;
+        border: 2px solid rgba(255, 255, 255, 0.5);
+        background: rgba(255, 255, 255, 0.1);
+        color: white;
+        font-size: 1.5rem;
+        font-weight: bold;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+
+    .team-count-btn:hover, .team-count-btn.selected {
+        background: rgba(255, 255, 255, 0.3);
+        border-color: #FFD700;
+        transform: scale(1.1);
+    }
+
+    @media (max-width: 768px) {
+        .welcome-title {
+            font-size: 2.5rem;
+        }
+        
+        .players-grid {
+            grid-template-columns: 1fr;
+        }
+        
+        .team-header {
+            flex-direction: column;
+            gap: 1rem;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="welcome-container">
+    <div class="container">
+        <div class="welcome-content">
+            <h1 class="welcome-title">Willkommen!</h1>
+            <p class="welcome-subtitle">
+                <span class="status-indicator status-active"></span>
+                Registrierung läuft - Melde dich jetzt an!
+            </p>
+
+            <!-- Spieler-Bereich -->
+            <div class="players-section">
+                <h3><i class="fas fa-users"></i> Registrierte Spieler (<span id="player-count">0</span>)</h3>
+                <div id="players-container">
+                    <div class="no-players">
+                        <i class="fas fa-user-plus fa-3x mb-3"></i>
+                        <p>Noch keine Spieler registriert. Besuche die <a href="{{ url_for('main.index') }}" class="text-warning">Startseite</a> und melde dich an!</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Team-Bereich (nur sichtbar wenn Teams erstellt) -->
+            <div id="teams-section" class="teams-section" style="display: none;">
+                <h3><i class="fas fa-flag"></i> Teams & Passwörter</h3>
+                <div id="teams-container"></div>
+            </div>
+
+            <!-- Admin-Controls (nur für Admins sichtbar) -->
+            {% if current_user.is_authenticated and current_user.is_admin %}
+            <div class="admin-controls">
+                <h4><i class="fas fa-cog"></i> Admin-Steuerung</h4>
+                
+                <!-- Bevor Teams erstellt sind -->
+                <div id="pre-teams-controls">
+                    <p>Wähle die Anzahl der Teams:</p>
+                    <div class="team-count-selector">
+                        <button type="button" class="team-count-btn" data-count="2">2</button>
+                        <button type="button" class="team-count-btn" data-count="3">3</button>
+                        <button type="button" class="team-count-btn" data-count="4">4</button>
+                        <button type="button" class="team-count-btn" data-count="5">5</button>
+                        <button type="button" class="team-count-btn" data-count="6">6</button>
+                    </div>
+                    <button id="create-teams-btn" class="btn btn-welcome btn-welcome-primary" disabled>
+                        <i class="fas fa-magic"></i> Teams erstellen
+                    </button>
+                </div>
+
+                <!-- Nach Team-Erstellung -->
+                <div id="post-teams-controls" style="display: none;">
+                    <p>Teams wurden erstellt! Spieler können sich jetzt anmelden.</p>
+                    <button id="end-welcome-btn" class="btn btn-welcome btn-welcome-success">
+                        <i class="fas fa-play"></i> Spiel starten
+                    </button>
+                </div>
+
+                <hr style="margin: 2rem 0; border-color: rgba(255,255,255,0.3);">
+                
+                <button id="end-registration-btn" class="btn btn-welcome btn-welcome-primary">
+                    <i class="fas fa-stop"></i> Registrierung beenden
+                </button>
+            </div>
+            {% endif %}
+
+            <!-- Zurück zur Startseite -->
+            <div class="text-center mt-4">
+                <a href="{{ url_for('main.index') }}" class="btn btn-welcome btn-welcome-primary">
+                    <i class="fas fa-home"></i> Zur Startseite
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let selectedTeamCount = null;
+let updateInterval;
+
+// CSRF Token holen
+const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Team-Anzahl Auswahl
+    document.querySelectorAll('.team-count-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            document.querySelectorAll('.team-count-btn').forEach(b => b.classList.remove('selected'));
+            this.classList.add('selected');
+            selectedTeamCount = parseInt(this.dataset.count);
+            document.getElementById('create-teams-btn').disabled = false;
+        });
+    });
+
+    // Teams erstellen
+    document.getElementById('create-teams-btn')?.addEventListener('click', function() {
+        if (!selectedTeamCount) {
+            alert('Bitte wähle zuerst die Anzahl der Teams!');
+            return;
+        }
+        
+        fetch('/admin/api/create-teams', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
+            body: JSON.stringify({ team_count: selectedTeamCount })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                document.getElementById('pre-teams-controls').style.display = 'none';
+                document.getElementById('post-teams-controls').style.display = 'block';
+                updateWelcomeStatus();
+            } else {
+                alert('Fehler beim Erstellen der Teams: ' + data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Ein Fehler ist aufgetreten');
+        });
+    });
+
+    // Spiel starten
+    document.getElementById('end-welcome-btn')?.addEventListener('click', function() {
+        fetch('/admin/api/end-welcome', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                window.location.href = '/board';
+            } else {
+                alert('Fehler beim Starten des Spiels: ' + data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Ein Fehler ist aufgetreten');
+        });
+    });
+
+    // Registrierung beenden
+    document.getElementById('end-registration-btn')?.addEventListener('click', function() {
+        if (confirm('Möchtest du die Registrierung wirklich beenden?')) {
+            fetch('/admin/api/end-registration', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    window.location.href = '/admin';
+                } else {
+                    alert('Fehler beim Beenden der Registrierung: ' + data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Ein Fehler ist aufgetreten');
+            });
+        }
+    });
+
+    // Live-Updates starten
+    updateWelcomeStatus();
+    updateInterval = setInterval(updateWelcomeStatus, 2000);
+});
+
+function updateWelcomeStatus() {
+    fetch('/api/welcome-status')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                updatePlayersList(data.players);
+                if (data.teams && data.teams.length > 0) {
+                    updateTeamsList(data.teams);
+                    document.getElementById('teams-section').style.display = 'block';
+                }
+            }
+        })
+        .catch(error => {
+            console.error('Error updating status:', error);
+        });
+}
+
+function updatePlayersList(players) {
+    const container = document.getElementById('players-container');
+    const countElement = document.getElementById('player-count');
+    
+    countElement.textContent = players.length;
+    
+    if (players.length === 0) {
+        container.innerHTML = `
+            <div class="no-players">
+                <i class="fas fa-user-plus fa-3x mb-3"></i>
+                <p>Noch keine Spieler registriert. Besuche die <a href="{{ url_for('main.index') }}" class="text-warning">Startseite</a> und melde dich an!</p>
+            </div>
+        `;
+        return;
+    }
+    
+    const playersGrid = document.createElement('div');
+    playersGrid.className = 'players-grid';
+    
+    players.forEach(player => {
+        const playerCard = document.createElement('div');
+        playerCard.className = 'player-card';
+        playerCard.innerHTML = `
+            <div class="player-name">
+                <i class="fas fa-user"></i> ${player.name}
+            </div>
+            <div class="player-time">
+                ${new Date(player.registration_time).toLocaleTimeString()}
+            </div>
+        `;
+        playersGrid.appendChild(playerCard);
+    });
+    
+    container.innerHTML = '';
+    container.appendChild(playersGrid);
+}
+
+function updateTeamsList(teams) {
+    const container = document.getElementById('teams-container');
+    container.innerHTML = '';
+    
+    teams.forEach(team => {
+        const teamCard = document.createElement('div');
+        teamCard.className = 'team-card';
+        teamCard.innerHTML = `
+            <div class="team-header">
+                <div class="team-name">Team ${team.name}</div>
+                <div class="team-password">🔑 ${team.password}</div>
+            </div>
+            <div class="team-members">
+                ${team.members.map(member => `<span class="member-badge">${member}</span>`).join('')}
+            </div>
+        `;
+        container.appendChild(teamCard);
+    });
+}
+
+// Cleanup bei Seitenverlassen
+window.addEventListener('beforeunload', function() {
+    if (updateInterval) {
+        clearInterval(updateInterval);
+    }
+});
+</script>
+{% endblock %}
