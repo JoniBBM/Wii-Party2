@@ -442,6 +442,8 @@ class GameSession(db.Model):
 
     current_minigame_name = db.Column(db.String(200), nullable=True)
     current_minigame_description = db.Column(db.Text, nullable=True)
+    current_player_count = db.Column(db.String(20), default='1', nullable=True)  # Spieleranzahl-Konfiguration
+    selected_players = db.Column(db.Text, nullable=True)  # JSON mit ausgewählten Spielern pro Team
     
     # Für Einzelfragen
     current_question_id = db.Column(db.String(100), nullable=True)  # UUID aus JSON-Datei
@@ -452,6 +454,7 @@ class GameSession(db.Model):
 
     # Tracking für bereits gespielte Inhalte
     played_content_ids = db.Column(db.Text, nullable=True, default='')  # Komma-separierte Liste von gespielten IDs
+    player_rotation_data = db.Column(db.Text, nullable=True)  # JSON mit Spieleinsatz-Tracking pro Team
 
     current_phase = db.Column(db.String(50), default='SETUP_MINIGAME') 
     # Mögliche Phasen: SETUP_MINIGAME, MINIGAME_ANNOUNCED, QUESTION_ACTIVE, QUESTION_COMPLETED, DICE_ROLLING, ROUND_OVER, FIELD_ACTION
@@ -487,6 +490,157 @@ class GameSession(db.Model):
     def is_content_already_played(self, content_id):
         """Prüft, ob ein Inhalt bereits gespielt wurde"""
         return content_id in self.get_played_content_ids()
+
+    def get_selected_players(self):
+        """Gibt die ausgewählten Spieler als Dictionary zurück"""
+        if not self.selected_players:
+            return {}
+        try:
+            return json.loads(self.selected_players)
+        except (json.JSONDecodeError, TypeError):
+            return {}
+
+    def set_selected_players(self, players_dict):
+        """Setzt die ausgewählten Spieler aus Dictionary"""
+        if players_dict is None:
+            self.selected_players = None
+        else:
+            self.selected_players = json.dumps(players_dict)
+
+    def select_random_players(self, teams, count_per_team):
+        """Wählt faire rotierend Spieler aus jedem Team aus"""
+        import random
+        selected = {}
+        
+        for team in teams:
+            if not team.members:
+                # Fallback: Verwende Team-Name wenn keine Mitglieder definiert
+                selected[str(team.id)] = [team.name]
+                continue
+                
+            # Parse Team-Mitglieder (Format: "Name1, Name2, Name3")
+            try:
+                members = [m.strip() for m in team.members.split(',') if m.strip()]
+                if not members:
+                    selected[str(team.id)] = [team.name]
+                    continue
+                
+                # Spezialbehandlung für "ganzes Team"
+                if count_per_team == "all":
+                    selected[str(team.id)] = members
+                    # Tracking für alle Spieler
+                    self._update_player_rotation_tracking(str(team.id), members)
+                else:
+                    # Faire Auswahl basierend auf Rotation
+                    selected_count = min(int(count_per_team), len(members))
+                    selected_members = self._select_fair_rotation(str(team.id), members, selected_count)
+                    selected[str(team.id)] = selected_members
+                    # Tracking aktualisieren
+                    self._update_player_rotation_tracking(str(team.id), selected_members)
+                
+            except (ValueError, AttributeError):
+                # Fallback bei Parsing-Fehlern
+                selected[str(team.id)] = [team.name]
+        
+        self.set_selected_players(selected)
+        return selected
+
+    def get_player_rotation_data(self):
+        """Gibt die Spieler-Rotations-Daten als Dictionary zurück"""
+        if not self.player_rotation_data:
+            return {}
+        try:
+            return json.loads(self.player_rotation_data)
+        except (json.JSONDecodeError, TypeError):
+            return {}
+
+    def set_player_rotation_data(self, rotation_dict):
+        """Setzt die Spieler-Rotations-Daten aus Dictionary"""
+        if rotation_dict is None:
+            self.player_rotation_data = None
+        else:
+            self.player_rotation_data = json.dumps(rotation_dict)
+
+    def _select_fair_rotation(self, team_id, members, count_needed):
+        """Wählt Spieler basierend auf fairer Rotation aus"""
+        import random
+        
+        rotation_data = self.get_player_rotation_data()
+        team_data = rotation_data.get(team_id, {})
+        
+        # Initialisiere Spieler-Zähler falls noch nicht vorhanden
+        player_counts = {}
+        for member in members:
+            player_counts[member] = team_data.get(member, 0)
+        
+        # Sortiere Spieler nach Anzahl gespielter Spiele (aufsteigend)
+        sorted_players = sorted(player_counts.items(), key=lambda x: x[1])
+        
+        # Bestimme minimale Anzahl gespielter Spiele
+        min_games = sorted_players[0][1] if sorted_players else 0
+        
+        # Finde alle Spieler mit minimaler Anzahl Spiele
+        available_players = [player for player, count in sorted_players if count == min_games]
+        
+        selected_players = []
+        
+        # Wähle aus Spielern mit wenigsten Spielen
+        if len(available_players) >= count_needed:
+            # Genug Spieler mit minimalen Spielen verfügbar
+            selected_players = random.sample(available_players, count_needed)
+        else:
+            # Nicht genug Spieler mit minimalen Spielen - fülle mit nächst-besten auf
+            selected_players.extend(available_players)
+            remaining_needed = count_needed - len(selected_players)
+            
+            # Finde Spieler mit zweit-wenigsten Spielen
+            remaining_players = [player for player, count in sorted_players 
+                               if count > min_games and player not in selected_players]
+            
+            if remaining_players and remaining_needed > 0:
+                # Sortiere nach Anzahl Spiele und fülle auf
+                remaining_players_sorted = sorted(remaining_players, 
+                                                key=lambda p: player_counts[p])
+                
+                additional_players = remaining_players_sorted[:remaining_needed]
+                selected_players.extend(additional_players)
+        
+        return selected_players
+
+    def _update_player_rotation_tracking(self, team_id, selected_players):
+        """Aktualisiert das Tracking für die ausgewählten Spieler"""
+        rotation_data = self.get_player_rotation_data()
+        
+        if team_id not in rotation_data:
+            rotation_data[team_id] = {}
+        
+        # Erhöhe Zähler für ausgewählte Spieler
+        for player in selected_players:
+            if player not in rotation_data[team_id]:
+                rotation_data[team_id][player] = 0
+            rotation_data[team_id][player] += 1
+        
+        self.set_player_rotation_data(rotation_data)
+
+    def reset_player_rotation(self):
+        """Setzt die Spieler-Rotation zurück"""
+        self.player_rotation_data = None
+
+    def get_player_statistics(self):
+        """Gibt Statistiken über Spieleinsätze zurück"""
+        rotation_data = self.get_player_rotation_data()
+        stats = {}
+        
+        for team_id, players in rotation_data.items():
+            team_stats = {
+                'total_games': sum(players.values()),
+                'players': dict(players),
+                'most_played': max(players.values()) if players else 0,
+                'least_played': min(players.values()) if players else 0
+            }
+            stats[team_id] = team_stats
+        
+        return stats
 
     def trigger_volcano_countdown(self, countdown=5):
         """Startet den Vulkan-Countdown"""

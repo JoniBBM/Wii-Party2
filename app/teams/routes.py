@@ -495,7 +495,10 @@ def dashboard_status_api():
                 # NEU: Letztes Würfelergebnis
                 'last_dice_result': data['last_dice_result'],
                 # Special field event (für Barrier-Felder)
-                'special_field_event': _get_recent_special_field_event(current_user, data['active_session'])
+                'special_field_event': _get_recent_special_field_event(current_user, data['active_session']),
+                # NEU: Ausgewählte Spieler für Minispiele
+                'selected_players': data['active_session'].get_selected_players() if data['active_session'] else None,
+                'current_player_count': data['active_session'].current_player_count if data['active_session'] else None
             }
         }
         

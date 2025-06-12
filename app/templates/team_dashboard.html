@@ -39,6 +39,49 @@
         </div>
     </div>
 
+    <!-- Banner für ausgewählte Spieler (5 Sekunden) -->
+    <div class="row mb-4" id="selected-players-banner" style="display: none;">
+        <div class="col-md-12">
+            <div class="alert alert-success border-success" role="alert" style="border-width: 3px; box-shadow: 0 4px 8px rgba(0,0,0,0.2);">
+                <div class="text-center">
+                    <h4 class="mb-3">
+                        <i class="fas fa-star mr-2"></i>
+                        Ausgewählte Spieler für das Minispiel
+                        <i class="fas fa-star ml-2"></i>
+                    </h4>
+                    <div id="selected-players-content" class="h5 text-success">
+                        <!-- Wird dynamisch gefüllt -->
+                    </div>
+                    <div class="progress mt-3" style="height: 10px;">
+                        <div class="progress-bar bg-success progress-bar-animated" role="progressbar" style="width: 100%" id="banner-progress"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Permanente Anzeige der ausgewählten Spieler -->
+    <div class="row mb-4" id="selected-players-info" style="display: none;">
+        <div class="col-md-12">
+            <div class="card border-info">
+                <div class="card-header bg-info text-white">
+                    <h6 class="mb-0">
+                        <i class="fas fa-gamepad mr-2"></i>
+                        <span id="current-minigame-title">Aktuelles Minispiel</span>
+                    </h6>
+                </div>
+                <div class="card-body py-2">
+                    <div id="current-minigame-name" class="font-weight-bold mb-1">
+                        <!-- Wird dynamisch gefüllt -->
+                    </div>
+                    <div id="selected-players-persistent" class="small text-muted">
+                        <!-- Wird dynamisch gefüllt -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Fragen-Interface (direkt im Dashboard) -->
     <div class="row mb-4" id="question-interface-section" style="display: none;">
         <div class="col-md-12">
@@ -1299,6 +1342,11 @@ let diceResultTimer = null;
 let userInteractingWithQuestion = false;
 let questionInterfaceInitialized = false;
 
+// Banner variables
+let lastSelectedPlayers = null;
+let bannerTimer = null;
+let progressTimer = null;
+
 // Chart-Variablen
 let progressChart = null;
 let lastProgressData = {{ game_progress | tojson if game_progress else '[]' }};
@@ -1323,13 +1371,16 @@ function updateDashboard(data) {
         lastQuestionData = null;
     }
     
-    // Check for new minigame announcement
+    // Check for new minigame announcement (auch bei der ersten Runde)
     if (gameData.current_minigame_name && 
-        gameData.current_minigame_name !== lastMinigameName && 
-        lastMinigameName !== "" && !gameData.question_data) {
+        gameData.current_minigame_name !== lastMinigameName && !gameData.question_data) {
+        // Zeige Banner auch bei der ersten Runde (lastMinigameName === "")
         showMinigameAnnouncement(gameData.current_minigame_name, gameData.current_minigame_description);
     }
     lastMinigameName = gameData.current_minigame_name || "";
+    
+    // Check for selected players announcement
+    updateSelectedPlayersDisplay(gameData);
     
     // Check for minigame/question results
     if (gameData.current_phase === 'DICE_ROLLING' && lastPhase !== 'DICE_ROLLING' && !hasShowMinigameResults) {
@@ -2431,6 +2482,30 @@ document.addEventListener('DOMContentLoaded', function() {
         initializeProgressChart();
     }
     
+    // Zeige Minispiel-Info beim ersten Laden
+    if ("{{ active_session.current_minigame_name if active_session else '' }}") {
+        const initialGameData = {
+            current_minigame_name: "{{ active_session.current_minigame_name if active_session else '' }}",
+            current_player_count: "{{ active_session.current_player_count if active_session else '' }}",
+            question_data: {% if active_session and active_session.current_question_id %}true{% else %}null{% endif %},
+            selected_players: {{ active_session.get_selected_players() | tojson if active_session else 'null' }},
+            teams: [
+                {% if all_teams %}
+                    {% for team in all_teams %}
+                        {
+                            id: {{ team.id }},
+                            name: "{{ team.name }}",
+                            position: {{ team.current_position }},
+                            character_name: "{{ team.character.name if team.character else '' }}"
+                        }{% if not loop.last %},{% endif %}
+                    {% endfor %}
+                {% endif %}
+            ]
+        };
+        lastGameData = initialGameData;
+        updateSelectedPlayersDisplay(initialGameData);
+    }
+    
     // Auto-hide flash messages
     setTimeout(() => {
         const alerts = document.querySelectorAll('.alert-dismissible');
@@ -2441,11 +2516,176 @@ document.addEventListener('DOMContentLoaded', function() {
     }, 5000);
 });
 
+// Selected players banner functions
+function updateSelectedPlayersDisplay(gameData) {
+    if (!gameData) {
+        hideSelectedPlayersBanner();
+        hideSelectedPlayersInfo();
+        return;
+    }
+
+    // Zeige Minispiel-Info wenn ein Spiel/Frage aktiv ist
+    if (gameData.current_minigame_name) {
+        // Update persistent display (immer zeigen wenn Minispiel aktiv)
+        updateSelectedPlayersInfo(gameData.selected_players);
+        
+        // Banner nur bei Änderungen und wenn Spieler ausgewählt wurden
+        if (gameData.selected_players) {
+            const currentSelectedPlayers = JSON.stringify(gameData.selected_players);
+            if (currentSelectedPlayers !== lastSelectedPlayers) {
+                // Show banner for new selection
+                if (lastSelectedPlayers !== null && currentSelectedPlayers !== lastSelectedPlayers) {
+                    showSelectedPlayersBanner(gameData.selected_players);
+                }
+                lastSelectedPlayers = currentSelectedPlayers;
+            }
+        }
+    } else {
+        hideSelectedPlayersBanner();
+        hideSelectedPlayersInfo();
+        lastSelectedPlayers = null;
+    }
+}
+
+function showSelectedPlayersBanner(selectedPlayers) {
+    const banner = document.getElementById('selected-players-banner');
+    const content = document.getElementById('selected-players-content');
+    const progressBar = document.getElementById('banner-progress');
+    
+    if (!banner || !content || !progressBar) return;
+
+    // Build display text
+    const playersList = [];
+    for (const [teamId, players] of Object.entries(selectedPlayers)) {
+        // Find team name from current dashboard data
+        const teamName = getTeamNameById(teamId) || `Team ${teamId}`;
+        playersList.push(`${teamName}: ${players.join(', ')}`);
+    }
+
+    content.innerHTML = playersList.join('<br>');
+    
+    // Show banner
+    banner.style.display = 'block';
+    progressBar.style.width = '100%';
+    
+    // Clear existing timers
+    if (bannerTimer) clearTimeout(bannerTimer);
+    if (progressTimer) clearInterval(progressTimer);
+    
+    // Start progress bar animation
+    let width = 100;
+    const decrementSpeed = 2; // Decrease by 2% every 100ms
+    progressTimer = setInterval(() => {
+        width -= decrementSpeed;
+        progressBar.style.width = width + '%';
+        
+        if (width <= 0) {
+            clearInterval(progressTimer);
+            hideSelectedPlayersBanner();
+        }
+    }, 100);
+    
+    // Fallback timer
+    bannerTimer = setTimeout(() => {
+        hideSelectedPlayersBanner();
+    }, 5000);
+}
+
+function hideSelectedPlayersBanner() {
+    const banner = document.getElementById('selected-players-banner');
+    if (banner) {
+        banner.style.display = 'none';
+    }
+    
+    if (bannerTimer) {
+        clearTimeout(bannerTimer);
+        bannerTimer = null;
+    }
+    if (progressTimer) {
+        clearInterval(progressTimer);
+        progressTimer = null;
+    }
+}
+
+function updateSelectedPlayersInfo(selectedPlayers) {
+    const infoSection = document.getElementById('selected-players-info');
+    const content = document.getElementById('selected-players-persistent');
+    const minigameNameEl = document.getElementById('current-minigame-name');
+    const minigameTitleEl = document.getElementById('current-minigame-title');
+    
+    if (!infoSection || !content || !minigameNameEl) return;
+
+    // Zeige Info wenn Minispiel läuft (auch ohne ausgewählte Spieler bei Fragen)
+    if (lastGameData && lastGameData.current_minigame_name) {
+        // Setze Minispiel-Name
+        minigameNameEl.textContent = lastGameData.current_minigame_name;
+        
+        // Bestimme Icon und Titel basierend auf Typ
+        if (lastGameData.question_data) {
+            minigameTitleEl.innerHTML = '<i class="fas fa-question-circle mr-2"></i>Aktuelle Frage';
+        } else {
+            minigameTitleEl.innerHTML = '<i class="fas fa-gamepad mr-2"></i>Aktuelles Minispiel';
+        }
+        
+        // Spieler-Info nur bei Minispielen, nicht bei Fragen
+        if (lastGameData.question_data) {
+            // Bei Fragen keine Spieler-Info anzeigen (da immer alle antworten)
+            content.innerHTML = '';
+        } else {
+            // Bei Minispielen: Prüfe ob "ganzes Team" oder spezifische Auswahl
+            const isWholeTeam = lastGameData.current_player_count === 'all';
+            console.log('Debug - current_player_count:', lastGameData.current_player_count, 'isWholeTeam:', isWholeTeam);
+            
+            if (isWholeTeam) {
+                content.innerHTML = '<i class="fas fa-users"></i> <strong>Alle spielen</strong>';
+            } else if (selectedPlayers && Object.keys(selectedPlayers).length > 0) {
+                // Build display text für spezifische Auswahl
+                const playersList = [];
+                for (const [teamId, players] of Object.entries(selectedPlayers)) {
+                    const teamName = getTeamNameById(teamId) || `Team ${teamId}`;
+                    playersList.push(`<strong>${teamName}:</strong> ${players.join(', ')}`);
+                }
+                content.innerHTML = '<i class="fas fa-user-friends"></i> ' + playersList.join(' | ');
+            } else {
+                // Fallback wenn keine Spieler-Info verfügbar
+                content.innerHTML = '<i class="fas fa-users"></i> Alle Spieler nehmen teil';
+            }
+        }
+        
+        infoSection.style.display = 'block';
+    } else {
+        hideSelectedPlayersInfo();
+    }
+}
+
+function hideSelectedPlayersInfo() {
+    const infoSection = document.getElementById('selected-players-info');
+    if (infoSection) {
+        infoSection.style.display = 'none';
+    }
+}
+
+function getTeamNameById(teamId) {
+    // Try to find team name from lastGameData if available
+    if (lastGameData && lastGameData.teams) {
+        const team = lastGameData.teams.find(t => t.id.toString() === teamId.toString());
+        return team ? team.name : null;
+    }
+    return null;
+}
+
+
 // Clean up on page unload
 window.addEventListener('beforeunload', function() {
     stopLiveUpdates();
     if (diceResultTimer) {
         clearTimeout(diceResultTimer);
+    }
+    if (bannerTimer) {
+        clearTimeout(bannerTimer);
+    }
+    if (progressTimer) {
+        clearInterval(progressTimer);
     }
     if (progressChart) {
         progressChart.destroy();

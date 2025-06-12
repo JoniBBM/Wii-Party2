@@ -77,6 +77,15 @@ class SetNextMinigameForm(FlaskForm):
         ('text_input', 'Freitext-Eingabe')
     ], validators=[Optional()])
     
+    # Spieleranzahl für alle Arten von Inhalten
+    player_count = SelectField('Spieleranzahl', choices=[
+        ('1', 'Pro Team 1 Spieler'),
+        ('2', 'Pro Team 2 Spieler'),
+        ('3', 'Pro Team 3 Spieler'),
+        ('4', 'Pro Team 4 Spieler'),
+        ('all', 'Ganzes Team')
+    ], validators=[Optional()], default='all')
+    
     # Multiple Choice Optionen
     option_1 = StringField('Option 1', validators=[Optional(), Length(max=200)])
     option_2 = StringField('Option 2', validators=[Optional(), Length(max=200)])
@@ -181,6 +190,12 @@ class FolderMinigameForm(FlaskForm):
         ('challenge', 'Challenge'),
         ('question', 'Einzelfrage')
     ], validators=[DataRequired()])
+    player_count = SelectField('Spieleranzahl', choices=[
+        ('1', 'Pro Team 1 Spieler'),
+        ('2', 'Pro Team 2 Spieler'),
+        ('3', 'Pro Team 3 Spieler'),
+        ('4', 'Pro Team 4 Spieler')
+    ], validators=[DataRequired()], default='1')
     submit = SubmitField('Inhalt speichern')
 
 class EditFolderMinigameForm(FlaskForm):
@@ -193,6 +208,12 @@ class EditFolderMinigameForm(FlaskForm):
         ('challenge', 'Challenge'),
         ('question', 'Einzelfrage')
     ], validators=[DataRequired()])
+    player_count = SelectField('Spieleranzahl', choices=[
+        ('1', 'Pro Team 1 Spieler'),
+        ('2', 'Pro Team 2 Spieler'),
+        ('3', 'Pro Team 3 Spieler'),
+        ('4', 'Pro Team 4 Spieler')
+    ], validators=[DataRequired()], default='1')
     submit = SubmitField('Änderungen speichern')
 
 # FRAGEN-FORMS (ohne Punkte)

@@ -459,14 +459,36 @@ def set_minigame():
             # Manuelle Eingabe - kein Tracking nötig
             manual_name = form.minigame_name.data
             manual_description = form.minigame_description.data
+            player_count = form.player_count.data or 'all'
             
             if manual_name and manual_description:
                 active_session.current_minigame_name = manual_name
                 active_session.current_minigame_description = manual_description
+                active_session.current_player_count = player_count
                 active_session.selected_folder_minigame_id = None
                 active_session.current_question_id = None
                 active_session.minigame_source = 'manual'
-                flash(f"Inhalt '{manual_name}' manuell gesetzt.", 'info')
+                
+                # Zufällige Spielerauswahl bei numerischen Werten oder "ganzes Team"
+                if player_count.isdigit() or player_count == "all":
+                    teams = Team.query.all()
+                    selected_players = active_session.select_random_players(teams, player_count)
+                    
+                    # Flash-Nachricht mit ausgewählten Spielern
+                    player_info = []
+                    for team_id, players in selected_players.items():
+                        team = Team.query.get(int(team_id))
+                        if team and players:
+                            player_info.append(f"{team.name}: {', '.join(players)}")
+                    
+                    selection_type = "Ganze Teams" if player_count == "all" else f"{player_count} Spieler pro Team"
+                    flash_msg = f"Inhalt '{manual_name}' gesetzt ({selection_type}). Ausgewählte Spieler: " + " | ".join(player_info)
+                    flash(flash_msg, 'info')
+                else:
+                    # Spieleranzahl für Flash-Nachricht
+                    player_display = dict(form.player_count.choices).get(player_count, player_count)
+                    flash(f"Inhalt '{manual_name}' manuell gesetzt. Spieleranzahl: {player_display}", 'info')
+                
                 minigame_set = True
             else:
                 flash('Bitte Name und Beschreibung für den manuellen Inhalt angeben.', 'warning')
@@ -521,9 +543,11 @@ def set_minigame():
                 
                 active_session.current_minigame_name = question_name
                 active_session.current_minigame_description = question_data['description']
+                active_session.current_player_count = None  # Keine Spieleranzahl bei Fragen
                 active_session.selected_folder_minigame_id = question_id
                 active_session.current_question_id = question_id
                 active_session.minigame_source = 'direct_question'
+                
                 flash(f"Direkte Frage '{question_name}' erstellt und aktiviert.", 'success')
                 minigame_set = True
             else:
@@ -547,6 +571,11 @@ def set_minigame():
                     active_session.selected_folder_minigame_id = random_content['id']
                     active_session.minigame_source = 'folder_random'
                     
+                    # Setze Spieleranzahl nur bei Minispielen, nicht bei Fragen
+                    if random_content.get('type') != 'question':
+                        player_count = form.player_count.data or 'all'
+                        active_session.current_player_count = player_count
+                    
                     # Check if all content has been played
                     stats = get_played_count_for_folder(
                         active_round.minigame_folder.folder_path, 
@@ -555,10 +584,18 @@ def set_minigame():
                     
                     if random_content.get('type') == 'question':
                         active_session.current_question_id = random_content['id']
+                        active_session.current_player_count = None  # Keine Spieleranzahl bei Fragen
                         flash_msg = f"Zufällige Frage '{random_content['name']}' aus Ordner '{active_round.minigame_folder.name}' ausgewählt."
                     else:
                         active_session.current_question_id = None
-                        flash_msg = f"Zufälliges Minispiel '{random_content['name']}' aus Ordner '{active_round.minigame_folder.name}' ausgewählt."
+                        # Spielerauswahl für Minispiele
+                        if player_count.isdigit() or player_count == "all":
+                            teams = Team.query.all()
+                            selected_players = active_session.select_random_players(teams, player_count)
+                            selection_type = "Ganze Teams" if player_count == "all" else f"{player_count} Spieler pro Team"
+                            flash_msg = f"Zufälliges Minispiel '{random_content['name']}' aus Ordner '{active_round.minigame_folder.name}' ausgewählt ({selection_type})."
+                        else:
+                            flash_msg = f"Zufälliges Minispiel '{random_content['name']}' aus Ordner '{active_round.minigame_folder.name}' ausgewählt."
                     
                     if stats['remaining'] == 0:
                         flash_msg += f" Alle {stats['total']} Inhalte wurden gespielt!"
@@ -589,10 +626,21 @@ def set_minigame():
                     
                     if selected_content.get('type') == 'question':
                         active_session.current_question_id = selected_content['id']
+                        active_session.current_player_count = None  # Keine Spieleranzahl bei Fragen
                         flash(f"Frage '{selected_content['name']}' aus Ordner ausgewählt.", 'info')
                     else:
                         active_session.current_question_id = None
-                        flash(f"Minispiel '{selected_content['name']}' aus Ordner ausgewählt.", 'info')
+                        # Setze Spieleranzahl und wähle Spieler aus
+                        player_count = form.player_count.data or 'all'
+                        active_session.current_player_count = player_count
+                        
+                        if player_count.isdigit() or player_count == "all":
+                            teams = Team.query.all()
+                            selected_players = active_session.select_random_players(teams, player_count)
+                            selection_type = "Ganze Teams" if player_count == "all" else f"{player_count} Spieler pro Team"
+                            flash(f"Minispiel '{selected_content['name']}' aus Ordner ausgewählt ({selection_type}).", 'info')
+                        else:
+                            flash(f"Minispiel '{selected_content['name']}' aus Ordner ausgewählt.", 'info')
                     
                     minigame_set = True
                 else:
@@ -2309,4 +2357,95 @@ def end_registration():
     except Exception as e:
         db.session.rollback()
         current_app.logger.error(f"Fehler beim Beenden der Registrierung: {e}", exc_info=True)
-        return jsonify({"success": False, "error": "Ein Fehler ist aufgetreten"}), 500
+        return jsonify({
+            "success": False,
+            "error": "Ein Fehler ist aufgetreten"
+        }), 500
+
+@admin_bp.route('/player_rotation_stats')
+@login_required
+def player_rotation_stats():
+    """Zeigt Statistiken zur Spieler-Rotation"""
+    if not isinstance(current_user, Admin):
+        flash('Zugriff verweigert. Nur Admins können Rotations-Statistiken sehen.', 'danger')
+        return redirect(url_for('main.index'))
+    
+    try:
+        active_session = GameSession.query.filter_by(is_active=True).first()
+        if not active_session:
+            flash('Keine aktive Spielsitzung gefunden.', 'warning')
+            return redirect(url_for('admin.admin_dashboard'))
+        
+        # Hole Statistiken
+        rotation_stats = active_session.get_player_statistics()
+        
+        # Hole Team-Informationen
+        teams = Team.query.all()
+        team_lookup = {str(team.id): team for team in teams}
+        
+        # Format für Template
+        formatted_stats = {}
+        for team_id, stats in rotation_stats.items():
+            team = team_lookup.get(team_id)
+            if team:
+                formatted_stats[team.name] = {
+                    'total_games': stats['total_games'],
+                    'players': stats['players'],
+                    'most_played': stats['most_played'],
+                    'least_played': stats['least_played'],
+                    'team_members': team.members.split(', ') if team.members else []
+                }
+        
+        return jsonify({
+            'success': True,
+            'stats': formatted_stats,
+            'session_id': active_session.id
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"Fehler beim Laden der Rotations-Statistiken: {e}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'error': 'Fehler beim Laden der Statistiken'
+        }), 500
+
+@admin_bp.route('/reset_player_rotation', methods=['POST'])
+@login_required
+def reset_player_rotation():
+    """Setzt die Spieler-Rotation zurück"""
+    if not isinstance(current_user, Admin):
+        return jsonify({'success': False, 'error': 'Zugriff verweigert'}), 403
+    
+    try:
+        active_session = GameSession.query.filter_by(is_active=True).first()
+        if not active_session:
+            return jsonify({'success': False, 'error': 'Keine aktive Spielsitzung'}), 400
+        
+        # Reset der Rotation
+        active_session.reset_player_rotation()
+        db.session.commit()
+        
+        # Event loggen
+        event = GameEvent(
+            game_session_id=active_session.id,
+            event_type="player_rotation_reset",
+            description="Spieler-Rotation wurde zurückgesetzt.",
+            related_team_id=None
+        )
+        db.session.add(event)
+        db.session.commit()
+        
+        flash('Spieler-Rotation wurde zurückgesetzt. Alle Spieler starten wieder mit 0 Einsätzen.', 'success')
+        
+        return jsonify({
+            'success': True,
+            'message': 'Spieler-Rotation zurückgesetzt'
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Fehler beim Zurücksetzen der Rotation: {e}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'error': 'Fehler beim Zurücksetzen'
+        }), 500

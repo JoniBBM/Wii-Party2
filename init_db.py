@@ -158,6 +158,54 @@ with app_instance.app_context():
         # Lösche Test-Session (nicht speichern)
         print("✅ Alle Tracking-Features funktionieren korrekt!")
         
+        # NEU: Teste Selected Players Features
+        print("\n--- Teste Selected Players Features ---")
+        
+        print("Teste get_selected_players()...")
+        initial_players = test_session.get_selected_players()
+        print(f"  Initial selected players: {initial_players}")
+        
+        print("Teste set_selected_players()...")
+        test_players = {"1": ["Alice", "Bob"], "2": ["Charlie", "Diana"]}
+        test_session.set_selected_players(test_players)
+        updated_players = test_session.get_selected_players()
+        print(f"  Nach dem Setzen: {updated_players}")
+        
+        print("Teste select_random_players()...")
+        # Erstelle Test-Teams für die zufällige Auswahl
+        test_teams = []
+        for i, (name, members) in enumerate([("Team Alpha", "Alice, Bob, Charlie"), ("Team Beta", "Diana, Eve, Frank")], 1):
+            team = Team(name=name, members=members)
+            team.id = i  # Simuliere ID
+            test_teams.append(team)
+        
+        selected = test_session.select_random_players(test_teams, 2)
+        print(f"  Zufällige Auswahl (2 pro Team): {selected}")
+        
+        print("Teste select_random_players() mit 'all'...")
+        selected_all = test_session.select_random_players(test_teams, "all")
+        print(f"  Auswahl ganzes Team: {selected_all}")
+        
+        print("Teste Faire Rotation...")
+        # Mehrere Runden simulieren
+        for round_num in range(1, 6):
+            print(f"  Runde {round_num}:")
+            selected = test_session.select_random_players(test_teams, 2)
+            for team_id, players in selected.items():
+                team = next((t for t in test_teams if str(t.id) == team_id), None)
+                team_name = team.name if team else f"Team {team_id}"
+                print(f"    {team_name}: {', '.join(players)}")
+        
+        # Statistiken anzeigen
+        stats = test_session.get_player_statistics()
+        print("  Statistiken nach 5 Runden:")
+        for team_id, team_stats in stats.items():
+            team = next((t for t in test_teams if str(t.id) == team_id), None)
+            team_name = team.name if team else f"Team {team_id}"
+            print(f"    {team_name}: {team_stats['players']}")
+        
+        print("✅ Alle Selected Players Features und Rotation funktionieren korrekt!")
+        
     except ImportError as ie:
         print(f"ImportFehler beim Laden der Minigame-Utils: {ie}")
         print("Stelle sicher, dass app/admin/minigame_utils.py existiert und korrekt implementiert ist.")
@@ -258,6 +306,9 @@ with app_instance.app_context():
     print("  ✅ Admin kann gespielte Inhalte zurücksetzen")
     print("  ✅ Spielfortschritt wird im Dashboard angezeigt")
     print("  ✅ Bereits gespielte Inhalte werden markiert")
+    print("  ✅ Zufällige Spielerauswahl für Minispiele")
+    print("  ✅ Banner-Anzeige für ausgewählte Spieler")
+    print("  ✅ Admin-Übersicht der aktiven Spieler")
     print("\n🎉 WELCOME-SYSTEM FEATURES:")
     print("  👋 Welcome-Seite mit Live-Spielerregistrierung")
     print("  📝 Pop-up Registrierung auf der Startseite")

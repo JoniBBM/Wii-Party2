@@ -56,6 +56,22 @@
                             {% endif %}
                         </div>
                         
+                        <div class="form-group">
+                            {{ form.player_count.label(class="form-control-label") }}
+                            {{ form.player_count(class="form-control" + (" is-invalid" if form.player_count.errors else "")) }}
+                            {% if form.player_count.errors %}
+                                <div class="invalid-feedback">
+                                    {% for error in form.player_count.errors %}
+                                        <span>{{ error }}</span>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                            <small class="form-text text-muted">
+                                <i class="fas fa-users"></i> 
+                                Legt fest, wie viele Spieler pro Team bei diesem Minispiel teilnehmen sollen.
+                            </small>
+                        </div>
+                        
                         <hr>
                         
                         <div class="row">

@@ -305,6 +305,50 @@
                         {% if active_session.current_minigame_description %}
                             <p><em>Beschreibung: {{ active_session.current_minigame_description }}</em></p>
                         {% endif %}
+                        {% if active_session.current_player_count and not active_session.current_question_id %}
+                            <p><strong>👥 Spieleranzahl:</strong> 
+                                {% if active_session.current_player_count == 'all' %}
+                                    Ganzes Team
+                                {% else %}
+                                    Pro Team {{ active_session.current_player_count }} Spieler
+                                {% endif %}
+                            </p>
+                        {% endif %}
+                        
+                        <!-- Ausgewählte Spieler Anzeige -->
+                        {% if active_session.get_selected_players() %}
+                            <div class="selected-players-admin mt-3">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <p class="mb-0"><strong>🎯 Ausgewählte Spieler:</strong></p>
+                                    <div class="btn-group btn-group-sm">
+                                        <button class="btn btn-outline-info" onclick="showRotationStats()">
+                                            <i class="fas fa-chart-bar"></i> Statistiken
+                                        </button>
+                                        <button class="btn btn-outline-warning" onclick="resetRotation()">
+                                            <i class="fas fa-sync-alt"></i> Rotation Reset
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    {% for team_id, players in active_session.get_selected_players().items() %}
+                                        {% set team = teams|selectattr("id", "equalto", team_id|int)|first %}
+                                        <div class="col-md-6 mb-2">
+                                            <div class="card card-body bg-light">
+                                                <h6 class="card-title mb-1">
+                                                    <i class="fas fa-users text-primary"></i> 
+                                                    {{ team.name if team else 'Team ' + team_id }}
+                                                </h6>
+                                                <div class="selected-players-list">
+                                                    {% for player in players %}
+                                                        <span class="badge badge-success mr-1">{{ player }}</span>
+                                                    {% endfor %}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        {% endif %}
                     {% else %}
                         <p>Noch kein Inhalt für diese Runde festgelegt.</p>
                     {% endif %}
@@ -517,6 +561,17 @@
                                     </div>
                                 </div>
                             </div>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        {{ set_minigame_form.player_count.label(class="form-control-label") }}
+                                        {{ set_minigame_form.player_count(class="form-control") }}
+                                        <small class="form-text text-muted">
+                                            <i class="fas fa-users"></i> Anzahl Spieler pro Team für dieses Minispiel
+                                        </small>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                         
                         <!-- Direkte Fragen-Erstellung -->
@@ -585,6 +640,7 @@
                                     </small>
                                 </div>
                             </div>
+                            
                         </div>
                         
                         <!-- Ordner-Zufällig -->
@@ -709,6 +765,32 @@
                         {{ confirm_reset_form.submit(class="btn btn-danger") }}
                     </div>
                 </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Rotation Statistics Modal -->
+    <div class="modal fade" id="rotationModal" tabindex="-1" role="dialog">
+        <div class="modal-dialog modal-lg" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-chart-bar mr-2"></i>
+                        Spieler-Rotation Statistiken
+                    </h5>
+                    <button type="button" class="close" data-dismiss="modal">
+                        <span>&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body" id="rotationModalBody">
+                    <!-- Wird dynamisch befüllt -->
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Schließen</button>
+                    <button type="button" class="btn btn-warning" onclick="resetRotation(); $('#rotationModal').modal('hide');">
+                        <i class="fas fa-sync-alt"></i> Rotation zurücksetzen
+                    </button>
+                </div>
             </div>
         </div>
     </div>
@@ -1568,5 +1650,89 @@ document.getElementById('start-fullscreen-game-btn').addEventListener('click', f
         }
     }, 1000);
 });
+
+// Spieler-Rotation Management
+function showRotationStats() {
+    fetch('/admin/player_rotation_stats')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                let statsHtml = '<h5>Spieler-Rotation Statistiken</h5>';
+                
+                if (Object.keys(data.stats).length === 0) {
+                    statsHtml += '<p class="text-muted">Noch keine Rotations-Daten verfügbar.</p>';
+                } else {
+                    statsHtml += '<div class="row">';
+                    for (const [teamName, stats] of Object.entries(data.stats)) {
+                        statsHtml += `
+                            <div class="col-md-6 mb-3">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <strong>${teamName}</strong>
+                                        <small class="text-muted">(${stats.total_games} Spiele gesamt)</small>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="player-stats">
+                        `;
+                        
+                        for (const [playerName, gameCount] of Object.entries(stats.players)) {
+                            const isEqual = gameCount === stats.least_played && gameCount === stats.most_played;
+                            const isLeast = gameCount === stats.least_played && !isEqual;
+                            const isMost = gameCount === stats.most_played && !isEqual;
+                            
+                            let badgeClass = 'badge-secondary';
+                            if (isLeast) badgeClass = 'badge-success';
+                            if (isMost) badgeClass = 'badge-warning';
+                            
+                            statsHtml += `<span class="badge ${badgeClass} mr-1">${playerName}: ${gameCount}</span>`;
+                        }
+                        
+                        statsHtml += `
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    }
+                    statsHtml += '</div>';
+                }
+                
+                // Zeige Modal
+                document.getElementById('rotationModalBody').innerHTML = statsHtml;
+                $('#rotationModal').modal('show');
+            } else {
+                alert('Fehler beim Laden der Statistiken: ' + data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Ein Fehler ist aufgetreten beim Laden der Statistiken');
+        });
+}
+
+function resetRotation() {
+    if (confirm('Spieler-Rotation zurücksetzen? Alle Spieler starten wieder mit 0 Einsätzen.')) {
+        fetch('/admin/reset_player_rotation', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('Spieler-Rotation erfolgreich zurückgesetzt!');
+                location.reload(); // Seite neu laden
+            } else {
+                alert('Fehler beim Zurücksetzen: ' + data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Ein Fehler ist aufgetreten beim Zurücksetzen');
+        });
+    }
+}
 </script>
 {% endblock %}
