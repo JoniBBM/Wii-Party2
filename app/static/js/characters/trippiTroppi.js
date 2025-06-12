@@ -20,7 +20,7 @@ function createTrippiTroppi(colorHex) {
         shininess: 30
     });
     const head = new THREE.Mesh(headGeometry, headMaterial);
-    head.position.y = 0.5; // Niedriger
+    head.position.y = 0.3; // Auf Bombardino Höhe
     group.add(head);
 
     // RIESIGE AUGEN - BRAIN ROT GOOGLY EYES
@@ -32,7 +32,7 @@ function createTrippiTroppi(colorHex) {
                 shininess: 80
             })
         );
-        eye.position.set(i === 0 ? 0.09 : -0.09, 0.52, 0.15);
+        eye.position.set(i === 0 ? 0.09 : -0.09, 0.32, 0.15);
         eye.scale.set(1.2, 1.5, 1); // Ovaler
         group.add(eye);
 
@@ -40,7 +40,7 @@ function createTrippiTroppi(colorHex) {
             new THREE.SphereGeometry(0.025, 8, 8), // Größer
             new THREE.MeshPhongMaterial({ color: 0x004D40 })
         );
-        pupil.position.set(i === 0 ? 0.09 : -0.09, 0.52, 0.18);
+        pupil.position.set(i === 0 ? 0.09 : -0.09, 0.32, 0.18);
         group.add(pupil);
     }
 
@@ -53,7 +53,7 @@ function createTrippiTroppi(colorHex) {
             shininess: 60
         })
     );
-    smile.position.set(0, 0.43, 0.15);
+    smile.position.set(0, 0.23, 0.15);
     smile.rotation.x = Math.PI / 2;
     group.add(smile);
 
@@ -65,12 +65,12 @@ function createTrippiTroppi(colorHex) {
         shininess: 10
     });
     const brim = new THREE.Mesh(brimGeometry, brimMaterial);
-    brim.position.y = 0.68; // Niedriger
+    brim.position.y = 0.48; // Auf Bombardino Höhe
     hatGroup.add(brim);
 
     const crownGeometry = new THREE.ConeGeometry(0.18, 0.1, 16);
     const crown = new THREE.Mesh(crownGeometry, brimMaterial);
-    crown.position.y = 0.73;
+    crown.position.y = 0.53;
     hatGroup.add(crown);
 
     // ITALIENISCHER Hutband
@@ -82,7 +82,7 @@ function createTrippiTroppi(colorHex) {
             shininess: 30
         })
     );
-    hatBand.position.y = 0.69;
+    hatBand.position.y = 0.49;
     hatGroup.add(hatBand);
 
     // ITALIENISCHE FLAGGE am Hut
@@ -93,7 +93,7 @@ function createTrippiTroppi(colorHex) {
             side: THREE.DoubleSide
         })
     );
-    italianFlag.position.set(0.2, 0.69, 0);
+    italianFlag.position.set(0.2, 0.49, 0);
     hatGroup.add(italianFlag);
 
     const flagWhite = new THREE.Mesh(
@@ -103,7 +103,7 @@ function createTrippiTroppi(colorHex) {
             side: THREE.DoubleSide
         })
     );
-    flagWhite.position.set(0.25, 0.69, 0);
+    flagWhite.position.set(0.25, 0.49, 0);
     hatGroup.add(flagWhite);
 
     const flagRed = new THREE.Mesh(
@@ -113,7 +113,7 @@ function createTrippiTroppi(colorHex) {
             side: THREE.DoubleSide
         })
     );
-    flagRed.position.set(0.3, 0.69, 0);
+    flagRed.position.set(0.3, 0.49, 0);
     hatGroup.add(flagRed);
 
     // MEGA ITALIENISCHE BLUME am Hut
@@ -145,7 +145,7 @@ function createTrippiTroppi(colorHex) {
         })
     );
     flowerGroup.add(flowerCenter);
-    flowerGroup.position.set(0.18, 0.72, 0.08);
+    flowerGroup.position.set(0.18, 0.52, 0.08);
     hatGroup.add(flowerGroup);
     group.add(hatGroup);
 
@@ -181,7 +181,7 @@ function createTrippiTroppi(colorHex) {
     // Beine - RICHTIG AUF DEM BODEN
     for (let i = 0; i < 2; i++) {
         const leg = new THREE.Mesh(limbGeometry, limbMaterial);
-        leg.position.set(i === 0 ? 0.06 : -0.06, 0.05, 0); // AUF DEM BODEN wie Bombardino
+        leg.position.set(i === 0 ? 0.06 : -0.06, -0.1, 0); // AUF DEM BODEN wie Bombardino
         group.add(leg);
     }
 
@@ -194,7 +194,7 @@ function createTrippiTroppi(colorHex) {
                 shininess: 30
             })
         );
-        sandal.position.set(i === 0 ? 0.06 : -0.06, -0.08, 0.02); // AUF DEM BODEN
+        sandal.position.set(i === 0 ? 0.06 : -0.06, -0.23, 0.02); // AUF DEM BODEN
         group.add(sandal);
 
         // Sandalen-Riemen
@@ -202,14 +202,14 @@ function createTrippiTroppi(colorHex) {
             new THREE.BoxGeometry(0.03, 0.01, 0.1),
             new THREE.MeshPhongMaterial({ color: 0x654321 })
         );
-        strap.position.set(i === 0 ? 0.06 : -0.06, -0.07, 0.02);
+        strap.position.set(i === 0 ? 0.06 : -0.06, -0.22, 0.02);
         group.add(strap);
     }
 
     // ITALIAN GESTURE Arme
     for (let i = 0; i < 2; i++) {
         const arm = new THREE.Mesh(limbGeometry, limbMaterial);
-        arm.position.set(i === 0 ? 0.18 : -0.18, 0.25, 0); // Niedriger
+        arm.position.set(i === 0 ? 0.18 : -0.18, 0.2, 0); // Auf Bombardino Höhe
         arm.rotation.z = i === 0 ? -Math.PI / 4 : Math.PI / 4; // Italienische Gesten
         group.add(arm);
     }
@@ -221,7 +221,7 @@ function createTrippiTroppi(colorHex) {
         new THREE.MeshPhongMaterial({ color: 0xFFE4B5 }) // Pizza-Teig
     );
     pizzaBase.rotation.z = Math.PI;
-    pizzaBase.position.set(0.25, 0.25, 0);
+    pizzaBase.position.set(0.25, 0.2, 0);
     pizzaGroup.add(pizzaBase);
 
     // Pizza Toppings
@@ -229,14 +229,14 @@ function createTrippiTroppi(colorHex) {
         new THREE.SphereGeometry(0.015, 8, 8),
         new THREE.MeshPhongMaterial({ color: 0x8B0000 })
     );
-    pepperoni.position.set(0.22, 0.3, 0.02);
+    pepperoni.position.set(0.22, 0.25, 0.02);
     pizzaGroup.add(pepperoni);
 
     const cheese = new THREE.Mesh(
         new THREE.SphereGeometry(0.01, 6, 6),
         new THREE.MeshPhongMaterial({ color: 0xFFFF99 })
     );
-    cheese.position.set(0.28, 0.22, -0.02);
+    cheese.position.set(0.28, 0.17, -0.02);
     pizzaGroup.add(cheese);
 
     group.add(pizzaGroup);
@@ -244,8 +244,9 @@ function createTrippiTroppi(colorHex) {
     group.userData = {
         animation: time => {
             // ITALIAN BEACH PARTY BOUNCING
-            const jumpOffset = Math.abs(Math.sin(time * 5)) * 0.1; // Mehr Hüpfen
-            group.position.y = jumpOffset;
+            // Entfernt: const jumpOffset = Math.abs(Math.sin(time * 5)) * 0.1;
+            // Entfernt: group.position.y = jumpOffset;
+            // Damit das Spielbrett die Y-Position kontrollieren kann
 
             if(body) body.rotation.y = Math.sin(time * 2.5) * 0.25; // Mehr Bewegung
             if(head) head.rotation.y = Math.sin(time * 2.5) * 0.25;

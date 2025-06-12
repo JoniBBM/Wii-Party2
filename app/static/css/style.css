@@ -261,6 +261,10 @@ body {
     background: linear-gradient(135deg, #17a2b8 0%, #138496 100%);
 }
 
+.question-banner .banner-content {
+    background: linear-gradient(135deg, #e83e8c 0%, #d91a72 100%);
+}
+
 .barrier-banner .banner-content {
     background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
 }

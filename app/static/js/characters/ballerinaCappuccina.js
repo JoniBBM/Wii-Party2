@@ -11,7 +11,7 @@ function createBallerinaCappuccina(colorHex) {
         opacity: 0.9
     });
     const tutu = new THREE.Mesh(tutuGeometry, tutuMaterial);
-    tutu.position.y = 0.15; // ZURÜCK ZUR BOMBARDINO HÖHE
+    tutu.position.y = 0.0; // AUF BOMBARDINO HÖHE
     group.add(tutu);
 
     // ITALIENISCHE CAPPUCCINO TASSE - RICHTIGE HÖHE
@@ -21,13 +21,13 @@ function createBallerinaCappuccina(colorHex) {
         shininess: 50
     });
     const cup = new THREE.Mesh(cupGeometry, cupMaterial);
-    cup.position.y = 0.35; // ZURÜCK ZUR BOMBARDINO HÖHE
+    cup.position.y = 0.2; // AUF BOMBARDINO HÖHE
     group.add(cup);
 
     // ÜBERTRIEBENER Griff der Tasse
     const handleGeometry = new THREE.TorusGeometry(0.15, 0.04, 8, 16, Math.PI);
     const handle = new THREE.Mesh(handleGeometry, cupMaterial);
-    handle.position.set(0, 0.35, -0.25); // ZURÜCK ZUR BOMBARDINO HÖHE
+    handle.position.set(0, 0.2, -0.25); // AUF BOMBARDINO HÖHE
     handle.rotation.x = Math.PI / 2;
     group.add(handle);
 
@@ -39,7 +39,7 @@ function createBallerinaCappuccina(colorHex) {
     });
     const foam = new THREE.Mesh(foamGeometry, foamMaterial);
     foam.scale.set(1.2, 0.4, 1.2);
-    foam.position.y = 0.6; // ZURÜCK ZUR BOMBARDINO HÖHE
+    foam.position.y = 0.45; // AUF BOMBARDINO HÖHE
     group.add(foam);
 
     // ITALIENISCHES HERZ-MUSTER (anstatt Tulpe) - RICHTIGE HÖHE
@@ -49,12 +49,12 @@ function createBallerinaCappuccina(colorHex) {
     });
     const heartPattern = new THREE.Mesh(patternGeometry, patternMaterial);
     heartPattern.scale.set(1, 0.8, 1);
-    heartPattern.position.set(0, 0.61, 0); // ZURÜCK ZUR BOMBARDINO HÖHE
+    heartPattern.position.set(0, 0.46, 0); // AUF BOMBARDINO HÖHE
     group.add(heartPattern);
 
     const heartPattern2 = new THREE.Mesh(patternGeometry, patternMaterial);
     heartPattern2.scale.set(0.7, 0.6, 0.7);
-    heartPattern2.position.set(-0.05, 0.62, 0.05); // ZURÜCK ZUR BOMBARDINO HÖHE
+    heartPattern2.position.set(-0.05, 0.47, 0.05); // AUF BOMBARDINO HÖHE
     group.add(heartPattern2);
 
     // RIESIGE GOOGLY AUGEN - RICHTIGE HÖHE
@@ -63,7 +63,7 @@ function createBallerinaCappuccina(colorHex) {
             new THREE.SphereGeometry(0.04, 8, 8),
             new THREE.MeshBasicMaterial({ color: 0xFFFFFF })
         );
-        eye.position.set(i === 0 ? 0.12 : -0.12, 0.4, 0.22); // ZURÜCK ZUR BOMBARDINO HÖHE
+        eye.position.set(i === 0 ? 0.12 : -0.12, 0.25, 0.22); // AUF BOMBARDINO HÖHE
         eye.scale.set(1.2, 1.8, 1);
         group.add(eye);
 
@@ -72,7 +72,7 @@ function createBallerinaCappuccina(colorHex) {
             new THREE.SphereGeometry(0.02, 8, 8),
             new THREE.MeshBasicMaterial({ color: 0x000000 })
         );
-        pupil.position.set(i === 0 ? 0.12 : -0.12, 0.42, 0.25); // ZURÜCK ZUR BOMBARDINO HÖHE
+        pupil.position.set(i === 0 ? 0.12 : -0.12, 0.27, 0.25); // AUF BOMBARDINO HÖHE
         group.add(pupil);
     }
 
@@ -81,7 +81,7 @@ function createBallerinaCappuccina(colorHex) {
         new THREE.TorusGeometry(0.08, 0.015, 8, 16, Math.PI),
         new THREE.MeshBasicMaterial({ color: 0x8B0000 })
     );
-    smile.position.set(0, 0.32, 0.22); // ZURÜCK ZUR BOMBARDINO HÖHE
+    smile.position.set(0, 0.17, 0.22); // AUF BOMBARDINO HÖHE
     smile.rotation.x = Math.PI / 2;
     group.add(smile);
 
@@ -94,12 +94,12 @@ function createBallerinaCappuccina(colorHex) {
 
     // EXTREME DANCE POSE - WIE BOMBARDINO LEVEL
     const leftLeg = new THREE.Mesh(legGeometry, legMaterial);
-    leftLeg.position.set(0.15, 0.05, 0); // ZURÜCK ZUR BOMBARDINO HÖHE
+    leftLeg.position.set(0.15, -0.1, 0); // AUF BOMBARDINO HÖHE
     leftLeg.rotation.z = Math.PI / 8;
     group.add(leftLeg);
 
     const rightLeg = new THREE.Mesh(legGeometry, legMaterial);
-    rightLeg.position.set(-0.15, 0.05, 0); // ZURÜCK ZUR BOMBARDINO HÖHE
+    rightLeg.position.set(-0.15, -0.1, 0); // AUF BOMBARDINO HÖHE
     rightLeg.rotation.z = -Math.PI / 4;
     rightLeg.rotation.x = Math.PI / 6;
     group.add(rightLeg);
@@ -116,9 +116,9 @@ function createBallerinaCappuccina(colorHex) {
         shoe.scale.set(1.4, 0.7, 2.2);
 
         if (i === 0) { // Linker Schuh
-            shoe.position.set(0.15, -0.08, 0.08); // ZURÜCK ZUR BOMBARDINO HÖHE
+            shoe.position.set(0.15, -0.23, 0.08); // AUF BOMBARDINO HÖHE
         } else { // Rechter Schuh  
-            shoe.position.set(-0.22, -0.05, 0.12); // ZURÜCK ZUR BOMBARDINO HÖHE
+            shoe.position.set(-0.22, -0.2, 0.12); // AUF BOMBARDINO HÖHE
             shoe.rotation.x = Math.PI / 6;
         }
         group.add(shoe);
@@ -132,10 +132,10 @@ function createBallerinaCappuccina(colorHex) {
         );
 
         if (i === 0) { // Linker Arm - ITALIAN GESTURE
-            arm.position.set(0.3, 0.4, 0); // ZURÜCK ZUR BOMBARDINO HÖHE
+            arm.position.set(0.3, 0.25, 0); // AUF BOMBARDINO HÖHE
             arm.rotation.z = -Math.PI / 2.5;
         } else { // Rechter Arm - DRAMATIC
-            arm.position.set(-0.3, 0.4, 0); // ZURÜCK ZUR BOMBARDINO HÖHE
+            arm.position.set(-0.3, 0.25, 0); // AUF BOMBARDINO HÖHE
             arm.rotation.z = Math.PI / 2.5;
         }
         group.add(arm);
@@ -149,11 +149,11 @@ function createBallerinaCappuccina(colorHex) {
             side: THREE.DoubleSide
         })
     );
-    flag.position.set(0.4, 0.15, 0); // ZURÜCK ZUR BOMBARDINO HÖHE
+    flag.position.set(0.4, 0.0, 0); // AUF BOMBARDINO HÖHE
     group.add(flag);
 
-    // WICHTIG: GESAMTE GROUP EXTREM HOCH - DAMIT SIE IN DER LUFT FLIEGT
-    group.position.y = 2.0; // EXTREM HOCH! DAMIT WIR SIE SEHEN KÖNNEN
+    // Charakter auf Bodenhöhe wie Bombardino
+    group.position.y = 0;
 
     // Animation - ITALIAN BRAIN ROT DANCE
     group.userData = {
@@ -161,8 +161,9 @@ function createBallerinaCappuccina(colorHex) {
             // CRAZY SPINNING wie beim Tanz
             group.rotation.y = Math.sin(time * 1.2) * 0.3; // Mehr Bewegung
 
-            // COFFEE BOUNCING
-            group.position.y = Math.sin(time * 4) * 0.08; // Mehr Hüpfen
+            // COFFEE BOUNCING - relativ zur Brettposition
+            // Entfernt: group.position.y = Math.sin(time * 4) * 0.08; 
+            // Damit das Spielbrett die Y-Position kontrollieren kann
 
             // TUTU WILD SWINGING
             if (tutu) {

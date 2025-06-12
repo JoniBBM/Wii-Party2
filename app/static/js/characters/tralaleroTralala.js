@@ -208,12 +208,12 @@ function createTralaleroTralala(colorHex) {
     }
     group.add(pastaGroup);
 
-    // Position anpassen - RICHTIG AUF DEM BODEN wie Bombardino
-    group.position.y = 0.1; // Leicht angehoben damit Sneakers auf dem Boden stehen
+    // Position anpassen - AUF GLEICHER HÖHE wie Bombardino
 
     group.userData = {
         animation: time => {
-            group.position.y = 0.0 + Math.abs(Math.sin(time * 4)) * 0.1; // Mehr Hüpfen
+            // Entfernt: group.position.y = Math.abs(Math.sin(time * 4)) * 0.1;
+            // Damit das Spielbrett die Y-Position kontrollieren kann
             body.rotation.y = Math.sin(time * 1.5) * 0.15; // Mehr Bewegung
             body.rotation.z = Math.PI / 25 + Math.sin(time * 2.5) * 0.08; // Mehr Wackeln
 

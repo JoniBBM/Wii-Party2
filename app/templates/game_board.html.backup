@@ -358,10 +358,6 @@ const islandSurfaceY = 1.6;
 let DYNAMIC_FIELD_DISTRIBUTION = null; // Wird vom Server geladen
 let FIELD_DISTRIBUTION_LOADING = false;
 
-// Banner-bezogene Variablen (Legacy-Kompatibilität)
-let hasShowMinigameResults = false;
-let hasShownTurnDiceSequence = false;
-
 // FELDTYP-HILFSFUNKTIONEN
 function getFieldTypeAtPosition(position) {
     // Verwende die dynamische Feld-Verteilung wenn verfügbar

@@ -46,7 +46,7 @@ function createLiriliLarila(colorHex) {
         shininess: 20
     });
     const head = new THREE.Mesh(headGeometry, headMaterial);
-    head.position.y = 0.7; // Angepasst an niedrigere Basis
+    head.position.y = 0.5; // Auf Bombardino Höhe
     group.add(head);
 
     // RIESIGE träumerische Augen - BRAIN ROT
@@ -58,7 +58,7 @@ function createLiriliLarila(colorHex) {
                 shininess: 80
             })
         );
-        eye.position.set(i === 0 ? 0.1 : -0.1, 0.75, 0.18);
+        eye.position.set(i === 0 ? 0.1 : -0.1, 0.55, 0.18);
         eye.scale.set(1.2, 1.8, 1); // Noch ovaler und träumerischer
         group.add(eye);
 
@@ -67,7 +67,7 @@ function createLiriliLarila(colorHex) {
             new THREE.SphereGeometry(0.035, 8, 8), // Größer
             new THREE.MeshPhongMaterial({ color: 0x6495ED })
         );
-        pupil.position.set(i === 0 ? 0.1 : -0.1, 0.78, 0.22);
+        pupil.position.set(i === 0 ? 0.1 : -0.1, 0.58, 0.22);
         group.add(pupil);
 
         // ÜBERTRIEBENER Glanzpunkt
@@ -75,7 +75,7 @@ function createLiriliLarila(colorHex) {
             new THREE.SphereGeometry(0.015, 6, 6), // Größer
             new THREE.MeshPhongMaterial({ color: 0xFFFFFF })
         );
-        highlight.position.set(i === 0 ? 0.11 : -0.09, 0.82, 0.23);
+        highlight.position.set(i === 0 ? 0.11 : -0.09, 0.62, 0.23);
         group.add(highlight);
     }
 
@@ -87,7 +87,7 @@ function createLiriliLarila(colorHex) {
     });
     const mouth = new THREE.Mesh(mouthGeometry, mouthMaterial);
     mouth.scale.set(1.2, 1, 1);
-    mouth.position.set(0, 0.63, 0.2);
+    mouth.position.set(0, 0.43, 0.2);
     group.add(mouth);
 
     // MUSIKNOTEN schweben um den Charakter - ITALIAN OPERA NOTES
@@ -118,7 +118,7 @@ function createLiriliLarila(colorHex) {
         const radius = 0.5 + Math.random() * 0.3; // Größerer Radius
         noteItemGroup.position.set(
             Math.cos(angle) * radius,
-            0.7 + Math.random() * 0.5,
+            0.5 + Math.random() * 0.5,
             Math.sin(angle) * radius
         );
         notesGroup.add(noteItemGroup);
@@ -135,7 +135,7 @@ function createLiriliLarila(colorHex) {
     // ITALIAN GESTURE Arme
     for (let i = 0; i < 2; i++) {
         const arm = new THREE.Mesh(limbGeometry, limbMaterial);
-        arm.position.set(i === 0 ? 0.2 : -0.2, 0.4, 0); // Niedriger
+        arm.position.set(i === 0 ? 0.2 : -0.2, 0.2, 0); // Auf Bombardino Höhe
         arm.rotation.z = i === 0 ? -Math.PI / 3 : Math.PI / 3; // Italienische Gesten
         group.add(arm);
     }
@@ -143,7 +143,7 @@ function createLiriliLarila(colorHex) {
     // Beine - RICHTIG AUF DEM BODEN
     for (let i = 0; i < 2; i++) {
         const leg = new THREE.Mesh(limbGeometry, limbMaterial);
-        leg.position.set(i === 0 ? 0.08 : -0.08, 0.05, 0); // AUF DEM BODEN wie Bombardino
+        leg.position.set(i === 0 ? 0.08 : -0.08, -0.1, 0); // AUF DEM BODEN wie Bombardino
         group.add(leg);
     }
 
@@ -157,7 +157,7 @@ function createLiriliLarila(colorHex) {
             })
         );
         shoe.scale.set(1.5, 0.6, 2);
-        shoe.position.set(i === 0 ? 0.08 : -0.08, -0.08, 0.04); // AUF DEM BODEN
+        shoe.position.set(i === 0 ? 0.08 : -0.08, -0.23, 0.04); // AUF DEM BODEN
         group.add(shoe);
     }
 
@@ -176,7 +176,7 @@ function createLiriliLarila(colorHex) {
         );
         const angle = Math.random() * Math.PI * 2;
         const radius = 0.4 + Math.random() * 0.5;
-        const height = 0.5 + Math.random() * 0.6;
+        const height = 0.3 + Math.random() * 0.6;
         star.position.set(
             Math.cos(angle) * radius,
             height,
@@ -191,19 +191,20 @@ function createLiriliLarila(colorHex) {
         new THREE.CylinderGeometry(0.12, 0.12, 0.02, 16),
         new THREE.MeshPhongMaterial({ color: 0xFFFFFF })
     );
-    hatBase.position.set(0, 0.92, 0);
+    hatBase.position.set(0, 0.72, 0);
     group.add(hatBase);
 
     const hatTop = new THREE.Mesh(
         new THREE.CylinderGeometry(0.08, 0.1, 0.12, 16),
         hatBase.material
     );
-    hatTop.position.set(0, 1.02, 0);
+    hatTop.position.set(0, 0.82, 0);
     group.add(hatTop);
 
     group.userData = {
         animation: time => {
-            group.position.y = Math.sin(time * 2) * 0.08; // Mehr Schweben
+            // Entfernt: group.position.y = Math.sin(time * 2) * 0.08;
+            // Damit das Spielbrett die Y-Position kontrollieren kann
             
             if(head) {
                 head.rotation.y = Math.sin(time * 1.5) * 0.3; // Mehr Kopfbewegung
