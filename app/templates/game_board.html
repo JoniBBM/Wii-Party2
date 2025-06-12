@@ -341,13 +341,13 @@ let BOARD_CONFIG = {
     pathBorderColor: 0xBCAAA4,
     characterElevation: 0.4,
     characterSize: 0.4,
-    mountainHeight: 18,
-    mountainBaseRadius: 15,
-    mountainTopRadius: 2.0,
-    spiralHeight: 16,
-    spiralStartRadius: 18,
-    spiralLoops: 2.4,
-    pathDepth: 3.5,
+    mountainHeight: 24,
+    mountainBaseRadius: 20,
+    mountainTopRadius: 0.01,
+    spiralHeight: 22,
+    spiralStartRadius: 28, // Vergrößert für besseren Start
+    spiralLoops: 3.8, // Mehr Loops für bessere Verteilung
+    pathDepth: 5.0,
     cameraFollowOffset: new THREE.Vector3(0, 7, 12),
     cameraFrontOffset: new THREE.Vector3(0, 4, -8)
 };
@@ -358,7 +358,6 @@ const islandSurfaceY = 1.6;
 let DYNAMIC_FIELD_DISTRIBUTION = null; // Wird vom Server geladen
 let FIELD_DISTRIBUTION_LOADING = false;
 
-// Banner-bezogene Variablen (Legacy-Kompatibilität)
 let hasShowMinigameResults = false;
 let hasShownTurnDiceSequence = false;
 
@@ -668,7 +667,7 @@ class WiiPartyIsland {
     }
 
     createOcean() {
-        const oceanRadius = 80;
+        const oceanRadius = 100; // Vergrößert für breitere Insel
         const waterGeometry = new THREE.PlaneGeometry(oceanRadius * 2, oceanRadius * 2, 64, 64);
         const positions = waterGeometry.attributes.position.array;
         
@@ -677,7 +676,7 @@ class WiiPartyIsland {
             const z = positions[i + 2];
             const distance = Math.sqrt(x * x + z * z);
             
-            if (distance > 25) {
+            if (distance > 35) { // Angepasst für größere Insel
                 positions[i + 1] = Math.sin(x * 0.08) * 0.2 + Math.sin(z * 0.1) * 0.2;
             } else {
                 positions[i + 1] = Math.sin(x * 0.15) * 0.08 + Math.sin(z * 0.15) * 0.08;
@@ -708,7 +707,7 @@ class WiiPartyIsland {
                     const z = positions[i+2];
                     const distance = Math.sqrt(x * x + z * z);
                     
-                    if (distance > 25) {
+                    if (distance > 35) { // Angepasst für größere Insel
                         positions[i + 1] = Math.sin(x * 0.08 + time * 0.6) * 0.2 + 
                                          Math.sin(z * 0.1 + time * 0.4) * 0.2;
                     } else {
@@ -724,17 +723,29 @@ class WiiPartyIsland {
     }
 
     createIslandAndMountain() {
-        const islandGeometry = new THREE.CylinderGeometry(22, 24, 3.2, 32, 1, false);
+        // VERBESSERTE INSEL-GEOMETRIE: Rundere, breitere Form
+        const islandGeometry = new THREE.CylinderGeometry(
+            30, // Top radius - größer für breitere Insel
+            35, // Bottom radius - noch größer für natürliche Form
+            3.2, // Height
+            48, // Radial segments - mehr für rundere Form
+            3,  // Height segments - mehr für bessere Geometrie
+            false
+        );
+        
         const islandPositions = islandGeometry.attributes.position.array;
         
+        // Natürlichere Strand-Erosion
         for (let i = 0; i < islandPositions.length; i += 3) {
             const x = islandPositions[i];
             const z = islandPositions[i + 2];
             const distance = Math.sqrt(x * x + z * z);
             
-            if (distance > 18) {
-                const waveHeight = Math.sin(distance * 0.5) * 0.2 + Math.cos(distance * 0.3) * 0.15;
-                islandPositions[i + 1] += waveHeight;
+            // Sanftere Übergänge
+            if (distance > 25) {
+                const erosion = Math.min(1, (distance - 25) / 10);
+                const waveHeight = Math.sin(distance * 0.3) * 0.3 + Math.cos(distance * 0.2) * 0.2;
+                islandPositions[i + 1] += waveHeight * (1 - erosion * 0.5);
             }
         }
         
@@ -759,7 +770,8 @@ class WiiPartyIsland {
     createIslandVegetation() {
         const baseIslandTopY = islandSurfaceY;
         
-        const vegGeometry = new THREE.CylinderGeometry(20, 20.5, 0.12, 24);
+        // Vegetation angepasst an größere Insel
+        const vegGeometry = new THREE.CylinderGeometry(28, 30, 0.12, 32);
         const vegMaterial = new THREE.MeshLambertMaterial({ color: 0x4CAF50 });
         const vegetation = new THREE.Mesh(vegGeometry, vegMaterial);
         vegetation.position.y = baseIslandTopY + 0.06;
@@ -770,7 +782,7 @@ class WiiPartyIsland {
     createMountainWithPath() {
         this.calculatePathPoints();
 
-        const detail = 128;
+        const detail = 140; // Mehr Detail für bessere Qualität
         const mountainGeometry = new THREE.BufferGeometry();
         const vertices = [];
         const indices = [];
@@ -795,15 +807,16 @@ class WiiPartyIsland {
                         y_shape += (Math.sin(x * 0.8) * Math.cos(z * 0.8)) * 0.15 * (1 - smoothProgress);
                     }
                     
+                    // VERBESSERTE PFAD-INTEGRATION
                     const pathInfluence = this.getPathInfluence(x, z);
                     if (pathInfluence > 0) {
                         const pathHeightAbsolute = this.getInterpolatedPathHeight(x, z);
                         const pathHeightRelativeToMountainFoot = pathHeightAbsolute - mountainFootY;
-                        const rinnenTiefe = BOARD_CONFIG.pathDepth * pathInfluence * 0.25;
-                        y_shape = Math.max(y_shape - rinnenTiefe, pathHeightRelativeToMountainFoot - rinnenTiefe * 0.15);
+                        const pathDepth = BOARD_CONFIG.pathDepth * pathInfluence * 0.3; // Sanftere Integration
+                        y_shape = Math.max(y_shape - pathDepth, pathHeightRelativeToMountainFoot - pathDepth * 0.1);
                     }
-                } else if (distance <= BOARD_CONFIG.mountainBaseRadius * 1.1) {
-                    const fadeOut = 1 - ((distance - BOARD_CONFIG.mountainBaseRadius) / (BOARD_CONFIG.mountainBaseRadius * 0.1));
+                } else if (distance <= BOARD_CONFIG.mountainBaseRadius * 1.15) { // Sanfterer Übergang
+                    const fadeOut = 1 - ((distance - BOARD_CONFIG.mountainBaseRadius) / (BOARD_CONFIG.mountainBaseRadius * 0.15));
                     y_shape = fadeOut * 0.05 - 0.03;
                 } else {
                     y_shape = -0.03;
@@ -868,66 +881,123 @@ class WiiPartyIsland {
     calculatePathPoints() {
         this.pathPoints = [];
         const fieldCount = 73;
-        const lastFieldIndex = fieldCount - 1;
         const mountainFootY = islandSurfaceY;
 
-        for (let i = 0; i < fieldCount; i++) {
-            const progress = i / (fieldCount - 1);
-            let x, y, z;
-            let onFlatLand = false;
-
-            if (i === 0) {
-                x = BOARD_CONFIG.spiralStartRadius;
-                z = 0;
-                y = islandSurfaceY + 0.25;
-                onFlatLand = true;
-            } else if (i === lastFieldIndex) {
-                x = 0;
-                y = mountainFootY + BOARD_CONFIG.mountainHeight + 0.15;
-                z = 0;
-                onFlatLand = false;
-            } else if (i === lastFieldIndex - 1) {
-                x = 0;
-                y = mountainFootY + BOARD_CONFIG.mountainHeight + 0.2;
-                z = 0.5;
-                onFlatLand = false;
+        // VERBESSERTE PFAD-BERECHNUNG
+        const highResPoints = [];
+        const samples = 1200; // Mehr Samples für präzisere Berechnung
+        
+        for (let i = 0; i < samples; i++) {
+            const progress = i / (samples - 1);
+            let radius;
+            
+            // KEINE RAMPE AM START - direkter Übergang
+            if (progress < 0.05) {
+                // Sanfter Start ohne Rampe
+                radius = BOARD_CONFIG.spiralStartRadius * (1.0 - progress * 2);
+            } else if (progress < 0.88) {
+                // Hauptspiral-Bereich
+                const localProgress = (progress - 0.05) / 0.83;
+                const easedProgress = Math.pow(localProgress, 0.82); // Sanftere Kurve
+                radius = THREE.MathUtils.lerp(
+                    BOARD_CONFIG.mountainBaseRadius - 0.8, 
+                    BOARD_CONFIG.mountainTopRadius * 2.0, // Größerer Endradius
+                    easedProgress
+                );
             } else {
-                let radius;
-                if (progress < 0.08) {
-                    radius = BOARD_CONFIG.spiralStartRadius * (1.0 - progress * 4);
-                } else if (progress < 0.85) {
-                    const localProgress = (progress - 0.08) / 0.77;
-                    const easedProgress = Math.pow(localProgress, 0.85);
-                    radius = THREE.MathUtils.lerp(
-                        BOARD_CONFIG.mountainBaseRadius - 0.5, 
-                        BOARD_CONFIG.mountainTopRadius * 1.6, 
-                        easedProgress
-                    );
-                } else {
-                    const gipfelProgress = (progress - 0.85) / 0.15;
-                    radius = BOARD_CONFIG.mountainTopRadius * (1.8 - gipfelProgress * 0.6);
-                }
-                
-                const spiralProgress = Math.pow(progress, 0.9);
-                const angle = spiralProgress * Math.PI * 2 * BOARD_CONFIG.spiralLoops;
-                x = Math.cos(angle) * radius;
-                z = Math.sin(angle) * radius;
-                const distanceToCenter = Math.sqrt(x * x + z * z);
-                
-                if (distanceToCenter > BOARD_CONFIG.mountainBaseRadius - 0.5) {
-                    y = islandSurfaceY + 0.25;
-                    onFlatLand = true;
-                } else {
-                    const mountainProgress = Math.max(0, Math.min(1, 
-                        1 - (distanceToCenter / (BOARD_CONFIG.mountainBaseRadius - 0.5))
-                    ));
-                    const smoothProgress = Math.pow(mountainProgress, 0.8);
-                    y = mountainFootY + smoothProgress * BOARD_CONFIG.mountainHeight;
-                    y += Math.sin(angle * 1.2) * 0.04;
-                    onFlatLand = false;
-                }
+                // Gipfel-Bereich - sanfterer Übergang
+                const gipfelProgress = (progress - 0.88) / 0.12;
+                radius = Math.max(1.5, BOARD_CONFIG.mountainTopRadius * 10.0 * (1.0 - gipfelProgress * 0.6));
             }
-            this.pathPoints.push({ x, y, z, index: i, onFlatLand });
+            
+            // Sanftere Spirale
+            const spiralProgress = Math.pow(progress, 1.15);
+            const angle = spiralProgress * Math.PI * 2 * BOARD_CONFIG.spiralLoops;
+            const x = Math.cos(angle) * radius;
+            const z = Math.sin(angle) * radius;
+            const distanceToCenter = Math.sqrt(x * x + z * z);
+            
+            let y;
+            let onFlatLand = false;
+            
+            // VERBESSERTE HÖHEN-BERECHNUNG
+            if (distanceToCenter > BOARD_CONFIG.mountainBaseRadius - 1.0) {
+                // Flaches Land - KEIN Y-Sprung am Start
+                y = islandSurfaceY + 0.3; // Konstante Höhe
+                onFlatLand = true;
+            } else {
+                // Berg-Bereich
+                const mountainProgress = Math.max(0, Math.min(1, 
+                    1 - (distanceToCenter / (BOARD_CONFIG.mountainBaseRadius - 1.0))
+                ));
+                const smoothProgress = Math.pow(mountainProgress, 0.75); // Sanftere Steigung
+                y = mountainFootY + smoothProgress * BOARD_CONFIG.mountainHeight;
+                
+                // Weniger aggressive Höhen-Variation
+                y += Math.sin(angle * 1.5) * 0.02 * (1 - smoothProgress);
+                onFlatLand = false;
+            }
+            
+            highResPoints.push({ x, y, z, progress, onFlatLand });
+        }
+        
+        // Verbesserte Distanz-Berechnung mit Höhen-Berücksichtigung
+        const distances = [0];
+        for (let i = 1; i < highResPoints.length; i++) {
+            const prev = highResPoints[i - 1];
+            const curr = highResPoints[i];
+            const dist = Math.sqrt(
+                Math.pow(curr.x - prev.x, 2) + 
+                Math.pow(curr.y - prev.y, 2) * 0.5 + // Höhen-Unterschiede weniger gewichten
+                Math.pow(curr.z - prev.z, 2)
+            );
+            distances.push(distances[distances.length - 1] + dist);
+        }
+        
+        const totalLength = distances[distances.length - 1];
+        const segmentLength = totalLength / (fieldCount - 1);
+        
+        // Präzise Feld-Platzierung
+        for (let i = 0; i < fieldCount; i++) {
+            if (i === 0) {
+                // START: Direkt auf der Insel, KEINE Rampe
+                this.pathPoints.push({
+                    x: BOARD_CONFIG.spiralStartRadius,
+                    y: islandSurfaceY + 0.3,
+                    z: 0,
+                    index: i,
+                    onFlatLand: true
+                });
+            } else if (i === fieldCount - 1) {
+                // ZIEL: Klar sichtbar auf dem Gipfel
+                this.pathPoints.push({
+                    x: 0,
+                    y: mountainFootY + BOARD_CONFIG.mountainHeight + 0.5, // Höher positioniert
+                    z: 0,
+                    index: i,
+                    onFlatLand: false
+                });
+            } else {
+                // Normale Felder: Gleichmäßig verteilt
+                const targetDistance = i * segmentLength;
+                let bestIndex = 0;
+                
+                for (let j = 1; j < distances.length; j++) {
+                    if (distances[j] >= targetDistance) {
+                        bestIndex = (distances[j] - targetDistance) < (targetDistance - distances[j - 1]) ? j : j - 1;
+                        break;
+                    }
+                }
+                
+                const point = highResPoints[bestIndex];
+                this.pathPoints.push({
+                    x: point.x,
+                    y: point.y + 0.1, // Leicht erhöht für bessere Sichtbarkeit
+                    z: point.z,
+                    index: i,
+                    onFlatLand: point.onFlatLand
+                });
+            }
         }
         
         this.projectPathPointsOntoMountain();
@@ -936,17 +1006,19 @@ class WiiPartyIsland {
     projectPathPointsOntoMountain() {
         if (!this.mountainMesh || !this.pathPoints) return;
         
-        for (let i = 0; i < this.pathPoints.length - 2; i++) {
+        // Verbesserte Projektion - nur für Berg-Felder
+        for (let i = 1; i < this.pathPoints.length - 1; i++) { // Skip Start und Ziel
             const point = this.pathPoints[i];
             if (!point.onFlatLand) {
                 const raycaster = new THREE.Raycaster();
-                const origin = new THREE.Vector3(point.x, 40, point.z);
+                const origin = new THREE.Vector3(point.x, 50, point.z); // Höher starten
                 const direction = new THREE.Vector3(0, -1, 0);
                 raycaster.set(origin, direction);
 
                 const intersects = raycaster.intersectObject(this.mountainMesh, false);
                 if (intersects.length > 0) {
-                    point.y = Math.max(point.y, intersects[0].point.y + 0.08);
+                    // Sicherheitsabstand für bessere Sichtbarkeit
+                    point.y = Math.max(point.y, intersects[0].point.y + 0.15);
                 }
             }
         }
@@ -976,9 +1048,9 @@ class WiiPartyIsland {
             minDistance = Math.min(minDistance, Math.sqrt(dx * dx + dz * dz));
         }
         
-        const pathWidth = BOARD_CONFIG.pathWidth * 0.7;
+        const pathWidth = BOARD_CONFIG.pathWidth * 0.8; // Etwas breiter
         if (minDistance < pathWidth) {
-            return Math.pow(1 - (minDistance / pathWidth), 0.3);
+            return Math.pow(1 - (minDistance / pathWidth), 0.4); // Sanfterer Übergang
         }
         return 0;
     }
@@ -1009,7 +1081,7 @@ class WiiPartyIsland {
         }
 
         if (closestIndex === -1) return islandSurfaceY;
-        if (closestDistance < 0.25) return this.pathPoints[closestIndex].y;
+        if (closestDistance < 0.3) return this.pathPoints[closestIndex].y;
 
         if (secondClosestIndex === -1) {
             return this.pathPoints[closestIndex].y;
@@ -1070,7 +1142,7 @@ class WiiPartyIsland {
             BOARD_CONFIG.fieldRadius * 0.9, 
             BOARD_CONFIG.fieldRadius * 1.0, 
             BOARD_CONFIG.fieldHeight, 
-            12
+            16 // Mehr Segmente für rundere Felder
         );
         
         const fieldMaterial = new THREE.MeshLambertMaterial({ 
@@ -1083,7 +1155,7 @@ class WiiPartyIsland {
         fieldMesh.receiveShadow = true;
         group.add(fieldMesh);
         
-        const ringGeometry = new THREE.TorusGeometry(BOARD_CONFIG.fieldRadius * 0.9, 0.025, 6, 16);
+        const ringGeometry = new THREE.TorusGeometry(BOARD_CONFIG.fieldRadius * 0.9, 0.025, 8, 20);
         const ringMaterial = new THREE.MeshLambertMaterial({
             color: new THREE.Color(config.color).multiplyScalar(1.2)
         });
@@ -1100,7 +1172,7 @@ class WiiPartyIsland {
             BOARD_CONFIG.fieldRadius * 1.05, 
             BOARD_CONFIG.fieldRadius * 1.15, 
             0.08, 
-            12
+            16 // Mehr Segmente für rundere Basis
         );
         
         const baseMaterial = new THREE.MeshLambertMaterial({
@@ -1146,7 +1218,7 @@ class WiiPartyIsland {
     createArrowDecoration(color, direction) {
         const group = new THREE.Group();
         
-        const arrowGeometry = new THREE.ConeGeometry(0.15, 0.3, 6);
+        const arrowGeometry = new THREE.ConeGeometry(0.15, 0.3, 8);
         const arrowMaterial = new THREE.MeshLambertMaterial({ color: color });
         const arrow = new THREE.Mesh(arrowGeometry, arrowMaterial);
         
@@ -1159,7 +1231,7 @@ class WiiPartyIsland {
         
         group.add(arrow);
         
-        const baseGeometry = new THREE.CylinderGeometry(0.08, 0.08, 0.2, 6);
+        const baseGeometry = new THREE.CylinderGeometry(0.08, 0.08, 0.2, 8);
         const base = new THREE.Mesh(baseGeometry, arrowMaterial);
         base.position.y = 0.1;
         group.add(base);
@@ -1174,7 +1246,7 @@ class WiiPartyIsland {
             const angle = (i / 8) * Math.PI * 2;
             const radius = 0.1 + (i / 8) * 0.2;
             
-            const dotGeometry = new THREE.SphereGeometry(0.03, 6, 6);
+            const dotGeometry = new THREE.SphereGeometry(0.03, 8, 8);
             const dotMaterial = new THREE.MeshLambertMaterial({ color: color });
             const dot = new THREE.Mesh(dotGeometry, dotMaterial);
             
@@ -1208,9 +1280,10 @@ class WiiPartyIsland {
     }
 
     createSimpleVegetation() {
-        for (let i = 0; i < 4; i++) {
-            const angle = (i / 4) * Math.PI * 2;
-            const radius = 18 + Math.random() * 2;
+        // Vegetation angepasst an größere Insel
+        for (let i = 0; i < 6; i++) {
+            const angle = (i / 6) * Math.PI * 2;
+            const radius = 24 + Math.random() * 4; // Weiter außen für größere Insel
             const x = Math.cos(angle) * radius;
             const z = Math.sin(angle) * radius;
             
@@ -1223,9 +1296,9 @@ class WiiPartyIsland {
             }
         }
         
-        for (let i = 0; i < 6; i++) {
+        for (let i = 0; i < 8; i++) {
             const angle = Math.random() * Math.PI * 2;
-            const radius = 12 + Math.random() * 6;
+            const radius = 15 + Math.random() * 8; // Angepasst für größere Insel
             const x = Math.cos(angle) * radius;
             const z = Math.sin(angle) * radius;
             
@@ -1242,7 +1315,7 @@ class WiiPartyIsland {
     createSimplePalmTree() {
         const palmGroup = new THREE.Group();
         
-        const trunkGeometry = new THREE.CylinderGeometry(0.2, 0.28, 4.5, 6);
+        const trunkGeometry = new THREE.CylinderGeometry(0.2, 0.28, 4.5, 8);
         const trunkMaterial = new THREE.MeshLambertMaterial({ color: 0x8B4513 });
         
         const trunk = new THREE.Mesh(trunkGeometry, trunkMaterial);
@@ -1281,7 +1354,7 @@ class WiiPartyIsland {
         
         for (let i = 0; i < 2; i++) {
             const bushElement = new THREE.Mesh(
-                new THREE.SphereGeometry(0.12 + Math.random() * 0.08, 6, 6),
+                new THREE.SphereGeometry(0.12 + Math.random() * 0.08, 8, 8),
                 new THREE.MeshLambertMaterial({ 
                     color: colors[Math.floor(Math.random() * colors.length)]
                 })
@@ -1328,7 +1401,7 @@ class WiiPartyIsland {
             }
             
             const angle = Math.random() * Math.PI * 2;
-            const distance = 40 + Math.random() * 30;
+            const distance = 50 + Math.random() * 40; // Angepasst für größere Szene
             cloudGroup.position.set(
                 Math.cos(angle) * distance, 
                 25 + Math.random() * 10, 
@@ -1392,10 +1465,10 @@ class WiiPartyIsland {
                     });
                     console.log("✅ Local teams now have placements:", localTeams.map(t => ({name: t.name, placement: t.minigame_placement})));
                     
-                    // Test simplified banner directly
+                    // Test simplified logic directly
                     setTimeout(() => {
-                        console.log("🎯 Testing simplified banner with placements");
-                        this.showMinigameResultsSimple(localTeams);
+                        console.log("🎯 Testing simplified logic with placements");
+                        // Removed banner function call
                     }, 500);
                 }
             } else if (event.key.toLowerCase() === 'l') {
@@ -1458,427 +1531,7 @@ class WiiPartyIsland {
         this.showStatusMessage("Minigame Results Test ausgeführt (T-Taste)", 2000, 'info');
     }
 
-    testAllBanners() {
-        console.log("🧪 Testing all banner types...");
-        
-        // Test different banners with delays
-        setTimeout(() => {
-            console.log("Testing minigame announcement banner");
-            this.showMinigameAnnouncement("Test Minispiel", "Das ist ein Test-Minispiel zur Banner-Überprüfung");
-        }, 500);
-        
-        setTimeout(() => {
-            console.log("Testing dice result banner");
-            this.showDiceResultBanner(4, 2, 6, "Test Team");
-        }, 5000);
-        
-        setTimeout(() => {
-            console.log("Testing barrier field banner");
-            this.showBarrierFieldBanner({display_text: "Würfle mindestens eine 4 um dich zu befreien!"});
-        }, 9000);
-        
-        setTimeout(() => {
-            console.log("Testing barrier release banner");
-            this.showBarrierReleaseBanner("Du hast dich befreit! Würfel: 6");
-        }, 14000);
-        
-        setTimeout(() => {
-            console.log("Testing barrier failed banner");
-            this.showBarrierFailedBanner("Noch blockiert! Würfel: 2");
-        }, 18000);
-        
-        setTimeout(() => {
-            console.log("Testing info banner");
-            this.showInfoBanner("Test Information", "Das ist ein Test", "Alle Banner funktionieren korrekt");
-        }, 22000);
-        
-        setTimeout(() => {
-            console.log("Testing team turn banner");
-            this.showTeamTurnBanner("Test Team");
-        }, 26000);
-        
-        setTimeout(() => {
-            console.log("Testing round end banner");
-            this.showRoundEndBanner();
-        }, 30000);
-        
-        setTimeout(() => {
-            console.log("Testing special field banner");
-            this.showSpecialFieldBanner("Test Team", "Katapult-Feld! +3 Felder vorwärts");
-        }, 34000);
-        
-        this.showStatusMessage("Banner Test gestartet - alle 9 Banner werden nacheinander gezeigt", 3000, 'info');
-    }
 
-    testTurnSequence() {
-        console.log("🧪 Testing turn sequence...");
-        
-        // Simulate proper turn sequence timing
-        setTimeout(() => {
-            console.log("STEP 1: Team turn start");
-            this.showTeamTurnBanner("Test Team");
-        }, 500);
-        
-        setTimeout(() => {
-            console.log("STEP 2: Dice result");
-            this.showDiceResultBanner(5, 2, 7, "Test Team");
-        }, 4000);
-        
-        setTimeout(() => {
-            console.log("STEP 3: Movement starts (no banners)");
-            this.showStatusMessage("🏃 Figur bewegt sich... (keine Banner)", 2000, 'info');
-        }, 8000);
-        
-        setTimeout(() => {
-            console.log("STEP 4: Movement ends, field landing");
-            this.showSpecialFieldBanner("Test Team", "Katapult-Feld! +3 Felder");
-        }, 12000);
-        
-        setTimeout(() => {
-            console.log("STEP 5: Turn complete");
-            this.showInfoBanner("Zug beendet", "Test Team hat den Zug beendet", "Nächstes Team ist dran");
-        }, 16000);
-        
-        this.showStatusMessage("Turn Sequence Test gestartet - richtige Reihenfolge wird demonstriert", 3000, 'info');
-    }
-    
-    // ====== QUEUE SYSTEM DEBUG & TEST FUNKTIONEN ======
-    
-    testQueueSystem() {
-        console.log("🧪 Testing Global Banner Queue System...");
-        
-        // Test 1: Minigame Results Banner
-        console.log("📋 Test 1: Minigame Results");
-        const testResults = [
-            { team_id: 1, team_name: "Team Alpha", placement: 1 },
-            { team_id: 2, team_name: "Team Beta", placement: 2 },
-            { team_id: 3, team_name: "Team Gamma", placement: 3 }
-        ];
-        this.addMinigameResultsBanner(testResults);
-        
-        // Test 2: Team Banner Sequences
-        setTimeout(() => {
-            console.log("📋 Test 2: Team Alpha Sequence");
-            this.addTeamBannerSequence(1, "Team Alpha", 
-                { standard: 4, bonus: 2, total: 6 }, 
-                { message: "Katapult-Feld erreicht! +3 Felder" }
-            );
-        }, 1000);
-        
-        setTimeout(() => {
-            console.log("📋 Test 3: Team Beta Sequence");
-            this.addTeamBannerSequence(2, "Team Beta", 
-                { standard: 3, bonus: 0, total: 3 }, 
-                null
-            );
-        }, 2000);
-        
-        setTimeout(() => {
-            console.log("📋 Test 4: Team Gamma Sequence");
-            this.addTeamBannerSequence(3, "Team Gamma", 
-                { standard: 6, bonus: 1, total: 7 }, 
-                { message: "Sperre erreicht! Würfle eine 5 oder 6!" }
-            );
-        }, 3000);
-        
-        // Test 5: Info Banner
-        setTimeout(() => {
-            console.log("📋 Test 5: Info Banner");
-            this.addInfoBanner("Test Information", "Queue-System Test", "Alle Banner-Typen werden getestet");
-        }, 4000);
-        
-        // Test 6: Minigame Announcement
-        setTimeout(() => {
-            console.log("📋 Test 6: Minigame Announcement");
-            this.addMinigameAnnouncementBanner("Test Minispiel", "Das ist ein Test der neuen Queue-Funktionalität");
-        }, 5000);
-        
-        this.showStatusMessage("Queue System Test gestartet - alle Banner werden sequenziell über Queue verarbeitet (Q-Taste)", 4000, 'info');
-        
-        // Debug-Info ausgeben
-        setTimeout(() => {
-            this.debugQueueStatus();
-        }, 6000);
-    }
-    
-    resetQueueSystem() {
-        console.log("🔄 Resetting Global Banner Queue System...");
-        
-        globalBannerQueue.clear();
-        
-        // Reset turn sequence state
-        turnSequenceState = {
-            currentTurnTeamId: null,
-            hasShownTurnBanner: false,
-            hasShownDiceResult: false,
-            isMoving: false,
-            hasShownFieldBanner: false,
-            turnCompleted: false
-        };
-        
-        // Reset NEW turn management
-        teamTurnManagement = {
-            processedTeamIds: new Set(),
-            pendingTeamData: new Map(),
-            lastCompletedTeam: null
-        };
-        
-        // Reset tracking variables
-        hasShowMinigameResults = false;
-        lastDiceResult = null;
-        
-        this.showStatusMessage("Queue System zurückgesetzt - alle Banner und Team-States geleert (R-Taste)", 3000, 'info');
-        
-        console.log("✅ Queue System Reset abgeschlossen");
-    }
-    
-    debugQueueStatus() {
-        console.log("🔍 Debug: Global Banner Queue Status");
-        
-        const status = globalBannerQueue.getStatus();
-        
-        console.log("📊 Queue Status:", status);
-        console.log("📋 Turn Sequence State:", turnSequenceState);
-        console.log("🎯 Team Turn Management:", {
-            processedTeams: Array.from(teamTurnManagement.processedTeamIds),
-            pendingTeams: Array.from(teamTurnManagement.pendingTeamData.keys()),
-            lastCompleted: teamTurnManagement.lastCompletedTeam
-        });
-        console.log("🎮 Game State:", {
-            isCharacterMoving: GAME_STATE.isCharacterMoving,
-            isAnimating: GAME_STATE.isAnimating,
-            currentGamePhase: currentGamePhase,
-            currentMinigameName: currentMinigameName
-        });
-        
-        // Status als Banner anzeigen
-        const statusText = `Queue: ${status.queueLength} normale + ${status.teamSequences} Team-Sequenzen | ` +
-                          `Verarbeitung: ${status.isProcessing ? 'Aktiv' : 'Inaktiv'} | ` +
-                          `Status: ${status.isPaused ? 'Pausiert' : 'Aktiv'} | ` +
-                          `Aktuell: ${status.currentBanner || 'Keiner'}`;
-        
-        const teamInfo = `Verarbeitet: ${Array.from(teamTurnManagement.processedTeamIds)} | ` +
-                        `Wartend: ${Array.from(teamTurnManagement.pendingTeamData.keys())} | ` +
-                        `Letztes: ${teamTurnManagement.lastCompletedTeam}`;
-        
-        this.addInfoBanner("Queue Debug-Info", statusText, teamInfo);
-        
-        this.showStatusMessage("Queue Debug-Info angezeigt - siehe Console für Details (D-Taste)", 3000, 'info');
-    }
-    
-    // Test für Movement-Integration
-    testMovementIntegration() {
-        console.log("🧪 Testing Movement Integration...");
-        
-        // Simuliere Bewegungsstart
-        console.log("1. Simuliere Bewegungsstart");
-        GAME_STATE.isCharacterMoving = true;
-        GAME_STATE.isAnimating = true;
-        globalBannerQueue.pause('test movement simulation');
-        
-        // Füge Banner zur Queue hinzu (sollten pausiert sein)
-        this.addTeamBannerSequence(1, "Test Team", 
-            { standard: 5, bonus: 0, total: 5 }, 
-            { message: "Test während Bewegung" }
-        );
-        
-        this.debugQueueStatus();
-        
-        // Simuliere Bewegungsende nach 3 Sekunden
-        setTimeout(() => {
-            console.log("2. Simuliere Bewegungsende");
-            GAME_STATE.isCharacterMoving = false;
-            GAME_STATE.isAnimating = false;
-            globalBannerQueue.resume('test movement completed');
-            
-            this.debugQueueStatus();
-        }, 3000);
-        
-        this.showStatusMessage("Movement Integration Test gestartet - Queue wird pausiert/fortgesetzt", 4000, 'info');
-    }
-    
-    // ====== COMPLETE GAME FLOW TEST ======
-    
-    testCompleteGameFlow() {
-        console.log("🧪 Testing Complete Game Flow - NEUE Turn Management Logik");
-        
-        // Reset everything first
-        this.resetQueueSystem();
-        
-        setTimeout(() => {
-            console.log("📋 STEP 1: Minigame Results");
-            // 1. Minigame Results (höchste Priorität)
-            const testResults = [
-                { team_id: 1, team_name: "Jonas", placement: 1 },
-                { team_id: 2, team_name: "Leonie", placement: 2 }
-            ];
-            this.addMinigameResultsBanner(testResults);
-            
-            // 2. Simuliere Jonas (ERSTES TEAM) - nach Minigame Results
-            setTimeout(() => {
-                console.log("📋 STEP 2: Simuliere Jonas Turn - ERSTES TEAM (wartet auf Minigame Results)");
-                
-                // Reset für Test
-                teamTurnManagement.processedTeamIds.clear();
-                teamTurnManagement.pendingTeamData.clear();
-                
-                // Jonas wird als erstes Team behandelt (automatisch nach Queue-Check)
-                setTimeout(() => {
-                    console.log("📋 STEP 2B: Jonas Banner-Sequenz starten");
-                    this.addTeamBannerSequence(1, "Jonas", { standard: 4, bonus: 2, total: 6 });
-                    teamTurnManagement.processedTeamIds.add(1);
-                    
-                    // Simuliere Movement-Ende für Jonas nach 7 Sekunden
-                    setTimeout(() => {
-                        console.log("📋 STEP 3: Jonas Movement Ende - füge Post-Movement Banner hinzu");
-                        this.addPostMovementBanners(1, "Jonas", 15); // Sonderfeld
-                        
-                        // JETZT automatisch: Nach "Zug beendet" wird Leonie gestartet!
-                        
-                    }, 7000); // Warte auf Turn+Dice Banner
-                }, 3000); // Warte nach Minigame Results
-                
-            }, 1000); // Nach Minigame Results gestartet
-            
-            // 3. Simuliere Leonie Turn - wird in Pending gesetzt
-            setTimeout(() => {
-                console.log("📋 STEP 4: Simuliere Leonie Turn - wird in Pending gesetzt");
-                
-                // Team 2 wird in Pending gesetzt (Jonas läuft noch)
-                teamTurnManagement.pendingTeamData.set(2, {
-                    name: "Leonie",
-                    diceResult: { standard: 3, bonus: 0, total: 3 }
-                });
-                
-                console.log("📋 Leonie wartet jetzt in Pending - wird erst gestartet wenn Jonas fertig ist!");
-                
-            }, 5000); // Früh setzen - Leonie wartet
-            
-        }, 1000); // Nach Reset
-        
-        this.showStatusMessage(`NEUER GAME FLOW TEST (X-Taste):
-
-🟢 Jonas: Sofort gestartet (erstes Team)
-🟡 Leonie: In Pending gesetzt - wartet auf Jonas
-
-Nach Jonas "Zug beendet" → Leonie automatisch gestartet!
-        
-RICHTIGE REIHENFOLGE OHNE ÜBERSCHNEIDUNG!`, 8000, 'info');
-    }
-    
-    // ====== BLOCKED TEAM TEST ======
-    
-    testBlockedTeamFlow() {
-        console.log("🧪 Testing Blocked Team Flow");
-        
-        // Reset everything first
-        this.resetQueueSystem();
-        
-        setTimeout(() => {
-            console.log("📋 STEP 1: Minigame Results");
-            const testResults = [
-                { team_id: 1, team_name: "Jonas", placement: 1 },
-                { team_id: 2, team_name: "Leonie", placement: 2 }
-            ];
-            this.addMinigameResultsBanner(testResults);
-            
-            setTimeout(() => {
-                console.log("📋 STEP 2: Jonas normaler Zug");
-                teamTurnManagement.processedTeamIds.clear();
-                this.addTeamBannerSequence(1, "Jonas", 
-                    { standard: 4, bonus: 0, total: 4, wasBlocked: false }, 
-                    false, null
-                );
-                teamTurnManagement.processedTeamIds.add(1);
-                
-                setTimeout(() => {
-                    console.log("📋 STEP 3: Jonas Post-Movement");
-                    this.addPostMovementBanners(1, "Jonas", 10); // Normales Feld
-                    
-                }, 7000); // Nach Jonas Turn+Dice Banner
-                
-            }, 2000); // Nach Minigame Results
-            
-            // Leonie ist blockiert und bleibt blockiert
-            setTimeout(() => {
-                console.log("📋 STEP 4: Leonie BLOCKIERT - wird in Pending gesetzt");
-                teamTurnManagement.pendingTeamData.set(2, {
-                    name: "Leonie",
-                    diceResult: { standard: 2, bonus: 0, total: 2, wasBlocked: true },
-                    isBlocked: true,
-                    blockInfo: { targetNumber: 5, turnsRemaining: 2 }
-                });
-                
-                console.log("📋 Leonie wartet in Pending - blockierter Zug wird nach Jonas verarbeitet!");
-                
-            }, 3000);
-            
-        }, 1000);
-        
-        this.showStatusMessage(`BLOCKED TEAM TEST (Z-Taste):
-
-🟢 Jonas: Normaler Zug mit Bewegung
-🚧 Leonie: BLOCKIERT - würfelt 2, benötigt 5+ 
-
-Leonie: ist am Zug → würfelt 2 → BLEIBT BLOCKIERT → Zug beendet
-
-BLOCKIERTE TEAMS HÄNGEN NICHT MEHR!`, 8000, 'info');
-    }
-    
-    // ====== SIMPLIFIED BANNER TEST ======
-    
-    testSimplifiedBanners() {
-        console.log("🧪 Testing Simplified Banner System (S key)");
-        
-        // Test 0: Add test placements to local teams
-        if (localTeams && localTeams.length > 0) {
-            console.log("📋 TEST 0: Adding test placements to local teams");
-            localTeams.forEach((team, index) => {
-                team.minigame_placement = index + 1;
-            });
-            console.log("✅ Local teams now have placements:", localTeams.map(t => ({name: t.name, placement: t.minigame_placement})));
-        }
-        
-        // Test 1: Direct minigame results (bypassing queue)
-        setTimeout(() => {
-            console.log("📋 TEST 1: Simplified Minigame Results");
-            const testTeams = [
-                { name: "Team Alpha", minigame_placement: 1, is_current_user: false },
-                { name: "Team Beta", minigame_placement: 2, is_current_user: true },
-                { name: "Team Gamma", minigame_placement: 3, is_current_user: false }
-            ];
-            
-            this.showMinigameResultsSimple(testTeams);
-        }, 500);
-        
-        // Test 2: Check if simplified logic would trigger with real phase change
-        setTimeout(() => {
-            console.log("📋 TEST 2: Simulating Phase Change Logic");
-            
-            // Simulate phase change detection
-            const previousPhase = lastPhase;
-            lastPhase = 'MINIGAMES'; // Change from DICE_ROLLING
-            hasShowMinigameResults = false;
-            
-            console.log(`🔄 Phase simulation: ${previousPhase} → DICE_ROLLING`);
-            console.log(`🎯 Would show minigame results: ${!hasShowMinigameResults}`);
-            
-            // Reset for actual test
-            setTimeout(() => {
-                lastPhase = 'DICE_ROLLING';
-                hasShowMinigameResults = true;
-                console.log("✅ Phase detection test complete");
-            }, 2000);
-            
-        }, 6000);
-        
-        this.showStatusMessage(`SIMPLIFIED BANNER TEST (S-Taste):
-
-🎯 Test 1: Direct minigame results display (bypassing queue)
-🔄 Test 2: Phase change detection simulation
-
-This tests the team_dashboard.html-style banner logic on game_board.html`, 8000, 'info');
-    }
 
     showStatusMessage(message, duration = 3000, type = 'info') {
         
@@ -1900,673 +1553,14 @@ This tests the team_dashboard.html-style banner logic on game_board.html`, 8000,
 
 
     
-    // Team-basierte Banner-Sequenz hinzufügen (VOR Bewegung)
-    addTeamBannerSequence(teamId, teamName, diceResult = null, isBlocked = false, blockInfo = null) {
-        if (!teamId || !teamName) return;
-        
-        console.log('🎯 Erstelle Banner-Sequenz für Team:', teamName, 'ID:', teamId, 'Blockiert:', isBlocked);
-        
-        // 1. Team Turn Banner
-        globalBannerQueue.enqueue({
-            type: 'TEAM_TURN',
-            teamId: teamId,
-            sequenceGroup: 'turn',
-            displayFunction: this.showTeamTurnBannerDirect.bind(this),
-            args: [teamName],
-            duration: 3000
-        });
-        
-        // 2. Dice Result Banner (wenn Würfelergebnis vorhanden)
-        if (diceResult) {
-            globalBannerQueue.enqueue({
-                type: 'DICE_RESULT',
-                teamId: teamId,
-                sequenceGroup: 'turn',
-                displayFunction: this.showDiceResultBannerDirect.bind(this),
-                args: [diceResult.standard, diceResult.bonus || 0, diceResult.total, teamName],
-                duration: 3000
-            });
-        }
-        
-        // 3. Blockierungs-Banner (wenn Team blockiert ist)
-        if (isBlocked && diceResult) {
-            if (diceResult.wasBlocked) {
-                // Team bleibt blockiert
-                const targetNumber = blockInfo?.targetNumber || '?';
-                globalBannerQueue.enqueue({
-                    type: 'BARRIER',
-                    teamId: teamId,
-                    sequenceGroup: 'turn',
-                    displayFunction: this.showBarrierFailedBannerDirect.bind(this),
-                    args: [`${teamName} bleibt blockiert! Benötigt ${targetNumber}+ zum Befreien.`],
-                    duration: 4000
-                });
-                
-                // WICHTIG: Zug-Beendet Banner für blockierte Teams
-                globalBannerQueue.enqueue({
-                    type: 'INFO',
-                    teamId: teamId,
-                    sequenceGroup: 'turn',
-                    displayFunction: this.showTurnCompleteBannerWithCallback.bind(this),
-                    args: [teamName, teamId],
-                    duration: 2000
-                });
-            } else {
-                // Team wurde befreit
-                globalBannerQueue.enqueue({
-                    type: 'BARRIER',
-                    teamId: teamId,
-                    sequenceGroup: 'turn',
-                    displayFunction: this.showBarrierReleaseBannerDirect.bind(this),
-                    args: [`${teamName} ist befreit! Kann sich jetzt bewegen.`],
-                    duration: 4000
-                });
-                // Normale Post-Movement Banner werden später hinzugefügt
-            }
-        }
-    }
     
-    // Banner NACH Bewegung zur gleichen Team-Sequenz hinzufügen
-    addPostMovementBanners(teamId, teamName, finalPosition) {
-        console.log('📍 Füge Post-Movement Banner hinzu für Team:', teamName, 'Position:', finalPosition);
-        
-        const isSpecial = this.isSpecialField(finalPosition);
-        
-        // 3. Feld-Landing Banner
-        if (isSpecial) {
-            globalBannerQueue.enqueue({
-                type: 'SPECIAL_FIELD',
-                teamId: teamId,
-                sequenceGroup: 'turn',
-                displayFunction: this.showSpecialFieldBannerDirect.bind(this),
-                args: [teamName, "Sonderfeld erreicht!"],
-                duration: 4000
-            });
-        } else {
-            globalBannerQueue.enqueue({
-                type: 'INFO',
-                teamId: teamId,
-                sequenceGroup: 'turn',
-                displayFunction: this.showInfoBannerDirect.bind(this),
-                args: [teamName, `Feld ${finalPosition} erreicht`, ""],
-                duration: 2000
-            });
-        }
-        
-        // 4. Zug-Beendet Banner MIT CALLBACK für nächstes Team
-        globalBannerQueue.enqueue({
-            type: 'INFO',
-            teamId: teamId,
-            sequenceGroup: 'turn',
-            displayFunction: this.showTurnCompleteBannerWithCallback.bind(this),
-            args: [teamName, teamId],
-            duration: 2000
-        });
-    }
     
-    // Zug-Beendet Banner mit Callback für nächstes Team
-    showTurnCompleteBannerWithCallback(teamName, teamId) {
-        // Zeige Banner
-        this.showInfoBannerDirect("✅ Zug beendet", `${teamName} hat den Zug beendet`, "");
-        
-        // Markiere Team als komplett fertig
-        teamTurnManagement.lastCompletedTeam = teamId;
-        console.log(`🏁 TEAM COMPLETED: ${teamName} (ID: ${teamId}) ist komplett fertig`);
-        
-        // Prüfe ob wartende Teams existieren und starte nächstes
-        setTimeout(() => {
-            this.processNextPendingTeam();
-        }, 2500); // Nach Banner-Anzeige
-    }
-    
-    // Verarbeite nächstes wartendes Team
-    processNextPendingTeam() {
-        // Prüfe ob alle Teams fertig sind (für Round End)
-        const totalTeams = localTeams ? localTeams.length : 0;
-        const completedTeams = teamTurnManagement.processedTeamIds.size;
-        const pendingTeams = teamTurnManagement.pendingTeamData.size;
-        
-        console.log(`🔍 Turn Check: ${completedTeams}/${totalTeams} Teams fertig, ${pendingTeams} warten`);
-        
-        if (pendingTeams === 0) {
-            // Keine wartenden Teams mehr
-            if (completedTeams >= totalTeams && totalTeams > 0) {
-                // ALLE Teams sind fertig - zeige "Würfelrunde beendet"
-                console.log("🏁 ALLE TEAMS FERTIG: Zeige 'Würfelrunde beendet' Banner");
-                setTimeout(() => {
-                    globalBannerQueue.enqueue({
-                        type: 'INFO',
-                        teamId: null,
-                        sequenceGroup: null,
-                        displayFunction: this.showRoundEndBannerDirect.bind(this),
-                        args: [],
-                        duration: 4000
-                    });
-                }, 1000); // Kurze Pause nach letztem Team
-            }
-            return;
-        }
-        
-        // Starte nächstes wartendes Team
-        for (let [teamId, teamData] of teamTurnManagement.pendingTeamData) {
-            console.log(`🎯 NEXT TEAM: Starte nur Team Turn Banner für ${teamData.name}`);
-            
-            // Zeige nur Team Turn Banner für nächstes Team
-            globalBannerQueue.enqueue({
-                type: 'TEAM_TURN',
-                teamId: teamId,
-                sequenceGroup: 'turn',
-                displayFunction: this.showTeamTurnBannerDirect.bind(this),
-                args: [teamData.name],
-                duration: 3000
-            });
-            
-            // Entferne aus Pending und markiere als verarbeitet
-            teamTurnManagement.pendingTeamData.delete(teamId);
-            teamTurnManagement.processedTeamIds.add(teamId);
-            
-            console.log(`✅ Team ${teamData.name} Turn Banner gestartet`);
-            break; // Nur ein Team zur Zeit
-        }
-    }
-    
-    // Minigame-Ergebnisse zur Queue hinzufügen (höchste Priorität)
-    addMinigameResultsBanner(results) {
-        globalBannerQueue.enqueue({
-            type: 'MINIGAME_RESULTS',
-            teamId: null,
-            sequenceGroup: 'minigame',
-            displayFunction: this.showMinigameResultsDirect.bind(this),
-            args: [results],
-            duration: 5000
-        });
-    }
-    
-    // Minigame-Ankündigung zur Queue hinzufügen
-    addMinigameAnnouncementBanner(name, description) {
-        globalBannerQueue.enqueue({
-            type: 'MINIGAME_ANNOUNCEMENT',
-            teamId: null,
-            sequenceGroup: 'minigame',
-            displayFunction: this.showMinigameAnnouncementDirect.bind(this),
-            args: [name, description],
-            duration: 4000
-        });
-    }
-    
-    // Info-Banner zur Queue hinzufügen
-    addInfoBanner(title, subtitle, description, teamId = null) {
-        globalBannerQueue.enqueue({
-            type: 'INFO',
-            teamId: teamId,
-            sequenceGroup: teamId ? 'turn' : null,
-            displayFunction: this.showInfoBannerDirect.bind(this),
-            args: [title, subtitle, description],
-            duration: 3000
-        });
-    }
-    
-    // *** DIREKTE BANNER-DISPLAY-FUNKTIONEN (für Queue) ***
-    
-    showTeamTurnBannerDirect(teamName) {
-        const banner = document.getElementById('team-turn-banner');
-        const teamEl = document.getElementById('turn-banner-team');
-        
-        if (banner && teamEl) {
-            teamEl.textContent = `${teamName} ist am Zug!`;
-            
-            banner.classList.add('show');
-            
-            setTimeout(() => {
-                banner.classList.add('hide');
-                setTimeout(() => {
-                    banner.classList.remove('show', 'hide');
-                }, 500);
-            }, 3000);
-        }
-    }
-    
-    showDiceResultBannerDirect(standard, bonus, total, teamName) {
-        const banner = document.getElementById('dice-result-banner');
-        const teamEl = document.getElementById('dice-banner-team');
-        const resultEl = document.getElementById('dice-banner-result');
-        
-        if (banner && teamEl && resultEl) {
-            teamEl.textContent = teamName ? `${teamName} würfelt:` : 'Würfelergebnis:';
-            
-            let resultText = `🎯 ${standard}`;
-            if (bonus > 0) {
-                resultText += ` + ${bonus} (Bonus) = ${total} Felder`;
-            } else {
-                resultText += ` Felder`;
-            }
-            resultEl.textContent = resultText;
-            
-            banner.classList.add('show');
-            
-            setTimeout(() => {
-                banner.classList.add('hide');
-                setTimeout(() => {
-                    banner.classList.remove('show', 'hide');
-                }, 500);
-            }, 3000);
-        }
-    }
-    
-    showInfoBannerDirect(title, subtitle, description) {
-        const banner = document.getElementById('info-banner');
-        const titleEl = document.getElementById('info-banner-title');
-        const subtitleEl = document.getElementById('info-banner-subtitle');
-        const descEl = document.getElementById('info-banner-description');
-        
-        if (banner && titleEl && subtitleEl && descEl) {
-            titleEl.textContent = title || 'Information';
-            subtitleEl.textContent = subtitle || '';
-            descEl.textContent = description || '';
-            
-            banner.classList.add('show');
-            
-            setTimeout(() => {
-                banner.classList.add('hide');
-                setTimeout(() => {
-                    banner.classList.remove('show', 'hide');
-                }, 500);
-            }, 3000);
-        }
-    }
-    
-    showMinigameAnnouncementDirect(name, description) {
-        const banner = document.getElementById('minigame-announcement-banner');
-        const nameEl = document.getElementById('minigame-banner-name');
-        const descEl = document.getElementById('minigame-banner-description');
-        
-        if (banner && nameEl && descEl) {
-            nameEl.textContent = name;
-            descEl.textContent = description || '';
-            
-            banner.classList.add('show');
-            
-            setTimeout(() => {
-                banner.classList.add('hide');
-                setTimeout(() => {
-                    banner.classList.remove('show', 'hide');
-                }, 500);
-            }, 4000);
-        }
-    }
-    
-    showSpecialFieldBannerDirect(teamName, message) {
-        const banner = document.getElementById('special-field-banner');
-        const teamEl = document.getElementById('special-field-banner-team');
-        const messageEl = document.getElementById('special-field-banner-message');
-        
-        if (banner && teamEl && messageEl) {
-            teamEl.textContent = teamName;
-            messageEl.textContent = message;
-            
-            banner.classList.add('show');
-            
-            setTimeout(() => {
-                banner.classList.add('hide');
-                setTimeout(() => {
-                    banner.classList.remove('show', 'hide');
-                }, 500);
-            }, 4000);
-        }
-    }
-    
-    showMinigameResultsDirect(results) {
-        if (!results || results.length === 0) {
-            console.warn("❌ Keine Minispiel-Ergebnisse zu zeigen");
-            return;
-        }
-
-        console.log("🏆 Zeige Minispiel-Ergebnisse an:", results);
-
-        const banner = document.getElementById('minigame-results-banner');
-        const resultsList = document.getElementById('minigame-results-list');
-        
-        if (banner && resultsList) {
-            // Sort results by placement
-            const sortedResults = [...results].sort((a, b) => (a.placement || 999) - (b.placement || 999));
-            
-            resultsList.innerHTML = '';
-            sortedResults.forEach(result => {
-                const resultItem = document.createElement('div');
-                resultItem.className = 'result-item';
-                
-                let medalIcon = '';
-                if (result.placement === 1) medalIcon = '🥇';
-                else if (result.placement === 2) medalIcon = '🥈';
-                else if (result.placement === 3) medalIcon = '🥉';
-                else medalIcon = `${result.placement}.`;
-                
-                resultItem.innerHTML = `${medalIcon} ${result.team_name || `Team ${result.team_id}`}`;
-                resultsList.appendChild(resultItem);
-            });
-            
-            banner.classList.add('show');
-            
-            setTimeout(() => {
-                banner.classList.add('hide');
-                setTimeout(() => {
-                    banner.classList.remove('show', 'hide');
-                }, 500);
-            }, 5000);
-        }
-        
-        console.log("✅ Minispiel-Ergebnisse erfolgreich angezeigt:", results);
-    }
-    
-    showBarrierReleaseBannerDirect(message) {
-        const banner = document.getElementById('barrier-release-banner');
-        const messageEl = document.getElementById('release-banner-message');
-        
-        if (banner && messageEl) {
-            messageEl.textContent = message || 'Du hast dich erfolgreich befreit!';
-            
-            banner.classList.add('show');
-            
-            setTimeout(() => {
-                banner.classList.add('hide');
-                setTimeout(() => {
-                    banner.classList.remove('show', 'hide');
-                }, 500);
-            }, 4000);
-        }
-    }
-    
-    showBarrierFailedBannerDirect(message) {
-        const banner = document.getElementById('barrier-failed-banner');
-        const messageEl = document.getElementById('failed-banner-message');
-        
-        if (banner && messageEl) {
-            messageEl.textContent = message || 'Du bleibst blockiert!';
-            
-            banner.classList.add('show');
-            
-            setTimeout(() => {
-                banner.classList.add('hide');
-                setTimeout(() => {
-                    banner.classList.remove('show', 'hide');
-                }, 500);
-            }, 4000);
-        }
-    }
-    
-    // *** LEGACY-FUNKTIONEN (für Rückwärtskompatibilität) ***
-    
-    showTeamTurnBanner(teamName, teamId = null) {
-        // ⚠️ LEGACY-FUNKTION: ALLE Aufrufe werden über Queue geleitet!
-        console.log("⚠️ LEGACY: showTeamTurnBanner aufgerufen für", teamName, "- leite an Queue weiter");
-        
-        globalBannerQueue.enqueue({
-            type: 'TEAM_TURN',
-            teamId: teamId,
-            sequenceGroup: teamId ? 'turn' : null,
-            displayFunction: this.showTeamTurnBannerDirect.bind(this),
-            args: [teamName],
-            duration: 3000
-        });
-    }
-    
-    showDiceResultBanner(standard, bonus, total, teamName, teamId = null) {
-        // ⚠️ LEGACY-FUNKTION: ALLE Aufrufe werden über Queue geleitet!
-        console.log("⚠️ LEGACY: showDiceResultBanner aufgerufen für", teamName, "- leite an Queue weiter");
-        
-        globalBannerQueue.enqueue({
-            type: 'DICE_RESULT',
-            teamId: teamId,
-            sequenceGroup: teamId ? 'turn' : null,
-            displayFunction: this.showDiceResultBannerDirect.bind(this),
-            args: [standard, bonus, total, teamName],
-            duration: 3000
-        });
-    }
-    
-    showSpecialFieldBanner(teamName, effect, teamId = null) {
-        // ⚠️ LEGACY-FUNKTION: ALLE Aufrufe werden über Queue geleitet!
-        console.log("⚠️ LEGACY: showSpecialFieldBanner aufgerufen für", teamName, "- leite an Queue weiter");
-        
-        globalBannerQueue.enqueue({
-            type: 'SPECIAL_FIELD',
-            teamId: teamId,
-            sequenceGroup: teamId ? 'turn' : null,
-            displayFunction: this.showSpecialFieldBannerDirect.bind(this),
-            args: [teamName, effect],
-            duration: 4000
-        });
-    }
-    
-    showMinigameAnnouncement(name, description) {
-        // ⚠️ LEGACY-FUNKTION: Leite an Queue weiter
-        console.log("⚠️ LEGACY: showMinigameAnnouncement aufgerufen - leite an Queue weiter");
-        this.addMinigameAnnouncementBanner(name, description);
-    }
-    
-    showMinigameResults(results) {
-        // ⚠️ LEGACY-FUNKTION: Leite an Queue weiter
-        console.log("⚠️ LEGACY: showMinigameResults aufgerufen - leite an Queue weiter");
-        this.addMinigameResultsBanner(results);
-    }
-    
-    showInfoBanner(title, subtitle, description, teamId = null) {
-        // Legacy-Funktion: Leitet an Queue weiter
-        this.addInfoBanner(title, subtitle, description, teamId);
-    }
-
-    showRoundEndBanner() {
-        // ⚠️ LEGACY-FUNKTION: Leite an Queue weiter
-        console.log("⚠️ LEGACY: showRoundEndBanner aufgerufen - leite an Queue weiter");
-        
-        globalBannerQueue.enqueue({
-            type: 'INFO',
-            teamId: null,
-            sequenceGroup: null,
-            displayFunction: this.showRoundEndBannerDirect.bind(this),
-            args: [],
-            duration: 3000
-        });
-    }
-    
-    showRoundEndBannerDirect() {
-        const banner = document.getElementById('round-end-banner');
-        
-        if (banner) {
-            banner.classList.add('show');
-            
-            setTimeout(() => {
-                banner.classList.add('hide');
-                setTimeout(() => {
-                    banner.classList.remove('show', 'hide');
-                }, 500);
-            }, 3000);
-        }
-    }
-    
-    // ====== SIMPLIFIED BANNER FUNCTIONS (team_dashboard style) ======
-    
-    /**
-     * Minigame results display - EXACT copy from team_dashboard.html
-     */
-    showMinigameResults(teams) {
-        console.log("🏆 TEAM_DASHBOARD: Showing minigame results (exact team_dashboard logic):", teams);
-        
-        const banner = document.getElementById('minigame-results-banner');
-        const resultsList = document.getElementById('minigame-results-list');
-        
-        if (banner && resultsList) {
-            const teamsWithPlacements = teams
-                .filter(team => team.minigame_placement)
-                .sort((a, b) => a.minigame_placement - b.minigame_placement);
-            
-            resultsList.innerHTML = '';
-            teamsWithPlacements.forEach(team => {
-                const resultItem = document.createElement('div');
-                resultItem.className = 'result-item';
-                
-                let medalIcon = '';
-                if (team.minigame_placement === 1) medalIcon = '🥇';
-                else if (team.minigame_placement === 2) medalIcon = '🥈';
-                else if (team.minigame_placement === 3) medalIcon = '🥉';
-                else medalIcon = `${team.minigame_placement}.`;
-                
-                resultItem.innerHTML = `${medalIcon} ${team.name}`;
-                if (team.is_current_user) {
-                    resultItem.style.backgroundColor = 'rgba(255, 255, 255, 0.2)';
-                    resultItem.style.fontWeight = 'bold';
-                }
-                resultsList.appendChild(resultItem);
-            });
-            
-            banner.classList.add('show');
-            
-            setTimeout(() => {
-                banner.classList.add('hide');
-                setTimeout(() => {
-                    banner.classList.remove('show', 'hide');
-                }, 500);
-            }, 5000);
-        }
-    }
-    
-    /**
-     * Simplified minigame results display - bypasses queue system
-     * Same logic as team_dashboard.html for reliable display
-     */
-    showMinigameResultsSimple(teams) {
-        console.log("🏆 SIMPLE: Showing minigame results directly:", teams);
-        
-        const banner = document.getElementById('minigame-results-banner');
-        const resultsList = document.getElementById('minigame-results-list');
-        
-        if (banner && resultsList) {
-            const teamsWithPlacements = teams
-                .filter(team => team.minigame_placement)
-                .sort((a, b) => a.minigame_placement - b.minigame_placement);
-            
-            resultsList.innerHTML = '';
-            teamsWithPlacements.forEach(team => {
-                const resultItem = document.createElement('div');
-                resultItem.className = 'result-item';
-                
-                let medalIcon = '';
-                if (team.minigame_placement === 1) medalIcon = '🥇';
-                else if (team.minigame_placement === 2) medalIcon = '🥈';
-                else if (team.minigame_placement === 3) medalIcon = '🥉';
-                else medalIcon = `${team.minigame_placement}.`;
-                
-                resultItem.innerHTML = `${medalIcon} ${team.name}`;
-                if (team.is_current_user) {
-                    resultItem.style.backgroundColor = 'rgba(255, 255, 255, 0.2)';
-                    resultItem.style.fontWeight = 'bold';
-                }
-                resultsList.appendChild(resultItem);
-            });
-            
-            banner.classList.add('show');
-            
-            setTimeout(() => {
-                banner.classList.add('hide');
-                setTimeout(() => {
-                    banner.classList.remove('show', 'hide');
-                }, 500);
-            }, 5000);
-        }
-    }
-
-    // ALTE showSpecialFieldBanner ENTFERNT - wird durch Legacy-Version ersetzt
-
-    // ====== QUEUE-BASIERTES TURN BANNER SYSTEM ======
-    
-    processQueueBasedTurnSystem(data) {
-        const currentTeamId = data.game_session.current_team_turn_id;
-        const currentTeam = localTeams.find(t => t.id === currentTeamId);
-        
-        if (!currentTeam) return;
-        
-        // Nur neue Team-Züge verarbeiten
-        if (turnSequenceState.currentTurnTeamId !== currentTeamId) {
-            console.log("🎯 TURN DETECTED: Neuer Zug erkannt für Team:", currentTeam.name, "ID:", currentTeamId);
-            
-            // Sammle Banner-Daten für dieses Team
-            let diceResult = null;
-            let isBlocked = currentTeam.is_blocked || false;
-            let blockInfo = null;
-            
-            // Blockierungs-Info sammeln
-            if (isBlocked) {
-                blockInfo = {
-                    targetNumber: currentTeam.blocked_target_number,
-                    turnsRemaining: currentTeam.blocked_turns_remaining
-                };
-                console.log("🚧 BLOCKED TEAM: Team", currentTeam.name, "ist blockiert, benötigt", blockInfo.targetNumber);
-            }
-            
-            // Würfelergebnis sammeln - nicht verfügbar in executeGameSequence (kein data parameter)
-            // Diese Funktion wird hauptsächlich für Tests und Camera Overview verwendet
-            diceResult = null; // Skip dice result logic in this context
-            
-            // ENTSCHEIDUNG: Sofort starten oder warten?
-            if (teamTurnManagement.processedTeamIds.size === 0) {
-                // ERSTES TEAM - sofort starten (aber ERST nach Minigame Results!)
-                console.log("🟢 FIRST TEAM: Erstes Team erkannt -", currentTeam.name);
-                
-                // Prüfe ob Minigame Results laufen
-                const queueStatus = globalBannerQueue.getStatus();
-                if (queueStatus.queueLength > 0 || queueStatus.isProcessing) {
-                    // Minigame Results laufen noch - warte
-                    console.log("⏳ FIRST TEAM: Warte auf Minigame Results für", currentTeam.name);
-                    setTimeout(() => {
-                        console.log("🟢 FIRST TEAM: Starte Banner-Sequenz für", currentTeam.name);
-                        this.addTeamBannerSequence(currentTeamId, currentTeam.name, diceResult, isBlocked, blockInfo);
-                        teamTurnManagement.processedTeamIds.add(currentTeamId);
-                    }, 2000); // Warte 2 Sekunden
-                } else {
-                    // Keine Minigame Results - sofort starten
-                    console.log("🟢 FIRST TEAM: Starte sofort Banner-Sequenz für", currentTeam.name);
-                    this.addTeamBannerSequence(currentTeamId, currentTeam.name, diceResult, isBlocked, blockInfo);
-                    teamTurnManagement.processedTeamIds.add(currentTeamId);
-                }
-            } else if (teamTurnManagement.processedTeamIds.has(currentTeamId)) {
-                // TEAM SCHON VERARBEITET - ignorieren
-                console.log("⚠️ ALREADY PROCESSED: Team", currentTeam.name, "bereits verarbeitet - ignoriere");
-            } else {
-                // WEITERES TEAM - in Pending setzen
-                console.log("🟡 PENDING: Team", currentTeam.name, "zu Pending hinzugefügt - wartet auf vorheriges Team");
-                teamTurnManagement.pendingTeamData.set(currentTeamId, {
-                    name: currentTeam.name,
-                    diceResult: diceResult,
-                    isBlocked: isBlocked,
-                    blockInfo: blockInfo
-                });
-            }
-            
-            // Turn state aktualisieren
-            turnSequenceState = {
-                currentTurnTeamId: currentTeamId,
-                hasShownTurnBanner: true,
-                hasShownDiceResult: true,
-                isMoving: false,
-                hasShownFieldBanner: true,
-                turnCompleted: false
-            };
-        }
-    }
     
     isSpecialField(position) {
         // Simple check - could be enhanced with actual field data
         return [5, 10, 15, 20, 25].includes(position); // Example special field positions
     }
 
-    // ====== DEAKTIVIERTE OLD GAME SEQUENCE FUNCTIONS ======
-    // Diese Funktionen sind deaktiviert - alles läuft jetzt über das Queue-System!
-
-    showTurnCompleteBanner(teamName, teamId = null) {
-        // ⚠️ LEGACY-FUNKTION: Leite an Queue weiter
-        console.log("⚠️ LEGACY: showTurnCompleteBanner aufgerufen für", teamName, "- leite an Queue weiter");
-        this.addInfoBanner("✅ Zug beendet", `${teamName} hat den Zug beendet.`, "", teamId);
-    }
 
 
     setCameraOverview(duration = 3000, callback = null) {
@@ -2648,14 +1642,13 @@ This tests the team_dashboard.html-style banner logic on game_board.html`, 8000,
         
         // Check if minigame was just announced
         if (currentMinigameName && currentGamePhase === 'MINIGAME_ANNOUNCED') {
-            console.log("📢 Zeige Minispiel-Ankündigung:", currentMinigameName);
-            this.showMinigameAnnouncement(currentMinigameName, currentMinigameDescription);
+            console.log("📢 Minispiel-Ankündigung:", currentMinigameName, currentMinigameDescription);
             return;
         }
 
-        // ====== SIMPLIFIED BANNER LOGIC (team_dashboard style) ======
-        // Debug info for banner logic
-        console.log("🔍 Banner Debug:", {
+        // ====== SIMPLIFIED GAME LOGIC (team_dashboard style) ======
+        // Debug info for game logic
+        console.log("🔍 Game Debug:", {
             currentPhase: data.game_session.current_phase,
             lastPhase: lastPhase,
             hasShowMinigameResults: hasShowMinigameResults,
@@ -2962,11 +1955,11 @@ This tests the team_dashboard.html-style banner logic on game_board.html`, 8000,
                 }
 
                 if (data.game_session) {
-                    // Banner trigger logic (same as team_dashboard)
+                    // Game trigger logic (same as team_dashboard)
                     
                     // === SEQUENTIAL TURN SYSTEM ===
                     
-                    // === MINIGAME RESULTS BANNER (queue-based with high priority) ===
+                    // === MINIGAME RESULTS DISPLAY ===
                     if (data.game_session.current_phase === 'DICE_ROLLING' && lastPhase !== 'DICE_ROLLING' && !hasShowMinigameResults) {
                         console.log("🏆 Phase changed to DICE_ROLLING - adding minigame results to queue with HIGH priority");
                         
@@ -2990,21 +1983,17 @@ This tests the team_dashboard.html-style banner logic on game_board.html`, 8000,
                             hasShownTurnDiceSequence = true; // Prevent showing again
                             
                             
-                            // Show minigame results immediately, then show turn banner
-                            this.showMinigameResults(serverTeams);
-
-                            // Show turn banner immediately after minigame results
+                            // Process game logic without banners
                             setTimeout(() => {
-                                console.log("🔄 Showing turn banner after minigame results");
+                                console.log("🔄 Processing game logic after minigame results");
                                 const currentTeamId = data.game_session.current_team_turn_id;
                                 const currentTeam = localTeams.find(t => t.id === currentTeamId);
                                 
                                 if (currentTeam) {
-                                    
-                                    // Check for dice result and show it after turn banner
+                                    // Check for dice result and process movement
                                     setTimeout(() => {
                                         const diceResult = data.last_dice_result || window.pendingDiceResult;
-                                        console.log("🔍 DEBUG: Checking for dice result after turn banner:", {
+                                        console.log("🔍 DEBUG: Checking for dice result:", {
                                             hasDataDiceResult: !!data.last_dice_result,
                                             hasPendingDiceResult: !!window.pendingDiceResult,
                                             diceResult: diceResult,
@@ -3015,7 +2004,7 @@ This tests the team_dashboard.html-style banner logic on game_board.html`, 8000,
                                         });
                                         
                                         if (diceResult && diceResult.standard_roll !== undefined) {
-                                            console.log("🎲 Processing dice result after turn banner");
+                                            console.log("🎲 Processing dice result");
                                             
                                             // Clear pending dice result to prevent showing again
                                             window.pendingDiceResult = null;
@@ -3026,13 +2015,13 @@ This tests the team_dashboard.html-style banner logic on game_board.html`, 8000,
                                                 this.focusCameraOnCurrentTeam(false);
                                             }, 200);
                                         } else {
-                                            // No dice result yet, just focus camera after turn banner
-                                            console.log("🎯 Focusing camera after turn banner (no dice yet)");
+                                            // No dice result yet, just focus camera
+                                            console.log("🎯 Focusing camera (no dice yet)");
                                             this.focusCameraOnCurrentTeam(false);
                                         }
-                                    }, 3200); // After turn banner duration
+                                    }, 1000); // Reduced timing
                                 }
-                            }, 5200); // Right after minigame results banner
+                            }, 2000); // Reduced timing
                         }
                         hasShowMinigameResults = true;
                     } else if (data.game_session.current_phase !== 'DICE_ROLLING') {
@@ -3041,11 +2030,7 @@ This tests the team_dashboard.html-style banner logic on game_board.html`, 8000,
                         window.pendingDiceResult = null; // Clear old dice results
                     }
                     
-                    // 2. Round End System - DEAKTIVIERT! Wird über Turn Management gehandhabt
-                    // if (data.game_session.current_phase === 'ROUND_OVER' && lastPhase !== 'ROUND_OVER') {
-                    //     console.log("🏁 Round ended, showing round end banner");
-                    //     this.showRoundEndBanner();
-                    // }
+                    // 2. Round End System - simplified logic
                     
                     // 3. QUEUE-BASIERTES TURN SYSTEM - DEAKTIVIERT nach Minigame Results
                     // WICHTIG: Wird jetzt direkt nach Minigame Results gehandhabt!
@@ -3121,23 +2106,22 @@ This tests the team_dashboard.html-style banner logic on game_board.html`, 8000,
                         }
                     }
 
-                    // Process special field events (same as team_dashboard)
+                    // Process special field events (logic without banners)
                     if (data.special_field_event) {
                         console.log("🎯 Special field event detected:", data.special_field_event);
                         
                         if (data.special_field_event.type === 'barrier_set') {
-                            this.showBarrierFieldBanner(data.special_field_event.target_config);
+                            console.log("🚧 Barrier set for team");
                         } else if (data.special_field_event.type === 'barrier_released') {
                             const message = `Du hast dich befreit! Würfel: ${data.special_field_event.dice_roll}`;
-                            this.showBarrierReleaseBanner(message);
+                            console.log("✅ Barrier released:", message);
                         } else if (data.special_field_event.type === 'barrier_failed') {
                             const message = `Noch blockiert! Würfel: ${data.special_field_event.dice_roll}`;
-                            this.showBarrierFailedBanner(message);
+                            console.log("❌ Barrier failed:", message);
                         }
                     }
 
-                    // Track last dice result to prevent loops, but don't show banner here
-                    // (Banner will be shown in proper sequence after minigame results)
+                    // Track last dice result to prevent loops
                     if (data.last_dice_result && data.last_dice_result !== lastDiceResult) {
                         console.log("🎲 Last dice result detected from admin:", data.last_dice_result);
                         lastDiceResult = data.last_dice_result;
@@ -3178,9 +2162,9 @@ This tests the team_dashboard.html-style banner logic on game_board.html`, 8000,
         GAME_STATE.isCharacterMoving = true;
         GAME_STATE.isAnimating = true;
         
-        // Mark in turn sequence that movement started - no banners during movement!
+        // Mark in turn sequence that movement started
         turnSequenceState.isMoving = true;
-        console.log("🚫 Movement started - blocking banners for", team.name);
+        console.log("🚫 Movement started for", team.name);
         
         // Start camera following during movement
         this.startCameraFollow(mii);
@@ -3332,9 +2316,9 @@ This tests the team_dashboard.html-style banner logic on game_board.html`, 8000,
         GAME_STATE.isAnimating = false;
         this.activeMovementAnimation = null;
         
-        // Movement completed - allow banners again and continue sequence
+        // Movement completed - continue sequence
         turnSequenceState.isMoving = false;
-        console.log("✅ Movement completed - allowing banners for", currentTeam.name, "at position", finalPositionIndex);
+        console.log("✅ Movement completed for", currentTeam.name, "at position", finalPositionIndex);
         
         
         // Stop camera following after movement
@@ -3853,12 +2837,12 @@ This tests the team_dashboard.html-style banner logic on game_board.html`, 8000,
             // Zeige Würfelergebnis direkt auf dem Spielfeld
             this.showDiceResultOnField(mii.position, diceResult, currentTeam.bonus_dice_sides, currentTeam.name);
             
-            // Zeige Würfelergebnis-Banner
+            // Calculate dice result
             const bonusRoll = currentTeam.bonus_dice_sides > 0 ? Math.floor(Math.random() * currentTeam.bonus_dice_sides) + 1 : 0;
             const totalRoll = diceResult + bonusRoll;
-            this.showDiceResultBanner(diceResult, bonusRoll, totalRoll, currentTeam.name);
+            console.log("🎲 Dice result:", diceResult, "Bonus:", bonusRoll, "Total:", totalRoll, "Team:", currentTeam.name);
             
-            // Warte 3.2 Sekunden bevor die Bewegung startet (sync mit Banner/Display)
+            // Warte kurz bevor die Bewegung startet
             setTimeout(() => {
                 this.interactiveDice.visible = false;
 
@@ -3881,7 +2865,7 @@ This tests the team_dashboard.html-style banner logic on game_board.html`, 8000,
                     }
                     this.actuallyMoveCharacter(currentTeam, mii, diceResult, currentPositionIndex);
                 });
-            }, 3200);
+            }, 1000);
         });
     }
 
@@ -3927,7 +2911,7 @@ This tests the team_dashboard.html-style banner logic on game_board.html`, 8000,
         const bonusRoll = bonusDiceSides > 0 ? Math.floor(Math.random() * bonusDiceSides) + 1 : 0;
         const totalRoll = standardRoll + bonusRoll;
         
-        // Zeige Würfelergebnis als Banner
+        // Show dice result display
         const teamPrefix = teamName ? `${teamName} würfelt: ` : 'Würfelergebnis: ';
         let diceMessage = `${teamPrefix}${standardRoll}`;
         if (bonusRoll > 0) {
@@ -3970,14 +2954,14 @@ This tests the team_dashboard.html-style banner logic on game_board.html`, 8000,
                     freeMethod = ' (Gesamtwurf befreit!)';
                 }
                 diceMessage += freeMethod;
-                this.showBarrierReleaseBanner(diceMessage);
+                console.log("✅ Barrier released:", diceMessage);
             } else {
                 diceMessage += ` - ${requirementText}`;
-                this.showBarrierFailedBanner(diceMessage);
+                console.log("❌ Barrier failed:", diceMessage);
             }
         } else {
-            // Use dedicated dice result banner for normal dice rolls
-            this.showDiceResultBanner(standardRoll, bonusRoll, totalRoll, teamName);
+            // Log dice result for normal dice rolls
+            console.log("🎲 Normal dice result:", standardRoll, bonusRoll, totalRoll, teamName);
         }
         
         // Also show the dice result overlay for better visibility
@@ -4017,8 +3001,7 @@ This tests the team_dashboard.html-style banner logic on game_board.html`, 8000,
         let title = fieldConfig.name || fieldType;
         let description = "";
         let icon = fieldConfig.icon || "⬜";
-        let bannerColor = "#4FC3F7"; // Standard-Blau
-        let bannerType = "info"; // Für das bestehende Banner-System
+        let fieldColor = "#4FC3F7"; // Standard-Blau
         
         // Spezielle Nachrichten für verschiedene Feldtypen mit detaillierten Informationen
         switch(fieldType) {
@@ -4026,126 +3009,82 @@ This tests the team_dashboard.html-style banner logic on game_board.html`, 8000,
                 title = "Startfeld";
                 description = `${teamName} ist am Startfeld angekommen!`;
                 icon = "🏁";
-                bannerColor = "#4FC3F7";
-                bannerType = "info";
+                fieldColor = "#4FC3F7";
                 break;
             case 'goal':
                 title = "ZIEL ERREICHT!";
                 description = `🎉 ${teamName} hat das Spiel gewonnen! 🎉`;
                 icon = "🎯";
-                bannerColor = "#FFD700";
-                bannerType = "success";
+                fieldColor = "#FFD700";
                 break;
             case 'normal':
                 title = "Normales Feld";
                 description = `${teamName} ist auf einem ruhigen Feld gelandet. Nichts Besonderes passiert.`;
                 icon = "⬜";
-                bannerColor = "#81C784";
-                bannerType = "info";
+                fieldColor = "#81C784";
                 break;
             case 'bonus':
                 title = "Bonusfeld!";
                 description = `${teamName} hat ein Bonusfeld erreicht! Du erhältst einen Vorteil für den nächsten Zug oder bekommst einen Extrawurf.`;
                 icon = "⭐";
-                bannerColor = "#FFD54F";
-                bannerType = "success";
+                fieldColor = "#FFD54F";
                 break;
             case 'minigame':
                 title = "Minispiel-Feld";
                 description = `${teamName} ist auf einem Minispiel-Feld gelandet! Bereite dich auf eine Herausforderung vor.`;
                 icon = "🎮";
-                bannerColor = "#BA68C8";
-                bannerType = "special";
+                fieldColor = "#BA68C8";
                 break;
             case 'chance':
                 title = "Ereignisfeld";
                 description = `${teamName} hat ein Ereignisfeld erreicht! Ein zufälliges Ereignis wird ausgelöst - das kann gut oder schlecht sein.`;
                 icon = "🎲";
-                bannerColor = "#AED581";
-                bannerType = "special";
+                fieldColor = "#AED581";
                 break;
             case 'trap':
                 title = "Falle!";
                 description = `${teamName} ist in eine Falle geraten! Du verlierst möglicherweise deinen nächsten Zug oder wirst zurückgesetzt.`;
                 icon = "⚠️";
-                bannerColor = "#E57373";
-                bannerType = "error";
+                fieldColor = "#E57373";
                 break;
             case 'catapult_forward':
                 title = "Katapult Vorwärts!";
                 description = `${teamName} wurde von einem Katapult erfasst! Du wirst 3-5 Felder nach vorne geschleudert.`;
                 icon = "🚀";
-                bannerColor = "#4CAF50";
-                bannerType = "success";
+                fieldColor = "#4CAF50";
                 break;
             case 'catapult_backward':
                 title = "Katapult Rückwärts!";
                 description = `${teamName} wurde von einem Katapult erfasst! Du wirst 2-4 Felder zurück geschleudert.`;
                 icon = "💥";
-                bannerColor = "#F44336";
-                bannerType = "error";
+                fieldColor = "#F44336";
                 break;
             case 'player_swap':
                 title = "Spieler-Tausch!";
                 description = `${teamName} aktiviert einen Positionstausch! Du tauschst deine Position mit einem anderen zufällig ausgewählten Team.`;
                 icon = "🔄";
-                bannerColor = "#2196F3";
-                bannerType = "special";
+                fieldColor = "#2196F3";
                 break;
             case 'barrier':
                 title = "Sperrfeld!";
                 description = `${teamName} ist auf einem Sperrfeld gelandet! Du bist blockiert und musst die konfigurierte Anforderung erfüllen, um dich zu befreien.`;
                 icon = "🚧";
-                bannerColor = "#9E9E9E";
-                bannerType = "warning";
+                fieldColor = "#9E9E9E";
                 break;
             default:
                 title = fieldConfig.name || "Unbekanntes Feld";
                 description = `${teamName} betritt ${title}.`;
-                bannerType = "info";
                 break;
         }
 
-        // Zeige das Feld-Ankündigungs-Banner mit dem neuen Banner-System
-        if (bannerType === "warning") {
-            this.showBarrierFieldBanner(targetConfig);
+        // Log field announcement
+        if (fieldType === "barrier") {
+            console.log("🚧 Barrier field:", targetConfig);
         } else {
-            this.showInfoBanner(title, description, "");
+            console.log("ℹ️ Field info:", title, description);
         }
     }
 
-    showFieldAnnouncementBanner(title, description, icon, color) {
-        const display = document.getElementById('special-field-display');
-        const iconEl = document.getElementById('special-field-icon');
-        const titleEl = document.getElementById('special-field-title');
-        const descEl = document.getElementById('special-field-description');
-        
-        if (!display || !iconEl || !titleEl || !descEl) return;
-        
-        // Setze Inhalt
-        iconEl.textContent = icon;
-        titleEl.textContent = title;
-        descEl.textContent = description;
-        
-        // Setze Farbe basierend auf Feldtyp
-        const colorValue = parseInt(color.replace('#', '0x'));
-        const r = (colorValue >> 16) & 255;
-        const g = (colorValue >> 8) & 255;
-        const b = colorValue & 255;
-        
-        display.style.background = `linear-gradient(135deg, rgba(${r}, ${g}, ${b}, 0.98), rgba(${Math.floor(r*0.8)}, ${Math.floor(g*0.8)}, ${Math.floor(b*0.8)}, 0.95))`;
-        
-        display.style.display = 'flex';
-        display.classList.add('show');
-        
-        // Banner nach 3 Sekunden automatisch ausblenden
-        setTimeout(() => {
-            display.classList.remove('show');
-            setTimeout(() => {
-                display.style.display = 'none';
-            }, 500);
-        }, 3000);
-    }
 
     showDiceResult(standard, bonus, total, autoHideDuration = 2500) {
         console.log("🎯 showDiceResult aufgerufen:", {standard, bonus, total, autoHideDuration});
