@@ -17,11 +17,17 @@ def game_board():
     is_admin = session.get('is_admin', False)
     team_colors = ["#FF5252", "#448AFF", "#4CAF50", "#FFC107", "#9C27B0", "#FF9800"]
     
+    # Get minigame folder name for current session
+    minigame_folder_name = "Minispiel"
+    if active_session and active_session.game_round and active_session.game_round.minigame_folder:
+        minigame_folder_name = active_session.game_round.minigame_folder.name
+    
     return render_template('game_board.html', 
                            teams=teams, 
                            is_admin=is_admin,
                            team_colors=team_colors,
-                           active_session=active_session)
+                           active_session=active_session,
+                           minigame_folder_name=minigame_folder_name)
 
 @main_bp.route('/api/board-status')
 def board_status():
@@ -75,12 +81,18 @@ def board_status():
                     current_app.logger.error(f"Ungültige current_team_turn_id: {current_team_id}")
                     current_team_id = None
 
+            # Get minigame folder name from current game round
+            minigame_folder_name = "Minispiel"
+            if active_session_query.game_round and active_session_query.game_round.minigame_folder:
+                minigame_folder_name = active_session_query.game_round.minigame_folder.name
+
             game_session_data = {
                 "current_minigame_name": active_session_query.current_minigame_name,
                 "current_minigame_description": active_session_query.current_minigame_description,
                 "current_phase": active_session_query.current_phase,
                 "current_team_turn_id": current_team_id,
                 "dice_roll_order": dice_order_ids,
+                "minigame_folder_name": minigame_folder_name,
                 # SONDERFELD: Vulkan-Status (für zukünftige Implementierung)
                 "volcano_countdown": active_session_query.volcano_countdown if hasattr(active_session_query, 'volcano_countdown') else 0,
                 "volcano_active": active_session_query.volcano_active if hasattr(active_session_query, 'volcano_active') else False
