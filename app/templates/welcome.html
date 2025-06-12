@@ -394,8 +394,8 @@ document.addEventListener('DOMContentLoaded', function() {
                         .then(response => response.json())
                         .then(boardData => {
                             if (boardData.teams && boardData.teams.length > 0) {
-                                console.log('Teams gefunden - Weiterleitung zum Spielbrett im Vollbild');
-                                window.location.href = '/board?fullscreen=true';
+                                console.log('Teams gefunden - Weiterleitung zum Spielbrett');
+                                window.location.href = '/board';
                             }
                         })
                         .catch(err => {
@@ -476,9 +476,9 @@ function updateWelcomeStatus() {
                     document.getElementById('teams-section').style.display = 'block';
                 }
             } else {
-                // Welcome-System wurde beendet - weiterleiten zum Spielbrett im Vollbild
-                console.log('Welcome-System wurde beendet - Weiterleitung zum Spielbrett im Vollbild');
-                window.location.href = '/board?fullscreen=true';
+                // Welcome-System wurde beendet - weiterleiten zum Spielbrett
+                console.log('Welcome-System wurde beendet - Weiterleitung zum Spielbrett');
+                window.location.href = '/board';
             }
         })
         .catch(error => {
@@ -491,7 +491,7 @@ function updateWelcomeStatus() {
             
             if (window.welcomeErrorCount >= 3) {
                 console.log('Mehrere aufeinanderfolgende Fehler - Welcome-System wurde wahrscheinlich beendet');
-                window.location.href = '/board?fullscreen=true';
+                window.location.href = '/board';
             }
         });
 }
