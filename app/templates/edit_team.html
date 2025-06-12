@@ -99,6 +99,32 @@
                     </div>
                 </div>
                 
+                <!-- Teammitglieder bearbeiten -->
+                <div class="card mb-3">
+                    <div class="card-header bg-info text-white">
+                        <h6 class="mb-0"><i class="fas fa-users"></i> Teammitglieder</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="form-group">
+                            {{ form.members.label(class="form-control-label") }}
+                            {% if form.members.errors %}
+                                {{ form.members(class="form-control is-invalid", rows="4") }}
+                                <div class="invalid-feedback">
+                                    {% for error in form.members.errors %}
+                                        <span>{{ error }}</span>
+                                    {% endfor %}
+                                </div>
+                            {% else %}
+                                {{ form.members(class="form-control", rows="4") }}
+                            {% endif %}
+                            <small class="form-text text-muted">
+                                <i class="fas fa-info-circle"></i> 
+                                Teammitglieder - einen pro Zeile oder kommagetrennt.
+                            </small>
+                        </div>
+                    </div>
+                </div>
+                
                 <div class="form-group">
                     {{ form.submit(class="btn btn-primary") }}
                     <a href="{{ url_for('admin.admin_dashboard') }}" class="btn btn-secondary ml-2">Abbrechen</a>
@@ -178,6 +204,64 @@
                     {% endif %}
                 </div>
             </div>
+            
+            <!-- Erweiterte Spieler-Auslosungs-Verwaltung -->
+            {% if team.members %}
+            <div class="card mb-4">
+                <div class="card-header bg-warning text-dark">
+                    <h5 class="mb-0"><i class="fas fa-dice"></i> Auslosungs-Einstellungen</h5>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i>
+                        <strong>Hinweis:</strong> Hier können Sie festlegen, welche Spieler für Minispiele ausgelost werden können. 
+                        Bei "Ganzes Team" spielen alle mit, unabhängig von diesen Einstellungen.
+                    </div>
+                    
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Spielername</th>
+                                    <th>Kann ausgelost werden</th>
+                                    <th>Aktion</th>
+                                </tr>
+                            </thead>
+                            <tbody id="player-selection-table">
+                                {% set members_list = team.members.split(',') if team.members else [] %}
+                                {% set player_config = team.get_player_config() %}
+                                {% for member in members_list %}
+                                    {% set player_name = member.strip() %}
+                                    {% if player_name %}
+                                        {% set can_be_selected = player_config.get(player_name, {}).get('can_be_selected', True) %}
+                                        <tr id="player-row-{{ loop.index }}">
+                                            <td>
+                                                <i class="fas fa-user text-primary"></i>
+                                                <strong>{{ player_name }}</strong>
+                                            </td>
+                                            <td>
+                                                <span class="badge badge-{{ 'success' if can_be_selected else 'secondary' }}" 
+                                                      id="status-badge-{{ loop.index }}">
+                                                    {{ 'Ja' if can_be_selected else 'Nein' }}
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <button class="btn btn-sm btn-{{ 'secondary' if can_be_selected else 'success' }}"
+                                                        onclick="togglePlayerSelection('{{ player_name }}', {{ team.id }}, {{ loop.index }}, {{ 'false' if can_be_selected else 'true' }})"
+                                                        id="toggle-btn-{{ loop.index }}">
+                                                    <i class="fas fa-{{ 'ban' if can_be_selected else 'check' }}"></i>
+                                                    {{ 'Deaktivieren' if can_be_selected else 'Aktivieren' }}
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    {% endif %}
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
         </div>
         
         <!-- Team-Info Sidebar -->
@@ -407,5 +491,77 @@ document.addEventListener('keydown', function(event) {
         }
     }
 });
+
+// Neue Funktion für Spieler-Auslosungs-Verwaltung
+function togglePlayerSelection(playerName, teamId, rowIndex, newStatus) {
+    console.log('togglePlayerSelection called:', {playerName, teamId, rowIndex, newStatus});
+    
+    const canBeSelected = newStatus === 'true';
+    
+    // AJAX Request für Auslosungs-Status
+    fetch(`/admin/api/update_player_selection_status/${teamId}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('[name=csrf_token]').value
+        },
+        body: JSON.stringify({
+            player_name: playerName,
+            can_be_selected: canBeSelected
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // UI aktualisieren
+            const statusBadge = document.getElementById(`status-badge-${rowIndex}`);
+            const toggleBtn = document.getElementById(`toggle-btn-${rowIndex}`);
+            
+            if (canBeSelected) {
+                statusBadge.textContent = 'Ja';
+                statusBadge.className = 'badge badge-success';
+                toggleBtn.innerHTML = '<i class="fas fa-ban"></i> Deaktivieren';
+                toggleBtn.className = 'btn btn-sm btn-secondary';
+                toggleBtn.setAttribute('onclick', `togglePlayerSelection('${playerName}', ${teamId}, ${rowIndex}, 'false')`);
+            } else {
+                statusBadge.textContent = 'Nein';
+                statusBadge.className = 'badge badge-secondary';
+                toggleBtn.innerHTML = '<i class="fas fa-check"></i> Aktivieren';
+                toggleBtn.className = 'btn btn-sm btn-success';
+                toggleBtn.setAttribute('onclick', `togglePlayerSelection('${playerName}', ${teamId}, ${rowIndex}, 'true')`);
+            }
+            
+            // Erfolgs-Toast oder Notification
+            showNotification(data.message, 'success');
+        } else {
+            showNotification(data.message || 'Fehler beim Aktualisieren', 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showNotification('Ein Fehler ist aufgetreten', 'error');
+    });
+}
+
+function showNotification(message, type) {
+    // Einfache Benachrichtigung (kann erweitert werden)
+    const alertClass = type === 'success' ? 'alert-success' : 'alert-danger';
+    const notification = document.createElement('div');
+    notification.className = `alert ${alertClass} alert-dismissible fade show position-fixed`;
+    notification.style.cssText = 'top: 20px; right: 20px; z-index: 1050; min-width: 300px;';
+    notification.innerHTML = `
+        <strong>${type === 'success' ? 'Erfolg!' : 'Fehler!'}</strong> ${message}
+        <button type="button" class="close" data-dismiss="alert">
+            <span>&times;</span>
+        </button>
+    `;
+    
+    document.body.appendChild(notification);
+    
+    // Auto-remove nach 3 Sekunden
+    setTimeout(() => {
+        notification.remove();
+    }, 3000);
+}
 </script>
 {% endblock %}

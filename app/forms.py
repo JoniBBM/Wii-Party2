@@ -19,6 +19,12 @@ class CreateTeamForm(FlaskForm):
     password = PasswordField('Passwort', validators=[DataRequired(), Length(min=6)])
     confirm_password = PasswordField('Passwort bestätigen', validators=[DataRequired(), EqualTo('password')])
     character_id = SelectField('Charakter auswählen', coerce=int, validators=[DataRequired()])
+    
+    # Spieler-Management
+    members = TextAreaField('Teammitglieder', 
+                           validators=[Optional(), Length(max=500)],
+                           render_kw={"placeholder": "Spielername 1, Spielername 2, Spielername 3...\n(Ein Name pro Zeile oder kommagetrennt)"})
+    
     submit = SubmitField('Team erstellen')
 
     def __init__(self, *args, **kwargs):
@@ -33,6 +39,12 @@ class EditTeamForm(FlaskForm):
     character_id = SelectField('Charakter ändern', coerce=int, validators=[Optional()])
     current_position = IntegerField('Aktuelle Position', validators=[NumberRange(min=0, max=72)], default=0)
     last_dice_result = IntegerField('Letztes Würfelergebnis', validators=[Optional(), NumberRange(min=1, max=6)])
+    
+    # Erweiterte Spieler-Verwaltung
+    members = TextAreaField('Teammitglieder', 
+                           validators=[Optional(), Length(max=500)],
+                           render_kw={"placeholder": "Spielername 1, Spielername 2, Spielername 3...\n(Ein Name pro Zeile oder kommagetrennt)"})
+    
     submit = SubmitField('Änderungen speichern')
 
     def __init__(self, original_team_name, current_character_id, *args, **kwargs):

@@ -59,6 +59,27 @@
                 {{ form.character_id(class="form-control form-control-lg") }}
             {% endif %}
         </div>
+        
+        <div class="form-group">
+            {{ form.members.label(class="form-control-label") }}
+            <i class="fas fa-users text-muted ml-1"></i>
+            {% if form.members.errors %}
+                {{ form.members(class="form-control is-invalid", rows="4") }}
+                <div class="invalid-feedback">
+                    {% for error in form.members.errors %}
+                        <span>{{ error }}</span>
+                    {% endfor %}
+                </div>
+            {% else %}
+                {{ form.members(class="form-control", rows="4") }}
+            {% endif %}
+            <small class="form-text text-muted">
+                <i class="fas fa-info-circle"></i> 
+                Tragen Sie die Teammitglieder ein - einen pro Zeile oder kommagetrennt. 
+                Diese können später für Minispiele ausgelost werden.
+            </small>
+        </div>
+        
         <div class="form-group">
             {{ form.submit(class="btn btn-primary") }}
             <a href="{{ url_for('admin.admin_dashboard') }}" class="btn btn-secondary ml-2">Abbrechen</a>

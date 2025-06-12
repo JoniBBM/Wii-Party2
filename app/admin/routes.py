@@ -1453,7 +1453,14 @@ def create_team():
             flash('Ein Team mit diesem Namen existiert bereits.', 'warning')
         else:
             team = Team(name=form.team_name.data)
-            team.set_password(form.password.data) 
+            team.set_password(form.password.data)
+            
+            # Teammitglieder verarbeiten
+            if form.members.data:
+                # Normalisiere Spielernamen (unterstützt sowohl Komma- als auch Zeilenumbruch-getrennt)
+                raw_members = form.members.data.replace('\n', ',')
+                members_list = [m.strip() for m in raw_members.split(',') if m.strip()]
+                team.members = ', '.join(members_list)
             
             selected_character_id = form.character_id.data
             char = Character.query.get(selected_character_id) 
@@ -1511,6 +1518,24 @@ def edit_team(team_id):
         if form.last_dice_result.data is not None:
             team.last_dice_result = form.last_dice_result.data
 
+        # Teammitglieder aktualisieren
+        if form.members.data is not None:  # Auch leere Strings erlauben (zum Leeren)
+            # Normalisiere Spielernamen (unterstützt sowohl Komma- als auch Zeilenumbruch-getrennt)
+            raw_members = form.members.data.replace('\n', ',')
+            members_list = [m.strip() for m in raw_members.split(',') if m.strip()]
+            team.members = ', '.join(members_list) if members_list else None
+            
+            # Wenn sich die Spielerliste geändert hat, player_config aktualisieren
+            # Entferne Einstellungen für Spieler, die nicht mehr im Team sind
+            if team.player_config:
+                current_config = team.get_player_config()
+                updated_config = {}
+                for player in members_list:
+                    if player in current_config:
+                        updated_config[player] = current_config[player]
+                    # Neue Spieler erhalten Standardeinstellungen (können ausgelost werden)
+                team.set_player_config(updated_config)
+
         new_character_id = form.character_id.data
         old_character_id = team.character_id
 
@@ -1559,6 +1584,47 @@ def edit_team(team_id):
     # Alle Teams für Dropdown in Spieler-Zuordnung laden
     all_teams = Team.query.order_by(Team.name).all()
     return render_template('edit_team.html', title='Team bearbeiten', form=form, team=team, all_teams=all_teams)
+
+@admin_bp.route('/api/update_player_selection_status/<int:team_id>', methods=['POST'])
+@login_required
+def update_player_selection_status(team_id):
+    """AJAX-Route zum Aktualisieren des Auslosungs-Status eines Spielers"""
+    if not isinstance(current_user, Admin):
+        return jsonify({'success': False, 'message': 'Keine Berechtigung'}), 403
+    
+    try:
+        team = Team.query.get_or_404(team_id)
+        data = request.get_json()
+        
+        player_name = data.get('player_name')
+        can_be_selected = data.get('can_be_selected', True)
+        
+        if not player_name:
+            return jsonify({'success': False, 'message': 'Spielername fehlt'}), 400
+        
+        # Prüfe ob Spieler wirklich im Team ist
+        if team.members:
+            members_list = [m.strip() for m in team.members.split(',') if m.strip()]
+            if player_name not in members_list:
+                return jsonify({'success': False, 'message': 'Spieler nicht im Team gefunden'}), 400
+        else:
+            return jsonify({'success': False, 'message': 'Team hat keine Mitglieder'}), 400
+        
+        # Status aktualisieren
+        team.update_player_selection_status(player_name, can_be_selected)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True, 
+            'message': f'Auslosungs-Status für {player_name} aktualisiert',
+            'player_name': player_name,
+            'can_be_selected': can_be_selected
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Fehler beim Aktualisieren des Spieler-Status: {e}", exc_info=True)
+        return jsonify({'success': False, 'message': 'Ein Fehler ist aufgetreten'}), 500
 
 @admin_bp.route('/delete_team/<int:team_id>', methods=['POST'])
 @login_required

@@ -39,6 +39,8 @@ class Team(UserMixin, db.Model):
     # Neues Feld für Welcome-System (nur 6-stellige Passwörter, temporär gespeichert)
     welcome_password = db.Column(db.String(10), nullable=True)
     members = db.Column(db.String(255), nullable=True)
+    # Erweiterte Spieler-Konfiguration (JSON mit Spieler-Details)
+    player_config = db.Column(db.Text, nullable=True)  # JSON mit Spieler-Einstellungen
 
     character_name = db.Column(db.String(100), nullable=True)
     character_id = db.Column(db.Integer, db.ForeignKey('character.id'), nullable=True)
@@ -107,6 +109,47 @@ class Team(UserMixin, db.Model):
         self.blocked_turns_remaining = 0
         self.extra_moves_remaining = 0
         self.has_shield = False
+
+    def get_player_config(self):
+        """Gibt die Spieler-Konfiguration als Dictionary zurück"""
+        if not self.player_config:
+            return {}
+        try:
+            return json.loads(self.player_config)
+        except (json.JSONDecodeError, TypeError):
+            return {}
+
+    def set_player_config(self, config_dict):
+        """Setzt die Spieler-Konfiguration aus Dictionary"""
+        if config_dict is None:
+            self.player_config = None
+        else:
+            self.player_config = json.dumps(config_dict)
+
+    def get_selectable_players(self):
+        """Gibt eine Liste der Spieler zurück, die für Auslosung verfügbar sind"""
+        if not self.members:
+            return []
+        
+        all_players = [m.strip() for m in self.members.split(',') if m.strip()]
+        player_config = self.get_player_config()
+        
+        # Filtere Spieler, die nicht ausgelost werden sollen
+        selectable = []
+        for player in all_players:
+            player_settings = player_config.get(player, {})
+            if player_settings.get('can_be_selected', True):  # Default: kann ausgelost werden
+                selectable.append(player)
+        
+        return selectable
+
+    def update_player_selection_status(self, player_name, can_be_selected=True):
+        """Aktualisiert den Auslosungs-Status eines Spielers"""
+        config = self.get_player_config()
+        if player_name not in config:
+            config[player_name] = {}
+        config[player_name]['can_be_selected'] = can_be_selected
+        self.set_player_config(config)
 
     def __repr__(self):
         return f'<Team {self.name}>'
@@ -526,22 +569,29 @@ class GameSession(db.Model):
                 selected[str(team.id)] = [team.name]
                 continue
                 
-            # Parse Team-Mitglieder (Format: "Name1, Name2, Name3")
+            # Verwende die neue get_selectable_players() Methode für bessere Spieler-Verwaltung
             try:
-                members = [m.strip() for m in team.members.split(',') if m.strip()]
-                if not members:
-                    selected[str(team.id)] = [team.name]
-                    continue
-                
-                # Spezialbehandlung für "ganzes Team"
+                # Unterscheidung zwischen "ganzes Team" und regulärer Auswahl
                 if count_per_team == "all":
-                    selected[str(team.id)] = members
+                    # Bei "ganzes Team" alle Spieler verwenden (auch nicht-auslosbare)
+                    all_members = [m.strip() for m in team.members.split(',') if m.strip()] if team.members else []
+                    if not all_members:
+                        selected[str(team.id)] = [team.name]
+                        continue
+                    selected[str(team.id)] = all_members
                     # Tracking für alle Spieler
-                    self._update_player_rotation_tracking(str(team.id), members)
+                    self._update_player_rotation_tracking(str(team.id), all_members)
                 else:
-                    # Faire Auswahl basierend auf Rotation
-                    selected_count = min(int(count_per_team), len(members))
-                    selected_members = self._select_fair_rotation(str(team.id), members, selected_count)
+                    # Bei normaler Auswahl nur auslosbare Spieler verwenden
+                    selectable_members = team.get_selectable_players()
+                    if not selectable_members:
+                        # Fallback wenn keine auslosbaren Spieler vorhanden
+                        selected[str(team.id)] = [team.name]
+                        continue
+                    
+                    # Faire Auswahl basierend auf Rotation aus auslosbaren Spielern
+                    selected_count = min(int(count_per_team), len(selectable_members))
+                    selected_members = self._select_fair_rotation(str(team.id), selectable_members, selected_count)
                     selected[str(team.id)] = selected_members
                     # Tracking aktualisieren
                     self._update_player_rotation_tracking(str(team.id), selected_members)
