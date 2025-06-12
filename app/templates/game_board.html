@@ -560,6 +560,7 @@ let currentMinigameDescription = "{{ active_session.current_minigame_description
 let currentGamePhase = "{{ active_session.current_phase | e if active_session else 'UNKNOWN' }}";
 
 let lastTeamTurnId = {{ active_session.current_team_turn_id if active_session and active_session.current_team_turn_id else 'null' }};
+let lastPhase = "";
 let gameStarted = false;
 
 
@@ -2776,7 +2777,6 @@ This tests the team_dashboard.html-style banner logic on game_board.html`, 8000,
     
     updateMinigameDisplay() {
         // Update any minigame-related UI elements
-        console.log(`Minigame Display Update - Name: ${currentMinigameName}, Phase: ${currentGamePhase}`);
     }
 
     async loadCharacterScript(jsPath) {
@@ -2966,14 +2966,6 @@ This tests the team_dashboard.html-style banner logic on game_board.html`, 8000,
                     
                     // === SEQUENTIAL TURN SYSTEM ===
                     
-                    // 1. Minigame System (separate from turn system) - QUEUE-BASIERT
-                    if (data.game_session.current_minigame_name && 
-                        data.game_session.current_minigame_name !== lastMinigameName && 
-                        lastMinigameName !== "") {
-                        console.log("🎮 New minigame detected, adding to queue:", data.game_session.current_minigame_name);
-                        this.addMinigameAnnouncementBanner(data.game_session.current_minigame_name, data.game_session.current_minigame_description);
-                    }
-                    
                     // === MINIGAME RESULTS BANNER (queue-based with high priority) ===
                     if (data.game_session.current_phase === 'DICE_ROLLING' && lastPhase !== 'DICE_ROLLING' && !hasShowMinigameResults) {
                         console.log("🏆 Phase changed to DICE_ROLLING - adding minigame results to queue with HIGH priority");
@@ -3062,7 +3054,6 @@ This tests the team_dashboard.html-style banner logic on game_board.html`, 8000,
                     // }
 
                     // Update tracking variables
-                    lastMinigameName = data.game_session.current_minigame_name || "";
                     lastPhase = data.game_session.current_phase || "UNKNOWN";
                     lastTeamTurnId = data.game_session.current_team_turn_id;
                     
@@ -3071,11 +3062,6 @@ This tests the team_dashboard.html-style banner logic on game_board.html`, 8000,
                     currentMinigameDescription = data.game_session.current_minigame_description;
                     currentGamePhase = data.game_session.current_phase;
                     
-                    // Update minigame folder name if provided by server
-                    if (data.game_session.minigame_folder_name) {
-                        window.currentMinigameFolderName = data.game_session.minigame_folder_name;
-                        console.log("📁 Minigame Folder aktualisiert:", data.game_session.minigame_folder_name);
-                    }
 
                     this.updateMinigameDisplay();
 
