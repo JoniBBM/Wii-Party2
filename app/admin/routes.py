@@ -1686,6 +1686,28 @@ def manage_folders():
     folders = MinigameFolder.query.order_by(MinigameFolder.name).all()
     return render_template('manage_folders.html', folders=folders)
 
+@admin_bp.route('/sync_folders')
+@login_required
+def sync_folders():
+    """Synchronisiert Minigame-Ordner zwischen Dateisystem und Datenbank"""
+    if not isinstance(current_user, Admin):
+        return redirect(url_for('main.index'))
+    
+    try:
+        from app.admin.minigame_utils import sync_folders_to_database
+        added_count = sync_folders_to_database()
+        
+        if added_count > 0:
+            flash(f'Erfolgreich {added_count} neue Ordner zur Datenbank hinzugefügt.', 'success')
+        else:
+            flash('Alle Ordner sind bereits synchronisiert.', 'info')
+            
+    except Exception as e:
+        current_app.logger.error(f"Fehler beim Synchronisieren der Ordner: {e}", exc_info=True)
+        flash('Fehler beim Synchronisieren der Ordner.', 'danger')
+    
+    return redirect(url_for('admin.manage_folders'))
+
 @admin_bp.route('/create_folder', methods=['GET', 'POST'])
 @login_required
 def create_folder():
@@ -1813,7 +1835,8 @@ def create_folder_minigame(folder_id):
             minigame_data = {
                 'name': form.name.data,
                 'description': form.description.data,
-                'type': form.type.data
+                'type': form.type.data,
+                'player_count': form.player_count.data
             }
             
             if add_minigame_to_folder(folder.folder_path, minigame_data):
@@ -1847,7 +1870,8 @@ def edit_folder_minigame(folder_id, minigame_id):
             updated_data = {
                 'name': form.name.data,
                 'description': form.description.data,
-                'type': form.type.data
+                'type': form.type.data,
+                'player_count': form.player_count.data
             }
             
             if update_minigame_in_folder(folder.folder_path, minigame_id, updated_data):
@@ -1945,8 +1969,18 @@ def edit_question(folder_id, question_id):
         flash('Frage nicht gefunden.', 'danger')
         return redirect(url_for('admin.edit_folder', folder_id=folder.id))
     
-    # Erstelle ein temporäres Objekt für das Form
-    question_obj = type('obj', (object,), question)()
+    # Erstelle ein temporäres Objekt für das Form mit korrekter Mapping der Multiple-Choice-Optionen
+    form_data = dict(question)  # Kopiere die Frage-Daten
+    
+    # Mappe Multiple-Choice-Optionen zu einzelnen Feldern
+    if question.get('question_type') == 'multiple_choice' and 'options' in question:
+        options = question['options']
+        form_data['option_1'] = options[0] if len(options) > 0 else ''
+        form_data['option_2'] = options[1] if len(options) > 1 else ''
+        form_data['option_3'] = options[2] if len(options) > 2 else ''
+        form_data['option_4'] = options[3] if len(options) > 3 else ''
+    
+    question_obj = type('obj', (object,), form_data)()
     form = EditQuestionForm(obj=question_obj)
     
     if form.validate_on_submit():
@@ -2042,6 +2076,13 @@ def create_round():
             db.session.add(round_obj)
             db.session.commit()
             
+            # Automatisches Backup der neuen Runde
+            try:
+                from app.admin.minigame_utils import save_round_to_filesystem
+                save_round_to_filesystem(round_obj)
+            except Exception as backup_e:
+                current_app.logger.warning(f"Backup der Runde '{round_obj.name}' fehlgeschlagen: {backup_e}")
+            
             flash(f"Spielrunde '{form.name.data}' erfolgreich erstellt.", 'success')
             return redirect(url_for('admin.manage_rounds'))
         except Exception as e:
@@ -2067,6 +2108,14 @@ def edit_round(round_id):
             round_obj.minigame_folder_id = form.minigame_folder_id.data
             
             db.session.commit()
+            
+            # Automatisches Backup der aktualisierten Runde
+            try:
+                from app.admin.minigame_utils import save_round_to_filesystem
+                save_round_to_filesystem(round_obj)
+            except Exception as backup_e:
+                current_app.logger.warning(f"Backup der aktualisierten Runde '{round_obj.name}' fehlgeschlagen: {backup_e}")
+            
             flash(f"Spielrunde '{form.name.data}' erfolgreich aktualisiert.", 'success')
             return redirect(url_for('admin.manage_rounds'))
         except Exception as e:
@@ -2088,6 +2137,7 @@ def delete_round(round_id):
     if request.method == 'POST' and form.validate_on_submit():
         try:
             was_active = round_obj.is_active
+            round_name = round_obj.name  # Namen vor dem Löschen speichern
             
             # Aktualisiere GameSessions
             GameSession.query.filter_by(game_round_id=round_obj.id).update({'game_round_id': None})
@@ -2103,7 +2153,15 @@ def delete_round(round_id):
                     flash(f"Runde '{other_round.name}' wurde automatisch aktiviert.", 'info')
             
             db.session.commit()
-            flash(f"Spielrunde '{round_obj.name}' erfolgreich gelöscht.", 'success')
+            
+            # Lösche auch das Backup aus dem Dateisystem
+            try:
+                from app.admin.minigame_utils import delete_round_from_filesystem
+                delete_round_from_filesystem(round_name)
+            except Exception as backup_e:
+                current_app.logger.warning(f"Löschen des Backups für Runde '{round_name}' fehlgeschlagen: {backup_e}")
+            
+            flash(f"Spielrunde '{round_name}' erfolgreich gelöscht.", 'success')
             return redirect(url_for('admin.manage_rounds'))
         except Exception as e:
             db.session.rollback()

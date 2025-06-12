@@ -423,8 +423,10 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
     
-    // Load saved data on page load
-    loadFormData();
+    // Clear saved data when creating a new question (start fresh)
+    localStorage.removeItem('questionFormData');
+    
+    // Don't load saved data for new questions - start with empty form
     
     // Save data on input changes
     const inputs = form.querySelectorAll('input, textarea, select');

@@ -385,6 +385,14 @@ class GameRound(db.Model):
         GameRound.query.update({'is_active': False})
         self.is_active = True
         db.session.commit()
+        
+        # Automatisches Backup nach Aktivierung
+        try:
+            from app.admin.minigame_utils import save_round_to_filesystem
+            save_round_to_filesystem(self)
+        except Exception as backup_e:
+            import logging
+            logging.warning(f"Backup der aktivierten Runde '{self.name}' fehlgeschlagen: {backup_e}")
 
     @classmethod
     def get_active_round(cls):

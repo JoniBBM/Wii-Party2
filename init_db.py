@@ -97,6 +97,40 @@ with app_instance.app_context():
             else:
                 print("Standard-Spielrunde existiert bereits.")
         
+        # NEU: Synchronisiere alle vorhandenen Ordner aus dem Dateisystem
+        print("\n--- Synchronisiere Minigame-Ordner aus Dateisystem ---")
+        try:
+            from app.admin.minigame_utils import sync_folders_to_database
+            added_count = sync_folders_to_database()
+            if added_count > 0:
+                print(f"✅ {added_count} zusätzliche Ordner aus dem Dateisystem hinzugefügt.")
+            else:
+                print("ℹ️  Alle Ordner bereits synchronisiert.")
+        except Exception as sync_e:
+            print(f"⚠️  Fehler beim Synchronisieren der Ordner: {sync_e}")
+            print("Das System funktioniert trotzdem mit den bereits initialisierten Ordnern.")
+        
+        # NEU: Stelle gespeicherte Runden aus dem Dateisystem wieder her
+        print("\n--- Stelle gespeicherte Runden wieder her ---")
+        try:
+            from app.admin.minigame_utils import restore_rounds_to_database
+            restored_count = restore_rounds_to_database()
+            if restored_count > 0:
+                print(f"✅ {restored_count} Runden aus Backups wiederhergestellt.")
+            else:
+                print("ℹ️  Keine zusätzlichen Runden zum Wiederherstellen gefunden.")
+        except Exception as restore_e:
+            print(f"⚠️  Fehler beim Wiederherstellen der Runden: {restore_e}")
+            print("Das System funktioniert trotzdem mit der Standard-Runde.")
+        
+        # Automatisches Backup der Standard-Runde erstellen
+        try:
+            from app.admin.minigame_utils import save_round_to_filesystem
+            save_round_to_filesystem(default_round)
+            print("✅ Backup der Standard-Runde erstellt.")
+        except Exception as backup_e:
+            print(f"⚠️  Backup der Standard-Runde fehlgeschlagen: {backup_e}")
+        
         db.session.commit()
         print("Minigame-Ordner und Spielrunden erfolgreich initialisiert.")
         

@@ -194,8 +194,9 @@ class FolderMinigameForm(FlaskForm):
         ('1', 'Pro Team 1 Spieler'),
         ('2', 'Pro Team 2 Spieler'),
         ('3', 'Pro Team 3 Spieler'),
-        ('4', 'Pro Team 4 Spieler')
-    ], validators=[DataRequired()], default='1')
+        ('4', 'Pro Team 4 Spieler'),
+        ('all', 'Ganzes Team')
+    ], validators=[DataRequired()], default='all')
     submit = SubmitField('Inhalt speichern')
 
 class EditFolderMinigameForm(FlaskForm):
@@ -212,8 +213,9 @@ class EditFolderMinigameForm(FlaskForm):
         ('1', 'Pro Team 1 Spieler'),
         ('2', 'Pro Team 2 Spieler'),
         ('3', 'Pro Team 3 Spieler'),
-        ('4', 'Pro Team 4 Spieler')
-    ], validators=[DataRequired()], default='1')
+        ('4', 'Pro Team 4 Spieler'),
+        ('all', 'Ganzes Team')
+    ], validators=[DataRequired()], default='all')
     submit = SubmitField('Änderungen speichern')
 
 # FRAGEN-FORMS (ohne Punkte)

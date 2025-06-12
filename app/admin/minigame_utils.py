@@ -105,7 +105,14 @@ def get_minigames_from_folder(folder_name: str) -> List[Dict[str, Any]]:
     try:
         with open(json_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
-            return data.get('minigames', [])
+            minigames = data.get('minigames', [])
+            
+            # Füge Default player_count für ältere Minispiele hinzu, die es nicht haben
+            for minigame in minigames:
+                if 'player_count' not in minigame:
+                    minigame['player_count'] = '1'  # Default: 1 Spieler pro Team
+            
+            return minigames
     except Exception as e:
         current_app.logger.error(f"Fehler beim Laden der Minispiele aus {folder_name}: {e}")
         return []
@@ -126,6 +133,10 @@ def add_minigame_to_folder(folder_name: str, minigame_data: Dict[str, Any]) -> b
         # Generiere eindeutige ID falls nicht vorhanden
         if 'id' not in minigame_data or not minigame_data['id']:
             minigame_data['id'] = str(uuid.uuid4())[:8]
+        
+        # Setze Default player_count falls nicht vorhanden
+        if 'player_count' not in minigame_data:
+            minigame_data['player_count'] = '1'  # Default: 1 Spieler pro Team
         
         # Füge Timestamp hinzu
         minigame_data['created_at'] = datetime.utcnow().isoformat()
@@ -275,6 +286,248 @@ def list_available_folders() -> List[str]:
             folders.append(item)
     
     return sorted(folders)
+
+def sync_folders_to_database() -> int:
+    """
+    Synchronisiert Minigame-Ordner zwischen Dateisystem und Datenbank.
+    Fügt fehlende Ordner zur Datenbank hinzu.
+    
+    Returns:
+        int: Anzahl der hinzugefügten Ordner
+    """
+    from app.models import MinigameFolder
+    from app import db
+    import json
+    from datetime import datetime
+    
+    folders_path = get_minigame_folders_path()
+    
+    if not os.path.exists(folders_path):
+        return 0
+    
+    # Bereits vorhandene Ordner in der Datenbank
+    existing_folders = {folder.folder_path: folder for folder in MinigameFolder.query.all()}
+    
+    added_count = 0
+    
+    # Durchsuche alle Ordner im Dateisystem
+    for item in os.listdir(folders_path):
+        folder_path = os.path.join(folders_path, item)
+        json_path = os.path.join(folder_path, 'minigames.json')
+        
+        # Nur Ordner mit gültiger JSON-Datei
+        if os.path.isdir(folder_path) and os.path.exists(json_path):
+            # Prüfe ob bereits in Datenbank
+            if item in existing_folders:
+                continue
+            
+            # Lade Beschreibung aus JSON
+            description = "Minigame-Sammlung"
+            try:
+                with open(json_path, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    if 'description' in data:
+                        description = data['description']
+            except Exception:
+                pass  # Verwende Standard-Beschreibung bei Fehlern
+            
+            # Erstelle Datenbankeintrag
+            try:
+                folder = MinigameFolder(
+                    name=item,
+                    description=description,
+                    folder_path=item,
+                    created_at=datetime.utcnow()
+                )
+                
+                db.session.add(folder)
+                db.session.commit()
+                added_count += 1
+                
+            except Exception:
+                db.session.rollback()
+    
+    return added_count
+
+def get_saved_rounds_path() -> str:
+    """Gibt den Pfad zum saved_rounds Verzeichnis zurück"""
+    import os
+    # Finde das Basedir (ein Verzeichnis über dem app Ordner)
+    current_dir = os.path.dirname(os.path.abspath(__file__))  # .../app/admin/
+    app_dir = os.path.dirname(current_dir)  # .../app/
+    base_dir = os.path.dirname(app_dir)  # .../
+    return os.path.join(base_dir, 'app', 'static', 'saved_rounds')
+
+def save_round_to_filesystem(round_obj) -> bool:
+    """
+    Speichert eine GameRound in das Dateisystem als JSON-Backup.
+    
+    Args:
+        round_obj: GameRound Objekt
+        
+    Returns:
+        bool: True wenn erfolgreich gespeichert
+    """
+    import json
+    from datetime import datetime
+    
+    try:
+        rounds_path = get_saved_rounds_path()
+        os.makedirs(rounds_path, exist_ok=True)
+        
+        # Erstelle JSON-Datei mit Runden-Daten
+        round_data = {
+            'name': round_obj.name,
+            'description': round_obj.description,
+            'minigame_folder_name': round_obj.minigame_folder.name if round_obj.minigame_folder else None,
+            'is_active': round_obj.is_active,
+            'created_at': round_obj.created_at.isoformat() if round_obj.created_at else datetime.utcnow().isoformat(),
+            'saved_at': datetime.utcnow().isoformat()
+        }
+        
+        # Sanitize filename (entferne gefährliche Zeichen)
+        safe_filename = "".join(c for c in round_obj.name if c.isalnum() or c in (' ', '-', '_')).rstrip()
+        json_filename = f"{safe_filename}.json"
+        json_path = os.path.join(rounds_path, json_filename)
+        
+        with open(json_path, 'w', encoding='utf-8') as f:
+            json.dump(round_data, f, indent=2, ensure_ascii=False)
+        
+        return True
+        
+    except Exception as e:
+        print(f"Fehler beim Speichern der Runde '{round_obj.name}': {e}")
+        return False
+
+def load_rounds_from_filesystem() -> List[dict]:
+    """
+    Lädt alle gespeicherten Runden aus dem Dateisystem.
+    
+    Returns:
+        List[dict]: Liste der Runden-Daten
+    """
+    import json
+    
+    rounds_path = get_saved_rounds_path()
+    
+    if not os.path.exists(rounds_path):
+        return []
+    
+    rounds = []
+    
+    try:
+        for filename in os.listdir(rounds_path):
+            if filename.endswith('.json'):
+                json_path = os.path.join(rounds_path, filename)
+                
+                try:
+                    with open(json_path, 'r', encoding='utf-8') as f:
+                        round_data = json.load(f)
+                        rounds.append(round_data)
+                except Exception as e:
+                    print(f"Fehler beim Laden der Runde aus {filename}: {e}")
+                    continue
+    
+    except Exception as e:
+        print(f"Fehler beim Durchsuchen der saved_rounds: {e}")
+    
+    return rounds
+
+def restore_rounds_to_database() -> int:
+    """
+    Stellt alle gespeicherten Runden aus dem Dateisystem in die Datenbank wieder her.
+    
+    Returns:
+        int: Anzahl der wiederhergestellten Runden
+    """
+    from app.models import GameRound, MinigameFolder
+    from app import db
+    from datetime import datetime
+    
+    saved_rounds = load_rounds_from_filesystem()
+    
+    if not saved_rounds:
+        return 0
+    
+    restored_count = 0
+    
+    for round_data in saved_rounds:
+        try:
+            # Prüfe ob Runde bereits existiert
+            existing_round = GameRound.query.filter_by(name=round_data['name']).first()
+            if existing_round:
+                continue
+            
+            # Finde den zugehörigen MinigameFolder
+            folder = None
+            if round_data.get('minigame_folder_name'):
+                folder = MinigameFolder.query.filter_by(name=round_data['minigame_folder_name']).first()
+            
+            if not folder:
+                print(f"⚠️  Ordner '{round_data.get('minigame_folder_name')}' für Runde '{round_data['name']}' nicht gefunden. Überspringe.")
+                continue
+            
+            # Erstelle neue GameRound
+            new_round = GameRound(
+                name=round_data['name'],
+                description=round_data.get('description', ''),
+                minigame_folder_id=folder.id,
+                is_active=False,  # Setze nicht automatisch als aktiv
+                created_at=datetime.fromisoformat(round_data['created_at']) if round_data.get('created_at') else datetime.utcnow()
+            )
+            
+            db.session.add(new_round)
+            restored_count += 1
+            
+        except Exception as e:
+            print(f"Fehler beim Wiederherstellen der Runde '{round_data.get('name', 'Unbekannt')}': {e}")
+            continue
+    
+    try:
+        db.session.commit()
+        return restored_count
+    except Exception as e:
+        db.session.rollback()
+        print(f"Fehler beim Speichern der wiederhergestellten Runden: {e}")
+        return 0
+
+def delete_round_from_filesystem(round_name: str) -> bool:
+    """
+    Löscht eine gespeicherte Runde aus dem Dateisystem.
+    
+    Args:
+        round_name: Name der zu löschenden Runde
+        
+    Returns:
+        bool: True wenn erfolgreich gelöscht
+    """
+    import os
+    
+    try:
+        rounds_path = get_saved_rounds_path()
+        
+        # Finde die JSON-Datei für diese Runde
+        for filename in os.listdir(rounds_path):
+            if filename.endswith('.json'):
+                json_path = os.path.join(rounds_path, filename)
+                
+                try:
+                    import json
+                    with open(json_path, 'r', encoding='utf-8') as f:
+                        round_data = json.load(f)
+                        
+                    if round_data.get('name') == round_name:
+                        os.remove(json_path)
+                        return True
+                        
+                except Exception:
+                    continue
+        
+        return False
+        
+    except Exception as e:
+        print(f"Fehler beim Löschen der Runde '{round_name}' aus Dateisystem: {e}")
+        return False
 
 def update_folder_info(folder_name: str, new_description: str) -> bool:
     """Aktualisiert die Beschreibung eines Ordners"""
