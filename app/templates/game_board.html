@@ -4871,9 +4871,23 @@ function checkForFaceOverlay() {
     // Hole aktuelle Phase von der globalen Variable
     const currentPhase = currentGamePhase;
     
-    // Prüfe ob Phase-Wechsel zu MINIGAME_STARTED oder SETUP_MINIGAME
-    const shouldShowFaces = (currentPhase === 'MINIGAME_STARTED' && lastKnownPhase !== 'MINIGAME_STARTED' && faceOverlayShownForPhase !== 'MINIGAME_STARTED') ||
-                           (currentPhase === 'SETUP_MINIGAME' && lastKnownPhase !== 'SETUP_MINIGAME' && faceOverlayShownForPhase !== 'SETUP_MINIGAME');
+    // Debug: Prüfe ob Funktion aufgerufen wird
+    console.log('🔍 checkForFaceOverlay() ausgeführt - Phase:', currentPhase, 'lastKnownPhase:', lastKnownPhase);
+    
+    // Debug: Zeige immer die aktuelle Phase
+    if (currentPhase !== lastKnownPhase) {
+        console.log('🔄 Phase-Wechsel:', lastKnownPhase, '->', currentPhase);
+    }
+    
+    // Erweiterte Phasen-Erkennung für Minispiele  
+    const minigamePhases = ['MINIGAME_ANNOUNCED', 'MINIGAME_STARTED', 'SETUP_MINIGAME', 'MINIGAME_RESULTS', 'DICE_ROLLING', 'PLAYING', 'WAITING_FOR_PLAYERS'];
+    const shouldShowFaces = minigamePhases.includes(currentPhase) && 
+                           lastKnownPhase !== currentPhase && 
+                           faceOverlayShownForPhase !== currentPhase;
+    
+    // Zusätzlich: Prüfe auch auf Minispiel-Namen in der Log-Ausgabe
+    const hasMinigameRunning = document.body.innerText.includes('Minigame:') || 
+                              (typeof window.currentMinigame !== 'undefined' && window.currentMinigame);
     
     if (shouldShowFaces) {
         console.log('🎭 Phase-Wechsel erkannt:', lastKnownPhase, '->', currentPhase, '- Prüfe Gesichter-Anzeige');
@@ -4882,8 +4896,24 @@ function checkForFaceOverlay() {
             .then(response => response.json())
             .then(data => {
                 if (data.success && data.show_faces && data.player_faces.length > 0) {
+                    console.log('🎭 Zeige ausgewählte Spieler:', data.player_faces);
                     showFaceOverlay(data.player_faces);
                     faceOverlayShownForPhase = currentPhase;
+                } else {
+                    // Fallback: Zeige alle verfügbaren Spieler wenn keine Auswahl getroffen wurde
+                    console.log('🎭 Keine Spieler ausgewählt, zeige alle verfügbaren Spieler');
+                    fetch('/api/get-all-player-images')
+                        .then(response => response.json())
+                        .then(allData => {
+                            if (allData.success && allData.players.length > 0) {
+                                console.log('🎭 Zeige alle verfügbaren Spieler:', allData.players);
+                                showFloatingBubbles(allData.players);
+                                faceOverlayShownForPhase = currentPhase;
+                            }
+                        })
+                        .catch(error => {
+                            console.log('Fehler beim Laden aller Spieler:', error);
+                        });
                 }
             })
             .catch(error => {
@@ -4892,7 +4922,7 @@ function checkForFaceOverlay() {
     }
     
     // Reset faceOverlayShownForPhase wenn andere Phase erreicht wird
-    if (currentPhase !== 'SETUP_MINIGAME' && currentPhase !== 'MINIGAME_STARTED') {
+    if (!minigamePhases.includes(currentPhase)) {
         faceOverlayShownForPhase = null;
     }
     
@@ -4902,6 +4932,9 @@ function checkForFaceOverlay() {
 
 function showFaceOverlay(playerFaces) {
     console.log('🎭 Zeige Face-Overlay für Minispiel-Spieler:', playerFaces);
+    
+    // Zeige die schwebenden Bubbles für alle Spieler mit echten Bildern
+    showFloatingBubbles(playerFaces);
     
     // Verwende das bestehende Face-Overlay Container
     const container = document.getElementById('face-overlay-container');
@@ -5220,6 +5253,30 @@ if (!window.updateGameStatus || typeof window.updateGameStatus !== 'function') {
     setInterval(checkForFaceOverlay, 3000);
 }
 
+// Test-Funktion für manuellen Trigger
+window.triggerFaceCheck = function() {
+    console.log('🧪 Manueller Face-Check ausgelöst');
+    checkForFaceOverlay();
+};
+
+// Funktion zum direkten Anzeigen aller Spieler bei Minispiel-Start
+window.showAllPlayersForMinigame = function() {
+    console.log('🎮 Minispiel gestartet - zeige alle Spieler');
+    fetch('/api/get-all-player-images')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.players.length > 0) {
+                console.log('🎭 Zeige alle Spieler für Minispiel:', data.players);
+                showFloatingBubbles(data.players);
+            } else {
+                console.log('⚠️ Keine Spieler für Minispiel gefunden');
+            }
+        })
+        .catch(error => {
+            console.error('❌ Fehler beim Laden der Minispiel-Spieler:', error);
+        });
+};
+
 // Cleanup bei Seitenverlassen
 window.addEventListener('beforeunload', function() {
     if (faceOverlayTimer) {
@@ -5468,17 +5525,70 @@ function hideAllOverlays() {
 }
 
 
-// Zeige Gesichter als schwebende Bubbles
+// Zeige Gesichter als schwebende Bubbles (für Test)
 function showFaceBanner(playerFaces) {
     console.log('🎭 Zeige schwebende Gesichter-Bubbles:', playerFaces);
+    showFloatingBubbles(playerFaces);
+}
+
+// Zeige schwebende Bubbles automatisch für Minispiel-Spieler
+function showFloatingBubbles(playerFaces) {
+    console.log('🎭 Zeige automatische schwebende Bubbles für:', playerFaces);
     
     // Entferne vorherige Bubbles falls vorhanden
     const existingBubbles = document.querySelectorAll('.face-bubble');
     existingBubbles.forEach(bubble => bubble.remove());
     
-    playerFaces.forEach((player, index) => {
-        createFloatingBubble(player, index);
+    // Sicherheitscheck: Stelle sicher, dass playerFaces ein Array ist
+    if (!Array.isArray(playerFaces)) {
+        console.log('⚠️ playerFaces ist kein Array:', playerFaces);
+        return;
+    }
+    
+    // Filter nur Spieler mit echten Bildern (haben image_path)
+    const playersWithImages = playerFaces.filter(player => {
+        if (!player || typeof player !== 'object') {
+            console.log('⚠️ Ungültiger Spieler:', player);
+            return false;
+        }
+        
+        const hasValidImage = player.image_path && 
+               player.image_path.trim() !== '' && 
+               !player.image_path.includes('default') &&
+               player.image_path.includes('profile_images');
+               
+        if (hasValidImage) {
+            console.log('✅ Gültiger Spieler mit Bild gefunden:', player.player_name || player.name, player.image_path);
+        }
+        
+        return hasValidImage;
     });
+    
+    console.log('🖼️ Spieler mit echten Bildern gefunden:', playersWithImages.length, 'von', playerFaces.length);
+    
+    if (playersWithImages.length === 0) {
+        console.log('⚠️ Keine Spieler mit echten Bildern gefunden');
+        // Zeige Debug-Info für alle Spieler
+        playerFaces.forEach((player, i) => {
+            console.log(`Spieler ${i}:`, {
+                player_name: player?.player_name,
+                name: player?.name,
+                image_path: player?.image_path,
+                team_id: player?.team_id,
+                team_name: player?.team_name
+            });
+        });
+        return;
+    }
+    
+    // Erstelle Bubbles auch wenn Spielbrett noch nicht vollständig geladen ist
+    try {
+        playersWithImages.forEach((player, index) => {
+            createFloatingBubble(player, index);
+        });
+    } catch (error) {
+        console.error('❌ Fehler beim Erstellen der Bubbles:', error);
+    }
 }
 
 function createFloatingBubble(player, index) {
@@ -5505,7 +5615,7 @@ function createFloatingBubble(player, index) {
     `;
     
     const name = document.createElement('div');
-    name.textContent = player.name;
+    name.textContent = player.player_name || player.name;
     name.style.cssText = `
         margin-top: 10px;
         font-size: 28px;
@@ -5543,13 +5653,13 @@ function createFloatingBubble(player, index) {
         y += vy + Math.cos(time * 1.5 + index) * 0.5;
         
         // Grenzen prüfen und abprallen lassen
-        if (x <= 0 || x >= window.innerWidth - 120) {
+        if (x <= 0 || x >= window.innerWidth - 240) {
             vx = -vx;
-            x = Math.max(0, Math.min(window.innerWidth - 120, x));
+            x = Math.max(0, Math.min(window.innerWidth - 240, x));
         }
-        if (y <= 0 || y >= window.innerHeight - 140) {
+        if (y <= 0 || y >= window.innerHeight - 280) {
             vy = -vy;
-            y = Math.max(0, Math.min(window.innerHeight - 140, y));
+            y = Math.max(0, Math.min(window.innerHeight - 280, y));
         }
         
         // Position aktualisieren
@@ -5596,32 +5706,62 @@ function testRealImages() {
         testImg.src = `/static/${imagePath}`;
     });
     
-    // Zeige Face-Overlay mit verfügbaren Bildern
-    const realFaces = [
-        {
-            name: "Jonas",
-            team_name: "Team Rot", 
-            team_id: 1,
-            team_color: "#ff5722",
-            image_path: "profile_images/1_Jonas_20250613_164541.jpg"
-        },
-        {
-            name: "Leonie",
-            team_name: "Team Blau",
-            team_id: 2, 
-            team_color: "#2196f3",
-            image_path: "profile_images/1_Leonie_20250613_164555.jpg"
-        }
-    ];
+    // Lade verfügbare Spieler und ihre Bilder vom Server
+    console.log('🔍 Lade alle verfügbaren Spieler und ihre Bilder...');
     
-    console.log('🎭 Zeige Face-Overlay mit echten Bildern:', realFaces);
-    showFaceOverlay(realFaces);
-    
-    // Zeige Gesichter als großen Banner
-    showFaceBanner(realFaces);
+    fetch('/api/get-all-player-images')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.players.length > 0) {
+                console.log('✅ Verfügbare Spieler mit Bildern:', data.players);
+                showFloatingBubbles(data.players);
+            } else {
+                console.log('⚠️ Keine Spieler mit Bildern gefunden');
+                // Fallback zu Test-Daten
+                const fallbackFaces = [
+                    {
+                        player_name: "JonasHandball",
+                        team_name: "Team 1", 
+                        team_id: 1,
+                        team_color: "#ff5722",
+                        image_path: "profile_images/1_JonasHandball_20250613_174137.jpg"
+                    },
+                    {
+                        player_name: "Leonie",
+                        team_name: "Team 1",
+                        team_id: 1, 
+                        team_color: "#ff5722",
+                        image_path: "profile_images/1_Leonie_20250613_174147.jpg"
+                    },
+                    {
+                        player_name: "Kristof",
+                        team_name: "Team 2",
+                        team_id: 2, 
+                        team_color: "#2196f3",
+                        image_path: "profile_images/1_Kristof_20250613_174210.jpg"
+                    },
+                    {
+                        player_name: "Tim",
+                        team_name: "Team 2",
+                        team_id: 2, 
+                        team_color: "#2196f3",
+                        image_path: "profile_images/1_Tim_20250613_174157.jpg"
+                    }
+                ];
+                showFloatingBubbles(fallbackFaces);
+            }
+        })
+        .catch(error => {
+            console.error('❌ Fehler beim Laden der Spieler-Daten:', error);
+        });
 }
 
 console.log('✅ Face-Overlay-System für Profilbilder geladen');
+
+// Starte Face-Overlay-Check sofort und dann alle 3 Sekunden
+console.log('🚀 Starte Face-Overlay-Check System...');
+checkForFaceOverlay(); // Einmal sofort ausführen
+setInterval(checkForFaceOverlay, 3000); // Dann alle 3 Sekunden
 
 </script>
 {% endblock %}

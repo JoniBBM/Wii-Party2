@@ -1086,12 +1086,13 @@ def get_player_faces():
             return jsonify({"success": False, "error": "Keine aktive Spielsitzung"}), 404
         
         # Prüfe ob Minispiel läuft und nicht alle Teams spielen
-        # Zeige Gesichter bei SETUP_MINIGAME und MINIGAME_STARTED
-        if active_session.current_phase not in ['SETUP_MINIGAME', 'MINIGAME_STARTED']:
+        # Zeige Gesichter bei verschiedenen Minispiel-Phasen
+        minigame_phases = ['MINIGAME_ANNOUNCED', 'SETUP_MINIGAME', 'MINIGAME_STARTED', 'MINIGAME_RESULTS', 'DICE_ROLLING']
+        if active_session.current_phase not in minigame_phases:
             return jsonify({
                 "success": True,
                 "show_faces": False,
-                "message": "Kein Minispiel aktiv"
+                "message": f"Kein Minispiel aktiv (Phase: {active_session.current_phase})"
             })
         
         # Hole ausgewählte Spieler aus der Session
@@ -1140,6 +1141,40 @@ def get_player_faces():
         
     except Exception as e:
         current_app.logger.error(f"Fehler beim Abrufen der Spieler-Gesichter: {e}", exc_info=True)
+        return jsonify({"success": False, "error": "Ein Fehler ist aufgetreten"}), 500
+
+@main_bp.route('/api/get-all-player-images')
+def get_all_player_images():
+    """Gibt alle verfügbaren Spieler mit ihren Profilbildern zurück"""
+    try:
+        teams = Team.query.all()
+        all_players = []
+        
+        for team in teams:
+            # Hole Team-Farbe
+            team_color = team.character.color if team.character else '#CCCCCC'
+            
+            # Hole alle Profilbilder des Teams
+            profile_images = team.get_profile_images()
+            
+            for player_name, image_path in profile_images.items():
+                if image_path and image_path.strip():
+                    all_players.append({
+                        "player_name": player_name,
+                        "team_name": team.name,
+                        "team_id": team.id,
+                        "team_color": team_color,
+                        "image_path": image_path
+                    })
+        
+        return jsonify({
+            "success": True,
+            "players": all_players,
+            "total_players": len(all_players)
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"Fehler beim Abrufen aller Spieler-Bilder: {e}", exc_info=True)
         return jsonify({"success": False, "error": "Ein Fehler ist aufgetreten"}), 500
 
 @main_bp.route('/api/profile-image-status')
