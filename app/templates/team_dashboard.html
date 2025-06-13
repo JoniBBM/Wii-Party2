@@ -1404,6 +1404,7 @@ let lastSelectedPlayers = null;
 let bannerTimer = null;
 let progressTimer = null;
 let lastSpecialFieldEventId = null;
+let lastSpecialFieldEventTime = 0; // Track when last special field event occurred
 let originalDiceMovement = null; // Store original dice movement for display
 let originalDiceRolls = null; // Store original dice roll values for catapult events
 
@@ -1539,6 +1540,7 @@ function updateDashboard(data) {
         // Only show banner if this is a new event
         if (event.event_id && event.event_id !== lastSpecialFieldEventId) {
             lastSpecialFieldEventId = event.event_id;
+            lastSpecialFieldEventTime = Date.now(); // Track when this event occurred
             
             // Store original dice movement for dice result display
             if (event.dice_old_position !== undefined && event.dice_new_position !== undefined) {
@@ -1607,23 +1609,26 @@ function updateDashboard(data) {
             
             // If dice animation is currently showing, wait for it to complete
             if (isDiceAnimationShowing) {
-                delay = 8500; // Wait for full dice animation (8s) + 500ms buffer
+                delay = 9000; // Wait for full dice animation (8s) + 1000ms buffer for safety
             } 
             // If this is the current team's turn ending, wait for dice result
             else if (!currentUser.is_current_turn && isCurrentlyMyTurn) {
-                delay = 3000; // Wait for dice result to be processed and shown
+                delay = 4000; // Extended wait for dice result to be fully processed and shown
             }
-            // For catapult and swap events, always add some delay for better UX
-            else if (event.type === 'catapult_forward' || event.type === 'catapult_backward') {
-                delay = 1500; // Short delay to ensure movement is complete
-            }
-            // For player swap events, longer delay for initiating team to show dice result first
+            // For player swap events, ensure dice result is shown first for initiating team
             else if (event.type === 'player_swap') {
                 if (event.is_initiating_team) {
-                    delay = 4000; // Longer delay for team that rolled dice to see dice result first
+                    // Check if dice animation was recently shown
+                    const recentlyRolled = isCurrentlyMyTurn || (Date.now() - lastSpecialFieldEventTime < 10000);
+                    delay = recentlyRolled ? 5000 : 2000; // Longer delay if recently rolled dice
                 } else {
                     delay = 1500; // Shorter delay for team that was swapped
                 }
+            }
+            // For catapult events, ensure movement animation completes
+            else if (event.type === 'catapult_forward' || event.type === 'catapult_backward') {
+                const recentlyRolled = isCurrentlyMyTurn || (Date.now() - lastSpecialFieldEventTime < 10000);
+                delay = recentlyRolled ? 4000 : 1500; // Longer delay if recently rolled dice
             }
             // For barrier events, show more quickly
             else if (event.type.includes('barrier')) {
@@ -1712,16 +1717,40 @@ function initializeProgressChart() {
                     borderWidth: 1,
                     callbacks: {
                         label: function(context) {
-                            const dataPoint = chartData[context.dataIndex];
+                            const dataPoint = lastProgressData[context.dataIndex];
+                            if (!dataPoint) return `Position: ${context.parsed.y}`;
+                            
                             let label = `Position: ${context.parsed.y}`;
-                            if (dataPoint.dice_roll && dataPoint.dice_roll > 0) {
+                            
+                            // Verschiedene Event-Typen
+                            if (dataPoint.event_type && dataPoint.event_type.includes('catapult')) {
+                                const direction = dataPoint.catapult_direction || 'unbekannt';
+                                const distance = dataPoint.catapult_distance || 0;
+                                label += ` (Katapult ${direction}: ${distance} Felder)`;
+                            } else if (dataPoint.event_type === 'special_field_player_swap') {
+                                const teamName = dataPoint.swap_team_name || 'Unbekannt';
+                                const role = dataPoint.is_initiating_team ? 'Initiiert' : 'Getauscht';
+                                label += ` (${role} Tausch mit ${teamName})`;
+                            } else if (dataPoint.dice_roll && dataPoint.dice_roll > 0) {
                                 label += ` (Würfel: ${dataPoint.dice_roll})`;
+                            } else if (dataPoint.description && dataPoint.description !== 'Bewegung') {
+                                label += ` (${dataPoint.description})`;
                             }
+                            
                             return label;
                         },
                         afterLabel: function(context) {
-                            const dataPoint = chartData[context.dataIndex];
-                            return `Zeit: ${dataPoint.timestamp}`;
+                            const dataPoint = lastProgressData[context.dataIndex];
+                            if (!dataPoint) return '';
+                            
+                            let additionalInfo = `Zeit: ${dataPoint.timestamp}`;
+                            
+                            // Zusätzliche Informationen je Event-Typ
+                            if (dataPoint.description && dataPoint.description !== `Position: ${context.parsed.y}`) {
+                                additionalInfo += `\nAktion: ${dataPoint.description}`;
+                            }
+                            
+                            return additionalInfo;
                         }
                     }
                 }

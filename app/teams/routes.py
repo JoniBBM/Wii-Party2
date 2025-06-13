@@ -56,7 +56,11 @@ def _get_team_game_progress(team_user):
         game_session_id=active_session.id,
         related_team_id=team_user.id
     ).filter(
-        GameEvent.event_type.in_(['dice_roll', 'admin_dice_roll', 'admin_dice_roll_legacy'])
+        GameEvent.event_type.in_([
+            'dice_roll', 'admin_dice_roll', 'admin_dice_roll_legacy',
+            'special_field_catapult_forward', 'special_field_catapult_backward',
+            'special_field_player_swap'
+        ])
     ).order_by(GameEvent.timestamp).all()
     
     progress_data = []
@@ -71,45 +75,83 @@ def _get_team_game_progress(team_user):
     })
     
     for event in move_events:
-        move_number += 1
-        
-        # Parse data_json für neue und alte Position
-        old_position = 0
-        new_position = team_user.current_position  # Fallback zur aktuellen Position
-        dice_total = 0
-        
+        # Parse data_json für Event-Daten
+        event_data = {}
         if event.data_json:
             try:
-                # Versuche JSON parsing zuerst
                 if isinstance(event.data_json, str):
                     try:
                         event_data = json.loads(event.data_json)
                     except json.JSONDecodeError:
-                        # Fallback zu eval für Legacy-Daten
                         try:
                             event_data = eval(event.data_json)
                         except:
                             event_data = {}
                 else:
                     event_data = event.data_json
-                
-                old_position = event_data.get('old_position', 0)
-                new_position = event_data.get('new_position', team_user.current_position)
-                dice_total = event_data.get('total_roll', 0)
-                standard_roll = event_data.get('standard_roll', 0)
-                bonus_roll = event_data.get('bonus_roll', 0)
-                
             except Exception as e:
-                # Falls Parsing fehlschlägt, verwende Fallback-Werte
-                pass
+                event_data = {}
         
-        progress_data.append({
-            'move': move_number,
-            'position': new_position,
-            'timestamp': event.timestamp.strftime('%H:%M:%S'),
-            'description': f'Würfelwurf: {dice_total}' if dice_total > 0 else 'Bewegung',
-            'dice_roll': dice_total
-        })
+        # Behandle verschiedene Event-Typen
+        if event.event_type in ['dice_roll', 'admin_dice_roll', 'admin_dice_roll_legacy']:
+            # Standard Würfel-Event
+            move_number += 1
+            old_position = event_data.get('old_position', 0)
+            new_position = event_data.get('new_position', team_user.current_position)
+            dice_total = event_data.get('total_roll', 0)
+            
+            progress_data.append({
+                'move': move_number,
+                'position': new_position,
+                'timestamp': event.timestamp.strftime('%H:%M:%S'),
+                'description': f'Würfelwurf: {dice_total}' if dice_total > 0 else 'Bewegung',
+                'dice_roll': dice_total,
+                'event_type': event.event_type
+            })
+            
+        elif event.event_type in ['special_field_catapult_forward', 'special_field_catapult_backward']:
+            # Katapult-Event
+            move_number += 1
+            old_position = event_data.get('old_position', 0)
+            new_position = event_data.get('new_position', team_user.current_position)
+            catapult_distance = event_data.get('catapult_distance', 0)
+            direction = 'vorwärts' if event.event_type == 'special_field_catapult_forward' else 'rückwärts'
+            
+            progress_data.append({
+                'move': move_number,
+                'position': new_position,
+                'timestamp': event.timestamp.strftime('%H:%M:%S'),
+                'description': f'Katapult {direction}: {catapult_distance} Felder',
+                'catapult_distance': catapult_distance,
+                'catapult_direction': direction,
+                'event_type': event.event_type
+            })
+            
+        elif event.event_type == 'special_field_player_swap':
+            # Spieler-Tausch Event
+            move_number += 1
+            is_initiating = event_data.get('is_initiating_team', False)
+            
+            if is_initiating:
+                # Team das gewürfelt hat
+                old_position = event_data.get('current_team_old_position', 0)
+                new_position = event_data.get('current_team_new_position', team_user.current_position)
+                swap_team_name = event_data.get('swap_team_name', 'Unbekannt')
+            else:
+                # Team das getauscht wurde
+                old_position = event_data.get('swap_team_old_position', 0)
+                new_position = event_data.get('swap_team_new_position', team_user.current_position)
+                swap_team_name = event_data.get('current_team_name', 'Unbekannt')
+            
+            progress_data.append({
+                'move': move_number,
+                'position': new_position,
+                'timestamp': event.timestamp.strftime('%H:%M:%S'),
+                'description': f'Tausch mit {swap_team_name}',
+                'swap_team_name': swap_team_name,
+                'is_initiating_team': is_initiating,
+                'event_type': event.event_type
+            })
     
     return progress_data
 
