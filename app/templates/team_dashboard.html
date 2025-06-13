@@ -1474,6 +1474,9 @@ function updateDashboard(data) {
                     // For catapult events, use the original dice movement positions, not final position
                     const oldPos = originalDiceMovement ? originalDiceMovement.oldPos : lastGameData.current_user.position;
                     const newPos = originalDiceMovement ? originalDiceMovement.newPos : (lastGameData.current_user.position + diceData.total_roll);
+                    
+                    console.log('Using original dice rolls for catapult event:', diceData, 'positions:', oldPos, '->', newPos);
+                    
                     showDiceResultAnimation(diceData.standard_roll, diceData.bonus_roll, diceData.total_roll, 
                                           oldPos, newPos,
                                           currentUser.is_blocked, currentUser.blocked_target_number);
