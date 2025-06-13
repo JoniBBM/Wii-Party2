@@ -467,11 +467,9 @@ body {
         <!-- Face-Overlay System INNERHALB game-canvas-container für Vollbild-Sichtbarkeit -->
         <div id="face-overlay-container" class="face-overlay-container">
             <div class="face-overlay-background"></div>
-            <div class="face-overlay-title" id="face-overlay-title">Die Spieler sind bereit!</div>
             <div class="face-grid" id="face-grid">
                 <!-- Gesichter werden hier dynamisch eingefügt -->
             </div>
-            <div class="face-overlay-timer" id="face-overlay-timer">10</div>
         </div>
         
         <!-- Würfelergebnis-Anzeige nur temporär beim Würfeln -->
@@ -4922,24 +4920,11 @@ function showFaceOverlay(playerFaces) {
     // Verwende das bestehende Face-Overlay Container
     const container = document.getElementById('face-overlay-container');
     const faceGrid = document.getElementById('face-grid');
-    const title = document.getElementById('face-overlay-title');
-    const timer = document.getElementById('face-overlay-timer');
     
-    if (!container || !faceGrid || !title || !timer) {
+    if (!container || !faceGrid) {
         console.error('Face-Overlay Elemente nicht gefunden');
         return;
     }
-    
-    // Bestimme Titel basierend auf Spieleranzahl
-    const playerCount = playerFaces.length;
-    let titleText = 'Diese Spieler sind bereit!';
-    if (playerCount === 1) {
-        titleText = 'Dieser Spieler ist bereit!';
-    } else {
-        titleText = `Diese ${playerCount} Spieler sind bereit!`;
-    }
-    
-    title.textContent = titleText;
     
     // Erstelle Gesichter-Grid
     faceGrid.innerHTML = '';
@@ -4982,20 +4967,6 @@ function showFaceOverlay(playerFaces) {
         container.style.position = 'fixed';
         container.style.zIndex = '2147483647';
     }
-    
-    // Timer
-    let countdown = 10;
-    timer.textContent = countdown;
-    
-    const timerInterval = setInterval(() => {
-        countdown--;
-        timer.textContent = countdown;
-        
-        if (countdown <= 0) {
-            clearInterval(timerInterval);
-            container.classList.remove('show');
-        }
-    }, 1000);
 }
 
 function showDirectFaceOverlay(playerFaces) {
