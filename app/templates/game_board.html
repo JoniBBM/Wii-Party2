@@ -173,42 +173,49 @@ body {
 
 /* PROFILBILD FACE-OVERLAY SYSTEM */
 .face-overlay-container {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    z-index: 10000;
-    pointer-events: none;
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    z-index: 2147483646 !important;
+    pointer-events: auto !important;
     opacity: 0;
     transition: opacity 0.5s ease-in-out;
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
 }
 
 .face-overlay-container.show {
-    opacity: 1;
+    opacity: 1 !important;
+    pointer-events: auto !important;
 }
 
 .face-overlay-background {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0, 0, 0, 0.3);
-    backdrop-filter: blur(2px);
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    background: rgba(0, 0, 0, 0.7) !important;
+    backdrop-filter: blur(5px) !important;
+    z-index: 2147483645 !important;
 }
 
 .face-overlay-title {
-    position: absolute;
-    top: 10%;
-    left: 50%;
-    transform: translateX(-50%);
-    color: white;
-    font-size: 2.5rem;
-    font-weight: 900;
-    text-shadow: 0 4px 15px rgba(0, 0, 0, 0.7);
-    text-align: center;
-    z-index: 10001;
+    position: absolute !important;
+    top: 10% !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    color: white !important;
+    font-size: 2.5rem !important;
+    font-weight: 900 !important;
+    text-shadow: 0 4px 15px rgba(0, 0, 0, 0.7) !important;
+    text-align: center !important;
+    z-index: 2147483647 !important;
     animation: fadeInDown 0.8s ease-out;
 }
 
@@ -224,16 +231,16 @@ body {
 }
 
 .face-grid {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-    gap: 2rem;
-    max-width: 90%;
-    max-height: 60%;
-    z-index: 10001;
+    position: absolute !important;
+    top: 50% !important;
+    left: 50% !important;
+    transform: translate(-50%, -50%) !important;
+    display: grid !important;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)) !important;
+    gap: 2rem !important;
+    max-width: 90% !important;
+    max-height: 60% !important;
+    z-index: 2147483647 !important;
 }
 
 .face-card {
@@ -274,11 +281,14 @@ body {
     width: 120px;
     height: 120px;
     border-radius: 50%;
-    object-fit: cover;
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
     border: 4px solid #ffffff;
-    margin-bottom: 1rem;
+    margin: 0 auto 1rem auto;
     box-shadow: 0 5px 20px rgba(0, 0, 0, 0.2);
     transition: transform 0.3s ease;
+    background-color: #f0f0f0;
 }
 
 .face-image:hover {
@@ -302,18 +312,18 @@ body {
 }
 
 .face-overlay-timer {
-    position: absolute;
-    bottom: 15%;
-    left: 50%;
-    transform: translateX(-50%);
-    background: rgba(255, 255, 255, 0.9);
-    color: #333;
-    padding: 1rem 2rem;
-    border-radius: 30px;
-    font-size: 1.5rem;
-    font-weight: 700;
-    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
-    z-index: 10001;
+    position: absolute !important;
+    bottom: 15% !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    background: rgba(255, 255, 255, 0.9) !important;
+    color: #333 !important;
+    padding: 1rem 2rem !important;
+    border-radius: 30px !important;
+    font-size: 1.5rem !important;
+    font-weight: 700 !important;
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3) !important;
+    z-index: 2147483647 !important;
     animation: pulseTimer 1s ease-in-out infinite alternate;
 }
 
@@ -395,6 +405,20 @@ body {
     border-radius: 0 !important;
 }
 
+/* Face-Overlay im Vollbild-Modus */
+#game-canvas-container:fullscreen .face-overlay-container,
+#game-canvas-container:-webkit-full-screen .face-overlay-container,
+#game-canvas-container:-moz-full-screen .face-overlay-container {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    z-index: 2147483647 !important;
+}
+
 @media (max-width: 768px) {
     body {
         padding: 10px;
@@ -440,6 +464,16 @@ body {
     <div id="game-canvas-container">
         <canvas id="game-canvas"></canvas>
         
+        <!-- Face-Overlay System INNERHALB game-canvas-container für Vollbild-Sichtbarkeit -->
+        <div id="face-overlay-container" class="face-overlay-container">
+            <div class="face-overlay-background"></div>
+            <div class="face-overlay-title" id="face-overlay-title">Die Spieler sind bereit!</div>
+            <div class="face-grid" id="face-grid">
+                <!-- Gesichter werden hier dynamisch eingefügt -->
+            </div>
+            <div class="face-overlay-timer" id="face-overlay-timer">10</div>
+        </div>
+        
         <!-- Würfelergebnis-Anzeige nur temporär beim Würfeln -->
         <div id="dice-result-display" class="dice-result-display" style="display: none;">
             <div id="dice-result-standard" class="dice-result-part">Standard: <span>-</span></div>
@@ -455,17 +489,27 @@ body {
             <div id="special-field-description" class="special-field-description">Etwas Besonderes ist passiert!</div>
         </div>
         
-        <!-- Face-Overlay System für Minispiel-Ankündigungen -->
-        <div id="face-overlay-container" class="face-overlay-container">
-            <div class="face-overlay-background"></div>
-            <div class="face-overlay-title" id="face-overlay-title">Die Spieler sind bereit!</div>
-            <div class="face-grid" id="face-grid">
-                <!-- Gesichter werden hier dynamisch eingefügt -->
-            </div>
-            <div class="face-overlay-timer" id="face-overlay-timer">10</div>
+        <!-- DEBUG: Test-Button für Face-Overlay -->
+        <div style="position: fixed; top: 10px; right: 10px; z-index: 99999999;">
+            <button onclick="testFaceOverlay()" style="background: #ff4444; color: white; padding: 10px; border: none; border-radius: 5px; cursor: pointer; margin-right: 5px;">
+                🎭 Test Face-Overlay
+            </button>
+            <button onclick="testSimpleOverlay()" style="background: #44ff44; color: white; padding: 10px; border: none; border-radius: 5px; cursor: pointer; margin-right: 5px;">
+                ✅ Simple Test
+            </button>
+            <button onclick="createDirectOverlay()" style="background: #ff9900; color: white; padding: 10px; border: none; border-radius: 5px; cursor: pointer; margin-right: 5px;">
+                🚀 Direct Test
+            </button>
+            <button onclick="hideAllOverlays()" style="background: #999999; color: white; padding: 10px; border: none; border-radius: 5px; cursor: pointer; margin-right: 5px;">
+                ❌ Hide All
+            </button>
+            <button onclick="testRealImages()" style="background: #9c27b0; color: white; padding: 10px; border: none; border-radius: 5px; cursor: pointer;">
+                📸 Test Real Images
+            </button>
         </div>
     </div>
 </div>
+
 
 {% endblock %}
 
@@ -4824,86 +4868,329 @@ let faceOverlayCountdown = 10;
 
 // Integration in die bestehende Update-Funktion
 function checkForFaceOverlay() {
-    fetch('/api/get-player-faces')
-        .then(response => response.json())
-        .then(data => {
-            if (data.success && data.show_faces && data.player_faces.length > 0) {
-                showFaceOverlay(data.player_faces);
-            }
-        })
-        .catch(error => {
-            console.log('Face-Overlay-Check failed (normal if no faces available):', error);
-        });
+    // Hole aktuelle Phase von der globalen Variable
+    const currentPhase = currentGamePhase;
+    
+    // Prüfe ob Phase-Wechsel zu MINIGAME_STARTED oder SETUP_MINIGAME
+    const shouldShowFaces = (currentPhase === 'MINIGAME_STARTED' && lastKnownPhase !== 'MINIGAME_STARTED' && faceOverlayShownForPhase !== 'MINIGAME_STARTED') ||
+                           (currentPhase === 'SETUP_MINIGAME' && lastKnownPhase !== 'SETUP_MINIGAME' && faceOverlayShownForPhase !== 'SETUP_MINIGAME');
+    
+    if (shouldShowFaces) {
+        console.log('🎭 Phase-Wechsel erkannt:', lastKnownPhase, '->', currentPhase, '- Prüfe Gesichter-Anzeige');
+        
+        fetch('/api/get-player-faces')
+            .then(response => response.json())
+            .then(data => {
+                if (data.success && data.show_faces && data.player_faces.length > 0) {
+                    showFaceOverlay(data.player_faces);
+                    faceOverlayShownForPhase = currentPhase;
+                }
+            })
+            .catch(error => {
+                console.log('Face-Overlay-Check failed (normal if no faces available):', error);
+            });
+    }
+    
+    // Reset faceOverlayShownForPhase wenn andere Phase erreicht wird
+    if (currentPhase !== 'SETUP_MINIGAME' && currentPhase !== 'MINIGAME_STARTED') {
+        faceOverlayShownForPhase = null;
+    }
+    
+    // Update lastKnownPhase
+    lastKnownPhase = currentPhase;
 }
 
 function showFaceOverlay(playerFaces) {
     console.log('🎭 Zeige Face-Overlay für Minispiel-Spieler:', playerFaces);
     
+    // Verwende das bestehende Face-Overlay Container
     const container = document.getElementById('face-overlay-container');
     const faceGrid = document.getElementById('face-grid');
     const title = document.getElementById('face-overlay-title');
     const timer = document.getElementById('face-overlay-timer');
     
-    // Set title based on number of players
-    const playerCount = playerFaces.length;
-    if (playerCount === 1) {
-        title.textContent = 'Dieser Spieler ist bereit!';
-    } else {
-        title.textContent = `Diese ${playerCount} Spieler sind bereit!`;
+    if (!container || !faceGrid || !title || !timer) {
+        console.error('Face-Overlay Elemente nicht gefunden');
+        return;
     }
     
-    // Clear previous faces
-    faceGrid.innerHTML = '';
+    // Bestimme Titel basierend auf Spieleranzahl
+    const playerCount = playerFaces.length;
+    let titleText = 'Diese Spieler sind bereit!';
+    if (playerCount === 1) {
+        titleText = 'Dieser Spieler ist bereit!';
+    } else {
+        titleText = `Diese ${playerCount} Spieler sind bereit!`;
+    }
     
-    // Add player faces
+    title.textContent = titleText;
+    
+    // Erstelle Gesichter-Grid
+    faceGrid.innerHTML = '';
     playerFaces.forEach((player, index) => {
         const faceCard = document.createElement('div');
         faceCard.className = 'face-card';
-        faceCard.style.animationDelay = `${0.1 + index * 0.1}s`;
         
-        faceCard.innerHTML = `
-            <img src="/static/${player.image_path}" 
-                 class="face-image" 
-                 alt="${player.player_name}"
-                 onerror="this.style.display='none'">
-            <div class="face-player-name">${player.player_name}</div>
-            <div class="face-team-info" style="background-color: ${player.team_color}; color: white;">
-                ${player.team_name}
-            </div>
-        `;
+        const faceImage = document.createElement('div');
+        faceImage.className = 'face-image';
         
+        // Prüfe ob Bild existiert, verwende Fallback wenn nicht
+        const img = new Image();
+        const imagePath = player.image_path.startsWith('/static/') ? player.image_path : `/static/${player.image_path}`;
+        
+        img.onload = () => {
+            faceImage.style.backgroundImage = `url('${imagePath}')`;
+        };
+        img.onerror = () => {
+            faceImage.style.backgroundImage = 'none';
+            faceImage.style.backgroundColor = '#4CAF50';
+            faceImage.innerHTML = '<span style="color: white; font-size: 3rem; line-height: 112px; display: block; text-align: center;">👤</span>';
+        };
+        img.src = imagePath;
+        
+        const playerName = document.createElement('div');
+        playerName.className = 'face-player-name';
+        playerName.textContent = player.name;
+        
+        faceCard.appendChild(faceImage);
+        faceCard.appendChild(playerName);
         faceGrid.appendChild(faceCard);
     });
     
-    // Show overlay with animation
+    // Zeige Container
     container.classList.add('show');
     
-    // Start countdown timer
-    faceOverlayCountdown = 10;
-    timer.textContent = faceOverlayCountdown;
-    
-    if (faceOverlayTimer) {
-        clearInterval(faceOverlayTimer);
+    // Für Vollbild-Modus: überschreibe position zu fixed
+    const isInFullscreen = document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement;
+    if (isInFullscreen) {
+        container.style.position = 'fixed';
+        container.style.zIndex = '2147483647';
     }
     
-    faceOverlayTimer = setInterval(() => {
-        faceOverlayCountdown--;
-        timer.textContent = faceOverlayCountdown;
+    // Timer
+    let countdown = 10;
+    timer.textContent = countdown;
+    
+    const timerInterval = setInterval(() => {
+        countdown--;
+        timer.textContent = countdown;
         
-        if (faceOverlayCountdown <= 0) {
-            hideFaceOverlay();
+        if (countdown <= 0) {
+            clearInterval(timerInterval);
+            container.classList.remove('show');
         }
     }, 1000);
+}
+
+function showDirectFaceOverlay(playerFaces) {
+    console.log('🚀 Zeige direktes Face-Overlay für:', playerFaces);
     
-    // Auto-hide after 10 seconds (backup)
-    setTimeout(() => {
-        hideFaceOverlay();
-    }, 10500);
+    // Entferne bestehende Face-Overlays
+    const existingOverlays = document.querySelectorAll('.face-overlay-direct');
+    existingOverlays.forEach(el => el.remove());
+    
+    // Bestimme Titel basierend auf Spieleranzahl
+    const playerCount = playerFaces.length;
+    let titleText = 'Diese Spieler sind bereit!';
+    if (playerCount === 1) {
+        titleText = 'Dieser Spieler ist bereit!';
+    } else {
+        titleText = `Diese ${playerCount} Spieler sind bereit!`;
+    }
+    
+    // CSS für fliegende Gesichter-Animation
+    const animationCSS = `
+        <style>
+            @keyframes floatFace {
+                0% { transform: translate(-50%, -50%) scale(0) rotate(0deg); opacity: 0; }
+                20% { transform: translate(-50%, -50%) scale(1.2) rotate(5deg); opacity: 1; }
+                40% { transform: translate(-40%, -60%) scale(1) rotate(-3deg); }
+                60% { transform: translate(-60%, -40%) scale(1.1) rotate(2deg); }
+                80% { transform: translate(-45%, -55%) scale(0.9) rotate(-1deg); }
+                100% { transform: translate(-50%, -50%) scale(1) rotate(0deg); }
+            }
+            
+            @keyframes floatFace2 {
+                0% { transform: translate(-50%, -50%) scale(0) rotate(0deg); opacity: 0; }
+                25% { transform: translate(-50%, -50%) scale(1.1) rotate(-4deg); opacity: 1; }
+                50% { transform: translate(-35%, -45%) scale(1) rotate(3deg); }
+                75% { transform: translate(-65%, -55%) scale(1.05) rotate(-2deg); }
+                100% { transform: translate(-50%, -50%) scale(1) rotate(0deg); }
+            }
+            
+            .floating-face {
+                animation-duration: 3s;
+                animation-iteration-count: infinite;
+                animation-timing-function: ease-in-out;
+            }
+            
+            .floating-face:nth-child(odd) {
+                animation-name: floatFace;
+            }
+            
+            .floating-face:nth-child(even) {
+                animation-name: floatFace2;
+                animation-delay: 0.5s;
+            }
+        </style>
+    `;
+    
+    // Erstelle fliegende Gesichter HTML
+    let flyingFacesHTML = '';
+    playerFaces.forEach((player, index) => {
+        const randomX = 20 + Math.random() * 60; // 20% bis 80% vom Bildschirm
+        const randomY = 20 + Math.random() * 60; // 20% bis 80% vom Bildschirm
+        const delay = index * 0.5; // Versetzter Start
+        
+        flyingFacesHTML += `
+            <div class="floating-face" style="
+                position: fixed;
+                left: ${randomX}%;
+                top: ${randomY}%;
+                transform: translate(-50%, -50%);
+                z-index: 2147483647;
+                pointer-events: none;
+                animation-delay: ${delay}s;
+            ">
+                <div style="
+                    width: 150px;
+                    height: 150px;
+                    border-radius: 50%;
+                    border: 6px solid white;
+                    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+                    background: linear-gradient(135deg, ${player.team_color}, ${player.team_color}dd);
+                    background-image: url('/static/${player.image_path}');
+                    background-size: cover;
+                    background-position: center;
+                    background-repeat: no-repeat;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    font-size: 5rem;
+                    color: white;
+                    text-shadow: 0 2px 10px rgba(0,0,0,0.5);
+                    position: relative;
+                ">${player.image_path.includes('nonexistent') ? '👤' : ''}
+                    <div style="
+                        position: absolute;
+                        bottom: -50px;
+                        left: 50%;
+                        transform: translateX(-50%);
+                        background: rgba(0, 0, 0, 0.8);
+                        color: white;
+                        padding: 0.5rem 1rem;
+                        border-radius: 20px;
+                        font-size: 1rem;
+                        font-weight: bold;
+                        white-space: nowrap;
+                        text-align: center;
+                    ">${player.player_name}</div>
+                </div>
+            </div>
+        `;
+    });
+    
+    // Erstelle komplettes Overlay direkt - für VOLLBILD optimiert
+    const overlay = document.createElement('div');
+    overlay.className = 'face-overlay-direct';
+    overlay.innerHTML = animationCSS + `
+        <div style="
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            width: 100vw !important;
+            height: 100vh !important;
+            z-index: 2147483647 !important;
+            pointer-events: none !important;
+            background: rgba(0, 0, 0, 0.6) !important;
+            backdrop-filter: blur(3px) !important;
+        "></div>
+        <div style="
+            position: fixed !important;
+            top: 5% !important;
+            left: 50% !important;
+            transform: translateX(-50%) !important;
+            color: white !important;
+            font-size: 3rem !important;
+            font-weight: 900 !important;
+            text-shadow: 0 4px 15px rgba(0, 0, 0, 0.8) !important;
+            text-align: center !important;
+            z-index: 2147483647 !important;
+            pointer-events: none !important;
+        ">${titleText}</div>
+        ${flyingFacesHTML}
+        <div id="face-overlay-direct-timer" style="
+            position: fixed !important;
+            bottom: 5% !important;
+            left: 50% !important;
+            transform: translateX(-50%) !important;
+            background: rgba(255, 255, 255, 0.9) !important;
+            color: #333 !important;
+            padding: 1.5rem 3rem !important;
+            border-radius: 50px !important;
+            font-size: 2rem !important;
+            font-weight: 700 !important;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4) !important;
+            z-index: 2147483647 !important;
+            pointer-events: none !important;
+        ">10</div>
+    `;
+    
+    // Füge zum body hinzu
+    document.body.appendChild(overlay);
+    console.log('✅ Direktes Face-Overlay erstellt und angezeigt');
+    
+    // Prüfe Bilder und zeige Fallback bei Fehlern
+    playerFaces.forEach((player, index) => {
+        if (!player.image_path.includes('nonexistent')) {
+            const faceElement = document.getElementById(`face-${index}`);
+            if (faceElement) {
+                // Teste ob Bild lädt
+                const testImg = new Image();
+                testImg.onload = function() {
+                    // Bild erfolgreich geladen - verstecke 👤
+                    faceElement.textContent = '';
+                };
+                testImg.onerror = function() {
+                    // Bild konnte nicht geladen werden - zeige 👤
+                    faceElement.textContent = '👤';
+                    faceElement.style.backgroundImage = 'none';
+                    console.log(`⚠️ Profilbild für ${player.player_name} nicht gefunden - zeige Fallback`);
+                };
+                testImg.src = `/static/${player.image_path}`;
+            }
+        }
+    });
+    
+    // Timer starten
+    let countdown = 10;
+    const timerElement = document.getElementById('face-overlay-direct-timer');
+    
+    const timer = setInterval(() => {
+        countdown--;
+        if (timerElement) {
+            timerElement.textContent = countdown;
+        }
+        
+        if (countdown <= 0) {
+            clearInterval(timer);
+            overlay.remove();
+            console.log('🎭 Face-Overlay automatisch versteckt nach 10 Sekunden');
+        }
+    }, 1000);
 }
 
 function hideFaceOverlay() {
+    // Verstecke das ursprüngliche Face-Overlay
     const container = document.getElementById('face-overlay-container');
-    container.classList.remove('show');
+    if (container) {
+        container.classList.remove('show');
+        container.style.display = 'none';
+    }
+    
+    // Entferne alle direkten Face-Overlays
+    const directOverlays = document.querySelectorAll('.face-overlay-direct');
+    directOverlays.forEach(el => el.remove());
     
     if (faceOverlayTimer) {
         clearInterval(faceOverlayTimer);
@@ -4913,13 +5200,17 @@ function hideFaceOverlay() {
     console.log('🎭 Face-Overlay versteckt');
 }
 
+// Phase-Tracking für Gesichter-Anzeige
+let lastKnownPhase = null;
+let faceOverlayShownForPhase = null;
+
 // Integration in bestehende Update-Funktion erweitern
 // Suche nach der bestehenden updateGameStatus Funktion und erweitere sie
 const originalUpdateGameStatus = window.updateGameStatus || function() {};
 window.updateGameStatus = function() {
     originalUpdateGameStatus();
     
-    // Check for face overlay nur bei SETUP_MINIGAME Phase
+    // Check for face overlay bei SETUP_MINIGAME und MINIGAME_STARTED Phase
     checkForFaceOverlay();
 };
 
@@ -4935,6 +5226,400 @@ window.addEventListener('beforeunload', function() {
         clearInterval(faceOverlayTimer);
     }
 });
+
+// Test-Funktion für Face-Overlay
+function testFaceOverlay() {
+    console.log('🧪 Teste Face-Overlay manuell');
+    
+    // Zeige erstmal nur das Container-Element
+    const container = document.getElementById('face-overlay-container');
+    const faceGrid = document.getElementById('face-grid');
+    const title = document.getElementById('face-overlay-title');
+    const timer = document.getElementById('face-overlay-timer');
+    
+    console.log('🔍 Face-Overlay Elemente:', {
+        container: !!container,
+        faceGrid: !!faceGrid,
+        title: !!title,
+        timer: !!timer,
+        containerVisible: container ? getComputedStyle(container).display : 'not found',
+        containerOpacity: container ? getComputedStyle(container).opacity : 'not found',
+        containerZIndex: container ? getComputedStyle(container).zIndex : 'not found'
+    });
+    
+    if (!container) {
+        console.error('❌ Face-Overlay-Container nicht gefunden!');
+        alert('Face-Overlay-Container nicht gefunden!');
+        return;
+    }
+    
+    // Setze Titel
+    title.textContent = 'TEST: Face-Overlay funktioniert!';
+    
+    // Erstelle Test-Gesichter mit echten Bildern aus dem System
+    const testFaces = [
+        {
+            player_name: "Jonas",
+            team_name: "Team Rot",
+            team_id: 1,
+            team_color: "#ff5722",
+            image_path: "profile_images/1_Jonas_20250613_164541.jpg" // Echtes Bild
+        },
+        {
+            player_name: "Leonie", 
+            team_name: "Team Blau",
+            team_id: 2,
+            team_color: "#2196f3",
+            image_path: "profile_images/1_Leonie_20250613_164555.jpg" // Echtes Bild
+        }
+    ];
+    
+    console.log('🎭 Zeige Test-Gesichter:', testFaces);
+    showFaceOverlay(testFaces);
+}
+
+// Einfacherer Test ohne Bilder
+function testSimpleOverlay() {
+    console.log('🧪 Teste einfaches Overlay ohne Bilder');
+    
+    const container = document.getElementById('face-overlay-container');
+    const title = document.getElementById('face-overlay-title');
+    const timer = document.getElementById('face-overlay-timer');
+    const faceGrid = document.getElementById('face-grid');
+    
+    if (!container) {
+        alert('Container nicht gefunden!');
+        return;
+    }
+    
+    // FORCE das Styling direkt via JavaScript
+    container.style.cssText = `
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
+        width: 100% !important;
+        height: 100% !important;
+        z-index: 999999999 !important;
+        background: rgba(0, 0, 0, 0.8) !important;
+        display: flex !important;
+        flex-direction: column !important;
+        justify-content: center !important;
+        align-items: center !important;
+        opacity: 1 !important;
+        pointer-events: auto !important;
+    `;
+    
+    // Force Titel-Styling
+    title.style.cssText = `
+        color: white !important;
+        font-size: 3rem !important;
+        font-weight: bold !important;
+        text-align: center !important;
+        margin-bottom: 2rem !important;
+        z-index: 999999999 !important;
+    `;
+    
+    // Force Timer-Styling
+    timer.style.cssText = `
+        color: yellow !important;
+        font-size: 2rem !important;
+        font-weight: bold !important;
+        text-align: center !important;
+        margin-top: 2rem !important;
+        z-index: 999999999 !important;
+    `;
+    
+    // Verstecke Grid, zeige nur Titel und Timer
+    faceGrid.innerHTML = '<div style="color: white !important; font-size: 2rem !important; text-align: center !important; z-index: 999999999 !important;">TEST: Das Overlay funktioniert!</div>';
+    title.textContent = 'OVERLAY-TEST ERFOLGREICH!';
+    timer.textContent = '5';
+    
+    console.log('📺 Zeige einfaches Test-Overlay mit Force-Styling...');
+    
+    // Auto-Hide nach 5 Sekunden
+    setTimeout(() => {
+        console.log('🎯 Verstecke Test-Overlay nach 5 Sekunden');
+        container.style.display = 'none';
+    }, 5000);
+}
+
+// Komplett neue direkte Overlay-Funktion
+function createDirectOverlay() {
+    console.log('🚀 Erstelle direktes Overlay...');
+    
+    // Entferne alle bestehenden Test-Overlays
+    const existingOverlays = document.querySelectorAll('.direct-test-overlay');
+    existingOverlays.forEach(el => el.remove());
+    
+    // Erstelle neues Overlay-Element direkt
+    const overlay = document.createElement('div');
+    overlay.className = 'direct-test-overlay';
+    overlay.innerHTML = `
+        <div style="
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            z-index: 2147483647;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            font-family: Arial, sans-serif;
+        ">
+            <h1 style="font-size: 4rem; margin-bottom: 2rem; text-align: center;">
+                🎭 FACE OVERLAY TEST
+            </h1>
+            <p style="font-size: 2rem; margin-bottom: 3rem; text-align: center;">
+                Das ist ein direktes Overlay - es sollte über ALLEM stehen!
+            </p>
+            <div style="
+                display: grid;
+                grid-template-columns: repeat(2, 200px);
+                gap: 2rem;
+                margin-bottom: 3rem;
+            ">
+                <div style="
+                    background: rgba(255, 87, 34, 0.9);
+                    padding: 2rem;
+                    border-radius: 20px;
+                    text-align: center;
+                    border: 3px solid white;
+                ">
+                    <div style="font-size: 4rem; margin-bottom: 1rem;">👤</div>
+                    <div style="font-size: 1.2rem; font-weight: bold;">Test Spieler 1</div>
+                    <div style="font-size: 1rem; margin-top: 0.5rem;">Team Rot</div>
+                </div>
+                <div style="
+                    background: rgba(33, 150, 243, 0.9);
+                    padding: 2rem;
+                    border-radius: 20px;
+                    text-align: center;
+                    border: 3px solid white;
+                ">
+                    <div style="font-size: 4rem; margin-bottom: 1rem;">👤</div>
+                    <div style="font-size: 1.2rem; font-weight: bold;">Test Spieler 2</div>
+                    <div style="font-size: 1rem; margin-top: 0.5rem;">Team Blau</div>
+                </div>
+            </div>
+            <div id="direct-timer" style="
+                background: rgba(255, 255, 255, 0.9);
+                color: black;
+                padding: 1rem 2rem;
+                border-radius: 30px;
+                font-size: 2rem;
+                font-weight: bold;
+            ">5</div>
+        </div>
+    `;
+    
+    // Füge direkt zum body hinzu
+    document.body.appendChild(overlay);
+    
+    console.log('✅ Direktes Overlay erstellt und zum body hinzugefügt');
+    
+    // Countdown Timer
+    let countdown = 5;
+    const timerElement = document.getElementById('direct-timer');
+    
+    const timer = setInterval(() => {
+        countdown--;
+        if (timerElement) {
+            timerElement.textContent = countdown;
+        }
+        
+        if (countdown <= 0) {
+            clearInterval(timer);
+            overlay.remove();
+            console.log('🎯 Direktes Overlay nach 5 Sekunden entfernt');
+        }
+    }, 1000);
+}
+
+// Funktion zum Verstecken aller Overlays
+function hideAllOverlays() {
+    console.log('❌ Verstecke alle Overlays...');
+    
+    // Verstecke das Face-Overlay
+    const container = document.getElementById('face-overlay-container');
+    if (container) {
+        container.style.display = 'none';
+        container.classList.remove('show');
+    }
+    
+    // Entferne alle direkten Test-Overlays
+    const directOverlays = document.querySelectorAll('.direct-test-overlay');
+    directOverlays.forEach(el => el.remove());
+    
+    // Entferne auch Face-Overlays
+    const faceOverlays = document.querySelectorAll('.face-overlay-direct');
+    faceOverlays.forEach(el => el.remove());
+    
+    // Stoppe alle Timer
+    if (faceOverlayTimer) {
+        clearInterval(faceOverlayTimer);
+        faceOverlayTimer = null;
+    }
+    
+    console.log('✅ Alle Overlays versteckt');
+}
+
+
+// Zeige Gesichter als schwebende Bubbles
+function showFaceBanner(playerFaces) {
+    console.log('🎭 Zeige schwebende Gesichter-Bubbles:', playerFaces);
+    
+    // Entferne vorherige Bubbles falls vorhanden
+    const existingBubbles = document.querySelectorAll('.face-bubble');
+    existingBubbles.forEach(bubble => bubble.remove());
+    
+    playerFaces.forEach((player, index) => {
+        createFloatingBubble(player, index);
+    });
+}
+
+function createFloatingBubble(player, index) {
+    const bubble = document.createElement('div');
+    bubble.className = 'face-bubble';
+    bubble.style.cssText = `
+        position: fixed;
+        width: 240px;
+        height: 280px;
+        z-index: 9999;
+        pointer-events: none;
+        text-align: center;
+    `;
+    
+    const img = document.createElement('img');
+    img.src = `/static/${player.image_path}`;
+    img.style.cssText = `
+        width: 200px;
+        height: 200px;
+        border-radius: 50%;
+        border: 6px solid ${player.team_color};
+        object-fit: cover;
+        box-shadow: 0 8px 30px rgba(0,0,0,0.3);
+    `;
+    
+    const name = document.createElement('div');
+    name.textContent = player.name;
+    name.style.cssText = `
+        margin-top: 10px;
+        font-size: 28px;
+        font-weight: bold;
+        color: ${player.team_color};
+        text-shadow: 2px 2px 4px rgba(0,0,0,0.7);
+        background: rgba(0,0,0,0.5);
+        padding: 4px 16px;
+        border-radius: 20px;
+    `;
+    
+    bubble.appendChild(img);
+    bubble.appendChild(name);
+    document.body.appendChild(bubble);
+    
+    // Startposition (zufällig am Rand)
+    const startX = Math.random() * (window.innerWidth - 240);
+    const startY = Math.random() * (window.innerHeight - 280);
+    bubble.style.left = startX + 'px';
+    bubble.style.top = startY + 'px';
+    
+    // Animation Parameter
+    let x = startX;
+    let y = startY;
+    let vx = (Math.random() - 0.5) * 4; // Geschwindigkeit X
+    let vy = (Math.random() - 0.5) * 4; // Geschwindigkeit Y
+    let time = 0;
+    
+    // Animationsschleife
+    const animate = () => {
+        time += 0.02;
+        
+        // Schwebe-Bewegung mit Sin/Cos für natürlichere Bewegung
+        x += vx + Math.sin(time * 2 + index) * 0.5;
+        y += vy + Math.cos(time * 1.5 + index) * 0.5;
+        
+        // Grenzen prüfen und abprallen lassen
+        if (x <= 0 || x >= window.innerWidth - 120) {
+            vx = -vx;
+            x = Math.max(0, Math.min(window.innerWidth - 120, x));
+        }
+        if (y <= 0 || y >= window.innerHeight - 140) {
+            vy = -vy;
+            y = Math.max(0, Math.min(window.innerHeight - 140, y));
+        }
+        
+        // Position aktualisieren
+        bubble.style.left = x + 'px';
+        bubble.style.top = y + 'px';
+        
+        // Rotation für lebendige Bewegung
+        bubble.style.transform = `rotate(${Math.sin(time * 3) * 5}deg)`;
+    };
+    
+    // Animation starten
+    const animationInterval = setInterval(animate, 16); // ~60fps
+    
+    // Bubble nach 10 Sekunden entfernen
+    setTimeout(() => {
+        clearInterval(animationInterval);
+        if (bubble.parentNode) {
+            bubble.style.transition = 'opacity 1s';
+            bubble.style.opacity = '0';
+            setTimeout(() => bubble.remove(), 1000);
+        }
+    }, 10000);
+}
+
+// Test mit echten verfügbaren Bildern
+function testRealImages() {
+    console.log('📸 Teste mit echten verfügbaren Bildern...');
+    
+    // Liste der verfügbaren Bilder (aus /app/static/profile_images/)
+    const availableImages = [
+        'profile_images/1_Jonas_20250613_164541.jpg',
+        'profile_images/1_Leonie_20250613_164555.jpg'
+    ];
+    
+    // Teste jeden Bildpfad
+    availableImages.forEach((imagePath, index) => {
+        const testImg = new Image();
+        testImg.onload = function() {
+            console.log(`✅ Bild verfügbar: ${imagePath}`);
+        };
+        testImg.onerror = function() {
+            console.log(`❌ Bild nicht verfügbar: ${imagePath}`);
+        };
+        testImg.src = `/static/${imagePath}`;
+    });
+    
+    // Zeige Face-Overlay mit verfügbaren Bildern
+    const realFaces = [
+        {
+            name: "Jonas",
+            team_name: "Team Rot", 
+            team_id: 1,
+            team_color: "#ff5722",
+            image_path: "profile_images/1_Jonas_20250613_164541.jpg"
+        },
+        {
+            name: "Leonie",
+            team_name: "Team Blau",
+            team_id: 2, 
+            team_color: "#2196f3",
+            image_path: "profile_images/1_Leonie_20250613_164555.jpg"
+        }
+    ];
+    
+    console.log('🎭 Zeige Face-Overlay mit echten Bildern:', realFaces);
+    showFaceOverlay(realFaces);
+    
+    // Zeige Gesichter als großen Banner
+    showFaceBanner(realFaces);
+}
 
 console.log('✅ Face-Overlay-System für Profilbilder geladen');
 

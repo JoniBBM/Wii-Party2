@@ -1086,11 +1086,12 @@ def get_player_faces():
             return jsonify({"success": False, "error": "Keine aktive Spielsitzung"}), 404
         
         # Prüfe ob Minispiel läuft und nicht alle Teams spielen
-        if active_session.current_phase != 'SETUP_MINIGAME':
+        # Zeige Gesichter bei SETUP_MINIGAME und MINIGAME_STARTED
+        if active_session.current_phase not in ['SETUP_MINIGAME', 'MINIGAME_STARTED']:
             return jsonify({
                 "success": True,
                 "show_faces": False,
-                "message": "Kein Minispiel in Vorbereitung"
+                "message": "Kein Minispiel aktiv"
             })
         
         # Hole ausgewählte Spieler aus der Session

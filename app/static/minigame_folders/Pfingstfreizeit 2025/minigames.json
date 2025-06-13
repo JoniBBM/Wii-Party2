@@ -194,6 +194,22 @@
       "player_count": "2",
       "id": "2791c3bf",
       "created_at": "2025-06-13T14:43:13.456127"
+    },
+    {
+      "name": "Pantomime ",
+      "description": "Immer eine person aus jeder Gruppe macht eine Minute Pantomime vor.",
+      "type": "game",
+      "player_count": "1",
+      "id": "e661454f",
+      "created_at": "2025-06-13T16:59:46.701110"
+    },
+    {
+      "name": "Lieder raten",
+      "description": "Wir raten Lieder",
+      "type": "game",
+      "player_count": "1",
+      "id": "764d960c",
+      "created_at": "2025-06-13T17:04:29.779243"
     }
   ]
 }
