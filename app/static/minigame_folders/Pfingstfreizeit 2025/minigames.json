@@ -9,57 +9,73 @@
       "name": "Zeit schätzen",
       "description": "Ihr müsst bei diesem Minispiel die Zeit schätzen, die Zeit wird vom Spielleiter angesagt. ",
       "type": "game",
+      "player_count": "1",
       "id": "e6112a21",
-      "created_at": "2025-06-12T19:32:46.328830"
+      "created_at": "2025-06-12T19:32:46.328830",
+      "updated_at": "2025-06-13T11:13:49.722965"
     },
     {
       "name": "Strecke schätzen",
       "description": "Ihr müsst bei diesem Minispiel eine Strecke schätzen von einem Startpunkt aus.",
       "type": "game",
+      "player_count": "1",
       "id": "ce50355d",
-      "created_at": "2025-06-12T19:33:43.705614"
+      "created_at": "2025-06-12T19:33:43.705614",
+      "updated_at": "2025-06-13T11:13:58.901564"
     },
     {
       "name": "Zombiefriedhof",
       "description": "Es gibt zwei Zombies die versuchen die Menschen zu fangen. Es darf dabei pro Beat-Schlag bloß ein Schritt gegangen werden. Wer gefangen ist, wird auch Zombie. Es wird gespielt bis einer übrig ist.",
       "type": "game",
+      "player_count": "2",
       "id": "06662f6a",
-      "created_at": "2025-06-12T19:38:52.382485"
+      "created_at": "2025-06-12T19:38:52.382485",
+      "updated_at": "2025-06-13T11:14:04.129904"
     },
     {
       "name": "Treppenlauf",
       "description": "Ihr müsst am oberen Ende der Treppe ankomen. Dafür müsst ihr ein Schild hochhalten, wie viel Schritte ihr gehen wollt. Ihr dürft dabei nur gehen, wenn euer Schild nur einmal vorkommt.",
       "type": "game",
+      "player_count": "1",
       "id": "016d985a",
-      "created_at": "2025-06-12T19:42:04.063378"
+      "created_at": "2025-06-12T19:42:04.063378",
+      "updated_at": "2025-06-13T11:14:09.458718"
     },
     {
       "name": "Spotlight",
       "description": "Wir spielen Reise nach Jerusalem",
       "type": "game",
+      "player_count": "all",
       "id": "d39ec16b",
-      "created_at": "2025-06-12T19:43:06.885478"
+      "created_at": "2025-06-12T19:43:06.885478",
+      "updated_at": "2025-06-13T11:14:15.327327"
     },
     {
       "name": "Geschenkstapel",
       "description": "Ihr müsst ein Teammitglied mit verschiedenen Objekten beladen. Destso mehr Objekte getragen werden, destso besser.",
       "type": "game",
+      "player_count": "2",
       "id": "b9aba545",
-      "created_at": "2025-06-12T19:46:13.781601"
+      "created_at": "2025-06-12T19:46:13.781601",
+      "updated_at": "2025-06-13T11:14:41.825673"
     },
     {
       "name": "Space Race",
       "description": "Bobbycar Rennen",
       "type": "game",
+      "player_count": "1",
       "id": "89661e29",
-      "created_at": "2025-06-12T19:46:48.762325"
+      "created_at": "2025-06-12T19:46:48.762325",
+      "updated_at": "2025-06-13T11:14:57.819796"
     },
     {
       "name": "Zombieball",
       "description": "Ihr spielt Zombieball gegeneinander. Dafür dürft ihr euch im Team passen, maximal drei schritte gehen. Wer als letztes übrig bleibt gewinnt",
       "type": "game",
+      "player_count": "all",
       "id": "acbdddb6",
-      "created_at": "2025-06-12T19:51:54.494220"
+      "created_at": "2025-06-12T19:51:54.494220",
+      "updated_at": "2025-06-13T11:15:04.834517"
     },
     {
       "name": "Muttertag Äthopien",

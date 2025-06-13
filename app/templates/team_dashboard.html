@@ -1468,7 +1468,9 @@ function updateDashboard(data) {
             
             if (positionChanged || currentUser.is_blocked) {
                 // Check if we have original dice rolls from catapult/special field events
-                if (originalDiceRolls) {
+                if (originalDiceRolls && 
+                    originalDiceRolls.standard_roll !== undefined && 
+                    originalDiceRolls.total_roll !== undefined) {
                     // Use stored dice roll values from catapult events
                     const diceData = originalDiceRolls;
                     // For catapult events, use the original dice movement positions, not final position
@@ -1476,6 +1478,7 @@ function updateDashboard(data) {
                     const newPos = originalDiceMovement ? originalDiceMovement.newPos : (lastGameData.current_user.position + diceData.total_roll);
                     
                     console.log('Using original dice rolls for catapult event:', diceData, 'positions:', oldPos, '->', newPos);
+                    console.log('Position data - lastPos:', lastGameData.current_user.position, 'currentPos:', currentUser.position);
                     
                     showDiceResultAnimation(diceData.standard_roll, diceData.bonus_roll, diceData.total_roll, 
                                           oldPos, newPos,
@@ -1484,19 +1487,41 @@ function updateDashboard(data) {
                     originalDiceRolls = null;
                     originalDiceMovement = null;
                 } else if (gameData.last_dice_result) {
-                    // Use server data when available
+                    // Use server data when available - this should have the correct dice values
                     const diceData = gameData.last_dice_result;
+                    console.log('Using server dice data:', diceData);
+                    
+                    // If we have originalDiceMovement, use those positions for more accurate display
+                    const oldPos = originalDiceMovement ? originalDiceMovement.oldPos : lastGameData.current_user.position;
+                    const newPos = originalDiceMovement ? originalDiceMovement.newPos : (oldPos + diceData.total_roll);
+                    
                     showDiceResultAnimation(diceData.standard_roll, diceData.bonus_roll, diceData.total_roll, 
-                                          lastGameData.current_user.position, currentUser.position,
+                                          oldPos, newPos,
                                           currentUser.is_blocked, currentUser.blocked_target_number);
+                    // Clear movement data after use
+                    originalDiceMovement = null;
                 } else {
-                    // Fallback zur alten Berechnung
-                    const positionChange = currentUser.position - lastGameData.current_user.position;
+                    // Fallback calculation - use originalDiceMovement if available for catapult scenarios
+                    let oldPos = lastGameData.current_user.position;
+                    let newPos = currentUser.position;
+                    let positionChange = newPos - oldPos;
+                    
+                    if (originalDiceMovement) {
+                        // For catapult events, use only the original dice movement, not the full position change
+                        oldPos = originalDiceMovement.oldPos;
+                        newPos = originalDiceMovement.newPos;
+                        positionChange = newPos - oldPos;
+                        console.log('Fallback: Using original dice movement for calculation:', oldPos, '->', newPos, 'change:', positionChange);
+                        originalDiceMovement = null;
+                    } else {
+                        console.log('Fallback: Using full position change for calculation:', oldPos, '->', newPos, 'change:', positionChange);
+                    }
+                    
                     if (positionChange > 0 || currentUser.is_blocked) {
                         const standardRoll = Math.min(6, Math.max(positionChange, 1));
                         const bonusRoll = Math.max(0, positionChange - 6);
                         showDiceResultAnimation(standardRoll, bonusRoll, positionChange, 
-                                              lastGameData.current_user.position, currentUser.position,
+                                              oldPos, newPos,
                                               currentUser.is_blocked, currentUser.blocked_target_number);
                     }
                 }
@@ -1524,7 +1549,10 @@ function updateDashboard(data) {
             }
             
             // Store original dice roll values for catapult events
-            if (event.dice_roll !== undefined || event.total_roll !== undefined) {
+            console.log('Special field event received:', event);
+            
+            if ((event.dice_roll !== undefined && event.dice_roll !== null) || 
+                (event.total_roll !== undefined && event.total_roll !== null)) {
                 originalDiceRolls = {
                     standard_roll: event.dice_roll || 0,
                     bonus_roll: event.bonus_roll || 0,
@@ -1533,6 +1561,13 @@ function updateDashboard(data) {
                 
                 // Debug log for catapult events
                 console.log('Catapult event detected - stored dice rolls:', originalDiceRolls);
+                console.log('Event dice data:', {
+                    dice_roll: event.dice_roll,
+                    bonus_roll: event.bonus_roll,
+                    total_roll: event.total_roll
+                });
+            } else {
+                console.log('No dice roll data found in special field event');
             }
             
             // Delay special field banners to show after dice result and movement
