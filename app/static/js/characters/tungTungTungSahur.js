@@ -1,165 +1,277 @@
 function createTungTungTungSahur(colorHex) {
+    console.log('🏗️ Creating improved Tung Tung Sahur character...');
     const group = new THREE.Group();
 
-    // Holzfarbe - natürliches Braun
-    const woodColor = 0xD2691E; // Saddlebrown
-    const woodMaterial = new THREE.MeshPhongMaterial({
-        color: woodColor,
-        shininess: 10,
-        specular: 0x111111
+    // Realistische Hautfarbe statt Holz
+    const skinColor = 0xFFDBAC; // Natürliche Hautfarbe
+    const skinMaterial = new THREE.MeshPhongMaterial({
+        color: skinColor,
+        shininess: 30,
+        specular: 0x444444
+    });
+    
+    // Kleidungsmaterial
+    const clothingMaterial = new THREE.MeshPhongMaterial({
+        color: 0x4169E1, // Königsblau für Kleidung
+        shininess: 5,
+        specular: 0x222222
     });
 
-    // Hauptkörper - rechteckiger Holzklotz wie eine Holzpuppe
-    const body = new THREE.Mesh(
-        new THREE.BoxGeometry(0.4, 0.8, 0.25),
-        woodMaterial
+    // Hauptkörper - realistischere Proportionen
+    const torso = new THREE.Mesh(
+        new THREE.BoxGeometry(0.35, 0.6, 0.2),
+        clothingMaterial
     );
-    body.position.y = 0;
-    group.add(body);
+    torso.position.y = 0.1;
+    group.add(torso);
+    
+    // Bauch/Unterkörper
+    const belly = new THREE.Mesh(
+        new THREE.BoxGeometry(0.32, 0.35, 0.18),
+        clothingMaterial
+    );
+    belly.position.y = -0.25;
+    group.add(belly);
 
-    // Kopf - rechteckiger Holzklotz
+    // Kopf - rundere, menschlichere Form
     const head = new THREE.Mesh(
-        new THREE.BoxGeometry(0.35, 0.4, 0.3),
-        woodMaterial
+        new THREE.SphereGeometry(0.18, 16, 16),
+        skinMaterial
     );
-    head.position.set(0, 0.6, 0);
+    head.scale.set(1, 1.1, 0.9); // Leicht oval
+    head.position.set(0, 0.65, 0);
     group.add(head);
+    
+    // Hals
+    const neck = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.06, 0.06, 0.12, 8),
+        skinMaterial
+    );
+    neck.position.set(0, 0.48, 0);
+    group.add(neck);
 
-    // RIESIGE GOOGLY EYES wie im Bild
+    // Realistische Augen
     const eyePositions = [
-        { x: -0.08, y: 0.65, z: 0.16 },
-        { x: 0.08, y: 0.65, z: 0.16 }
+        { x: -0.06, y: 0.68, z: 0.15 },
+        { x: 0.06, y: 0.68, z: 0.15 }
     ];
 
     eyePositions.forEach(pos => {
-        // Schwarzer Augenrand
+        // Augenhöhle
         const eyeSocket = new THREE.Mesh(
-            new THREE.CircleGeometry(0.08, 24),
-            new THREE.MeshBasicMaterial({
-                color: 0x000000,
-                side: THREE.DoubleSide
+            new THREE.SphereGeometry(0.04, 12, 12),
+            new THREE.MeshPhongMaterial({
+                color: 0xFFFFFF,
+                shininess: 100
             })
         );
         eyeSocket.position.set(pos.x, pos.y, pos.z);
         group.add(eyeSocket);
 
-        // Weißer Augapfel
-        const eye = new THREE.Mesh(
-            new THREE.CircleGeometry(0.07, 24),
+        // Iris (braun)
+        const iris = new THREE.Mesh(
+            new THREE.CircleGeometry(0.02, 16),
             new THREE.MeshBasicMaterial({
-                color: 0xFFFFFF,
+                color: 0x8B4513,
                 side: THREE.DoubleSide
             })
         );
-        eye.position.set(pos.x, pos.y, pos.z + 0.001);
-        group.add(eye);
+        iris.position.set(pos.x, pos.y, pos.z + 0.035);
+        group.add(iris);
 
-        // Schwarze Pupille
+        // Pupille
         const pupil = new THREE.Mesh(
-            new THREE.CircleGeometry(0.03, 16),
+            new THREE.CircleGeometry(0.01, 12),
             new THREE.MeshBasicMaterial({
                 color: 0x000000,
                 side: THREE.DoubleSide
             })
         );
-        pupil.position.set(pos.x, pos.y, pos.z + 0.002);
+        pupil.position.set(pos.x, pos.y, pos.z + 0.036);
         group.add(pupil);
     });
+    
+    // Augenbrauen
+    for (let i = 0; i < 2; i++) {
+        const eyebrow = new THREE.Mesh(
+            new THREE.BoxGeometry(0.06, 0.015, 0.02),
+            new THREE.MeshBasicMaterial({ color: 0x4A4A4A })
+        );
+        eyebrow.position.set(i === 0 ? -0.06 : 0.06, 0.72, 0.14);
+        group.add(eyebrow);
+    }
 
-    // Einfacher schwarzer Mund
+    // Realistischer Mund
     const mouth = new THREE.Mesh(
-        new THREE.BoxGeometry(0.001, 0.04, 0.08),
+        new THREE.SphereGeometry(0.025, 8, 8),
         new THREE.MeshBasicMaterial({
-            color: 0x000000
+            color: 0x8B0000
         })
     );
-    mouth.position.set(0, 0.52, 0.16);
+    mouth.scale.set(1.5, 0.5, 0.5);
+    mouth.position.set(0, 0.58, 0.16);
     group.add(mouth);
-
-    // Arme - einfache Holzstäbe
-    for (let i = 0; i < 2; i++) {
-        const arm = new THREE.Mesh(
-            new THREE.CylinderGeometry(0.03, 0.03, 0.5, 8),
-            woodMaterial
-        );
-        arm.rotation.z = Math.PI / 2;
-        arm.position.set(i === 0 ? -0.35 : 0.35, 0.2, 0);
-        group.add(arm);
-    }
-
-    // Beine - einfache Holzstäbe
-    for (let i = 0; i < 2; i++) {
-        const leg = new THREE.Mesh(
-            new THREE.CylinderGeometry(0.04, 0.04, 0.6, 8),
-            woodMaterial
-        );
-        leg.position.set(i === 0 ? -0.1 : 0.1, -0.7, 0);
-        group.add(leg);
-    }
-
-    // Baseball-Schläger - prominenter wie im Original
-    const batHandle = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.02, 0.02, 0.4, 12),
-        new THREE.MeshPhongMaterial({
-            color: 0x8B4513,
-            shininess: 20
-        })
+    
+    // Nase
+    const nose = new THREE.Mesh(
+        new THREE.ConeGeometry(0.015, 0.04, 6),
+        skinMaterial
     );
-    batHandle.position.set(-0.6, 0.3, 0);
-    batHandle.rotation.z = Math.PI / 6;
+    nose.position.set(0, 0.62, 0.16);
+    nose.rotation.x = Math.PI / 2;
+    group.add(nose);
+
+    // Realistische Arme
+    for (let i = 0; i < 2; i++) {
+        // Oberarm
+        const upperArm = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.035, 0.03, 0.25, 8),
+            skinMaterial
+        );
+        upperArm.position.set(i === 0 ? -0.22 : 0.22, 0.25, 0);
+        group.add(upperArm);
+        
+        // Unterarm
+        const lowerArm = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.03, 0.025, 0.22, 8),
+            skinMaterial
+        );
+        lowerArm.position.set(i === 0 ? -0.45 : 0.45, 0.05, 0);
+        group.add(lowerArm);
+        
+        // Hand
+        const hand = new THREE.Mesh(
+            new THREE.SphereGeometry(0.04, 8, 8),
+            skinMaterial
+        );
+        hand.position.set(i === 0 ? -0.58 : 0.58, -0.08, 0);
+        group.add(hand);
+    }
+
+    // Realistische Beine
+    for (let i = 0; i < 2; i++) {
+        // Oberschenkel
+        const thigh = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.045, 0.04, 0.35, 8),
+            clothingMaterial
+        );
+        thigh.position.set(i === 0 ? -0.08 : 0.08, -0.6, 0);
+        group.add(thigh);
+        
+        // Unterschenkel
+        const shin = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.035, 0.03, 0.3, 8),
+            skinMaterial
+        );
+        shin.position.set(i === 0 ? -0.08 : 0.08, -0.95, 0);
+        group.add(shin);
+    }
+
+    // Verbesserter Baseball-Schläger
+    const batMaterial = new THREE.MeshPhongMaterial({
+        color: 0x8B4513,
+        shininess: 50,
+        specular: 0x666666
+    });
+    
+    const batHandle = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.018, 0.022, 0.35, 12),
+        batMaterial
+    );
+    batHandle.position.set(-0.45, 0.1, 0);
+    batHandle.rotation.z = Math.PI / 4;
     group.add(batHandle);
 
     const batHead = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.06, 0.04, 0.3, 12),
-        batHandle.material
+        new THREE.CylinderGeometry(0.055, 0.035, 0.25, 12),
+        batMaterial
     );
-    batHead.position.set(-0.8, 0.55, 0);
-    batHead.rotation.z = Math.PI / 6;
+    batHead.position.set(-0.62, 0.28, 0);
+    batHead.rotation.z = Math.PI / 4;
     group.add(batHead);
+    
+    // Schläger-Griff
+    const grip = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.025, 0.025, 0.08, 8),
+        new THREE.MeshPhongMaterial({ color: 0x000000 })
+    );
+    grip.position.set(-0.36, 0.02, 0);
+    grip.rotation.z = Math.PI / 4;
+    group.add(grip);
 
-    // Einfache Füße
+    // Realistische Schuhe
     for (let i = 0; i < 2; i++) {
-        const foot = new THREE.Mesh(
-            new THREE.BoxGeometry(0.12, 0.06, 0.2),
-            woodMaterial
+        const shoe = new THREE.Mesh(
+            new THREE.BoxGeometry(0.1, 0.06, 0.18),
+            new THREE.MeshPhongMaterial({ color: 0x000000 })
         );
-        foot.position.set(i === 0 ? -0.1 : 0.1, -1.03, 0.05);
-        group.add(foot);
+        shoe.position.set(i === 0 ? -0.08 : 0.08, -1.12, 0.04);
+        group.add(shoe);
+        
+        // Schuhsohle
+        const sole = new THREE.Mesh(
+            new THREE.BoxGeometry(0.11, 0.02, 0.19),
+            new THREE.MeshPhongMaterial({ color: 0x8B4513 })
+        );
+        sole.position.set(i === 0 ? -0.08 : 0.08, -1.15, 0.04);
+        group.add(sole);
     }
 
-    // Animation - einfacher und charakteristischer
+    // Verbesserte Animation
     group.userData = {
         animation: time => {
-            // Leichtes Wippen des ganzen Körpers
-            group.rotation.y = Math.sin(time * 2) * 0.05;
+            // Sanftes Atmen/Wippen
+            const breathe = Math.sin(time * 1.5) * 0.02;
+            torso.position.y = 0.1 + breathe;
+            head.position.y = 0.65 + breathe;
+            neck.position.y = 0.48 + breathe;
             
-            // Googly Eyes bewegen sich verrückt
-            group.children.forEach((child, index) => {
-                if (child.geometry && child.geometry.type === 'CircleGeometry' &&
-                    child.geometry.parameters && child.geometry.parameters.radius === 0.03) {
-                    // Pupillen bewegen sich wild
-                    const baseX = eyePositions[index < 2 ? 0 : 1].x;
-                    child.position.x = baseX + Math.sin(time * 8 + index) * 0.02;
-                    child.position.y = eyePositions[index < 2 ? 0 : 1].y + Math.cos(time * 6 + index) * 0.02;
-                }
-            });
-
-            // Baseball-Schläger schwingt rhythmisch
-            if (batHandle && batHead) {
-                const swingAngle = Math.sin(time * 3) * 0.3;
-                batHandle.rotation.z = Math.PI / 6 + swingAngle;
-                batHead.rotation.z = Math.PI / 6 + swingAngle;
+            // Baseball-Schläger schwingt realistischer
+            if (batHandle && batHead && grip) {
+                const swingAngle = Math.sin(time * 2.5) * 0.2;
+                batHandle.rotation.z = Math.PI / 4 + swingAngle;
+                batHead.rotation.z = Math.PI / 4 + swingAngle;
+                grip.rotation.z = Math.PI / 4 + swingAngle;
             }
 
-            // Arme bewegen sich leicht
-            group.children.forEach((child, index) => {
-                if (child.geometry && child.geometry.type === 'CylinderGeometry' &&
-                    child.geometry.parameters && Math.abs(child.geometry.parameters.height - 0.5) < 0.01) {
-                    child.rotation.y = Math.sin(time * 2 + index) * 0.1;
-                }
-            });
+            // Leichte Gewichtsverlagerung
+            group.rotation.z = Math.sin(time * 1.8) * 0.03;
+            
+            // Augen blinzeln gelegentlich (subtil)
+            if (Math.sin(time * 0.3) > 0.98) {
+                group.children.forEach(child => {
+                    if (child.geometry && child.geometry.type === 'SphereGeometry' &&
+                        child.geometry.parameters && child.geometry.parameters.radius === 0.04) {
+                        child.scale.y = 0.1;
+                    }
+                });
+            } else {
+                group.children.forEach(child => {
+                    if (child.geometry && child.geometry.type === 'SphereGeometry' &&
+                        child.geometry.parameters && child.geometry.parameters.radius === 0.04) {
+                        child.scale.y = 1;
+                    }
+                });
+            }
         }
     };
+    
+    // Haare hinzufügen
+    const hair = new THREE.Mesh(
+        new THREE.SphereGeometry(0.19, 12, 12),
+        new THREE.MeshPhongMaterial({ color: 0x4A4A4A })
+    );
+    hair.position.set(0, 0.75, -0.02);
+    hair.scale.set(1, 0.6, 1.1);
+    group.add(hair);
+    
+    // Shirt-Details
+    const shirtLine = new THREE.Mesh(
+        new THREE.BoxGeometry(0.36, 0.02, 0.01),
+        new THREE.MeshBasicMaterial({ color: 0x000080 })
+    );
+    shirtLine.position.set(0, 0.3, 0.11);
+    group.add(shirtLine);
 
     return group;
 }

@@ -349,10 +349,10 @@ let BOARD_CONFIG = {
     spiralLoops: 3.8, // Mehr Loops für bessere Verteilung
     pathDepth: 5.0,
     cameraFollowOffset: new THREE.Vector3(0, 7, 12),
-    cameraFrontOffset: new THREE.Vector3(0, 4, -8),
+    cameraFrontOffset: new THREE.Vector3(0, 15, -8),
     // Enhanced camera settings - Ultra Smooth
-    cameraSmoothing: 0.15,                    // Deutlich höher für smoothness
-    cameraLookAtSmoothing: 0.18,              // Höher für smooth look-at
+    cameraSmoothing: 0.08,                    // Niedriger für weniger Ruckeln
+    cameraLookAtSmoothing: 0.12,              // Moderater für smooth look-at
     cameraOrbitSpeed: 0.006,
     cameraOrbitHeight: 40,
     cameraOrbitRadius: 55,
@@ -361,7 +361,7 @@ let BOARD_CONFIG = {
     // Auto camera management
     cameraAutoOrbitDelay: 3000,               // 3s warten bevor Auto-Orbit startet
     cameraPlayerFocusDistance: 18,            // Größere Distanz für bessere Sicht
-    cameraPlayerFocusHeight: 12,              // Höhere Position über Berg
+    cameraPlayerFocusHeight: 20,              // Hohe Vogelperspektive
     cameraTransitionDuration: 1500,           // Smooth Transition Dauer
     // Ultra smooth settings
     cameraMaxSmoothingFactor: 0.25,           // Maximum smoothing bei schneller Bewegung
@@ -615,8 +615,11 @@ class WiiPartyIsland {
         
         this.updateCanvasSize();
         
-        this.camera.position.set(22, 20, 22);
-        this.camera.lookAt(0, 4, 0);
+        // Start camera behind first player's starting position for smooth follow
+        const startingFieldPos = new THREE.Vector3(18, 2, 18); // Starting field position
+        const behindOffset = new THREE.Vector3(-3, 10, -3); // Behind and high elevated
+        this.camera.position.copy(startingFieldPos.clone().add(behindOffset));
+        this.camera.lookAt(startingFieldPos.x, startingFieldPos.y, startingFieldPos.z);
         
         this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
         this.controls.enableDamping = true;
@@ -670,7 +673,8 @@ class WiiPartyIsland {
         this.updateMinigameDisplay();
         this.updateTeamDisplay();
         this.fetchBoardStatusAndUpdate();
-        setInterval(() => this.fetchBoardStatusAndUpdate(), 2000);
+        // Weniger häufiges Polling um Ruckeln zu reduzieren
+        setInterval(() => this.fetchBoardStatusAndUpdate(), 3000);
         
         this.prepareNextPlayerTurn(true);
     }
@@ -1911,12 +1915,26 @@ class WiiPartyIsland {
                 createFunction = window.createDefaultCharacter;
             }
 
-            const characterMesh = createFunction(team.color || '#CCCCCC');
+            let characterMesh;
+            try {
+                characterMesh = createFunction(team.color || '#CCCCCC');
+            } catch (error) {
+                console.error(`❌ Fehler beim Erstellen des Charakters für Team ${team.name}:`, error);
+                characterMesh = null;
+            }
+            
             if (!characterMesh || typeof characterMesh.scale === 'undefined') {
-                this.miiCharacters[team.id] = window.createDefaultCharacter(team.color || '#CCCCCC');
-                if(this.miiCharacters[team.id]) {
-                    this.miiCharacters[team.id].scale.setScalar(BOARD_CONFIG.characterSize);
-                } else {
+                console.warn(`⚠️ Fallback zu Default-Charakter für Team ${team.name}`);
+                try {
+                    this.miiCharacters[team.id] = window.createDefaultCharacter(team.color || '#CCCCCC');
+                    if(this.miiCharacters[team.id]) {
+                        this.miiCharacters[team.id].scale.setScalar(BOARD_CONFIG.characterSize);
+                    } else {
+                        console.error(`❌ Konnte keinen Charakter für Team ${team.name} erstellen`);
+                        continue;
+                    }
+                } catch (fallbackError) {
+                    console.error(`❌ Fallback-Charakter-Erstellung fehlgeschlagen für Team ${team.name}:`, fallbackError);
                     continue;
                 }
             } else {
@@ -1924,6 +1942,9 @@ class WiiPartyIsland {
                 this.miiCharacters[team.id].scale.setScalar(BOARD_CONFIG.characterSize);
             }
 
+            // Charakter zum nächsten Feld ausrichten
+            this.orientCharacterToNextField(this.miiCharacters[team.id], team.position);
+            
             this.miiCharacters[team.id].castShadow = true;
             this.miiCharacters[team.id].receiveShadow = true;
             this.miiCharacters[team.id].traverse(node => {
@@ -1953,6 +1974,22 @@ class WiiPartyIsland {
         }
         
         this.updateTeamDisplay();
+    }
+
+    orientCharacterToNextField(character, currentPosition) {
+        // Stelle sicher, dass der Charakter immer nach vorne (Zentrum der Insel) schaut
+        // Berechne Richtung zum Zentrum der Insel
+        const characterPos = character.position.clone();
+        const centerPos = new THREE.Vector3(0, characterPos.y, 0); // Zentrum der Insel
+        
+        const direction = new THREE.Vector3();
+        direction.subVectors(centerPos, characterPos);
+        direction.y = 0; // Nur horizontale Rotation
+        direction.normalize();
+        
+        // Berechne den Winkel zum Zentrum (geradeaus)
+        const angle = Math.atan2(direction.x, direction.z);
+        character.rotation.y = angle;
     }
 
     addBlockedTeamEffect(characterMesh) {
@@ -2242,8 +2279,12 @@ class WiiPartyIsland {
     updateTeamBadgeForTeam(teamId, position) {}
 
     animateCharacterToNewPosition(team, oldPositionIndex, newPositionIndex) {
+        console.log(`🎯 ANIMATION START: ${team.name} von Position ${oldPositionIndex} nach ${newPositionIndex}`);
+        console.log(`🎯 Board hat ${this.boardFields.length} Felder`);
+        
         const mii = this.miiCharacters[team.id];
         if (!mii) {
+            console.error(`❌ Kein Charakter für Team ${team.id}`);
             this.handleMovementCompletion(team, null, newPositionIndex);
             return;
         }
@@ -2329,7 +2370,7 @@ class WiiPartyIsland {
         }
 
         let currentPointIndex = 0;
-        const durationPerStep = 800; // Verdoppelt von 400ms auf 800ms für langsamere Bewegung
+        const durationPerStep = 1500; // Viel langsamer: 1.5 Sekunden pro Feld
 
         const moveToNextPoint = () => {
             if (currentPointIndex >= pathPoints.length - 1) {
@@ -2343,10 +2384,10 @@ class WiiPartyIsland {
             this.animateCharacterMove(character, endPosition, () => {
                 currentPointIndex++;
                 this.showFieldEffect(character.position, 0x66ff66, 400);
-                // Kurze Pause zwischen den Feldern für bessere Sichtbarkeit
+                // Längere Pause zwischen den Feldern für cinematographische Wirkung
                 setTimeout(() => {
                     moveToNextPoint();
-                }, 100); // 100ms Pause zwischen Feldern
+                }, 300); // 300ms Pause zwischen Feldern
             }, durationPerStep);
         };
 
@@ -2364,7 +2405,7 @@ class WiiPartyIsland {
 
         const startPosition = character.position.clone();
         const distance = startPosition.distanceTo(targetPosition);
-        const duration = Math.max(120, Math.min(totalDuration, distance * 60));
+        const duration = Math.max(800, Math.min(totalDuration, distance * 250)); // Viel langsamer: mindestens 800ms, mehr Zeit pro Distanz
         const startTime = Date.now();
 
         const direction = new THREE.Vector3().subVectors(targetPosition, startPosition);
@@ -2453,6 +2494,11 @@ class WiiPartyIsland {
         // Stop camera following after movement
         this.stopCameraFollow();
         console.log("📹 [MOVEMENT COMPLETION] Camera following stopped");
+        
+        // Charakter zum nächsten Feld ausrichten
+        if (mii) {
+            this.orientCharacterToNextField(mii, finalPositionIndex);
+        }
 
         // Spezielle Behandlung für Zielfeld
         if (finalPositionIndex === this.boardFields.length - 1) {
@@ -2603,10 +2649,9 @@ class WiiPartyIsland {
         this.focusCameraOnCurrentTeam(immediate, () => {
             const currentMii = this.miiCharacters[this.getCurrentTeam()?.id];
             if (currentMii) {
-                this.animateCharacterTurn(currentMii, this.camera.position, () => {
-                    GAME_STATE.playerTurnInProgress = false;
-                    GAME_STATE.isAnimating = false;
-                }, 600);
+                // Keine Drehung zur Kamera
+                GAME_STATE.playerTurnInProgress = false;
+                GAME_STATE.isAnimating = false;
             } else {
                 GAME_STATE.playerTurnInProgress = false;
                 GAME_STATE.isAnimating = false;
@@ -2638,7 +2683,7 @@ class WiiPartyIsland {
 
         const currentTeam = this.getCurrentTeam();
         if (!currentTeam || !this.miiCharacters[currentTeam.id]) {
-            this.animateCameraToPosition(new THREE.Vector3(18, 16, 18), new THREE.Vector3(0, 6, 0), immediate ? 0 : 800, callback);
+            this.animateCameraToPosition(new THREE.Vector3(18, 25, 18), new THREE.Vector3(0, 6, 0), immediate ? 0 : 800, callback);
             return;
         }
         
@@ -2652,15 +2697,20 @@ class WiiPartyIsland {
             const offset = BOARD_CONFIG.cameraFrontOffset.clone();
             
             if (currentPositionIndex === 0) {
+                // Sehr nah an Startposition
                 cameraPosition = new THREE.Vector3(
-                    targetPosition.x - 6, 
-                    targetPosition.y + offset.y + 1.5, 
-                    targetPosition.z - Math.abs(offset.z)
+                    targetPosition.x - 1, 
+                    targetPosition.y + 10, 
+                    targetPosition.z - 1
                 );
                 lookAtPosition = targetPosition.clone();
-                lookAtPosition.y += 1;
+                lookAtPosition.y -= 1.0; // Schaue nach unten auf Charakter
             } else {
-                cameraPosition = targetPosition.clone().add(new THREE.Vector3(0, offset.y, Math.abs(offset.z)));
+                // Standard Position hochüber Spieler
+                cameraPosition = targetPosition.clone();
+                cameraPosition.y += 15.0; // Hohe Vogelperspektive
+                cameraPosition.x += 2;
+                cameraPosition.z += 2;
                 
                 if (currentPositionIndex > 0 && this.boardFields[currentPositionIndex - 1]) {
                     const prevFieldPos = this.boardFields[currentPositionIndex - 1].mesh.position;
@@ -2670,34 +2720,39 @@ class WiiPartyIsland {
                     direction.y = 0;
                     direction.normalize();
                     
-                    const cameraDistance = Math.abs(offset.z);
-                    cameraPosition = prevFieldPos.clone().sub(direction.multiplyScalar(cameraDistance * 0.5));
-                    cameraPosition.y = Math.max(targetPosition.y + offset.y, prevFieldPos.y + offset.y);
+                    // Kamera immer hinten links vom Spieler (aus Spielersicht)
+                    const backDistance = 3.0;  // Weiter hinten für besseren Überblick
+                    const leftOffset = 2.0;    // Weiter links für schräge Perspektive
                     
-                    const directionToPlayer = new THREE.Vector3().subVectors(targetPosition, cameraPosition);
-                    directionToPlayer.normalize();
+                    // Hinten links positionieren
+                    cameraPosition = targetPosition.clone();
+                    cameraPosition.x -= direction.x * backDistance - direction.z * leftOffset;
+                    cameraPosition.z -= direction.z * backDistance + direction.x * leftOffset;
+                    cameraPosition.y = targetPosition.y + 10.0; // Mittlere Höhe für schräge Sicht
                     
-                    // Define lookAtPosition before obstacle avoidance
                     lookAtPosition = targetPosition.clone();
-                    lookAtPosition.y += 1;
-                    
-                    // Enhanced obstacle avoidance with comprehensive detection
-                    cameraPosition = this.avoidObstacles(cameraPosition, lookAtPosition);
+                    lookAtPosition.y -= 0.5; // Schaue leicht nach unten
                 }
             }
             
         } else {
-            const offset = BOARD_CONFIG.cameraFollowOffset.clone();
+            // Follow-Modus: Immer hinten links vom Spieler
             const characterDirection = new THREE.Vector3();
             character.getWorldDirection(characterDirection);
             characterDirection.y = 0;
             characterDirection.normalize();
             
-            cameraPosition = targetPosition.clone().sub(characterDirection.multiplyScalar(offset.z));
-            cameraPosition.y = targetPosition.y + offset.y;
+            const backDistance = 3.0;  // Weiter hinten für besseren Überblick
+            const leftOffset = 2.0;    // Weiter links für schräge Perspektive
+            
+            // Hinten links positionieren
+            cameraPosition = targetPosition.clone();
+            cameraPosition.x -= characterDirection.x * backDistance - characterDirection.z * leftOffset;
+            cameraPosition.z -= characterDirection.z * backDistance + characterDirection.x * leftOffset;
+            cameraPosition.y = targetPosition.y + 10.0; // Mittlere Höhe für schräge Sicht
             
             lookAtPosition = targetPosition.clone();
-            lookAtPosition.y += 0.6;
+            lookAtPosition.y -= 0.5; // Schaue leicht nach unten
         }
 
         this.animateCameraToPosition(cameraPosition, lookAtPosition, immediate ? 0 : 800, callback);
@@ -2727,56 +2782,41 @@ class WiiPartyIsland {
         characterDirection.y = 0;
         characterDirection.normalize();
 
-        // Use enhanced positioning similar to automatic mode
-        const offset = BOARD_CONFIG.cameraFollowOffset.clone();
-        let cameraPosition = targetPosition.clone().sub(characterDirection.multiplyScalar(offset.z));
-        cameraPosition.y = Math.max(cameraPosition.y + offset.y, BOARD_CONFIG.cameraMinHeight);
+        // Immer hinten links vom Spieler für beste Sicht
+        const backDistance = 3.0;  // Weiter hinten für besseren Überblick
+        const leftOffset = 2.0;    // Weiter links für schräge Perspektive
+        
+        // Hinten links positionieren
+        let cameraPosition = targetPosition.clone();
+        cameraPosition.x -= characterDirection.x * backDistance - characterDirection.z * leftOffset;
+        cameraPosition.z -= characterDirection.z * backDistance + characterDirection.x * leftOffset;
+        cameraPosition.y = targetPosition.y + 10.0; // Mittlere Höhe für schräge Sicht
         
         const lookAtPosition = targetPosition.clone();
-        lookAtPosition.y += 1.2; // Higher look-at point for better view
+        lookAtPosition.y -= 0.5; // Schaue leicht nach unten
 
-        // Try multiple ideal positions like the automatic mode
-        const idealPositions = this.calculateIdealCameraPositions(
-            targetPosition, 
-            characterDirection, 
-            BOARD_CONFIG.cameraPlayerFocusDistance * 0.8, // Slightly closer for manual mode
-            Math.max(BOARD_CONFIG.cameraPlayerFocusHeight * 0.9, BOARD_CONFIG.cameraMinHeight)
-        );
-        
-        // Find best safe position
+        // Keine Hinderniserkennung für flüssige Verfolgung
         let bestPosition = cameraPosition;
-        for (let pos of idealPositions) {
-            if (this.isCameraPositionSafe(pos, lookAtPosition, this.getComprehensiveObstacles())) {
-                bestPosition = pos;
-                break;
-            }
-        }
-        
-        // Enhanced obstacle avoidance if needed
-        if (!this.isCameraPositionSafe(bestPosition, lookAtPosition, this.getComprehensiveObstacles())) {
-            bestPosition = this.avoidObstacles(bestPosition, lookAtPosition);
-        }
         
         if (immediate) {
             this.camera.position.copy(bestPosition);
             this.controls.target.copy(lookAtPosition);
         } else {
-            // Enhanced adaptive smoothing
+            // Simple consistent smoothing for stable following
             const distance = this.camera.position.distanceTo(bestPosition);
-            const adaptiveSmoothing = THREE.MathUtils.lerp(
-                BOARD_CONFIG.cameraMaxSmoothingFactor * 0.8, 
-                BOARD_CONFIG.cameraMinSmoothingFactor * 1.2, 
-                Math.min(1.0, distance / 8.0)
-            );
-            const adaptiveLookAtSmoothing = adaptiveSmoothing * 1.2;
             
-            this.camera.position.lerp(bestPosition, adaptiveSmoothing);
-            this.controls.target.lerp(lookAtPosition, adaptiveLookAtSmoothing);
+            // Use very low smoothing for immediate response
+            const smoothing = 0.18;      // Höher für direktere Verfolgung
+            const lookAtSmoothing = 0.22; // Schnellere Blickanpassung
+            
+            this.camera.position.lerp(bestPosition, smoothing);
+            this.controls.target.lerp(lookAtPosition, lookAtSmoothing);
         }
         this.camera.lookAt(this.controls.target);
     }
 
-    animateCameraToPosition(targetCamPos, targetLookAtPos, duration = 1000, callback) {
+    // Verbesserte Kamera-Animation mit anti-judder Techniken
+    animateCameraToPositionSmooth(targetCamPos, targetLookAtPos, duration = 1000, callback) {
         if (duration === 0) {
             this.camera.position.copy(targetCamPos);
             this.controls.target.copy(targetLookAtPos);
@@ -2786,26 +2826,40 @@ class WiiPartyIsland {
             return;
         }
         
-        // Ensure target position avoids obstacles
-        targetCamPos = this.avoidObstacles(targetCamPos, targetLookAtPos);
-        
         const startCamPos = this.camera.position.clone();
         const startLookAt = this.controls.target.clone();
-        const startTime = Date.now();
+        const startTime = performance.now(); // Verwende performance.now() für präzisere Timing
         GAME_STATE.isAnimatingCamera = true;
+        
+        // Prä-berechne Distanz für adaptive smoothing
+        const totalDistance = startCamPos.distanceTo(targetCamPos);
+        const isLongDistance = totalDistance > 20; // Für weite Distanzen andere Easing
 
-        const animateCameraFrame = () => {
-            const currentTime = Date.now();
+        const animateCameraFrame = (currentTime) => {
             const progress = Math.min(1, (currentTime - startTime) / duration);
-            const easeProgress = this.easeInOutQuart(progress);
+            
+            // Adaptive Easing basierend auf Distanz und Transition-Typ
+            let easeProgress;
+            if (isLongDistance) {
+                // Sanfteres Easing für weite Distanzen (Orbit zu Player)
+                easeProgress = this.easeInOutCubic(progress);
+            } else {
+                // Präziseres Easing für kurze Distanzen
+                easeProgress = this.easeInOutQuart(progress);
+            }
+            
+            // Multi-stage smoothing für sehr flüssige Bewegung
+            const positionProgress = easeProgress;
+            const lookAtProgress = easeProgress * 0.9; // LookAt folgt etwas langsamer
 
-            this.camera.position.lerpVectors(startCamPos, targetCamPos, easeProgress);
-            this.controls.target.lerpVectors(startLookAt, targetLookAtPos, easeProgress);
+            this.camera.position.lerpVectors(startCamPos, targetCamPos, positionProgress);
+            this.controls.target.lerpVectors(startLookAt, targetLookAtPos, lookAtProgress);
             this.camera.lookAt(this.controls.target);
 
             if (progress < 1) {
                 requestAnimationFrame(animateCameraFrame);
             } else {
+                // Finale exakte Positionierung
                 this.camera.position.copy(targetCamPos);
                 this.controls.target.copy(targetLookAtPos);
                 this.camera.lookAt(this.controls.target);
@@ -2813,7 +2867,12 @@ class WiiPartyIsland {
                 if (callback) callback();
             }
         };
-        animateCameraFrame();
+        requestAnimationFrame(animateCameraFrame);
+    }
+    
+    // Legacy function für Rücwärtskompatibilität
+    animateCameraToPosition(targetCamPos, targetLookAtPos, duration = 1000, callback) {
+        this.animateCameraToPositionSmooth(targetCamPos, targetLookAtPos, duration, callback);
     }
 
     easeInOutCubic(t) { 
@@ -2824,226 +2883,20 @@ class WiiPartyIsland {
         return t < 0.5 ? 8 * t * t * t * t : 1 - Math.pow(-2 * t + 2, 4) / 2;
     }
     
-    // Ultra-Enhanced obstacle avoidance system for perfect line of sight
-    avoidObstacles(cameraPosition, lookAtPosition) {
-        // Parameter validation to prevent TypeError
-        if (!cameraPosition || typeof cameraPosition.x === 'undefined') {
-            console.error('avoidObstacles: cameraPosition is not a valid Vector3', cameraPosition);
-            return new THREE.Vector3(0, 15, 0); // Higher safe default
-        }
-        
-        if (!lookAtPosition || typeof lookAtPosition.x === 'undefined') {
-            console.error('avoidObstacles: lookAtPosition is not a valid Vector3', lookAtPosition);
-            return cameraPosition.clone();
-        }
-        
-        const originalPos = cameraPosition.clone();
-        
-        // Comprehensive multi-directional raycast system
-        const baseDirection = new THREE.Vector3().subVectors(cameraPosition, lookAtPosition).normalize();
-        const directions = [];
-        
-        // Main direction
-        directions.push(baseDirection.clone());
-        
-        // Radial pattern around main direction for comprehensive coverage
-        for (let angle = 0; angle < Math.PI * 2; angle += Math.PI / 6) {
-            const offset = 0.4; // Increased offset for better coverage
-            const offsetX = Math.cos(angle) * offset;
-            const offsetZ = Math.sin(angle) * offset;
-            directions.push(baseDirection.clone().add(new THREE.Vector3(offsetX, 0, offsetZ)).normalize());
-            directions.push(baseDirection.clone().add(new THREE.Vector3(offsetX, offset * 0.5, offsetZ)).normalize());
-            directions.push(baseDirection.clone().add(new THREE.Vector3(offsetX, -offset * 0.3, offsetZ)).normalize());
-        }
-        
-        // Get all possible obstacles
-        const allObstacles = this.getComprehensiveObstacles();
-        const minDistance = cameraPosition.distanceTo(lookAtPosition);
-        let obstacleDetected = false;
-        let nearestObstacle = null;
-        let nearestDistance = Infinity;
-        
-        // Test all directions for obstacles
-        for (let dir of directions) {
-            this.raycaster.set(lookAtPosition, dir);
-            this.raycaster.far = BOARD_CONFIG.cameraMaxObstacleCheckDistance;
-            const intersects = this.raycaster.intersectObjects(allObstacles, true); // true for recursive checking
-            
-            if (intersects.length > 0) {
-                const hit = intersects[0];
-                if (hit.distance < minDistance * 0.95) { // More strict check
-                    obstacleDetected = true;
-                    if (hit.distance < nearestDistance) {
-                        nearestDistance = hit.distance;
-                        nearestObstacle = hit;
-                    }
-                }
-            }
-        }
-        
-        if (obstacleDetected) {
-            // Reduced logging frequency 
-        if (Math.random() < 0.1) { // Only log 10% of the time
-            console.log(`🚧 Obstacle detected at distance ${nearestDistance.toFixed(2)}, finding safe position...`);
-        }
-            
-            // Generate smart alternative positions based on obstacle location
-            const safePositions = this.generateSafePositions(originalPos, lookAtPosition, nearestObstacle);
-            
-            // Test each safe position
-            for (let safePos of safePositions) {
-                if (this.isCameraPositionSafe(safePos, lookAtPosition, allObstacles)) {
-                    // Reduced logging frequency 
-                    if (Math.random() < 0.1) { // Only log 10% of the time
-                        console.log(`✅ Found safe camera position at height ${safePos.y.toFixed(2)}`);
-                    }
-                    return safePos;
-                }
-            }
-            
-            // Fallback: High position with good overview
-            const fallbackPos = lookAtPosition.clone().add(new THREE.Vector3(
-                BOARD_CONFIG.cameraPlayerFocusDistance * 0.8,
-                BOARD_CONFIG.cameraPlayerFocusHeight + 5,
-                BOARD_CONFIG.cameraPlayerFocusDistance * 0.8
-            ));
-            console.log(`⚠️ Using fallback position at height ${fallbackPos.y.toFixed(2)}`);
-            return fallbackPos;
-        }
-        
-        return originalPos;
-    }
-    
-    // Generate intelligent safe positions around obstacles
-    generateSafePositions(originalPos, lookAtPosition, obstacleHit) {
-        const positions = [];
-        const playerPos = lookAtPosition.clone();
-        
-        // Higher positions with varying angles
-        for (let height = BOARD_CONFIG.cameraMinHeight; height <= BOARD_CONFIG.cameraPlayerFocusHeight + 8; height += 2) {
-            for (let angle = 0; angle < Math.PI * 2; angle += Math.PI / 8) {
-                const radius = BOARD_CONFIG.cameraPlayerFocusDistance + (height - BOARD_CONFIG.cameraMinHeight) * 0.5;
-                const x = playerPos.x + Math.cos(angle) * radius;
-                const z = playerPos.z + Math.sin(angle) * radius;
-                positions.push(new THREE.Vector3(x, height, z));
-            }
-        }
-        
-        // Sort by preference: closer to original position, but high enough to clear obstacles
-        positions.sort((a, b) => {
-            const distA = a.distanceTo(originalPos) + Math.abs(a.y - originalPos.y) * 0.5;
-            const distB = b.distanceTo(originalPos) + Math.abs(b.y - originalPos.y) * 0.5;
-            return distA - distB;
-        });
-        
-        return positions;
-    }
-    
-    // Test if a camera position provides clear line of sight
-    isCameraPositionSafe(cameraPos, lookAtPos, obstacles) {
-        // Parameter validation to prevent errors
-        if (!cameraPos || typeof cameraPos.x === 'undefined' || !cameraPos.distanceTo) {
-            console.warn('isPositionSafe: invalid cameraPos', cameraPos);
-            return false;
-        }
-        
-        if (!lookAtPos || typeof lookAtPos.x === 'undefined' || !lookAtPos.distanceTo) {
-            console.warn('isPositionSafe: invalid lookAtPos', lookAtPos);
-            return false;
-        }
-        
-        if (!obstacles || obstacles.length === 0) {
-            return true; // No obstacles to check
-        }
-        
-        try {
-            const direction = new THREE.Vector3().subVectors(cameraPos, lookAtPos).normalize();
-            this.raycaster.set(lookAtPos, direction);
-            this.raycaster.far = cameraPos.distanceTo(lookAtPos) + 1;
-            
-            const intersects = this.raycaster.intersectObjects(obstacles, true);
-            
-            // Check if any intersection is too close
-            for (let hit of intersects) {
-                if (hit.distance < cameraPos.distanceTo(lookAtPos) * 0.98) {
-                    return false;
-                }
-            }
-            
-            return true;
-        } catch (error) {
-            console.error('Error in isPositionSafe:', error);
-            return false;
-        }
-    }
-    
-    // Get all obstacle objects for raycasting (legacy function for compatibility)
-    getAllObstacles() {
-        return this.getComprehensiveObstacles();
-    }
-    
-    // Comprehensive obstacle detection for camera line-of-sight
-    getComprehensiveObstacles() {
-        const obstacles = [];
-        
-        // Primary mountain/terrain obstacle
-        if (this.mountainMesh) {
-            obstacles.push(this.mountainMesh);
-        }
-        
-        // Comprehensive scene traversal for all potential obstacles
-        if (this.scene) {
-            try {
-                this.scene.traverse((child) => {
-                    if (child.isMesh && child.visible) {
-                        try {
-                            // Include all potentially blocking objects
-                            const includeObject = 
-                                (child.name && child.name.includes('mountain')) ||
-                                (child.name && child.name.includes('tree')) ||
-                                (child.name && child.name.includes('rock')) ||
-                                (child.name && child.name.includes('stone')) ||
-                                (child.name && child.name.includes('obstacle')) ||
-                                (child.name && child.name.includes('building')) ||
-                                (child.name && child.name.includes('structure')) ||
-                                (child.name && child.name.includes('terrain')) ||
-                                (child.name && child.name.includes('cliff')) ||
-                                (child.name && child.name.includes('wall')) ||
-                                // Check material properties that might indicate solid objects
-                                (child.material && child.material.opacity >= 0.8);
-                            
-                            // Skip geometry check to avoid potential errors
-                            if (includeObject) {
-                                obstacles.push(child);
-                            }
-                        } catch (childError) {
-                            // Skip problematic children
-                            console.warn('Warning: Skipping problematic child object:', childError);
-                        }
-                    }
-                });
-            } catch (traversalError) {
-                console.warn('Warning: Scene traversal error:', traversalError);
-            }
-        }
-        
-        // Remove duplicate references
-        const uniqueObstacles = [...new Set(obstacles)];
-        
-        // Reduced logging frequency to prevent console spam
-        if (Math.random() < 0.01) { // Only log 1% of the time
-            console.log(`🔍 Found ${uniqueObstacles.length} potential obstacles for camera collision`);
-        }
-        return uniqueObstacles;
-    }
+    // Hinderniserkennung wurde komplett entfernt für flüssige Performance
 
     // ==============================================
     // AUTOMATIC CAMERA MANAGEMENT SYSTEM
     // ==============================================
     
-    // Hauptfunktion für automatisches Kamera-Management
+    // Verbesserte Hauptfunktion für automatisches Kamera-Management
     updateAutomaticCamera() {
-        if (!GAME_STATE.autoCameraEnabled || GAME_STATE.freeCameraMode || GAME_STATE.cameraTransitioning) {
+        if (!GAME_STATE.autoCameraEnabled || GAME_STATE.freeCameraMode) {
+            return;
+        }
+        
+        // Vermeide Updates während Kamera-Animationen für smoothness
+        if (GAME_STATE.cameraTransitioning || GAME_STATE.isAnimatingCamera) {
             return;
         }
 
@@ -3059,16 +2912,26 @@ class WiiPartyIsland {
             GAME_STATE.isPlayerActive = false;
         }
 
-        // Entscheide Kamera-Modus basierend auf Spieler-Aktivität
+        // Entscheide Kamera-Modus basierend auf Spieler-Aktivität mit debouncing
         if (hasPlayerActivityChanged) {
+            // Clear any pending camera switches
+            if (this.pendingCameraSwitch) {
+                clearTimeout(this.pendingCameraSwitch);
+                this.pendingCameraSwitch = null;
+            }
+            
             if (isPlayerActiveNow) {
+                console.log('🎯 Spieler ist aktiv - wechsle zu Player Focus...');
                 this.switchToPlayerFocus();
             } else {
-                // Warte kurz bevor Auto-Orbit startet
-                setTimeout(() => {
-                    if (!GAME_STATE.isPlayerActive && GAME_STATE.autoCameraEnabled) {
+                // Debounced switch zu Auto-Orbit
+                console.log('🌌 Spieler inaktiv - warte kurz vor Auto-Orbit...');
+                this.pendingCameraSwitch = setTimeout(() => {
+                    if (!GAME_STATE.isPlayerActive && GAME_STATE.autoCameraEnabled && !GAME_STATE.cameraTransitioning) {
+                        console.log('🌌 Starte Auto-Orbit nach Wartezeit...');
                         this.switchToAutoOrbit();
                     }
+                    this.pendingCameraSwitch = null;
                 }, BOARD_CONFIG.cameraAutoOrbitDelay);
             }
         }
@@ -3092,63 +2955,103 @@ class WiiPartyIsland {
         return null;
     }
 
-    // Wechselt zu Spieler-Fokus-Modus
+    // Wechselt zu Spieler-Fokus-Modus - verbesserte smooth transition
     switchToPlayerFocus() {
         if (GAME_STATE.autoOrbitActive) {
-            stopCameraOrbitAnimation(false); // Stoppe Orbit ohne Positions-Restore
+            // Stoppe Orbit sanft ohne abrupte Änderungen
+            window.orbitAnimationRunning = false;
+            GAME_STATE.autoOrbitActive = false;
+        }
+        
+        // Vermeide mehrfache gleichzeitige Transitions
+        if (GAME_STATE.cameraTransitioning) {
+            console.log('📹 Camera transition bereits aktiv - warte...');
+            return;
         }
         
         GAME_STATE.cameraFocusMode = 'focus';
-        GAME_STATE.autoOrbitActive = false;
         GAME_STATE.cameraTransitioning = true;
+        
+        // Sichere current camera state for smooth transition
+        const currentCamPos = this.camera.position.clone();
+        const currentLookAt = this.controls.target.clone();
 
-        // Smooth focus auf aktuellen Spieler
-        this.focusOnCurrentPlayerSmooth(() => {
+        // Verbesserte smooth focus auf aktuellen Spieler
+        this.focusOnCurrentPlayerSmoothImproved(currentCamPos, currentLookAt, () => {
             GAME_STATE.cameraTransitioning = false;
+            // Re-enable controls smoothly
+            this.controls.enabled = !GAME_STATE.freeCameraMode;
             // Starte Player-Following
             this.startAutomaticPlayerFollowing();
         });
     }
 
-    // Wechselt zu Auto-Orbit-Modus
+    // Wechselt zu Auto-Orbit-Modus - verbesserte Transition
     switchToAutoOrbit() {
         if (GAME_STATE.isPlayerActive) return; // Sicherheitscheck
+        
+        // Vermeide mehrfache gleichzeitige Transitions
+        if (GAME_STATE.cameraTransitioning) {
+            console.log('📹 Camera transition bereits aktiv - warte...');
+            return;
+        }
         
         this.stopAutomaticPlayerFollowing();
         GAME_STATE.cameraFocusMode = 'orbit';
         GAME_STATE.cameraTransitioning = true;
 
-        // Starte eleganten Auto-Orbit
-        startCameraOrbitAnimation(false, null); // Dauerhafter Orbit
+        // Sanfter Übergang zum Orbit - kürzere Transition-Zeit
+        const shorterTransitionDuration = Math.min(1000, BOARD_CONFIG.cameraTransitionDuration * 0.7);
+        
+        console.log('🌌 Starte sanften Übergang zu Auto-Orbit...');
+        startCameraOrbitAnimationSmooth(false, null); // Verbesserter Orbit
         GAME_STATE.autoOrbitActive = true;
         
         setTimeout(() => {
             GAME_STATE.cameraTransitioning = false;
-        }, BOARD_CONFIG.cameraTransitionDuration);
+        }, shorterTransitionDuration);
     }
 
-    // Smooth Fokus auf aktuellen Spieler
-    focusOnCurrentPlayerSmooth(callback) {
+    // Verbesserte smooth focus transition von orbit zu spieler
+    focusOnCurrentPlayerSmoothImproved(currentCamPos, currentLookAt, callback) {
         const currentPlayer = this.getCurrentActivePlayer();
         if (!currentPlayer) {
+            console.warn('⚠️ focusOnCurrentPlayerSmoothImproved: Kein aktiver Spieler gefunden');
             if (callback) callback();
             return;
         }
 
         const playerPos = currentPlayer.position.clone();
+        
+        // Intelligente Kamera-Position basierend auf aktueller Position
+        const directionToPlayer = new THREE.Vector3().subVectors(playerPos, currentCamPos).normalize();
+        
+        // Optimale Kamera-Position mit sanftem Übergang
+        const optimalDistance = BOARD_CONFIG.cameraPlayerFocusDistance * 0.8;
+        const optimalHeight = BOARD_CONFIG.cameraPlayerFocusHeight;
+        
+        // Berechne ideale Position unter Berücksichtigung der aktuellen Kamera-Position
         const cameraPos = new THREE.Vector3(
-            playerPos.x + BOARD_CONFIG.cameraPlayerFocusDistance * 0.7,
-            playerPos.y + BOARD_CONFIG.cameraPlayerFocusHeight,
-            playerPos.z + BOARD_CONFIG.cameraPlayerFocusDistance * 0.7
+            playerPos.x - directionToPlayer.x * optimalDistance,
+            optimalHeight,
+            playerPos.z - directionToPlayer.z * optimalDistance
         );
         
         const lookAtPos = playerPos.clone();
         lookAtPos.y += 1.2;
 
-        // Obstacle avoidance
-        const safeCameraPos = this.avoidObstacles(cameraPos, lookAtPos);
+        // Verkürzte Transition-Zeit für weniger Ruckeln
+        const transitionDuration = Math.min(800, BOARD_CONFIG.cameraTransitionDuration * 0.6);
         
-        this.animateCameraToPosition(safeCameraPos, lookAtPos, BOARD_CONFIG.cameraTransitionDuration, callback);
+        console.log('🎥 Starte verbesserte Player-Focus-Transition...');
+        this.animateCameraToPositionSmooth(cameraPos, lookAtPos, transitionDuration, callback);
+    }
+    
+    // Legacy function für Rücwärtskompatibilität
+    focusOnCurrentPlayerSmooth(callback) {
+        const currentCamPos = this.camera.position.clone();
+        const currentLookAt = this.controls.target.clone();
+        this.focusOnCurrentPlayerSmoothImproved(currentCamPos, currentLookAt, callback);
     }
 
     // Startet automatische Spieler-Verfolgung
@@ -3213,7 +3116,8 @@ class WiiPartyIsland {
         // Dynamic adjustments
         const speedMultiplier = Math.min(2.0, 1 + smoothVelocity * 0.5);
         const dynamicDistance = baseDistance * speedMultiplier;
-        const dynamicHeight = Math.max(baseHeight, baseHeight + smoothVelocity * 2);
+        // Immer hohe Vogelperspektive beibehalten
+        const dynamicHeight = baseHeight; // Konstante Höhe für Stabilität
         
         // Calculate ideal camera position with multiple fallback options
         const idealPositions = this.calculateIdealCameraPositions(
@@ -3225,43 +3129,38 @@ class WiiPartyIsland {
         
         let bestCameraPosition = idealPositions[0];
         const lookAtPosition = targetPosition.clone();
-        lookAtPosition.y += 1.5; // Slightly higher look-at point
+        lookAtPosition.y -= 0.5; // Schaue nach unten auf Ziel
 
-        // Find the best obstacle-free position
-        for (let pos of idealPositions) {
-            if (this.isCameraPositionSafe(pos, lookAtPosition, this.getComprehensiveObstacles())) {
-                bestCameraPosition = pos;
-                break;
-            }
-        }
-
-        // If no ideal position is safe, use enhanced obstacle avoidance
-        if (!this.isCameraPositionSafe(bestCameraPosition, lookAtPosition, this.getComprehensiveObstacles())) {
-            bestCameraPosition = this.avoidObstacles(bestCameraPosition, lookAtPosition);
-        }
+        // Keine Hinderniserkennung - nutze erste ideale Position
+        bestCameraPosition = idealPositions[0];
         
-        // Adaptive smoothing based on movement speed and distance
+        // Verbesserte adaptive Smoothing-Logik
         const distanceToTarget = this.camera.position.distanceTo(bestCameraPosition);
         const baseSmoothing = BOARD_CONFIG.cameraSmoothing;
-        const maxSmoothing = BOARD_CONFIG.cameraMaxSmoothingFactor || 0.25;
-        const minSmoothing = BOARD_CONFIG.cameraMinSmoothingFactor || 0.08;
+        const maxSmoothing = BOARD_CONFIG.cameraMaxSmoothingFactor || 0.15; // Reduziert für smoothness
+        const minSmoothing = BOARD_CONFIG.cameraMinSmoothingFactor || 0.05; // Reduziert für smoothness
         
-        // Higher smoothing for closer positions, lower for distant positions
-        const distanceFactor = Math.min(1.0, distanceToTarget / 10.0);
-        const velocityFactor = Math.min(1.0, smoothVelocity / 2.0);
+        // Verbesserte Faktor-Berechnung
+        const distanceFactor = Math.min(1.0, distanceToTarget / 8.0); // Angepasst
+        const velocityFactor = Math.min(1.0, smoothVelocity / 1.5); // Angepasst
+        
+        // Smootheres Interpolieren mit kubischer Kurve
+        const easedDistanceFactor = distanceFactor * distanceFactor * (3.0 - 2.0 * distanceFactor);
+        const easedVelocityFactor = velocityFactor * velocityFactor * (3.0 - 2.0 * velocityFactor);
         
         const adaptiveSmoothing = THREE.MathUtils.lerp(
             maxSmoothing, 
             minSmoothing, 
-            distanceFactor * 0.7 + velocityFactor * 0.3
+            easedDistanceFactor * 0.6 + easedVelocityFactor * 0.4
         );
         
+        // Noch smootheres LookAt
         const adaptiveLookAtSmoothing = Math.min(
-            BOARD_CONFIG.cameraLookAtSmoothing * 1.2,
-            adaptiveSmoothing * 1.3
+            adaptiveSmoothing * 1.5,
+            0.08 // Maximum für sehr smooth camera
         );
         
-        // Ultra-smooth interpolation with adaptive factors
+        // Ultra-smooth interpolation mit verbesserter Logik
         this.camera.position.lerp(bestCameraPosition, adaptiveSmoothing);
         this.controls.target.lerp(lookAtPosition, adaptiveLookAtSmoothing);
         this.camera.lookAt(this.controls.target);
@@ -3364,10 +3263,29 @@ class WiiPartyIsland {
         }
     }
 
+    // Hole aktuellen aktiven Spieler sicher
+    getCurrentActivePlayer() {
+        if (!GAME_STATE.currentServerTeamTurnId || !this.miiCharacters) {
+            console.warn('⚠️ getCurrentActivePlayer: No current team ID or no characters loaded');
+            return null;
+        }
+        
+        const character = this.miiCharacters[GAME_STATE.currentServerTeamTurnId];
+        if (!character) {
+            console.warn('⚠️ getCurrentActivePlayer: Character not found for team ID:', GAME_STATE.currentServerTeamTurnId);
+            return null;
+        }
+        
+        return character;
+    }
+    
     // Erweiterte Spieler-Verfolgung für Spezial-Aktionen
     startEnhancedPlayerFollowing(duration) {
         const currentPlayer = this.getCurrentActivePlayer();
-        if (!currentPlayer) return;
+        if (!currentPlayer) {
+            console.warn('⚠️ startEnhancedPlayerFollowing: No current player found');
+            return;
+        }
         
         console.log('🎯 Starte erweiterte Spieler-Verfolgung');
         
@@ -3598,30 +3516,40 @@ class WiiPartyIsland {
         console.log("🎲 Rolling dice for team:", currentTeam.name, "ID:", currentTeam.id);
         
         const mii = this.miiCharacters[currentTeam.id];
-        if (!mii) { 
+        if (!mii) {
+            console.error(`❌ rollDice: Charakter nicht gefunden für Team ${currentTeam.name} (ID: ${currentTeam.id})`);
+            console.log('🔍 Verfügbare Charaktere:', Object.keys(this.miiCharacters));
+            GAME_STATE.isAnimating = false; 
+            GAME_STATE.isDiceRolling = false; 
+            return; 
+        }
+        
+        if (!mii.position || !mii.rotation) {
+            console.error(`❌ rollDice: Charakter ${currentTeam.name} hat keine gültigen Position/Rotation-Eigenschaften`);
             GAME_STATE.isAnimating = false; 
             GAME_STATE.isDiceRolling = false; 
             return; 
         }
 
-        // 1. Positioniere Kamera hinter der Figur (1.5 Felder dahinter)
+        // 1. Positioniere Kamera sehr nah hinter der Figur
         const characterPosition = mii.position.clone();
         const characterDirection = new THREE.Vector3();
         mii.getWorldDirection(characterDirection);
         characterDirection.y = 0;
         characterDirection.normalize();
         
-        // Kamera 1.5 Felder hinter der Figur positionieren
-        const cameraPosition = characterPosition.clone().sub(characterDirection.multiplyScalar(3.0)); // 1.5 Felder = ~3.0 units
-        cameraPosition.y = characterPosition.y + 8; // Höhere Position für besseren Blick
+        // Kamera sehr nah hinter der Figur positionieren (0.5 Felder dahinter)
+        const cameraPosition = characterPosition.clone().sub(characterDirection.multiplyScalar(1.2)); // Viel näher
+        cameraPosition.y = characterPosition.y + 4; // Niedrigere Vogelperspektive
         
         const lookAtPosition = characterPosition.clone();
-        lookAtPosition.y += 1.5; // Blick etwas über der Figur
+        lookAtPosition.y -= 1.0; // Schaue nach unten auf die Figur
         
         // Kamera sanft zur Position bewegen
         this.animateCameraToPosition(cameraPosition, lookAtPosition, 800, () => {
-            // 2. Figur zur Kamera umdrehen lassen
-            this.animateCharacterTurn(mii, this.camera.position, () => {
+            // 2. Figur geradeaus (Richtung Zentrum) ausrichten lassen
+            const centerPos = new THREE.Vector3(0, mii.position.y, 0);
+            this.animateCharacterTurn(mii, centerPos, () => {
                 // 3. Würfel-Animation starten
                 this.interactiveDice.position.copy(mii.position).add(new THREE.Vector3(0, 1, 0));
                 this.interactiveDice.visible = true;
@@ -3658,8 +3586,9 @@ class WiiPartyIsland {
                             lookAtTargetPos = nextField.mesh.position.clone();
                         }
 
-                        // 4. Figur in Bewegungsrichtung drehen und dann bewegen
-                        this.animateCharacterTurn(mii, lookAtTargetPos, () => {
+                        // 4. Figur geradeaus (Richtung Zentrum) ausrichten und dann bewegen
+                        const centerPos = new THREE.Vector3(0, mii.position.y, 0);
+                        this.animateCharacterTurn(mii, centerPos, () => {
                             GAME_STATE.isDiceRolling = false;
                             if (!GAME_STATE.freeCameraMode) {
                                 this.startCameraFollow(mii);
@@ -4096,7 +4025,7 @@ class WiiPartyIsland {
                 const jumpTime = Date.now() - jumpStartTime;
                 const jumpProgress = Math.min(1, jumpTime / jumpDuration);
                 character.position.y = startPosition.y + Math.sin(jumpProgress * Math.PI) * jumpHeight;
-                character.rotation.y += 0.12;
+                // Idle Animation ohne Rotationänderung
                 
                 if (jumpProgress < 1) {
                     requestAnimationFrame(animateSingleJump);
@@ -4280,13 +4209,9 @@ class WiiPartyIsland {
         // Automatic camera management system - runs continuously
         this.updateAutomaticCamera();
 
-        // Camera following logic - use automatic version when auto camera is enabled
+        // Camera following logic - nur einfache Version verwenden
         if (!GAME_STATE.freeCameraMode && this.isFollowingCharacter && !GAME_STATE.isAnimatingCamera) {
-            if (GAME_STATE.autoCameraEnabled && GAME_STATE.cameraFocusMode === 'focus') {
-                this.updateAutomaticCameraFollow();
-            } else {
-                this.updateCameraFollow();
-            }
+            this.updateCameraFollow();
         }
         
         if (GAME_STATE.freeCameraMode) {
@@ -4456,8 +4381,8 @@ window.addEventListener('message', function(event) {
     }
 });
 
-// Enhanced orbital camera animation for minigames and elegant island viewing
-function startCameraOrbitAnimation(isMinigame = false, duration = null) {
+// Verbesserte orbital camera animation - anti-stutter version
+function startCameraOrbitAnimationSmooth(isMinigame = false, duration = null) {
     if (!window.gameBoard || !window.gameBoard.camera || !window.gameBoard.controls) {
         console.warn('Spielbrett oder Kamera noch nicht initialisiert für Orbit-Animation');
         return;
@@ -4470,7 +4395,7 @@ function startCameraOrbitAnimation(isMinigame = false, duration = null) {
     }
     window.orbitAnimationRunning = true;
     
-    console.log('🎥 Starte eleganten Kamera-Orbit...');
+    console.log('🎥 Starte verbesserten eleganten Kamera-Orbit...');
     
     // Speichere ursprüngliche Kamera-Position für spätere Wiederherstellung
     if (!window.originalCameraState) {
@@ -4483,98 +4408,119 @@ function startCameraOrbitAnimation(isMinigame = false, duration = null) {
     // Verwende BOARD_CONFIG Einstellungen für konsistente Parameter
     const orbitRadius = BOARD_CONFIG.cameraOrbitRadius;
     const orbitHeight = BOARD_CONFIG.cameraOrbitHeight;
-    const orbitSpeed = isMinigame ? BOARD_CONFIG.cameraOrbitSpeed * 0.7 : BOARD_CONFIG.cameraOrbitSpeed; // Langsamer für Minispiele
+    const orbitSpeed = isMinigame ? BOARD_CONFIG.cameraOrbitSpeed * 0.7 : BOARD_CONFIG.cameraOrbitSpeed;
     
-    // Smooth transition to orbit start position
-    const startAngle = Math.PI / 4; // Starte bei 45° (schräg)
+    // Intelligenter Start-Winkel basierend auf aktueller Kamera-Position
+    const currentCamPos = window.gameBoard.camera.position.clone();
+    const startAngle = Math.atan2(currentCamPos.z, currentCamPos.x); // Starte näher zur aktuellen Position
+    
     const startX = Math.cos(startAngle) * orbitRadius;
     const startZ = Math.sin(startAngle) * orbitRadius;
     const startPosition = new THREE.Vector3(startX, orbitHeight, startZ);
     const lookAtTarget = new THREE.Vector3(0, 6, 0);
     
-    // Deaktiviere manuelle Kontrolle
+    // Deaktiviere manuelle Kontrolle sanft
     window.gameBoard.controls.enabled = false;
     
-    // Smooth transition zum Orbit-Start
-    window.gameBoard.animateCameraToPosition(startPosition, lookAtTarget, 1200, () => {
+    // Verkürzte, smooth transition zum Orbit-Start
+    const transitionDuration = Math.min(800, 1200); // Kürzere Transition
+    window.gameBoard.animateCameraToPositionSmooth(startPosition, lookAtTarget, transitionDuration, () => {
         let orbitAngle = startAngle;
-        let startTime = Date.now();
+        let lastTime = performance.now();
         
-        // Kontinuierlicher Orbit mit eleganten Bewegungen
-        function animateOrbit() {
-            // Prüfe ob Animation gestoppt werden soll oder Zeitlimit erreicht
+        // Kontinuierlicher Orbit mit verbesserter Smoothness
+        function animateOrbitSmooth(currentTime) {
+            // Prüfe ob Animation gestoppt werden soll
             if (!window.orbitAnimationRunning) {
                 console.log('🛑 Orbit-Animation gestoppt');
                 return;
             }
             
-            if (duration && (Date.now() - startTime) > duration) {
+            if (duration && currentTime > duration) {
                 console.log('🎥 Orbit-Animation Zeitlimit erreicht');
-                stopCameraOrbitAnimation();
+                stopCameraOrbitAnimationSmooth();
                 return;
             }
             
-            // Elegante Orbit-Berechnung mit smooth easing
-            orbitAngle += orbitSpeed;
+            // Delta-time basierte Animation für consistent movement
+            const deltaTime = currentTime - lastTime;
+            lastTime = currentTime;
+            
+            // Elegante Orbit-Berechnung mit frame-rate independent movement
+            orbitAngle += orbitSpeed * (deltaTime / 16.67); // Normalize to 60fps
             const x = Math.cos(orbitAngle) * orbitRadius;
             const z = Math.sin(orbitAngle) * orbitRadius;
             
-            // Natürliche Höhen-Variation für organische Bewegung
-            const heightVariation = Math.sin(orbitAngle * 0.8) * 3; // Sanftere Variation
+            // Sanftere Höhen-Variation mit geringerer Amplitude
+            const heightVariation = Math.sin(orbitAngle * 0.6) * 2; // Reduzierte Variation
             const currentHeight = orbitHeight + heightVariation;
             
-            // Smooth camera movement mit lerp für flüssige Bewegung
+            // Multi-level smoothing für ultra-flüssige Bewegung
             const targetCameraPos = new THREE.Vector3(x, currentHeight, z);
-            window.gameBoard.camera.position.lerp(targetCameraPos, 0.05);
+            window.gameBoard.camera.position.lerp(targetCameraPos, 0.08); // Etwas höhere Lerp-Rate
             
-            // Dynamischer Look-At mit leichter Variation für natürliche Wirkung
+            // Stabilerer Look-At mit weniger Variation
             const lookAtVariation = new THREE.Vector3(
-                Math.sin(orbitAngle * 0.3) * 2,
+                Math.sin(orbitAngle * 0.2) * 1, // Reduzierte Variation
                 0,
-                Math.cos(orbitAngle * 0.3) * 2
+                Math.cos(orbitAngle * 0.2) * 1
             );
             const dynamicLookAt = lookAtTarget.clone().add(lookAtVariation);
-            window.gameBoard.controls.target.lerp(dynamicLookAt, 0.08);
+            window.gameBoard.controls.target.lerp(dynamicLookAt, 0.06);
             window.gameBoard.camera.lookAt(window.gameBoard.controls.target);
             
-            requestAnimationFrame(animateOrbit);
+            requestAnimationFrame(animateOrbitSmooth);
         }
         
-        console.log(isMinigame ? '🎮 Starte Minispiel-Kamera-Orbit...' : '🎥 Starte eleganten Kamera-Orbit um die Insel...');
-        animateOrbit();
+        console.log(isMinigame ? '🎮 Starte verbesserten Minispiel-Kamera-Orbit...' : '🎥 Starte verbesserten eleganten Kamera-Orbit um die Insel...');
+        requestAnimationFrame(animateOrbitSmooth);
     });
 }
 
-// Stop orbital camera animation and restore original view
-function stopCameraOrbitAnimation(restoreOriginal = true) {
+// Legacy function für Rücwärtskompatibilität
+function startCameraOrbitAnimation(isMinigame = false, duration = null) {
+    startCameraOrbitAnimationSmooth(isMinigame, duration);
+}
+
+// Verbesserte Stop-Funktion - smooth transition without judder
+function stopCameraOrbitAnimationSmooth(restoreOriginal = true) {
     if (!window.orbitAnimationRunning) {
         return;
     }
     
     window.orbitAnimationRunning = false;
-    console.log('🛑 Stoppe Kamera-Orbit...');
+    console.log('🛑 Stoppe Kamera-Orbit sanft...');
     
     if (restoreOriginal && window.originalCameraState && window.gameBoard) {
-        // Smooth transition zurück zur ursprünglichen Position
-        window.gameBoard.animateCameraToPosition(
+        // Kürzere, smooth transition zurück zur ursprünglichen Position
+        const restoreTransitionDuration = 600; // Kürzer für weniger judder
+        window.gameBoard.animateCameraToPositionSmooth(
             window.originalCameraState.position, 
             window.originalCameraState.target, 
-            1000, 
+            restoreTransitionDuration, 
             () => {
                 window.gameBoard.controls.enabled = !GAME_STATE.freeCameraMode;
                 window.originalCameraState = null;
-                console.log('🎥 Kamera zur ursprünglichen Position zurückgekehrt');
+                console.log('🎥 Kamera sanft zur ursprünglichen Position zurückgekehrt');
             }
         );
     } else if (window.gameBoard) {
-        window.gameBoard.controls.enabled = !GAME_STATE.freeCameraMode;
+        // Sanfte Re-Aktivierung der Controls
+        setTimeout(() => {
+            window.gameBoard.controls.enabled = !GAME_STATE.freeCameraMode;
+        }, 100); // Kleine Verzögerung für smoother Übergang
     }
+}
+
+// Legacy function für Rücwärtskompatibilität
+function stopCameraOrbitAnimation(restoreOriginal = true) {
+    stopCameraOrbitAnimationSmooth(restoreOriginal);
 }
 
 // Enhanced minigame camera - starts orbital movement during minigames
 function startMinigameCameraOrbit(duration = 30000) { // 30 Sekunden default
-    console.log('🎮 Starte Minispiel-Kamera-Modus...');
-    startCameraOrbitAnimation(true, duration);
+    console.log('🎮 Starte verbesserten Minispiel-Kamera-Modus...');
+    startCameraOrbitAnimationSmooth(true, duration);
 }
 
 // Legacy function für Kompatibilität
