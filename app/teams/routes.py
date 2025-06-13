@@ -845,6 +845,68 @@ def get_active_fields():
         active_configs = FieldConfiguration.get_all_enabled()
         
         field_details = []
+        
+        # Füge Standard-Felder hinzu die immer aktiv sind
+        standard_fields = [
+            {
+                'field_type': 'normal',
+                'display_name': 'Normale Felder',
+                'description': 'Standard-Spielfelder ohne besondere Effekte',
+                'icon': '⬜',
+                'color_hex': '#6c757d',
+                'emission_hex': '#495057',
+                'frequency_type': 'default',
+                'frequency_value': 0
+            },
+            {
+                'field_type': 'start',
+                'display_name': 'Startfeld',
+                'description': 'Das Startfeld des Spielbretts',
+                'icon': '🏁',
+                'color_hex': '#28a745',
+                'emission_hex': '#1e7e34',
+                'frequency_type': 'fixed_positions',
+                'frequency_value': 1
+            },
+            {
+                'field_type': 'goal',
+                'display_name': 'Zielfeld',
+                'description': 'Das Zielfeld des Spielbretts',
+                'icon': '🎯',
+                'color_hex': '#dc3545',
+                'emission_hex': '#c82333',
+                'frequency_type': 'fixed_positions',
+                'frequency_value': 1
+            }
+        ]
+        
+        # Sammle alle Feld-Typen aus der Datenbank
+        db_field_types = {config.field_type for config in active_configs}
+        
+        # Verarbeite nur Standard-Felder, die nicht bereits in der DB konfiguriert sind
+        for std_field in standard_fields:
+            if std_field['field_type'] not in db_field_types:
+                frequency_desc = ""
+                if std_field['field_type'] == 'normal':
+                    frequency_desc = "Alle übrigen Felder"
+                elif std_field['field_type'] in ['start', 'goal']:
+                    frequency_desc = "Einmalig (Position 0)" if std_field['field_type'] == 'start' else "Einmalig (Position 72)"
+                
+                field_detail = {
+                    'id': f"std_{std_field['field_type']}",
+                    'type': std_field['field_type'],
+                    'name': std_field['display_name'],
+                    'description': std_field['description'],
+                    'icon': std_field['icon'],
+                    'color': std_field['color_hex'],
+                    'emission_color': std_field['emission_hex'],
+                    'frequency': frequency_desc,
+                    'frequency_value': std_field['frequency_value'],
+                    'config': {}
+                }
+                field_details.append(field_detail)
+        
+        # Verarbeite Datenbank-Konfigurationen
         for config in active_configs:
             config_dict = config.config_dict
             

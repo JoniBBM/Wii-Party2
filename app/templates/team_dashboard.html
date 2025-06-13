@@ -3,7 +3,7 @@
 {% block title %}{{ title }} - Wii Party U Deluxe{% endblock %}
 
 {% block content %}
-<div class="container mt-4">
+<div class="container-fluid mt-4">
     <!-- Team-Header -->
     <div class="row mb-4">
         <div class="col-md-12">
@@ -369,7 +369,7 @@
 
     <div class="row">
         <!-- Team-Rangliste -->
-        <div class="col-xl-4 col-lg-6 mb-4">
+        <div class="col-xl-8 col-lg-6 mb-4">
             <div class="card h-100">
                 <div class="card-header bg-white">
                     <h5 class="mb-0">
@@ -395,7 +395,7 @@
                                     <td>
                                         <span class="rank-badge rank-{{ loop.index }}">
                                             {% if loop.index == 1 %}
-                                                <i class="fas fa-crown text-warning"></i>
+                                                <span class="rank-first"><i class="fas fa-crown"></i><span class="rank-number">1</span></span>
                                             {% else %}
                                                 {{ loop.index }}
                                             {% endif %}
@@ -541,10 +541,12 @@
                 </div>
             </div>
         </div>
+    </div>
 
-        <!-- Aktive Felder Übersicht -->
-        <div class="col-xl-4 col-lg-12 mb-4">
-            <div class="card h-100">
+    <!-- Aktive Felder Übersicht - Vollbreite unter den anderen Bereichen -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
                 <div class="card-header bg-white">
                     <h5 class="mb-0">
                         <i class="fas fa-th-large mr-2 text-warning"></i>
@@ -1184,7 +1186,28 @@
     font-size: 0.9rem;
 }
 
-.rank-1 { background: linear-gradient(45deg, #FFD700, #FFA500); color: #333; }
+.rank-1 { 
+    background: linear-gradient(45deg, #FFD700, #FFA500); 
+    color: #333; 
+}
+
+.rank-first {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1px;
+    font-size: 0.75rem;
+}
+
+.rank-first .fas.fa-crown {
+    color: #b8860b;
+    font-size: 0.7rem;
+}
+
+.rank-number {
+    font-weight: bold;
+    color: #333;
+}
 .rank-2 { background: linear-gradient(45deg, #C0C0C0, #A9A9A9); color: #333; }
 .rank-3 { background: linear-gradient(45deg, #CD7F32, #B8860B); color: white; }
 
@@ -1407,14 +1430,16 @@
     background: #f8f9fa;
     border-left: 4px solid #ffc107;
     padding: 12px;
-    margin-bottom: 10px;
     border-radius: 6px;
-    transition: transform 0.2s ease;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    height: 100%;
+    border: 1px solid #e9ecef;
 }
 
 .active-field-item:hover {
-    transform: translateX(5px);
+    transform: translateY(-2px);
     background: #f1f3f4;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
 }
 
 .active-field-icon {
@@ -1491,6 +1516,56 @@
     
     .table-responsive {
         font-size: 0.875rem;
+    }
+    
+    .container-fluid {
+        padding-left: 10px;
+        padding-right: 10px;
+    }
+    
+    /* Verhindere horizontalen Scroll */
+    body {
+        overflow-x: hidden;
+    }
+    
+    .row {
+        margin-left: 0;
+        margin-right: 0;
+    }
+    
+    .col-sm-12 {
+        padding-left: 5px;
+        padding-right: 5px;
+    }
+}
+
+/* Zusätzliche Container-Optimierungen */
+@media (min-width: 1400px) {
+    .container-fluid {
+        max-width: 1400px;
+        margin: 0 auto;
+    }
+}
+
+/* Verbesserte Grid-Layouts für verschiedene Breakpoints */
+@media (min-width: 1200px) {
+    .active-field-item .active-field-info h6 {
+        font-size: 0.95rem;
+    }
+    
+    .active-field-item .active-field-info p {
+        font-size: 0.8rem;
+        line-height: 1.3;
+    }
+}
+
+@media (max-width: 991.98px) {
+    .active-field-item .active-field-info h6 {
+        font-size: 1rem;
+    }
+    
+    .active-field-item .active-field-info p {
+        font-size: 0.9rem;
     }
 }
 </style>
@@ -1998,24 +2073,27 @@ function loadActiveFields() {
                     return;
                 }
                 
-                let fieldsHtml = '';
+                let fieldsHtml = '<div class="row">';
                 data.fields.forEach(field => {
                     const borderColor = field.color || '#ffc107';
                     fieldsHtml += `
-                        <div class="active-field-item" style="border-left-color: ${borderColor};">
-                            <div class="d-flex align-items-start">
-                                <div class="active-field-icon" style="color: ${borderColor};">
-                                    ${field.icon}
-                                </div>
-                                <div class="active-field-info flex-grow-1">
-                                    <h6>${field.name}</h6>
-                                    <p>${field.description}</p>
-                                    <div class="active-field-frequency">${field.frequency}</div>
+                        <div class="col-xl-3 col-lg-4 col-md-6 col-sm-12 mb-3">
+                            <div class="active-field-item" style="border-left-color: ${borderColor};">
+                                <div class="d-flex align-items-start">
+                                    <div class="active-field-icon" style="color: ${borderColor};">
+                                        ${field.icon}
+                                    </div>
+                                    <div class="active-field-info flex-grow-1">
+                                        <h6>${field.name}</h6>
+                                        <p>${field.description}</p>
+                                        <div class="active-field-frequency">${field.frequency}</div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
                     `;
                 });
+                fieldsHtml += '</div>';
                 
                 activeFieldsList.innerHTML = fieldsHtml;
             } else {
@@ -2830,7 +2908,7 @@ function updateTeamRankings(teams, maxFields) {
         row.innerHTML = `
             <td>
                 <span class="rank-badge rank-${rank}">
-                    ${rank === 1 ? '<i class="fas fa-crown text-warning"></i>' : rank}
+                    ${rank === 1 ? '<span class="rank-first"><i class="fas fa-crown"></i><span class="rank-number">1</span></span>' : rank}
                 </span>
             </td>
             <td>
