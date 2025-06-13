@@ -1076,6 +1076,29 @@ def upload_profile_image():
         current_app.logger.error(f"Fehler beim Upload des Profilbildes: {e}", exc_info=True)
         return jsonify({"success": False, "error": "Ein Fehler ist aufgetreten"}), 500
 
+@main_bp.route('/debug/static-files')
+def debug_static_files():
+    """Debug-Route um statische Dateien zu prüfen"""
+    import os
+    from flask import current_app
+    
+    debug_info = {
+        'static_folder': current_app.static_folder,
+        'static_url_path': current_app.static_url_path,
+        'profile_images_exists': False,
+        'profile_images_files': []
+    }
+    
+    if current_app.static_folder:
+        profile_images_dir = os.path.join(current_app.static_folder, 'profile_images')
+        debug_info['profile_images_dir'] = profile_images_dir
+        debug_info['profile_images_exists'] = os.path.exists(profile_images_dir)
+        
+        if os.path.exists(profile_images_dir):
+            debug_info['profile_images_files'] = os.listdir(profile_images_dir)
+    
+    return jsonify(debug_info)
+
 @main_bp.route('/api/get-player-faces')
 def get_player_faces():
     """Gibt Profilbilder der aktuell spielenden Teams/Spieler zurück"""
