@@ -349,7 +349,26 @@ let BOARD_CONFIG = {
     spiralLoops: 3.8, // Mehr Loops für bessere Verteilung
     pathDepth: 5.0,
     cameraFollowOffset: new THREE.Vector3(0, 7, 12),
-    cameraFrontOffset: new THREE.Vector3(0, 4, -8)
+    cameraFrontOffset: new THREE.Vector3(0, 4, -8),
+    // Enhanced camera settings - Ultra Smooth
+    cameraSmoothing: 0.15,                    // Deutlich höher für smoothness
+    cameraLookAtSmoothing: 0.18,              // Höher für smooth look-at
+    cameraOrbitSpeed: 0.006,
+    cameraOrbitHeight: 40,
+    cameraOrbitRadius: 55,
+    cameraObstacleAvoidanceDistance: 4.0,     // Größerer Abstand zu Hindernissen
+    cameraHeightAdjustment: 3.5,              // Höhere Anpassung
+    // Auto camera management
+    cameraAutoOrbitDelay: 3000,               // 3s warten bevor Auto-Orbit startet
+    cameraPlayerFocusDistance: 18,            // Größere Distanz für bessere Sicht
+    cameraPlayerFocusHeight: 12,              // Höhere Position über Berg
+    cameraTransitionDuration: 1500,           // Smooth Transition Dauer
+    // Ultra smooth settings
+    cameraMaxSmoothingFactor: 0.25,           // Maximum smoothing bei schneller Bewegung
+    cameraMinSmoothingFactor: 0.08,           // Minimum smoothing bei langsamer Bewegung
+    cameraPredictiveDistance: 5.0,            // Vorhersage-Distanz für Bewegung
+    cameraMinHeight: 8.0,                     // Minimum Höhe über Terrain
+    cameraMaxObstacleCheckDistance: 50.0      // Maximum Raycast-Distanz
 };
 
 const islandSurfaceY = 1.6;
@@ -360,6 +379,8 @@ let FIELD_DISTRIBUTION_LOADING = false;
 
 let hasShowMinigameResults = false;
 let hasShownTurnDiceSequence = false;
+let lastDiceResult = null; // Track last dice result to prevent loops
+let turnSequenceState = { isMoving: false }; // Track turn sequence state to prevent conflicts
 
 // FELDTYP-HILFSFUNKTIONEN
 function getFieldTypeAtPosition(position) {
@@ -521,7 +542,15 @@ const GAME_STATE = {
     currentServerTeamTurnId: null,
     diceRollOrderFromServer: [],
     cinematicMode: false,
-    cinematicTimer: null
+    cinematicTimer: null,
+    // Auto Camera Management
+    autoCameraEnabled: true,           // Auto-Kamera aktiviert
+    cameraFocusMode: 'auto',          // 'auto', 'focus', 'orbit'
+    isPlayerActive: false,            // Ist gerade ein Spieler aktiv?
+    autoOrbitActive: false,           // Läuft gerade Auto-Orbit?
+    lastPlayerActivity: Date.now(),   // Letzter Zeitpunkt mit Spieler-Aktivität
+    playerFocusTarget: null,          // Aktueller Spieler im Fokus
+    cameraTransitioning: false       // Kamera wechselt gerade Modi
 };
 
 // Team-Daten
@@ -635,6 +664,7 @@ class WiiPartyIsland {
         this.createInteractiveDice();
         
         this.setupEventListeners();
+        this.initAutomaticCameraManagement();
         this.animate();
         
         this.updateMinigameDisplay();
@@ -1485,19 +1515,39 @@ class WiiPartyIsland {
                     this.rollDice();
                 }
             } else if (event.key.toLowerCase() === 'o') {
-                // Starte/Stoppe Kamera-Orbit (O key)
+                // Elegante Kamera-Orbit (O key)
                 if (window.orbitAnimationRunning) {
-                    // Stoppe Orbit und kehre zur normalen Ansicht zurück
-                    console.log('🛑 Stoppe Kamera-Orbit');
-                    window.orbitAnimationRunning = false;
-                    this.controls.enabled = true;
-                    this.controls.update();
-                    this.showStatusMessage('Kamera-Orbit gestoppt', 2000, 'info');
+                    stopCameraOrbitAnimation();
+                    this.showStatusMessage('Elegante Kamera-Orbit gestoppt', 2000, 'info');
                 } else {
-                    // Starte Orbit
-                    console.log('🎥 Starte manuellen Kamera-Orbit');
-                    startCameraOrbitAnimation();
-                    this.showStatusMessage('Kamera-Orbit gestartet - O zum Stoppen', 3000, 'success');
+                    startCameraOrbitAnimation(false); // Standard orbit mode
+                    this.showStatusMessage('Elegante Kamera-Orbit gestartet - O zum Stoppen', 3000, 'success');
+                }
+            } else if (event.key.toLowerCase() === 'p') {
+                // Minispiel-Kamera-Orbit (P key)
+                if (window.orbitAnimationRunning) {
+                    stopCameraOrbitAnimation();
+                    this.showStatusMessage('Minispiel-Kamera gestoppt', 2000, 'info');
+                } else {
+                    startMinigameCameraOrbit(30000);
+                    this.showStatusMessage('Minispiel-Kamera gestartet (30s) - P zum Stoppen', 3000, 'success');
+                }
+            } else if (event.key.toLowerCase() === 'c') {
+                // Auto-Kamera System ein/aus (C key)
+                GAME_STATE.autoCameraEnabled = !GAME_STATE.autoCameraEnabled;
+                
+                if (GAME_STATE.autoCameraEnabled) {
+                    this.showStatusMessage('Auto-Kamera aktiviert - Vollautomatische Steuerung', 3000, 'success');
+                    // Starte Auto-Kamera sofort
+                    this.updateAutomaticCamera();
+                } else {
+                    this.showStatusMessage('Auto-Kamera deaktiviert - Manuelle Steuerung', 3000, 'info');
+                    // Stoppe alle automatischen Kamera-Aktivitäten
+                    if (GAME_STATE.autoOrbitActive) {
+                        stopCameraOrbitAnimation();
+                    }
+                    this.stopAutomaticPlayerFollowing();
+                    GAME_STATE.cameraFocusMode = 'manual';
                 }
             } else if (event.key.toLowerCase() === 't' && isAdmin) {
                 // Test minigame results (T key for admin)
@@ -1654,7 +1704,7 @@ class WiiPartyIsland {
         // ====== SIMPLIFIED GAME LOGIC (team_dashboard style) ======
         // Debug info for game logic
         console.log("🔍 Game Debug:", {
-            currentPhase: data.game_session.current_phase,
+            currentPhase: currentGamePhase,
             lastPhase: lastPhase,
             hasShowMinigameResults: hasShowMinigameResults,
             localTeamsLength: localTeams ? localTeams.length : 0,
@@ -1681,7 +1731,7 @@ class WiiPartyIsland {
             } else {
                 console.log("❌ SIMPLE: No teams with placements found");
             }
-        } else if (data.game_session.current_phase !== 'DICE_ROLLING') {
+        } else if (currentGamePhase !== 'DICE_ROLLING') {
             hasShowMinigameResults = false;
         }
         
@@ -1991,40 +2041,53 @@ class WiiPartyIsland {
                             // Process game logic without banners
                             setTimeout(() => {
                                 console.log("🔄 Processing game logic after minigame results");
-                                const currentTeamId = data.game_session.current_team_turn_id;
+                                const diceResult = data.last_dice_result || window.pendingDiceResult;
+                                
+                                // Determine current team - prioritize dice result team_id, fallback to current_team_turn_id
+                                let currentTeamId = data.game_session.current_team_turn_id;
+                                if (diceResult && diceResult.team_id) {
+                                    currentTeamId = diceResult.team_id;
+                                    console.log("🎯 Using team ID from dice result:", currentTeamId);
+                                }
+                                
                                 const currentTeam = localTeams.find(t => t.id === currentTeamId);
                                 
                                 if (currentTeam) {
+                                    // Update GAME_STATE with correct team
+                                    GAME_STATE.currentServerTeamTurnId = currentTeamId;
+                                    
                                     // Check for dice result and process movement
                                     setTimeout(() => {
-                                        const diceResult = data.last_dice_result || window.pendingDiceResult;
                                         console.log("🔍 DEBUG: Checking for dice result:", {
                                             hasDataDiceResult: !!data.last_dice_result,
                                             hasPendingDiceResult: !!window.pendingDiceResult,
                                             diceResult: diceResult,
                                             currentTeamId: currentTeamId,
+                                            currentTeamName: currentTeam.name,
                                             dataTimestamp: data.last_dice_result?.timestamp,
                                             pendingTimestamp: window.pendingDiceResult?.timestamp,
                                             currentTime: new Date().toLocaleTimeString()
                                         });
                                         
                                         if (diceResult && diceResult.standard_roll !== undefined) {
-                                            console.log("🎲 Processing dice result");
+                                            console.log("🎲 Processing dice result for team:", currentTeam.name);
                                             
                                             // Clear pending dice result to prevent showing again
                                             window.pendingDiceResult = null;
                                             
                                             // Focus camera and allow movement
                                             setTimeout(() => {
-                                                console.log("🎯 Focusing camera and allowing movement");
+                                                console.log("🎯 Focusing camera and allowing movement for:", currentTeam.name);
                                                 this.focusCameraOnCurrentTeam(false);
                                             }, 200);
                                         } else {
                                             // No dice result yet, just focus camera
-                                            console.log("🎯 Focusing camera (no dice yet)");
+                                            console.log("🎯 Focusing camera (no dice yet) for:", currentTeam.name);
                                             this.focusCameraOnCurrentTeam(false);
                                         }
                                     }, 1000); // Reduced timing
+                                } else {
+                                    console.warn("❌ No team found for ID:", currentTeamId);
                                 }
                             }, 2000); // Reduced timing
                         }
@@ -2073,6 +2136,11 @@ class WiiPartyIsland {
                         data.teams.forEach(serverTeam => {
                             const localTeam = localTeams.find(t => t.id === serverTeam.id);
                             if (localTeam) {
+                                if (localTeam.position !== serverTeam.position) {
+                                    console.log(`🏃 Position change detected: Team ${serverTeam.id} (${localTeam.name}) from position ${localTeam.position} to ${serverTeam.position}`);
+                                    console.log(`🏃 Movement conditions: isCharacterMoving=${GAME_STATE.isCharacterMoving}, activeMovementAnimation=${!!this.activeMovementAnimation}, characterExists=${!!this.miiCharacters[serverTeam.id]}`);
+                                }
+                                
                                 if (localTeam.position !== serverTeam.position &&
                                     !GAME_STATE.isCharacterMoving &&
                                     (!this.activeMovementAnimation || this.activeMovementAnimation.teamId !== localTeam.id)
@@ -2080,6 +2148,7 @@ class WiiPartyIsland {
                                     teamWhosePositionChanged = localTeam;
                                     oldPositionForAnimation = localTeam.position;
                                     newPositionForAnimation = serverTeam.position;
+                                    console.log(`✅ Movement will be triggered for team ${localTeam.name}`);
                                 }
                                 
                                 localTeam.position = serverTeam.position;
@@ -2104,9 +2173,18 @@ class WiiPartyIsland {
                         this.updateAllTeamBadges();
 
                         if (teamWhosePositionChanged && this.miiCharacters[teamWhosePositionChanged.id]) {
+                            console.log(`🎯 Ready to move team ${teamWhosePositionChanged.name}, checking final conditions...`);
                             if (!GAME_STATE.isCharacterMoving) {
+                                console.log(`🚀 Starting movement animation for team ${teamWhosePositionChanged.name}`);
                                 this.activeMovementAnimation = { teamId: teamWhosePositionChanged.id };
                                 this.animateCharacterToNewPosition(teamWhosePositionChanged, oldPositionForAnimation, newPositionForAnimation);
+                            } else {
+                                console.log(`🚫 Final check failed: GAME_STATE.isCharacterMoving = ${GAME_STATE.isCharacterMoving}`);
+                            }
+                        } else {
+                            if (teamWhosePositionChanged && !this.miiCharacters[teamWhosePositionChanged.id]) {
+                                console.log(`🚫 Character object missing for team ${teamWhosePositionChanged.name} (ID: ${teamWhosePositionChanged.id})`);
+                                console.log(`🚫 Available characters:`, Object.keys(this.miiCharacters || {}));
                             }
                         }
                     }
@@ -2141,8 +2219,14 @@ class WiiPartyIsland {
                         console.log("🎲 Last dice result detected from admin:", data.last_dice_result);
                         lastDiceResult = data.last_dice_result;
                         
-                        // Store dice result for use in minigame sequence
+                        // Store dice result with team information for use in minigame sequence
                         window.pendingDiceResult = data.last_dice_result;
+                        
+                        // Update current team turn ID to match dice result
+                        if (data.last_dice_result.team_id) {
+                            console.log("🎯 Setting current team from dice result:", data.last_dice_result.team_id);
+                            GAME_STATE.currentServerTeamTurnId = data.last_dice_result.team_id;
+                        }
                     }
 
                     this.updateTeamDisplay();
@@ -2180,6 +2264,14 @@ class WiiPartyIsland {
         // Mark in turn sequence that movement started
         turnSequenceState.isMoving = true;
         console.log("🚫 Movement started for", team.name);
+        
+        // Trigger auto camera following for player movement
+        if (GAME_STATE.autoCameraEnabled) {
+            console.log("📹 Triggering auto camera following for movement");
+            GAME_STATE.isPlayerActive = true;
+            GAME_STATE.lastPlayerActivity = Date.now();
+            GAME_STATE.playerFocusTarget = mii;
+        }
         
         // Start camera following during movement
         this.startCameraFollow(mii);
@@ -2237,7 +2329,7 @@ class WiiPartyIsland {
         }
 
         let currentPointIndex = 0;
-        const durationPerStep = 400;
+        const durationPerStep = 800; // Verdoppelt von 400ms auf 800ms für langsamere Bewegung
 
         const moveToNextPoint = () => {
             if (currentPointIndex >= pathPoints.length - 1) {
@@ -2251,7 +2343,10 @@ class WiiPartyIsland {
             this.animateCharacterMove(character, endPosition, () => {
                 currentPointIndex++;
                 this.showFieldEffect(character.position, 0x66ff66, 400);
-                moveToNextPoint();
+                // Kurze Pause zwischen den Feldern für bessere Sichtbarkeit
+                setTimeout(() => {
+                    moveToNextPoint();
+                }, 100); // 100ms Pause zwischen Feldern
             }, durationPerStep);
         };
 
@@ -2325,43 +2420,69 @@ class WiiPartyIsland {
     }
 
     handleMovementCompletion(currentTeam, mii, finalPositionIndex) {
-        this.updateTeamBadgeForTeam(currentTeam.id, finalPositionIndex);
+        console.log("🎯 [MOVEMENT COMPLETION] Starting completion process for", currentTeam.name);
+        console.log("📍 [MOVEMENT COMPLETION] Final position index:", finalPositionIndex);
+        console.log("🎮 [MOVEMENT COMPLETION] Character object:", mii ? "present" : "null");
+        
+        // Log current state before changes
+        console.log("📊 [STATE BEFORE] isCharacterMoving:", GAME_STATE.isCharacterMoving);
+        console.log("📊 [STATE BEFORE] isAnimating:", GAME_STATE.isAnimating);
+        console.log("📊 [STATE BEFORE] turnSequenceState.isMoving:", turnSequenceState.isMoving);
+        console.log("📊 [STATE BEFORE] activeMovementAnimation:", this.activeMovementAnimation);
 
+        this.updateTeamBadgeForTeam(currentTeam.id, finalPositionIndex);
+        console.log("🏷️ [MOVEMENT COMPLETION] Team badge updated for team", currentTeam.id, "at position", finalPositionIndex);
+
+        // Reset movement states
         GAME_STATE.isCharacterMoving = false;
         GAME_STATE.isAnimating = false;
         this.activeMovementAnimation = null;
         
         // Movement completed - continue sequence
         turnSequenceState.isMoving = false;
-        console.log("✅ Movement completed for", currentTeam.name, "at position", finalPositionIndex);
         
+        // Log state after reset
+        console.log("📊 [STATE AFTER] isCharacterMoving:", GAME_STATE.isCharacterMoving);
+        console.log("📊 [STATE AFTER] isAnimating:", GAME_STATE.isAnimating);
+        console.log("📊 [STATE AFTER] turnSequenceState.isMoving:", turnSequenceState.isMoving);
+        console.log("📊 [STATE AFTER] activeMovementAnimation:", this.activeMovementAnimation);
+        
+        console.log("✅ Movement completed for", currentTeam.name, "at position", finalPositionIndex);
+        console.log("🔄 [MOVEMENT COMPLETION] All movement states have been reset successfully");
         
         // Stop camera following after movement
         this.stopCameraFollow();
-
+        console.log("📹 [MOVEMENT COMPLETION] Camera following stopped");
 
         // Spezielle Behandlung für Zielfeld
         if (finalPositionIndex === this.boardFields.length - 1) {
+            console.log("🏆 [VICTORY] Team reached final position, triggering victory sequence");
             setTimeout(() => {
                 this.triggerVictoryFireworks();
                 this.animateVictory(mii, currentTeam);
             }, 2000);
             // Victory ends the sequence
+            console.log("🏆 [VICTORY] Victory sequence initiated, ending movement completion");
             return;
         }
 
-        // Continue game sequence
+        // Warte 2 Sekunden nach Bewegungsabschluss wie gewünscht
+        console.log("⏰ [MOVEMENT COMPLETION] Waiting 2 seconds before continuing...");
         setTimeout(() => {
+            console.log("➡️ [MOVEMENT COMPLETION] 2 seconds wait complete, continuing game sequence");
             this.continueGameSequence(currentTeam);
-        }, 1000);
+        }, 2000); // Geändert von 1000ms auf 2000ms
 
         this.updateTeamDisplay();
+        console.log("🖥️ [MOVEMENT COMPLETION] Team display updated");
+        console.log("✅ [MOVEMENT COMPLETION] Movement completion process finished for", currentTeam.name);
     }
 
     continueGameSequence(completedTeam) {
         // Status-Nachrichten für Spielphasen
         if (currentGamePhase === 'ROUND_OVER') {
             // All players finished - show overview then next minigame message
+            console.log("🔄 [CAMERA] Round over - switching to orbit mode");
             setTimeout(() => {
                 this.executeGameSequence(); // This will trigger camera overview
                 
@@ -2370,10 +2491,10 @@ class WiiPartyIsland {
                 }, 3200); // After overview
             }, 500);
         } else if (GAME_STATE.currentServerTeamTurnId && currentGamePhase === 'DICE_ROLLING') {
-            // Only focus camera on next team if it's actively their turn to roll dice
+            // Check if there's a next team to focus on
             const nextTeam = localTeams.find(t => t.id === GAME_STATE.currentServerTeamTurnId);
             if (nextTeam) {
-                console.log("📹 Fokussiere Kamera auf nächsten Spieler:", nextTeam.name, "Phase:", currentGamePhase);
+                console.log("📹 [CAMERA] Focusing on next player:", nextTeam.name, "Phase:", currentGamePhase);
                 setTimeout(() => {
                     // Focus camera on next player
                     if (!GAME_STATE.freeCameraMode) {
@@ -2394,9 +2515,34 @@ class WiiPartyIsland {
                         }
                     }
                 }, 1000); // Brief pause before switching to next player
+            } else {
+                // No next team found - switch to orbit mode
+                console.log("🔄 [CAMERA] No next team found - switching to orbit mode");
+                this.switchToOrbitMode();
             }
         } else {
-            console.log("🚫 Kein Kamera-Fokus: Phase =", currentGamePhase, "Team =", GAME_STATE.currentServerTeamTurnId);
+            // No active team or special phase - switch to orbit mode
+            console.log("🔄 [CAMERA] No active game phase - switching to orbit mode");
+            this.switchToOrbitMode();
+        }
+    }
+    
+    switchToOrbitMode() {
+        console.log("🌍 [CAMERA] Switching to orbit mode");
+        if (GAME_STATE.freeCameraMode) {
+            console.log("🚫 [CAMERA] Free camera mode active - skipping orbit");
+            return;
+        }
+        
+        // Check if there's an orbit function available, otherwise use overview
+        if (typeof startCameraOrbitAnimation === 'function') {
+            console.log("🔄 [CAMERA] Starting orbit animation");
+            startCameraOrbitAnimation(false);
+        } else {
+            console.log("📹 [CAMERA] Orbit function not available - using overview");
+            this.setCameraOverview(5000, () => {
+                console.log("📹 [CAMERA] Overview complete");
+            });
         }
     }
 
@@ -2531,29 +2677,13 @@ class WiiPartyIsland {
                     const directionToPlayer = new THREE.Vector3().subVectors(targetPosition, cameraPosition);
                     directionToPlayer.normalize();
                     
-                    this.raycaster.set(cameraPosition, directionToPlayer);
-                    const intersects = this.raycaster.intersectObject(this.mountainMesh, false);
+                    // Define lookAtPosition before obstacle avoidance
+                    lookAtPosition = targetPosition.clone();
+                    lookAtPosition.y += 1;
                     
-                    if (intersects.length > 0) {
-                        const hitDistance = intersects[0].distance;
-                        const targetDistance = cameraPosition.distanceTo(targetPosition);
-                        
-                        if (hitDistance < targetDistance * 0.8) {
-                            cameraPosition.y += 2;
-                            cameraPosition.sub(direction.multiplyScalar(1.2));
-                            
-                            this.raycaster.set(cameraPosition, directionToPlayer);
-                            const intersects2 = this.raycaster.intersectObject(this.mountainMesh, false);
-                            
-                            if (intersects2.length > 0 && intersects2[0].distance < cameraPosition.distanceTo(targetPosition) * 0.8) {
-                                cameraPosition = targetPosition.clone().add(new THREE.Vector3(3, offset.y + 1, 3));
-                            }
-                        }
-                    }
+                    // Enhanced obstacle avoidance with comprehensive detection
+                    cameraPosition = this.avoidObstacles(cameraPosition, lookAtPosition);
                 }
-                
-                lookAtPosition = targetPosition.clone();
-                lookAtPosition.y += 1;
             }
             
         } else {
@@ -2597,31 +2727,51 @@ class WiiPartyIsland {
         characterDirection.y = 0;
         characterDirection.normalize();
 
+        // Use enhanced positioning similar to automatic mode
         const offset = BOARD_CONFIG.cameraFollowOffset.clone();
         let cameraPosition = targetPosition.clone().sub(characterDirection.multiplyScalar(offset.z));
-        cameraPosition.y += offset.y;
+        cameraPosition.y = Math.max(cameraPosition.y + offset.y, BOARD_CONFIG.cameraMinHeight);
         
         const lookAtPosition = targetPosition.clone();
-        lookAtPosition.y += 0.6;
+        lookAtPosition.y += 1.2; // Higher look-at point for better view
 
-        this.raycaster.set(lookAtPosition, cameraPosition.clone().sub(lookAtPosition).normalize());
-        const intersects = this.raycaster.intersectObject(this.mountainMesh, false);
-        let minDistance = cameraPosition.distanceTo(lookAtPosition);
-
-        if (intersects.length > 0) {
-            if (intersects[0].distance < minDistance) {
-                minDistance = intersects[0].distance;
-                const newCamDir = cameraPosition.clone().sub(lookAtPosition).normalize();
-                cameraPosition = lookAtPosition.clone().add(newCamDir.multiplyScalar(Math.max(intersects[0].distance - 1, 3)));
+        // Try multiple ideal positions like the automatic mode
+        const idealPositions = this.calculateIdealCameraPositions(
+            targetPosition, 
+            characterDirection, 
+            BOARD_CONFIG.cameraPlayerFocusDistance * 0.8, // Slightly closer for manual mode
+            Math.max(BOARD_CONFIG.cameraPlayerFocusHeight * 0.9, BOARD_CONFIG.cameraMinHeight)
+        );
+        
+        // Find best safe position
+        let bestPosition = cameraPosition;
+        for (let pos of idealPositions) {
+            if (this.isCameraPositionSafe(pos, lookAtPosition, this.getComprehensiveObstacles())) {
+                bestPosition = pos;
+                break;
             }
         }
         
+        // Enhanced obstacle avoidance if needed
+        if (!this.isCameraPositionSafe(bestPosition, lookAtPosition, this.getComprehensiveObstacles())) {
+            bestPosition = this.avoidObstacles(bestPosition, lookAtPosition);
+        }
+        
         if (immediate) {
-            this.camera.position.copy(cameraPosition);
+            this.camera.position.copy(bestPosition);
             this.controls.target.copy(lookAtPosition);
         } else {
-            this.camera.position.lerp(cameraPosition, 0.06);
-            this.controls.target.lerp(lookAtPosition, 0.06);
+            // Enhanced adaptive smoothing
+            const distance = this.camera.position.distanceTo(bestPosition);
+            const adaptiveSmoothing = THREE.MathUtils.lerp(
+                BOARD_CONFIG.cameraMaxSmoothingFactor * 0.8, 
+                BOARD_CONFIG.cameraMinSmoothingFactor * 1.2, 
+                Math.min(1.0, distance / 8.0)
+            );
+            const adaptiveLookAtSmoothing = adaptiveSmoothing * 1.2;
+            
+            this.camera.position.lerp(bestPosition, adaptiveSmoothing);
+            this.controls.target.lerp(lookAtPosition, adaptiveLookAtSmoothing);
         }
         this.camera.lookAt(this.controls.target);
     }
@@ -2636,6 +2786,9 @@ class WiiPartyIsland {
             return;
         }
         
+        // Ensure target position avoids obstacles
+        targetCamPos = this.avoidObstacles(targetCamPos, targetLookAtPos);
+        
         const startCamPos = this.camera.position.clone();
         const startLookAt = this.controls.target.clone();
         const startTime = Date.now();
@@ -2644,7 +2797,7 @@ class WiiPartyIsland {
         const animateCameraFrame = () => {
             const currentTime = Date.now();
             const progress = Math.min(1, (currentTime - startTime) / duration);
-            const easeProgress = this.easeInOutCubic(progress);
+            const easeProgress = this.easeInOutQuart(progress);
 
             this.camera.position.lerpVectors(startCamPos, targetCamPos, easeProgress);
             this.controls.target.lerpVectors(startLookAt, targetLookAtPos, easeProgress);
@@ -2665,6 +2818,616 @@ class WiiPartyIsland {
 
     easeInOutCubic(t) { 
         return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; 
+    }
+    
+    easeInOutQuart(t) {
+        return t < 0.5 ? 8 * t * t * t * t : 1 - Math.pow(-2 * t + 2, 4) / 2;
+    }
+    
+    // Ultra-Enhanced obstacle avoidance system for perfect line of sight
+    avoidObstacles(cameraPosition, lookAtPosition) {
+        // Parameter validation to prevent TypeError
+        if (!cameraPosition || typeof cameraPosition.x === 'undefined') {
+            console.error('avoidObstacles: cameraPosition is not a valid Vector3', cameraPosition);
+            return new THREE.Vector3(0, 15, 0); // Higher safe default
+        }
+        
+        if (!lookAtPosition || typeof lookAtPosition.x === 'undefined') {
+            console.error('avoidObstacles: lookAtPosition is not a valid Vector3', lookAtPosition);
+            return cameraPosition.clone();
+        }
+        
+        const originalPos = cameraPosition.clone();
+        
+        // Comprehensive multi-directional raycast system
+        const baseDirection = new THREE.Vector3().subVectors(cameraPosition, lookAtPosition).normalize();
+        const directions = [];
+        
+        // Main direction
+        directions.push(baseDirection.clone());
+        
+        // Radial pattern around main direction for comprehensive coverage
+        for (let angle = 0; angle < Math.PI * 2; angle += Math.PI / 6) {
+            const offset = 0.4; // Increased offset for better coverage
+            const offsetX = Math.cos(angle) * offset;
+            const offsetZ = Math.sin(angle) * offset;
+            directions.push(baseDirection.clone().add(new THREE.Vector3(offsetX, 0, offsetZ)).normalize());
+            directions.push(baseDirection.clone().add(new THREE.Vector3(offsetX, offset * 0.5, offsetZ)).normalize());
+            directions.push(baseDirection.clone().add(new THREE.Vector3(offsetX, -offset * 0.3, offsetZ)).normalize());
+        }
+        
+        // Get all possible obstacles
+        const allObstacles = this.getComprehensiveObstacles();
+        const minDistance = cameraPosition.distanceTo(lookAtPosition);
+        let obstacleDetected = false;
+        let nearestObstacle = null;
+        let nearestDistance = Infinity;
+        
+        // Test all directions for obstacles
+        for (let dir of directions) {
+            this.raycaster.set(lookAtPosition, dir);
+            this.raycaster.far = BOARD_CONFIG.cameraMaxObstacleCheckDistance;
+            const intersects = this.raycaster.intersectObjects(allObstacles, true); // true for recursive checking
+            
+            if (intersects.length > 0) {
+                const hit = intersects[0];
+                if (hit.distance < minDistance * 0.95) { // More strict check
+                    obstacleDetected = true;
+                    if (hit.distance < nearestDistance) {
+                        nearestDistance = hit.distance;
+                        nearestObstacle = hit;
+                    }
+                }
+            }
+        }
+        
+        if (obstacleDetected) {
+            // Reduced logging frequency 
+        if (Math.random() < 0.1) { // Only log 10% of the time
+            console.log(`🚧 Obstacle detected at distance ${nearestDistance.toFixed(2)}, finding safe position...`);
+        }
+            
+            // Generate smart alternative positions based on obstacle location
+            const safePositions = this.generateSafePositions(originalPos, lookAtPosition, nearestObstacle);
+            
+            // Test each safe position
+            for (let safePos of safePositions) {
+                if (this.isCameraPositionSafe(safePos, lookAtPosition, allObstacles)) {
+                    // Reduced logging frequency 
+                    if (Math.random() < 0.1) { // Only log 10% of the time
+                        console.log(`✅ Found safe camera position at height ${safePos.y.toFixed(2)}`);
+                    }
+                    return safePos;
+                }
+            }
+            
+            // Fallback: High position with good overview
+            const fallbackPos = lookAtPosition.clone().add(new THREE.Vector3(
+                BOARD_CONFIG.cameraPlayerFocusDistance * 0.8,
+                BOARD_CONFIG.cameraPlayerFocusHeight + 5,
+                BOARD_CONFIG.cameraPlayerFocusDistance * 0.8
+            ));
+            console.log(`⚠️ Using fallback position at height ${fallbackPos.y.toFixed(2)}`);
+            return fallbackPos;
+        }
+        
+        return originalPos;
+    }
+    
+    // Generate intelligent safe positions around obstacles
+    generateSafePositions(originalPos, lookAtPosition, obstacleHit) {
+        const positions = [];
+        const playerPos = lookAtPosition.clone();
+        
+        // Higher positions with varying angles
+        for (let height = BOARD_CONFIG.cameraMinHeight; height <= BOARD_CONFIG.cameraPlayerFocusHeight + 8; height += 2) {
+            for (let angle = 0; angle < Math.PI * 2; angle += Math.PI / 8) {
+                const radius = BOARD_CONFIG.cameraPlayerFocusDistance + (height - BOARD_CONFIG.cameraMinHeight) * 0.5;
+                const x = playerPos.x + Math.cos(angle) * radius;
+                const z = playerPos.z + Math.sin(angle) * radius;
+                positions.push(new THREE.Vector3(x, height, z));
+            }
+        }
+        
+        // Sort by preference: closer to original position, but high enough to clear obstacles
+        positions.sort((a, b) => {
+            const distA = a.distanceTo(originalPos) + Math.abs(a.y - originalPos.y) * 0.5;
+            const distB = b.distanceTo(originalPos) + Math.abs(b.y - originalPos.y) * 0.5;
+            return distA - distB;
+        });
+        
+        return positions;
+    }
+    
+    // Test if a camera position provides clear line of sight
+    isCameraPositionSafe(cameraPos, lookAtPos, obstacles) {
+        // Parameter validation to prevent errors
+        if (!cameraPos || typeof cameraPos.x === 'undefined' || !cameraPos.distanceTo) {
+            console.warn('isPositionSafe: invalid cameraPos', cameraPos);
+            return false;
+        }
+        
+        if (!lookAtPos || typeof lookAtPos.x === 'undefined' || !lookAtPos.distanceTo) {
+            console.warn('isPositionSafe: invalid lookAtPos', lookAtPos);
+            return false;
+        }
+        
+        if (!obstacles || obstacles.length === 0) {
+            return true; // No obstacles to check
+        }
+        
+        try {
+            const direction = new THREE.Vector3().subVectors(cameraPos, lookAtPos).normalize();
+            this.raycaster.set(lookAtPos, direction);
+            this.raycaster.far = cameraPos.distanceTo(lookAtPos) + 1;
+            
+            const intersects = this.raycaster.intersectObjects(obstacles, true);
+            
+            // Check if any intersection is too close
+            for (let hit of intersects) {
+                if (hit.distance < cameraPos.distanceTo(lookAtPos) * 0.98) {
+                    return false;
+                }
+            }
+            
+            return true;
+        } catch (error) {
+            console.error('Error in isPositionSafe:', error);
+            return false;
+        }
+    }
+    
+    // Get all obstacle objects for raycasting (legacy function for compatibility)
+    getAllObstacles() {
+        return this.getComprehensiveObstacles();
+    }
+    
+    // Comprehensive obstacle detection for camera line-of-sight
+    getComprehensiveObstacles() {
+        const obstacles = [];
+        
+        // Primary mountain/terrain obstacle
+        if (this.mountainMesh) {
+            obstacles.push(this.mountainMesh);
+        }
+        
+        // Comprehensive scene traversal for all potential obstacles
+        if (this.scene) {
+            try {
+                this.scene.traverse((child) => {
+                    if (child.isMesh && child.visible) {
+                        try {
+                            // Include all potentially blocking objects
+                            const includeObject = 
+                                (child.name && child.name.includes('mountain')) ||
+                                (child.name && child.name.includes('tree')) ||
+                                (child.name && child.name.includes('rock')) ||
+                                (child.name && child.name.includes('stone')) ||
+                                (child.name && child.name.includes('obstacle')) ||
+                                (child.name && child.name.includes('building')) ||
+                                (child.name && child.name.includes('structure')) ||
+                                (child.name && child.name.includes('terrain')) ||
+                                (child.name && child.name.includes('cliff')) ||
+                                (child.name && child.name.includes('wall')) ||
+                                // Check material properties that might indicate solid objects
+                                (child.material && child.material.opacity >= 0.8);
+                            
+                            // Skip geometry check to avoid potential errors
+                            if (includeObject) {
+                                obstacles.push(child);
+                            }
+                        } catch (childError) {
+                            // Skip problematic children
+                            console.warn('Warning: Skipping problematic child object:', childError);
+                        }
+                    }
+                });
+            } catch (traversalError) {
+                console.warn('Warning: Scene traversal error:', traversalError);
+            }
+        }
+        
+        // Remove duplicate references
+        const uniqueObstacles = [...new Set(obstacles)];
+        
+        // Reduced logging frequency to prevent console spam
+        if (Math.random() < 0.01) { // Only log 1% of the time
+            console.log(`🔍 Found ${uniqueObstacles.length} potential obstacles for camera collision`);
+        }
+        return uniqueObstacles;
+    }
+
+    // ==============================================
+    // AUTOMATIC CAMERA MANAGEMENT SYSTEM
+    // ==============================================
+    
+    // Hauptfunktion für automatisches Kamera-Management
+    updateAutomaticCamera() {
+        if (!GAME_STATE.autoCameraEnabled || GAME_STATE.freeCameraMode || GAME_STATE.cameraTransitioning) {
+            return;
+        }
+
+        const isPlayerActiveNow = this.checkIfPlayerIsActive();
+        const hasPlayerActivityChanged = isPlayerActiveNow !== GAME_STATE.isPlayerActive;
+        
+        // Update player activity state
+        if (isPlayerActiveNow) {
+            GAME_STATE.lastPlayerActivity = Date.now();
+            GAME_STATE.isPlayerActive = true;
+            GAME_STATE.playerFocusTarget = this.getCurrentActivePlayer();
+        } else {
+            GAME_STATE.isPlayerActive = false;
+        }
+
+        // Entscheide Kamera-Modus basierend auf Spieler-Aktivität
+        if (hasPlayerActivityChanged) {
+            if (isPlayerActiveNow) {
+                this.switchToPlayerFocus();
+            } else {
+                // Warte kurz bevor Auto-Orbit startet
+                setTimeout(() => {
+                    if (!GAME_STATE.isPlayerActive && GAME_STATE.autoCameraEnabled) {
+                        this.switchToAutoOrbit();
+                    }
+                }, BOARD_CONFIG.cameraAutoOrbitDelay);
+            }
+        }
+    }
+
+    // Prüft ob gerade ein Spieler aktiv ist
+    checkIfPlayerIsActive() {
+        return GAME_STATE.playerTurnInProgress || 
+               GAME_STATE.isCharacterMoving || 
+               GAME_STATE.isDiceRolling || 
+               GAME_STATE.isAnimating ||
+               GAME_STATE.cinematicMode;
+    }
+
+    // Holt den aktuell aktiven Spieler
+    getCurrentActivePlayer() {
+        const currentTeam = this.getCurrentTeam();
+        if (currentTeam && this.miiCharacters[currentTeam.id]) {
+            return this.miiCharacters[currentTeam.id];
+        }
+        return null;
+    }
+
+    // Wechselt zu Spieler-Fokus-Modus
+    switchToPlayerFocus() {
+        if (GAME_STATE.autoOrbitActive) {
+            stopCameraOrbitAnimation(false); // Stoppe Orbit ohne Positions-Restore
+        }
+        
+        GAME_STATE.cameraFocusMode = 'focus';
+        GAME_STATE.autoOrbitActive = false;
+        GAME_STATE.cameraTransitioning = true;
+
+        // Smooth focus auf aktuellen Spieler
+        this.focusOnCurrentPlayerSmooth(() => {
+            GAME_STATE.cameraTransitioning = false;
+            // Starte Player-Following
+            this.startAutomaticPlayerFollowing();
+        });
+    }
+
+    // Wechselt zu Auto-Orbit-Modus
+    switchToAutoOrbit() {
+        if (GAME_STATE.isPlayerActive) return; // Sicherheitscheck
+        
+        this.stopAutomaticPlayerFollowing();
+        GAME_STATE.cameraFocusMode = 'orbit';
+        GAME_STATE.cameraTransitioning = true;
+
+        // Starte eleganten Auto-Orbit
+        startCameraOrbitAnimation(false, null); // Dauerhafter Orbit
+        GAME_STATE.autoOrbitActive = true;
+        
+        setTimeout(() => {
+            GAME_STATE.cameraTransitioning = false;
+        }, BOARD_CONFIG.cameraTransitionDuration);
+    }
+
+    // Smooth Fokus auf aktuellen Spieler
+    focusOnCurrentPlayerSmooth(callback) {
+        const currentPlayer = this.getCurrentActivePlayer();
+        if (!currentPlayer) {
+            if (callback) callback();
+            return;
+        }
+
+        const playerPos = currentPlayer.position.clone();
+        const cameraPos = new THREE.Vector3(
+            playerPos.x + BOARD_CONFIG.cameraPlayerFocusDistance * 0.7,
+            playerPos.y + BOARD_CONFIG.cameraPlayerFocusHeight,
+            playerPos.z + BOARD_CONFIG.cameraPlayerFocusDistance * 0.7
+        );
+        
+        const lookAtPos = playerPos.clone();
+        lookAtPos.y += 1.2;
+
+        // Obstacle avoidance
+        const safeCameraPos = this.avoidObstacles(cameraPos, lookAtPos);
+        
+        this.animateCameraToPosition(safeCameraPos, lookAtPos, BOARD_CONFIG.cameraTransitionDuration, callback);
+    }
+
+    // Startet automatische Spieler-Verfolgung
+    startAutomaticPlayerFollowing() {
+        GAME_STATE.cameraMode = 'follow';
+        this.isFollowingCharacter = true;
+        this.followTarget = this.getCurrentActivePlayer();
+    }
+
+    // Stoppt automatische Spieler-Verfolgung
+    stopAutomaticPlayerFollowing() {
+        this.isFollowingCharacter = false;
+        this.followTarget = null;
+    }
+
+    // Ultra-smooth camera following with predictive positioning and adaptive smoothing
+    updateAutomaticCameraFollow() {
+        if (!this.isFollowingCharacter || !this.followTarget || GAME_STATE.freeCameraMode || GAME_STATE.cameraTransitioning) {
+            return;
+        }
+        
+        const character = this.followTarget;
+        const targetPosition = character.position.clone();
+        
+        // Enhanced movement prediction and direction calculation
+        const characterDirection = new THREE.Vector3();
+        character.getWorldDirection(characterDirection);
+        characterDirection.y = 0;
+        characterDirection.normalize();
+
+        // Advanced velocity calculation with smoothing
+        const currentTime = Date.now();
+        if (!this.lastPositionData) {
+            this.lastPositionData = { position: targetPosition.clone(), time: currentTime };
+        }
+        
+        const deltaTime = (currentTime - this.lastPositionData.time) / 1000; // Convert to seconds
+        const deltaPosition = targetPosition.clone().sub(this.lastPositionData.position);
+        const currentVelocity = deltaTime > 0 ? deltaPosition.length() / deltaTime : 0;
+        
+        // Smooth velocity with rolling average
+        if (!this.velocityHistory) this.velocityHistory = [];
+        this.velocityHistory.push(currentVelocity);
+        if (this.velocityHistory.length > 5) this.velocityHistory.shift();
+        const smoothVelocity = this.velocityHistory.reduce((a, b) => a + b, 0) / this.velocityHistory.length;
+        
+        // Update position data for next frame
+        this.lastPositionData = { position: targetPosition.clone(), time: currentTime };
+
+        // Predictive positioning based on movement
+        const predictivePosition = targetPosition.clone();
+        if (smoothVelocity > 0.1 && deltaTime > 0) {
+            const predictionTime = 0.3; // Look ahead 300ms
+            const velocityVector = deltaPosition.normalize().multiplyScalar(smoothVelocity * predictionTime);
+            predictivePosition.add(velocityVector);
+        }
+
+        // Adaptive camera distance and height based on speed and terrain
+        const baseDistance = BOARD_CONFIG.cameraPlayerFocusDistance;
+        const baseHeight = BOARD_CONFIG.cameraPlayerFocusHeight;
+        
+        // Dynamic adjustments
+        const speedMultiplier = Math.min(2.0, 1 + smoothVelocity * 0.5);
+        const dynamicDistance = baseDistance * speedMultiplier;
+        const dynamicHeight = Math.max(baseHeight, baseHeight + smoothVelocity * 2);
+        
+        // Calculate ideal camera position with multiple fallback options
+        const idealPositions = this.calculateIdealCameraPositions(
+            predictivePosition, 
+            characterDirection, 
+            dynamicDistance, 
+            dynamicHeight
+        );
+        
+        let bestCameraPosition = idealPositions[0];
+        const lookAtPosition = targetPosition.clone();
+        lookAtPosition.y += 1.5; // Slightly higher look-at point
+
+        // Find the best obstacle-free position
+        for (let pos of idealPositions) {
+            if (this.isCameraPositionSafe(pos, lookAtPosition, this.getComprehensiveObstacles())) {
+                bestCameraPosition = pos;
+                break;
+            }
+        }
+
+        // If no ideal position is safe, use enhanced obstacle avoidance
+        if (!this.isCameraPositionSafe(bestCameraPosition, lookAtPosition, this.getComprehensiveObstacles())) {
+            bestCameraPosition = this.avoidObstacles(bestCameraPosition, lookAtPosition);
+        }
+        
+        // Adaptive smoothing based on movement speed and distance
+        const distanceToTarget = this.camera.position.distanceTo(bestCameraPosition);
+        const baseSmoothing = BOARD_CONFIG.cameraSmoothing;
+        const maxSmoothing = BOARD_CONFIG.cameraMaxSmoothingFactor || 0.25;
+        const minSmoothing = BOARD_CONFIG.cameraMinSmoothingFactor || 0.08;
+        
+        // Higher smoothing for closer positions, lower for distant positions
+        const distanceFactor = Math.min(1.0, distanceToTarget / 10.0);
+        const velocityFactor = Math.min(1.0, smoothVelocity / 2.0);
+        
+        const adaptiveSmoothing = THREE.MathUtils.lerp(
+            maxSmoothing, 
+            minSmoothing, 
+            distanceFactor * 0.7 + velocityFactor * 0.3
+        );
+        
+        const adaptiveLookAtSmoothing = Math.min(
+            BOARD_CONFIG.cameraLookAtSmoothing * 1.2,
+            adaptiveSmoothing * 1.3
+        );
+        
+        // Ultra-smooth interpolation with adaptive factors
+        this.camera.position.lerp(bestCameraPosition, adaptiveSmoothing);
+        this.controls.target.lerp(lookAtPosition, adaptiveLookAtSmoothing);
+        this.camera.lookAt(this.controls.target);
+        
+        // Debug logging for performance monitoring
+        if (Math.random() < 0.01) { // Log 1% of frames to avoid spam
+            console.log(`📹 Camera: velocity=${smoothVelocity.toFixed(2)}, smoothing=${adaptiveSmoothing.toFixed(3)}, height=${bestCameraPosition.y.toFixed(1)}`);
+        }
+    }
+    
+    // Calculate multiple ideal camera positions for different scenarios
+    calculateIdealCameraPositions(playerPos, direction, distance, height) {
+        const positions = [];
+        
+        // Primary position: Behind player based on movement direction
+        const primary = playerPos.clone().sub(direction.clone().multiplyScalar(distance));
+        primary.y = height;
+        positions.push(primary);
+        
+        // Alternative positions at different angles
+        const angles = [Math.PI/6, -Math.PI/6, Math.PI/3, -Math.PI/3, Math.PI/2, -Math.PI/2];
+        
+        for (let angle of angles) {
+            const rotatedDirection = direction.clone();
+            rotatedDirection.applyAxisAngle(new THREE.Vector3(0, 1, 0), angle);
+            
+            const altPos = playerPos.clone().sub(rotatedDirection.multiplyScalar(distance * 0.9));
+            altPos.y = height + Math.abs(angle) * 2; // Higher for side angles
+            positions.push(altPos);
+        }
+        
+        // High overview position as last resort
+        const overview = playerPos.clone();
+        overview.y = height + 8;
+        overview.x += distance * 0.5;
+        overview.z += distance * 0.5;
+        positions.push(overview);
+        
+        return positions;
+    }
+
+    // Initialisierung des automatischen Kamera-Management-Systems
+    initAutomaticCameraManagement() {
+        console.log('🎥 Initialisiere Auto-Kamera-System...');
+        
+        // Setze initiale Kamera-Zustände
+        GAME_STATE.autoCameraEnabled = true;
+        GAME_STATE.cameraFocusMode = 'auto';
+        GAME_STATE.isPlayerActive = false;
+        GAME_STATE.autoOrbitActive = false;
+        GAME_STATE.cameraTransitioning = false;
+        GAME_STATE.lastPlayerActivity = Date.now();
+        
+        // Starte mit Auto-Orbit da zunächst kein Spieler aktiv ist
+        setTimeout(() => {
+            if (GAME_STATE.autoCameraEnabled && !GAME_STATE.isPlayerActive) {
+                // Sichere Kamera-Position vor Orbit-Start
+                this.camera.position.set(25, 20, 25);
+                this.camera.lookAt(0, 5, 0);
+                this.controls.target.set(0, 5, 0);
+                
+                this.switchToAutoOrbit();
+                console.log('🎥 Auto-Kamera-System gestartet - beginne mit Orbit-Modus');
+            }
+        }, 2000); // 2s warten bis alles geladen ist
+        
+        console.log('🎥 Auto-Kamera-System bereit');
+        console.log('Steuerung: C-Taste = Auto-Kamera ein/aus, M-Taste = Freie Kamera');
+    }
+
+    // Spezielle Kamera-Modi für besondere Ereignisse
+    triggerSpecialCameraEvent(eventType, duration = null) {
+        if (!GAME_STATE.autoCameraEnabled) return;
+        
+        console.log(`🎥 Spezial-Kamera-Event: ${eventType}`);
+        
+        switch(eventType) {
+            case 'catapult':
+                // Erweiterte Verfolgung für Katapult-Aktionen
+                this.startEnhancedPlayerFollowing(duration || 5000);
+                break;
+                
+            case 'minigame':
+                // Auto-Minispiel-Kamera
+                startMinigameCameraOrbit(duration || 30000);
+                break;
+                
+            case 'dice_roll':
+                // Fokus auf Würfel-Bereich
+                this.focusOnDiceArea(duration || 3000);
+                break;
+                
+            case 'player_swap':
+                // Zeige beide Spieler für Tausch
+                this.showPlayerSwapView(duration || 4000);
+                break;
+                
+            default:
+                console.log(`Unbekanntes Kamera-Event: ${eventType}`);
+        }
+    }
+
+    // Erweiterte Spieler-Verfolgung für Spezial-Aktionen
+    startEnhancedPlayerFollowing(duration) {
+        const currentPlayer = this.getCurrentActivePlayer();
+        if (!currentPlayer) return;
+        
+        console.log('🎯 Starte erweiterte Spieler-Verfolgung');
+        
+        // Setze spezielle Verfolgungsparameter für dramatische Aktionen
+        this.enhancedFollowing = {
+            active: true,
+            target: currentPlayer,
+            distance: BOARD_CONFIG.cameraPlayerFocusDistance * 1.5,
+            height: BOARD_CONFIG.cameraPlayerFocusHeight * 1.3,
+            smoothing: BOARD_CONFIG.cameraSmoothing * 2
+        };
+        
+        // Stoppe nach Zeitlimit
+        if (duration) {
+            setTimeout(() => {
+                this.enhancedFollowing.active = false;
+                console.log('🎯 Erweiterte Spieler-Verfolgung beendet');
+            }, duration);
+        }
+    }
+
+    // Fokus auf Würfel-Bereich
+    focusOnDiceArea(duration) {
+        console.log('🎲 Fokussiere Würfel-Bereich');
+        
+        // Position über dem Würfel-Bereich
+        const dicePosition = new THREE.Vector3(0, 8, 0); // Zentrum der Insel
+        const cameraPosition = new THREE.Vector3(10, 12, 10);
+        const lookAtPosition = dicePosition;
+        
+        this.animateCameraToPosition(cameraPosition, lookAtPosition, 1000, () => {
+            if (duration) {
+                setTimeout(() => {
+                    // Zurück zur automatischen Verfolgung
+                    if (GAME_STATE.autoCameraEnabled) {
+                        this.updateAutomaticCamera();
+                    }
+                }, duration);
+            }
+        });
+    }
+
+    // Zeige beide Spieler für Tausch
+    showPlayerSwapView(duration) {
+        console.log('🔄 Zeige Spieler-Tausch-Ansicht');
+        
+        // Finde beide betroffenen Spieler und zeige beide
+        const overviewPosition = new THREE.Vector3(0, 25, 35);
+        const lookAtPosition = new THREE.Vector3(0, 5, 0);
+        
+        this.animateCameraToPosition(overviewPosition, lookAtPosition, 1200, () => {
+            if (duration) {
+                setTimeout(() => {
+                    // Zurück zur automatischen Verfolgung
+                    if (GAME_STATE.autoCameraEnabled) {
+                        this.updateAutomaticCamera();
+                    }
+                }, duration);
+            }
+        });
     }
 
     createDiceFaceTexture(number) {
@@ -2826,10 +3589,13 @@ class WiiPartyIsland {
 
         const currentTeam = this.getCurrentTeam();
         if (!currentTeam) { 
+            console.warn("❌ rollDice: No current team found. GAME_STATE.currentServerTeamTurnId:", GAME_STATE.currentServerTeamTurnId);
             GAME_STATE.isAnimating = false; 
             GAME_STATE.isDiceRolling = false; 
             return; 
         }
+        
+        console.log("🎲 Rolling dice for team:", currentTeam.name, "ID:", currentTeam.id);
         
         const mii = this.miiCharacters[currentTeam.id];
         if (!mii) { 
@@ -2838,49 +3604,71 @@ class WiiPartyIsland {
             return; 
         }
 
-        this.interactiveDice.position.copy(mii.position).add(new THREE.Vector3(0, 1, 0));
-        this.interactiveDice.visible = true;
-        this.interactiveDice.rotation.set(
-            Math.random() * Math.PI, 
-            Math.random() * Math.PI, 
-            Math.random() * Math.PI
-        );
+        // 1. Positioniere Kamera hinter der Figur (1.5 Felder dahinter)
+        const characterPosition = mii.position.clone();
+        const characterDirection = new THREE.Vector3();
+        mii.getWorldDirection(characterDirection);
+        characterDirection.y = 0;
+        characterDirection.normalize();
+        
+        // Kamera 1.5 Felder hinter der Figur positionieren
+        const cameraPosition = characterPosition.clone().sub(characterDirection.multiplyScalar(3.0)); // 1.5 Felder = ~3.0 units
+        cameraPosition.y = characterPosition.y + 8; // Höhere Position für besseren Blick
+        
+        const lookAtPosition = characterPosition.clone();
+        lookAtPosition.y += 1.5; // Blick etwas über der Figur
+        
+        // Kamera sanft zur Position bewegen
+        this.animateCameraToPosition(cameraPosition, lookAtPosition, 800, () => {
+            // 2. Figur zur Kamera umdrehen lassen
+            this.animateCharacterTurn(mii, this.camera.position, () => {
+                // 3. Würfel-Animation starten
+                this.interactiveDice.position.copy(mii.position).add(new THREE.Vector3(0, 1, 0));
+                this.interactiveDice.visible = true;
+                this.interactiveDice.rotation.set(
+                    Math.random() * Math.PI, 
+                    Math.random() * Math.PI, 
+                    Math.random() * Math.PI
+                );
 
-        this.animateInteractiveDiceRoll((diceResult) => {
-            GAME_STATE.diceResult = diceResult;
-            
-            // Zeige Würfelergebnis direkt auf dem Spielfeld
-            this.showDiceResultOnField(mii.position, diceResult, currentTeam.bonus_dice_sides, currentTeam.name);
-            
-            // Calculate dice result
-            const bonusRoll = currentTeam.bonus_dice_sides > 0 ? Math.floor(Math.random() * currentTeam.bonus_dice_sides) + 1 : 0;
-            const totalRoll = diceResult + bonusRoll;
-            console.log("🎲 Dice result:", diceResult, "Bonus:", bonusRoll, "Total:", totalRoll, "Team:", currentTeam.name);
-            
-            // Warte kurz bevor die Bewegung startet
-            setTimeout(() => {
-                this.interactiveDice.visible = false;
+                this.animateInteractiveDiceRoll((diceResult) => {
+                    GAME_STATE.diceResult = diceResult;
+                    
+                    // Zeige Würfelergebnis direkt auf dem Spielfeld
+                    this.showDiceResultOnField(mii.position, diceResult, currentTeam.bonus_dice_sides, currentTeam.name);
+                    
+                    // Calculate dice result
+                    const bonusRoll = currentTeam.bonus_dice_sides > 0 ? Math.floor(Math.random() * currentTeam.bonus_dice_sides) + 1 : 0;
+                    const totalRoll = diceResult + bonusRoll;
+                    console.log("🎲 Dice result:", diceResult, "Bonus:", bonusRoll, "Total:", totalRoll, "Team:", currentTeam.name);
+                    
+                    // Warte kurz bevor die Bewegung startet
+                    setTimeout(() => {
+                        this.interactiveDice.visible = false;
 
-                const currentPositionIndex = currentTeam.position;
-                let nextFieldIndex = Math.min(currentPositionIndex + 1, this.boardFields.length - 1);
-                if (currentPositionIndex === this.boardFields.length - 1) {
-                    nextFieldIndex = currentPositionIndex;
-                }
-                
-                const nextField = this.boardFields[nextFieldIndex];
-                let lookAtTargetPos = mii.position.clone().add(new THREE.Vector3(0, 0, 1));
-                if(nextField && nextField.mesh) {
-                    lookAtTargetPos = nextField.mesh.position.clone();
-                }
+                        const currentPositionIndex = currentTeam.position;
+                        let nextFieldIndex = Math.min(currentPositionIndex + 1, this.boardFields.length - 1);
+                        if (currentPositionIndex === this.boardFields.length - 1) {
+                            nextFieldIndex = currentPositionIndex;
+                        }
+                        
+                        const nextField = this.boardFields[nextFieldIndex];
+                        let lookAtTargetPos = mii.position.clone().add(new THREE.Vector3(0, 0, 1));
+                        if(nextField && nextField.mesh) {
+                            lookAtTargetPos = nextField.mesh.position.clone();
+                        }
 
-                this.animateCharacterTurn(mii, lookAtTargetPos, () => {
-                    GAME_STATE.isDiceRolling = false;
-                    if (!GAME_STATE.freeCameraMode) {
-                        this.startCameraFollow(mii);
-                    }
-                    this.actuallyMoveCharacter(currentTeam, mii, diceResult, currentPositionIndex);
+                        // 4. Figur in Bewegungsrichtung drehen und dann bewegen
+                        this.animateCharacterTurn(mii, lookAtTargetPos, () => {
+                            GAME_STATE.isDiceRolling = false;
+                            if (!GAME_STATE.freeCameraMode) {
+                                this.startCameraFollow(mii);
+                            }
+                            this.actuallyMoveCharacter(currentTeam, mii, diceResult, currentPositionIndex);
+                        });
+                    }, 1000);
                 });
-            }, 1000);
+            }, 600); // Zeit für Figur, sich zur Kamera zu drehen
         });
     }
 
@@ -3489,8 +4277,16 @@ class WiiPartyIsland {
             });
         }
 
+        // Automatic camera management system - runs continuously
+        this.updateAutomaticCamera();
+
+        // Camera following logic - use automatic version when auto camera is enabled
         if (!GAME_STATE.freeCameraMode && this.isFollowingCharacter && !GAME_STATE.isAnimatingCamera) {
-            this.updateCameraFollow();
+            if (GAME_STATE.autoCameraEnabled && GAME_STATE.cameraFocusMode === 'focus') {
+                this.updateAutomaticCameraFollow();
+            } else {
+                this.updateCameraFollow();
+            }
         }
         
         if (GAME_STATE.freeCameraMode) {
@@ -3498,6 +4294,15 @@ class WiiPartyIsland {
         }
         
         this.updateCharacterAnimations(time);
+        
+        // Safety check: Ensure camera is always at a valid position
+        if (this.camera.position.y < 1 || isNaN(this.camera.position.x) || isNaN(this.camera.position.y) || isNaN(this.camera.position.z)) {
+            console.warn('🚨 Camera position invalid, resetting to safe position');
+            this.camera.position.set(25, 20, 25);
+            this.camera.lookAt(0, 5, 0);
+            this.controls.target.set(0, 5, 0);
+        }
+        
         this.renderer.render(this.scene, this.camera);
     }
 }
@@ -3651,8 +4456,8 @@ window.addEventListener('message', function(event) {
     }
 });
 
-// Dauerhafter Kamera-Orbit (für manuelle Aktivierung, z.B. durch F-Taste)
-function startCameraOrbitAnimation() {
+// Enhanced orbital camera animation for minigames and elegant island viewing
+function startCameraOrbitAnimation(isMinigame = false, duration = null) {
     if (!window.gameBoard || !window.gameBoard.camera || !window.gameBoard.controls) {
         console.warn('Spielbrett oder Kamera noch nicht initialisiert für Orbit-Animation');
         return;
@@ -3665,48 +4470,116 @@ function startCameraOrbitAnimation() {
     }
     window.orbitAnimationRunning = true;
     
-    console.log('🎥 Starte manuellen Kamera-Orbit...');
+    console.log('🎥 Starte eleganten Kamera-Orbit...');
     
-    // Speichere ursprüngliche Kamera-Position
-    const originalPosition = window.gameBoard.camera.position.clone();
-    const originalTarget = window.gameBoard.controls.target.clone();
-    
-    // Setze Kamera weit weg für komplette Insel-Übersicht
-    window.gameBoard.camera.position.set(50, 35, 50);
-    window.gameBoard.controls.target.set(0, 0, 0);
-    window.gameBoard.controls.enabled = false; // Deaktiviere manuelle Kontrolle
-    
-    let orbitAngle = Math.PI / 4; // Starte bei 45° (schräg)
-    const orbitRadius = 60; // Viel größerer Radius für komplette Insel-Sicht
-    const orbitHeight = 35; // Höhere Position für bessere Übersicht
-    const orbitSpeed = 0.008; // Sehr langsam für ruhige, majestätische Bewegung
-    
-    // Kontinuierlicher Orbit - läuft bis gestoppt
-    function animateOrbit() {
-        // Prüfe ob Animation gestoppt werden soll
-        if (!window.orbitAnimationRunning) {
-            console.log('🛑 Orbit-Animation gestoppt');
-            return;
-        }
-        
-        // Berechne Kamera-Position im dauerhaften schrägen Orbit von oben
-        orbitAngle += orbitSpeed;
-        const x = Math.cos(orbitAngle) * orbitRadius;
-        const z = Math.sin(orbitAngle) * orbitRadius;
-        
-        // Leichte Höhen-Variation für natürliche Bewegung
-        const heightVariation = Math.sin(orbitAngle * 1.5) * 5;
-        const currentHeight = orbitHeight + heightVariation;
-        
-        window.gameBoard.camera.position.set(x, currentHeight, z);
-        window.gameBoard.camera.lookAt(0, 5, 0); // Schaue auf die Insel-Mitte
-        
-        requestAnimationFrame(animateOrbit);
+    // Speichere ursprüngliche Kamera-Position für spätere Wiederherstellung
+    if (!window.originalCameraState) {
+        window.originalCameraState = {
+            position: window.gameBoard.camera.position.clone(),
+            target: window.gameBoard.controls.target.clone()
+        };
     }
     
-    console.log('🎥 Starte dauerhaften Kamera-Orbit um die Insel...');
+    // Verwende BOARD_CONFIG Einstellungen für konsistente Parameter
+    const orbitRadius = BOARD_CONFIG.cameraOrbitRadius;
+    const orbitHeight = BOARD_CONFIG.cameraOrbitHeight;
+    const orbitSpeed = isMinigame ? BOARD_CONFIG.cameraOrbitSpeed * 0.7 : BOARD_CONFIG.cameraOrbitSpeed; // Langsamer für Minispiele
     
-    animateOrbit();
+    // Smooth transition to orbit start position
+    const startAngle = Math.PI / 4; // Starte bei 45° (schräg)
+    const startX = Math.cos(startAngle) * orbitRadius;
+    const startZ = Math.sin(startAngle) * orbitRadius;
+    const startPosition = new THREE.Vector3(startX, orbitHeight, startZ);
+    const lookAtTarget = new THREE.Vector3(0, 6, 0);
+    
+    // Deaktiviere manuelle Kontrolle
+    window.gameBoard.controls.enabled = false;
+    
+    // Smooth transition zum Orbit-Start
+    window.gameBoard.animateCameraToPosition(startPosition, lookAtTarget, 1200, () => {
+        let orbitAngle = startAngle;
+        let startTime = Date.now();
+        
+        // Kontinuierlicher Orbit mit eleganten Bewegungen
+        function animateOrbit() {
+            // Prüfe ob Animation gestoppt werden soll oder Zeitlimit erreicht
+            if (!window.orbitAnimationRunning) {
+                console.log('🛑 Orbit-Animation gestoppt');
+                return;
+            }
+            
+            if (duration && (Date.now() - startTime) > duration) {
+                console.log('🎥 Orbit-Animation Zeitlimit erreicht');
+                stopCameraOrbitAnimation();
+                return;
+            }
+            
+            // Elegante Orbit-Berechnung mit smooth easing
+            orbitAngle += orbitSpeed;
+            const x = Math.cos(orbitAngle) * orbitRadius;
+            const z = Math.sin(orbitAngle) * orbitRadius;
+            
+            // Natürliche Höhen-Variation für organische Bewegung
+            const heightVariation = Math.sin(orbitAngle * 0.8) * 3; // Sanftere Variation
+            const currentHeight = orbitHeight + heightVariation;
+            
+            // Smooth camera movement mit lerp für flüssige Bewegung
+            const targetCameraPos = new THREE.Vector3(x, currentHeight, z);
+            window.gameBoard.camera.position.lerp(targetCameraPos, 0.05);
+            
+            // Dynamischer Look-At mit leichter Variation für natürliche Wirkung
+            const lookAtVariation = new THREE.Vector3(
+                Math.sin(orbitAngle * 0.3) * 2,
+                0,
+                Math.cos(orbitAngle * 0.3) * 2
+            );
+            const dynamicLookAt = lookAtTarget.clone().add(lookAtVariation);
+            window.gameBoard.controls.target.lerp(dynamicLookAt, 0.08);
+            window.gameBoard.camera.lookAt(window.gameBoard.controls.target);
+            
+            requestAnimationFrame(animateOrbit);
+        }
+        
+        console.log(isMinigame ? '🎮 Starte Minispiel-Kamera-Orbit...' : '🎥 Starte eleganten Kamera-Orbit um die Insel...');
+        animateOrbit();
+    });
+}
+
+// Stop orbital camera animation and restore original view
+function stopCameraOrbitAnimation(restoreOriginal = true) {
+    if (!window.orbitAnimationRunning) {
+        return;
+    }
+    
+    window.orbitAnimationRunning = false;
+    console.log('🛑 Stoppe Kamera-Orbit...');
+    
+    if (restoreOriginal && window.originalCameraState && window.gameBoard) {
+        // Smooth transition zurück zur ursprünglichen Position
+        window.gameBoard.animateCameraToPosition(
+            window.originalCameraState.position, 
+            window.originalCameraState.target, 
+            1000, 
+            () => {
+                window.gameBoard.controls.enabled = !GAME_STATE.freeCameraMode;
+                window.originalCameraState = null;
+                console.log('🎥 Kamera zur ursprünglichen Position zurückgekehrt');
+            }
+        );
+    } else if (window.gameBoard) {
+        window.gameBoard.controls.enabled = !GAME_STATE.freeCameraMode;
+    }
+}
+
+// Enhanced minigame camera - starts orbital movement during minigames
+function startMinigameCameraOrbit(duration = 30000) { // 30 Sekunden default
+    console.log('🎮 Starte Minispiel-Kamera-Modus...');
+    startCameraOrbitAnimation(true, duration);
+}
+
+// Legacy function für Kompatibilität
+function startCameraOrbitAnimationLegacy() {
+    startCameraOrbitAnimation(false);
 }
 
 // Keine automatischen Aktionen mehr - alles ist manuell steuerbar
