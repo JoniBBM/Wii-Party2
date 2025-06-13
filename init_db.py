@@ -327,6 +327,59 @@ with app_instance.app_context():
         print(f"❌ Fehler bei Welcome-System-Tests: {welcome_e}")
         print("Das Spiel wird trotzdem funktionieren, aber ohne Welcome-System.")
 
+    # NEU: Profilbild-System initialisieren
+    print("\n--- Profilbild-System wird initialisiert ---")
+    
+    try:
+        import shutil
+        
+        # Lösche vorhandene Profilbilder (wie vom User gewünscht)
+        profile_images_dir = os.path.join(PROJECT_ROOT, 'app', 'static', 'profile_images')
+        if os.path.exists(profile_images_dir):
+            shutil.rmtree(profile_images_dir)
+            print(f"✅ Vorhandene Profilbilder gelöscht: {profile_images_dir}")
+        
+        # Erstelle Profilbild-Ordner neu
+        os.makedirs(profile_images_dir, exist_ok=True)
+        print(f"✅ Profilbild-Ordner erstellt: {profile_images_dir}")
+        
+        # Teste Profilbild-Features der erweiterten Modelle
+        print("Teste PlayerRegistration Profilbild-Features...")
+        test_registration = PlayerRegistration(
+            welcome_session_id=1,  # Wird nicht gespeichert
+            player_name="Test Player",
+            profile_image_path="profile_images/test_player.jpg"
+        )
+        print(f"  profile_image_path: ✅ {test_registration.profile_image_path}")
+        
+        print("Teste Team Profilbild-Features...")
+        test_team = Team(name="Test-Profilbild-Team")
+        test_team.set_password("test123")
+        
+        # Teste Profilbild-Methoden
+        print("  Teste set_profile_image()...")
+        test_team.set_profile_image("Alice", "profile_images/alice.jpg")
+        test_team.set_profile_image("Bob", "profile_images/bob.jpg")
+        
+        print("  Teste get_profile_images()...")
+        images = test_team.get_profile_images()
+        print(f"    Alle Bilder: {images}")
+        
+        print("  Teste get_profile_image()...")
+        alice_image = test_team.get_profile_image("Alice")
+        print(f"    Alice's Bild: {alice_image}")
+        
+        print("  Teste remove_profile_image()...")
+        test_team.remove_profile_image("Bob")
+        remaining_images = test_team.get_profile_images()
+        print(f"    Nach Löschung: {remaining_images}")
+        
+        print("✅ Alle Profilbild-Features funktionieren korrekt!")
+        
+    except Exception as profile_e:
+        print(f"❌ Fehler bei Profilbild-System-Tests: {profile_e}")
+        print("Das Spiel wird trotzdem funktionieren, aber ohne Profilbild-System.")
+
     print("\nDatenbank-Initialisierung abgeschlossen.")
     print("\n📁 Minigame-Ordner-System ist bereit!")
     print("🎮 Standard-Spielrunde wurde erstellt und aktiviert.")
@@ -351,6 +404,12 @@ with app_instance.app_context():
     print("  🎭 Team-Setup: Namen ändern und Charaktere auswählen")
     print("  ⚡ Live-Updates und Admin-Controls")
     print("  📊 Integration im Admin-Dashboard")
+    print("\n📸 PROFILBILD-SYSTEM FEATURES:")
+    print("  📷 Selfie-Aufnahme bei Spielerregistrierung")
+    print("  🖼️ Profilbilder pro Team-Mitglied gespeichert")
+    print("  👥 Gesichter-Overlay bei Minispiel-Ankündigungen")
+    print("  🗂️ Automatische Ordner-Verwaltung bei DB-Reset")
+    print("  💾 Sichere Dateispeicherung mit Validierung")
     print("\n🌟 SONDERFELD-FEATURES:")
     print("  🚀 Katapult Vorwärts: Wirft Teams 3-5 Felder nach vorne")
     print("  💥 Katapult Rückwärts: Wirft Teams 4-10 Felder nach hinten")

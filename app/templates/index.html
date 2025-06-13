@@ -449,12 +449,14 @@
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         border-radius: 20px;
         padding: 2rem;
-        max-width: 400px;
+        max-width: 450px;
         width: 90%;
         position: relative;
         color: white;
         box-shadow: 0 25px 50px rgba(0, 0, 0, 0.3);
         animation: popupSlideIn 0.3s ease-out;
+        max-height: 90vh;
+        overflow-y: auto;
     }
 
     @keyframes popupSlideIn {
@@ -641,6 +643,134 @@
             flex-direction: column;
         }
     }
+
+    /* PROFILBILD CAMERA STYLES für Registration Modal */
+    .camera-step {
+        display: none;
+        text-align: center;
+        margin-top: 1rem;
+    }
+
+    .camera-step.show {
+        display: block;
+    }
+
+    .camera-preview {
+        position: relative;
+        width: 150px;
+        height: 150px;
+        margin: 1rem auto;
+        border-radius: 50%;
+        overflow: hidden;
+        border: 3px solid rgba(255, 255, 255, 0.5);
+        background: rgba(0, 0, 0, 0.2);
+    }
+
+    .camera-video {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        transform: scaleX(-1);
+    }
+
+    .camera-canvas {
+        display: none;
+    }
+
+    .camera-captured {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+
+    .camera-controls {
+        display: flex;
+        gap: 0.5rem;
+        justify-content: center;
+        flex-wrap: wrap;
+        margin: 1rem 0;
+    }
+
+    .btn-camera {
+        padding: 0.6rem 1rem;
+        border-radius: 20px;
+        border: none;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        font-size: 0.9rem;
+    }
+
+    .btn-camera-capture {
+        background: linear-gradient(45deg, #FF6B6B, #EE5A52);
+        color: white;
+        box-shadow: 0 4px 12px rgba(255, 107, 107, 0.4);
+    }
+
+    .btn-camera-capture:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 16px rgba(255, 107, 107, 0.5);
+    }
+
+    .btn-camera-retake {
+        background: linear-gradient(45deg, #FFA726, #FF9800);
+        color: white;
+        box-shadow: 0 4px 12px rgba(255, 167, 38, 0.4);
+    }
+
+    .btn-camera-retake:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 16px rgba(255, 167, 38, 0.5);
+    }
+
+    .btn-camera-save {
+        background: linear-gradient(45deg, #4CAF50, #45A049);
+        color: white;
+        box-shadow: 0 4px 12px rgba(76, 175, 80, 0.4);
+    }
+
+    .btn-camera-save:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 16px rgba(76, 175, 80, 0.5);
+    }
+
+    .btn-camera-skip {
+        background: rgba(255, 255, 255, 0.2);
+        color: white;
+        border: 1px solid rgba(255, 255, 255, 0.3);
+    }
+
+    .btn-camera-skip:hover {
+        background: rgba(255, 255, 255, 0.3);
+        transform: translateY(-2px);
+    }
+
+    .camera-status {
+        margin: 0.5rem 0;
+        font-size: 0.9rem;
+        opacity: 0.9;
+        min-height: 20px;
+    }
+
+    .step-indicator {
+        display: flex;
+        justify-content: center;
+        gap: 0.5rem;
+        margin-bottom: 1rem;
+    }
+
+    .step-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.3);
+        transition: all 0.3s ease;
+    }
+
+    .step-dot.active {
+        background: #FFD700;
+        transform: scale(1.2);
+    }
 </style>
 {% endblock %}
 
@@ -779,26 +909,86 @@
     <div class="registration-modal">
         <button class="popup-close" onclick="closeRegistrationPopup()">&times;</button>
         
-        <div class="registration-header">
-            <h3 class="registration-title">🎮 Jetzt anmelden!</h3>
-            <p class="registration-subtitle">Trage deinen Namen ein und sei beim Spiel dabei!</p>
+        <!-- Step Indicator -->
+        <div class="step-indicator">
+            <div class="step-dot active" id="step-dot-1"></div>
+            <div class="step-dot" id="step-dot-2"></div>
+        </div>
+        
+        <!-- Step 1: Name eingeben -->
+        <div id="step-1" class="registration-step">
+            <div class="registration-header">
+                <h3 class="registration-title">🎮 Jetzt anmelden!</h3>
+                <p class="registration-subtitle">Trage deinen Namen ein und sei beim Spiel dabei!</p>
+            </div>
+
+            <form id="registration-form" class="registration-form">
+                <div class="form-group">
+                    <label for="player-name" class="form-label">Dein Name:</label>
+                    <input type="text" id="player-name" class="form-input" placeholder="Gib deinen Namen ein..." maxlength="50" required>
+                </div>
+                
+                <div class="registration-buttons">
+                    <button type="button" class="btn-popup btn-popup-primary" onclick="proceedToCamera()">
+                        <i class="fas fa-camera"></i> Weiter zum Foto
+                    </button>
+                    <button type="button" class="btn-popup btn-popup-secondary" onclick="closeRegistrationPopup()">
+                        Abbrechen
+                    </button>
+                </div>
+            </form>
         </div>
 
-        <form id="registration-form" class="registration-form">
-            <div class="form-group">
-                <label for="player-name" class="form-label">Dein Name:</label>
-                <input type="text" id="player-name" class="form-input" placeholder="Gib deinen Namen ein..." maxlength="50" required>
+        <!-- Step 2: Camera -->
+        <div id="step-2" class="registration-step camera-step">
+            <div class="registration-header">
+                <h3 class="registration-title">📸 Profilbild aufnehmen</h3>
+                <p class="registration-subtitle">Nimm ein Selfie für dein Profil auf!</p>
+            </div>
+
+            <div class="camera-preview">
+                <video id="camera-video" class="camera-video" autoplay muted></video>
+                <canvas id="camera-canvas" class="camera-canvas"></canvas>
+                <img id="camera-captured" class="camera-captured" style="display: none;">
+            </div>
+            
+            <div class="camera-controls">
+                <button id="btn-start-camera" class="btn-camera btn-camera-capture">
+                    <i class="fas fa-video"></i> Kamera starten
+                </button>
+                <button id="btn-upload-file" class="btn-camera btn-camera-retake" style="display: none;">
+                    <i class="fas fa-upload"></i> Foto hochladen
+                </button>
+                <button id="btn-check-permissions" class="btn-camera btn-camera-retake" style="display: none;">
+                    <i class="fas fa-shield-alt"></i> Berechtigungen prüfen
+                </button>
+                <button id="btn-take-photo" class="btn-camera btn-camera-capture" style="display: none;">
+                    <i class="fas fa-camera"></i> Foto aufnehmen
+                </button>
+                <button id="btn-retake-photo" class="btn-camera btn-camera-retake" style="display: none;">
+                    <i class="fas fa-redo"></i> Nochmal
+                </button>
+                <button id="btn-save-and-register" class="btn-camera btn-camera-save" style="display: none;">
+                    <i class="fas fa-save"></i> Speichern & Anmelden
+                </button>
+                <button id="btn-skip-photo" class="btn-camera btn-camera-skip">
+                    <i class="fas fa-forward"></i> Ohne Foto anmelden
+                </button>
+            </div>
+            
+            <!-- Hidden File Input für HTTP-Fallback -->
+            <input type="file" id="file-input" accept="image/*" capture="user" style="display: none;">
+            
+            <div class="camera-status" id="camera-status">
+                Klicke auf "Kamera starten" um ein Selfie aufzunehmen.
             </div>
             
             <div class="registration-buttons">
-                <button type="submit" class="btn-popup btn-popup-primary">
-                    <i class="fas fa-user-plus"></i> Anmelden
-                </button>
-                <button type="button" class="btn-popup btn-popup-secondary" onclick="closeRegistrationPopup()">
-                    Abbrechen
+                <button type="button" class="btn-popup btn-popup-secondary" onclick="backToNameStep()">
+                    <i class="fas fa-arrow-left"></i> Zurück
                 </button>
             </div>
-        </form>
+        </div>
 
         <div id="registration-status" class="registration-status">
             <span id="status-message"></span>
@@ -953,5 +1143,700 @@ function showRegistrationStatus(message, type) {
     messageSpan.textContent = message;
     statusDiv.style.display = 'block';
 }
+
+// PROFILBILD CAMERA SYSTEM für Registration Modal
+
+let cameraStream = null;
+let capturedImageData = null;
+
+// Event Listeners für Camera
+document.addEventListener('DOMContentLoaded', function() {
+    const btnStartCamera = document.getElementById('btn-start-camera');
+    const btnUploadFile = document.getElementById('btn-upload-file');
+    const btnCheckPermissions = document.getElementById('btn-check-permissions');
+    const btnTakePhoto = document.getElementById('btn-take-photo');
+    const btnRetakePhoto = document.getElementById('btn-retake-photo');
+    const btnSaveAndRegister = document.getElementById('btn-save-and-register');
+    const btnSkipPhoto = document.getElementById('btn-skip-photo');
+    const fileInput = document.getElementById('file-input');
+
+    if (btnStartCamera) btnStartCamera.addEventListener('click', startCamera);
+    if (btnUploadFile) btnUploadFile.addEventListener('click', triggerFileUpload);
+    if (btnCheckPermissions) btnCheckPermissions.addEventListener('click', checkAndRequestPermissions);
+    if (btnTakePhoto) btnTakePhoto.addEventListener('click', takePhoto);
+    if (btnRetakePhoto) btnRetakePhoto.addEventListener('click', retakePhoto);
+    if (btnSaveAndRegister) btnSaveAndRegister.addEventListener('click', savePhotoAndRegister);
+    if (btnSkipPhoto) btnSkipPhoto.addEventListener('click', skipPhotoAndRegister);
+    if (fileInput) fileInput.addEventListener('change', handleFileUpload);
+});
+
+async function proceedToCamera() {
+    const playerName = document.getElementById('player-name').value.trim();
+    if (!playerName) {
+        showRegistrationStatus('Bitte gib einen Namen ein!', 'error');
+        return;
+    }
+    
+    // Prüfe Kamera-Verfügbarkeit vor dem Wechsel
+    const cameraAvailable = await checkCameraAvailability();
+    
+    // Switch to camera step
+    document.getElementById('step-1').style.display = 'none';
+    document.getElementById('step-2').classList.add('show');
+    
+    // Update step indicator
+    document.getElementById('step-dot-1').classList.remove('active');
+    document.getElementById('step-dot-2').classList.add('active');
+    
+    // Clear any previous status
+    document.getElementById('registration-status').style.display = 'none';
+    
+    resetCameraUI();
+    
+    // Zeige Hinweis wenn Kamera nicht verfügbar oder HTTP
+    const isSecure = location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+    
+    if (!cameraAvailable || !isSecure) {
+        let statusMessage = '';
+        
+        if (!isSecure) {
+            statusMessage = `
+                <div style="color: #ffa726; margin-bottom: 1rem;">
+                    ⚠️ HTTP-Verbindung erkannt - Kamera möglicherweise eingeschränkt
+                </div>
+                <div style="font-size: 0.8rem; opacity: 0.8;">
+                    Auf manchen Geräten/Browsern funktioniert die Kamera nur über HTTPS.
+                    <br>Du kannst aber trotzdem versuchen oder ein Foto hochladen!
+                </div>
+            `;
+            
+            // Zeige Upload-Button für HTTP
+            const uploadButton = document.getElementById('btn-upload-file');
+            if (uploadButton) {
+                uploadButton.style.display = 'inline-block';
+            }
+        } else {
+            statusMessage = `
+                <div style="color: #ffa726; margin-bottom: 1rem;">
+                    ⚠️ Kamera möglicherweise nicht verfügbar auf diesem Gerät.
+                </div>
+                <div style="font-size: 0.8rem; opacity: 0.8;">
+                    Du kannst trotzdem "Kamera starten" versuchen, ein Foto hochladen oder "Ohne Foto fortfahren" wählen.
+                </div>
+            `;
+            
+            // Zeige Upload-Button als Alternative
+            const uploadButton = document.getElementById('btn-upload-file');
+            if (uploadButton) {
+                uploadButton.style.display = 'inline-block';
+            }
+        }
+        
+        document.getElementById('camera-status').innerHTML = statusMessage;
+        
+        // Mache "Ohne Foto" Button prominenter
+        const skipButton = document.getElementById('btn-skip-photo');
+        if (skipButton) {
+            skipButton.style.background = 'linear-gradient(45deg, #4CAF50, #45A049)';
+            skipButton.innerHTML = '<i class="fas fa-forward"></i> Ohne Foto fortfahren';
+        }
+    }
+}
+
+async function checkCameraAvailability() {
+    try {
+        // Prüfe ob getUserMedia verfügbar ist
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            return false;
+        }
+        
+        // Prüfe ob HTTPS oder localhost
+        const isSecure = location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+        if (!isSecure) {
+            return false;
+        }
+        
+        // Prüfe verfügbare Geräte
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const hasCamera = devices.some(device => device.kind === 'videoinput');
+        
+        return hasCamera;
+    } catch (error) {
+        console.log('Kamera-Verfügbarkeitsprüfung fehlgeschlagen:', error);
+        return false;
+    }
+}
+
+function backToNameStep() {
+    // Stop camera if running
+    stopCamera();
+    
+    // Switch back to name step
+    document.getElementById('step-2').classList.remove('show');
+    document.getElementById('step-1').style.display = 'block';
+    
+    // Update step indicator
+    document.getElementById('step-dot-2').classList.remove('active');
+    document.getElementById('step-dot-1').classList.add('active');
+    
+    // Clear status
+    document.getElementById('registration-status').style.display = 'none';
+}
+
+function resetCameraUI() {
+    stopCamera();
+    
+    document.getElementById('btn-start-camera').style.display = 'inline-block';
+    document.getElementById('btn-take-photo').style.display = 'none';
+    document.getElementById('btn-retake-photo').style.display = 'none';
+    document.getElementById('btn-save-and-register').style.display = 'none';
+    
+    document.getElementById('camera-video').style.display = 'block';
+    document.getElementById('camera-captured').style.display = 'none';
+    
+    document.getElementById('camera-status').textContent = 'Klicke auf "Kamera starten" um ein Selfie aufzunehmen.';
+    
+    capturedImageData = null;
+}
+
+async function startCamera() {
+    try {
+        document.getElementById('camera-status').textContent = 'Kamera wird gestartet...';
+        
+        // Prüfe ob getUserMedia verfügbar ist
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            throw new Error('Kamera-API nicht verfügbar. HTTPS oder neuerer Browser erforderlich.');
+        }
+        
+        // Prüfe ob HTTPS oder localhost (aber biete Alternativen für HTTP)
+        const isSecure = location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+        if (!isSecure) {
+            // Versuche trotzdem - manche Browser/Desktops erlauben es
+            console.log('HTTP erkannt - versuche trotzdem Kamera-Zugriff...');
+        }
+        
+        // Benutzerfreundliche Berechtigungsabfrage
+        document.getElementById('camera-status').innerHTML = `
+            <div>📱 Bitte erlaube den Kamera-Zugriff...</div>
+            <div style="font-size: 0.8rem; opacity: 0.8; margin-top: 0.5rem;">
+                Ein Berechtigungs-Dialog sollte erscheinen. Klicke auf "Erlauben" oder "Allow".
+            </div>
+        `;
+        
+        // Versuche zuerst eine explizite Berechtigungsabfrage (für moderne Browser)
+        try {
+            if (navigator.permissions) {
+                const permission = await navigator.permissions.query({name: 'camera'});
+                console.log('Kamera-Berechtigung Status:', permission.state);
+                
+                if (permission.state === 'denied') {
+                    throw new Error('Kamera-Berechtigung wurde dauerhaft verweigert.');
+                }
+            }
+        } catch (permError) {
+            console.log('Berechtigungsabfrage nicht verfügbar oder verweigert:', permError);
+        }
+        
+        // Versuche zuerst mit optimalen Mobile-Einstellungen
+        try {
+            cameraStream = await navigator.mediaDevices.getUserMedia({ 
+                video: { 
+                    facingMode: 'user', // Front-Kamera bevorzugen
+                    width: { ideal: 640, max: 1280 },
+                    height: { ideal: 640, max: 1280 }
+                } 
+            });
+        } catch (basicError) {
+            console.log('Optimale Kamera-Einstellungen fehlgeschlagen, versuche Fallback:', basicError);
+            
+            // Fallback 1: Nur Front-Kamera ohne Größenbeschränkung
+            try {
+                cameraStream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { facingMode: 'user' }
+                });
+            } catch (frontError) {
+                console.log('Front-Kamera fehlgeschlagen, versuche beliebige Kamera:', frontError);
+                
+                // Fallback 2: Beliebige Kamera
+                cameraStream = await navigator.mediaDevices.getUserMedia({ 
+                    video: true 
+                });
+            }
+        }
+        
+        const video = document.getElementById('camera-video');
+        video.srcObject = cameraStream;
+        
+        // Warte bis Video geladen ist
+        video.onloadedmetadata = function() {
+            video.play();
+            document.getElementById('btn-start-camera').style.display = 'none';
+            document.getElementById('btn-take-photo').style.display = 'inline-block';
+            document.getElementById('camera-status').textContent = 'Kamera aktiv - Position dich gut und klicke auf "Foto aufnehmen".';
+        };
+        
+    } catch (error) {
+        console.error('Kamera-Fehler:', error);
+        
+        let errorMessage = 'Kamera konnte nicht gestartet werden.';
+        
+        if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
+            const isMobile = /Mobi|Android/i.test(navigator.userAgent);
+            const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+            
+            if (isMobile || isIOS) {
+                errorMessage = `
+                    ❌ Kamera-Berechtigung verweigert
+                    <div style="margin-top: 0.5rem; font-size: 0.8rem;">
+                        📱 <strong>Für Smartphones:</strong>
+                        <br>• Tippe auf das Schloss-Symbol in der Adressleiste
+                        <br>• Wähle "Kamera" → "Erlauben"
+                        <br>• Lade die Seite neu (F5)
+                        ${isIOS ? '<br>• Für Safari: Einstellungen → Safari → Kamera' : ''}
+                    </div>
+                `;
+            } else {
+                errorMessage = '❌ Kamera-Berechtigung verweigert. Klicke auf das Kamera-Symbol in der Adressleiste und erlaube den Zugriff.';
+            }
+        } else if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
+            errorMessage = '❌ Keine Kamera gefunden. Stelle sicher, dass eine Kamera angeschlossen ist.';
+        } else if (error.name === 'NotReadableError' || error.name === 'TrackStartError') {
+            errorMessage = '❌ Kamera wird bereits von einer anderen App verwendet. Schließe andere Kamera-Apps.';
+        } else if (error.name === 'OverconstrainedError' || error.name === 'ConstraintNotSatisfiedError') {
+            errorMessage = '❌ Kamera unterstützt die gewünschten Einstellungen nicht.';
+        } else if (error.message.includes('HTTPS')) {
+            errorMessage = '❌ Kamera benötigt HTTPS. Versuche "Foto hochladen" als Alternative.';
+            
+            // Zeige Upload-Button bei HTTPS-Fehler
+            const uploadButton = document.getElementById('btn-upload-file');
+            if (uploadButton) {
+                uploadButton.style.display = 'inline-block';
+                uploadButton.style.background = 'linear-gradient(45deg, #2196F3, #1976D2)';
+            }
+        } else if (error.message.includes('nicht verfügbar')) {
+            errorMessage = '❌ Kamera-API nicht verfügbar. Bitte verwende einen neueren Browser.';
+        } else if (error.message.includes('dauerhaft verweigert')) {
+            errorMessage = `
+                ❌ Kamera-Berechtigung dauerhaft verweigert
+                <div style="margin-top: 0.5rem; font-size: 0.8rem;">
+                    🔧 <strong>So behebst du das:</strong>
+                    <br>• Chrome: Adressleiste → Schloss-Symbol → Kamera → Erlauben
+                    <br>• Firefox: Adressleile → Schild-Symbol → Berechtigungen → Kamera
+                    <br>• Safari: Einstellungen → Websites → Kamera
+                    <br>• Dann Seite neu laden
+                </div>
+            `;
+        } else {
+            errorMessage = `❌ Kamera-Fehler: ${error.message}`;
+        }
+        
+        document.getElementById('camera-status').innerHTML = `
+            <div style="color: #ff6b6b; margin-bottom: 1rem;">${errorMessage}</div>
+            <div style="font-size: 0.8rem; opacity: 0.8; margin-top: 1rem;">
+                💡 <strong>Weitere Tipps:</strong>
+                <br>• Stelle sicher, dass die Seite über HTTPS geladen wird
+                <br>• Verwende einen aktuellen Browser (Chrome, Firefox, Safari)
+                <br>• Schließe andere Apps die die Kamera verwenden könnten
+                <br>• Bei dauerhaften Problemen: "Ohne Foto fortfahren" wählen
+            </div>
+        `;
+        
+        // Zeige "Ohne Foto" Option prominenter an
+        const skipButton = document.getElementById('btn-skip-photo');
+        if (skipButton) {
+            skipButton.style.background = 'linear-gradient(45deg, #4CAF50, #45A049)';
+            skipButton.innerHTML = '<i class="fas fa-forward"></i> Ohne Foto fortfahren (empfohlen)';
+        }
+        
+        // Zeige Berechtigungen-Prüf-Button bei bestimmten Fehlern
+        if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError' || error.message.includes('dauerhaft verweigert')) {
+            const checkButton = document.getElementById('btn-check-permissions');
+            if (checkButton) {
+                checkButton.style.display = 'inline-block';
+            }
+        }
+    }
+}
+
+async function checkAndRequestPermissions() {
+    try {
+        document.getElementById('camera-status').innerHTML = `
+            <div>🔍 Prüfe Kamera-Berechtigungen...</div>
+        `;
+        
+        // Prüfe aktuellen Berechtigungsstatus
+        if (navigator.permissions) {
+            try {
+                const permission = await navigator.permissions.query({name: 'camera'});
+                console.log('Kamera-Berechtigung:', permission.state);
+                
+                if (permission.state === 'granted') {
+                    document.getElementById('camera-status').innerHTML = `
+                        <div style="color: #4CAF50;">✅ Kamera-Berechtigung erteilt!</div>
+                        <div style="font-size: 0.8rem; margin-top: 0.5rem;">Versuche jetzt "Kamera starten"</div>
+                    `;
+                    return;
+                } else if (permission.state === 'denied') {
+                    document.getElementById('camera-status').innerHTML = `
+                        <div style="color: #ff6b6b;">❌ Kamera-Berechtigung verweigert</div>
+                        <div style="font-size: 0.8rem; margin-top: 0.5rem;">
+                            Bitte erlaube den Kamera-Zugriff in deinen Browser-Einstellungen:
+                            <br>• Klicke auf das Schloss-Symbol in der Adressleiste
+                            <br>• Wähle "Kamera" → "Erlauben"
+                            <br>• Lade die Seite neu
+                        </div>
+                    `;
+                    return;
+                } else {
+                    document.getElementById('camera-status').innerHTML = `
+                        <div style="color: #ffa726;">⚠️ Kamera-Berechtigung noch nicht erteilt</div>
+                        <div style="font-size: 0.8rem; margin-top: 0.5rem;">Versuche "Kamera starten" um die Berechtigung anzufordern</div>
+                    `;
+                    return;
+                }
+            } catch (permError) {
+                console.log('Permissions API nicht verfügbar:', permError);
+            }
+        }
+        
+        // Fallback: Versuche direkte Geräte-Auflistung
+        try {
+            const devices = await navigator.mediaDevices.enumerateDevices();
+            const cameras = devices.filter(device => device.kind === 'videoinput');
+            
+            if (cameras.length === 0) {
+                document.getElementById('camera-status').innerHTML = `
+                    <div style="color: #ff6b6b;">❌ Keine Kamera gefunden</div>
+                    <div style="font-size: 0.8rem; margin-top: 0.5rem;">Stelle sicher, dass eine Kamera angeschlossen und aktiviert ist</div>
+                `;
+            } else {
+                document.getElementById('camera-status').innerHTML = `
+                    <div style="color: #4CAF50;">✅ ${cameras.length} Kamera(s) gefunden</div>
+                    <div style="font-size: 0.8rem; margin-top: 0.5rem;">Versuche jetzt "Kamera starten"</div>
+                `;
+            }
+        } catch (deviceError) {
+            document.getElementById('camera-status').innerHTML = `
+                <div style="color: #ffa726;">⚠️ Kann Geräte nicht auflisten</div>
+                <div style="font-size: 0.8rem; margin-top: 0.5rem;">Versuche trotzdem "Kamera starten"</div>
+            `;
+        }
+        
+    } catch (error) {
+        console.error('Berechtigungsprüfung fehlgeschlagen:', error);
+        document.getElementById('camera-status').innerHTML = `
+            <div style="color: #ff6b6b;">❌ Berechtigungsprüfung fehlgeschlagen</div>
+            <div style="font-size: 0.8rem; margin-top: 0.5rem;">Versuche "Kamera starten" oder "Ohne Foto fortfahren"</div>
+        `;
+    }
+}
+
+function stopCamera() {
+    if (cameraStream) {
+        cameraStream.getTracks().forEach(track => track.stop());
+        cameraStream = null;
+    }
+}
+
+function takePhoto() {
+    const video = document.getElementById('camera-video');
+    const canvas = document.getElementById('camera-canvas');
+    const capturedImg = document.getElementById('camera-captured');
+    
+    canvas.width = 150;
+    canvas.height = 150;
+    
+    const ctx = canvas.getContext('2d');
+    
+    // Kreisrunden Schnitt
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.beginPath();
+    ctx.arc(75, 75, 75, 0, 2 * Math.PI);
+    ctx.clip();
+    
+    // Video gespiegelt zeichnen
+    ctx.scale(-1, 1);
+    ctx.drawImage(video, -canvas.width, 0, canvas.width, canvas.height);
+    
+    capturedImageData = canvas.toDataURL('image/jpeg', 0.85);
+    
+    // Vorschau anzeigen
+    capturedImg.src = capturedImageData;
+    capturedImg.style.display = 'block';
+    video.style.display = 'none';
+    
+    // Buttons anpassen
+    document.getElementById('btn-take-photo').style.display = 'none';
+    document.getElementById('btn-retake-photo').style.display = 'inline-block';
+    document.getElementById('btn-save-and-register').style.display = 'inline-block';
+    
+    document.getElementById('camera-status').textContent = 'Foto aufgenommen! Gefällt es dir?';
+    
+    stopCamera();
+}
+
+function retakePhoto() {
+    document.getElementById('camera-video').style.display = 'block';
+    document.getElementById('camera-captured').style.display = 'none';
+    
+    document.getElementById('btn-retake-photo').style.display = 'none';
+    document.getElementById('btn-save-and-register').style.display = 'none';
+    document.getElementById('btn-start-camera').style.display = 'inline-block';
+    
+    capturedImageData = null;
+    document.getElementById('camera-status').textContent = 'Klicke auf "Kamera starten" um es nochmal zu versuchen.';
+}
+
+async function savePhotoAndRegister() {
+    const playerName = document.getElementById('player-name').value.trim();
+    
+    if (!playerName) {
+        showRegistrationStatus('Spielername fehlt!', 'error');
+        return;
+    }
+    
+    // Erst Spieler registrieren
+    await registerPlayer(playerName);
+    
+    // Dann Foto hochladen falls erfolgreich und Foto vorhanden
+    if (capturedImageData) {
+        await uploadProfileImage(playerName);
+    }
+}
+
+async function skipPhotoAndRegister() {
+    const playerName = document.getElementById('player-name').value.trim();
+    
+    if (!playerName) {
+        showRegistrationStatus('Spielername fehlt!', 'error');
+        return;
+    }
+    
+    await registerPlayer(playerName);
+}
+
+async function registerPlayer(playerName) {
+    try {
+        document.getElementById('camera-status').textContent = 'Spieler wird angemeldet...';
+        
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+        
+        const response = await fetch('/api/register-player', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
+            body: JSON.stringify({ player_name: playerName })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            document.getElementById('camera-status').textContent = '✅ Spieler erfolgreich angemeldet!';
+            return true;
+        } else {
+            showRegistrationStatus(data.error || 'Fehler bei der Anmeldung', 'error');
+            return false;
+        }
+        
+    } catch (error) {
+        console.error('Registration error:', error);
+        showRegistrationStatus('Ein Fehler ist aufgetreten. Versuche es nochmal!', 'error');
+        return false;
+    }
+}
+
+async function uploadProfileImage(playerName) {
+    try {
+        document.getElementById('camera-status').textContent = 'Profilbild wird gespeichert...';
+        
+        const response = await fetch('/api/upload-profile-image', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                player_name: playerName,
+                image_data: capturedImageData
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            document.getElementById('camera-status').textContent = '✅ Profilbild gespeichert!';
+            showRegistrationStatus('Erfolgreich angemeldet mit Profilbild! 🎉📸', 'success');
+        } else {
+            showRegistrationStatus('Angemeldet, aber Profilbild-Fehler: ' + result.error, 'error');
+        }
+        
+    } catch (error) {
+        console.error('Upload error:', error);
+        showRegistrationStatus('Angemeldet, aber Profilbild konnte nicht gespeichert werden.', 'error');
+    } finally {
+        setTimeout(() => {
+            closeRegistrationPopup();
+        }, 3000);
+    }
+}
+
+// Erweitere closeRegistrationPopup Funktion
+const originalCloseRegistrationPopup = window.closeRegistrationPopup;
+window.closeRegistrationPopup = function() {
+    stopCamera();
+    
+    // Reset to step 1
+    document.getElementById('step-2').classList.remove('show');
+    document.getElementById('step-1').style.display = 'block';
+    document.getElementById('step-dot-2').classList.remove('active');
+    document.getElementById('step-dot-1').classList.add('active');
+    
+    // Reset form
+    document.getElementById('player-name').value = '';
+    document.getElementById('registration-status').style.display = 'none';
+    
+    resetCameraUI();
+    
+    if (originalCloseRegistrationPopup) {
+        originalCloseRegistrationPopup();
+    } else {
+        document.getElementById('registration-popup').classList.remove('show');
+    }
+};
+
+// Camera cleanup bei Seitenverlassen
+window.addEventListener('beforeunload', function() {
+    stopCamera();
+});
+
+// DATEI-UPLOAD FUNKTIONEN (HTTP-Alternative)
+
+function triggerFileUpload() {
+    const fileInput = document.getElementById('file-input');
+    if (fileInput) {
+        fileInput.click();
+    }
+}
+
+function handleFileUpload(event) {
+    const file = event.target.files[0];
+    if (!file) {
+        return;
+    }
+    
+    // Prüfe Dateityp
+    if (!file.type.startsWith('image/')) {
+        document.getElementById('camera-status').innerHTML = `
+            <div style="color: #ff6b6b;">❌ Bitte wähle eine Bilddatei (JPG, PNG, etc.)</div>
+        `;
+        return;
+    }
+    
+    // Prüfe Dateigröße (max 10MB)
+    if (file.size > 10 * 1024 * 1024) {
+        document.getElementById('camera-status').innerHTML = `
+            <div style="color: #ff6b6b;">❌ Datei zu groß (max. 10MB)</div>
+        `;
+        return;
+    }
+    
+    document.getElementById('camera-status').textContent = 'Bild wird verarbeitet...';
+    
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const img = new Image();
+        img.onload = function() {
+            // Resize und process das Bild
+            processUploadedImage(img);
+        };
+        img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+}
+
+function processUploadedImage(img) {
+    try {
+        const canvas = document.getElementById('camera-canvas');
+        const capturedImg = document.getElementById('camera-captured');
+        const video = document.getElementById('camera-video');
+        
+        // Canvas setup für 150x150 kreisrund
+        canvas.width = 150;
+        canvas.height = 150;
+        
+        const ctx = canvas.getContext('2d');
+        
+        // Kreisrunden Schnitt vorbereiten
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.beginPath();
+        ctx.arc(75, 75, 75, 0, 2 * Math.PI);
+        ctx.clip();
+        
+        // Berechne optimale Crop-Größe (quadratisch, zentriert)
+        const size = Math.min(img.width, img.height);
+        const startX = (img.width - size) / 2;
+        const startY = (img.height - size) / 2;
+        
+        // Zeichne Bild zentriert und quadratisch
+        ctx.drawImage(img, startX, startY, size, size, 0, 0, canvas.width, canvas.height);
+        
+        // Speichere als Base64
+        capturedImageData = canvas.toDataURL('image/jpeg', 0.85);
+        
+        // Zeige Vorschau
+        capturedImg.src = capturedImageData;
+        capturedImg.style.display = 'block';
+        video.style.display = 'none';
+        
+        // Update Buttons
+        document.getElementById('btn-start-camera').style.display = 'none';
+        document.getElementById('btn-upload-file').style.display = 'none';
+        document.getElementById('btn-take-photo').style.display = 'none';
+        document.getElementById('btn-retake-photo').style.display = 'inline-block';
+        document.getElementById('btn-save-and-register').style.display = 'inline-block';
+        
+        document.getElementById('camera-status').innerHTML = `
+            <div style="color: #4CAF50;">✅ Bild erfolgreich hochgeladen!</div>
+            <div style="font-size: 0.8rem; margin-top: 0.5rem;">Gefällt es dir? Speichern oder neues Bild wählen.</div>
+        `;
+        
+    } catch (error) {
+        console.error('Bild-Verarbeitung fehlgeschlagen:', error);
+        document.getElementById('camera-status').innerHTML = `
+            <div style="color: #ff6b6b;">❌ Bild konnte nicht verarbeitet werden</div>
+            <div style="font-size: 0.8rem; margin-top: 0.5rem;">Versuche ein anderes Bild oder "Ohne Foto fortfahren"</div>
+        `;
+    }
+}
+
+function retakePhoto() {
+    // Reset für sowohl Kamera als auch Upload
+    document.getElementById('camera-video').style.display = 'block';
+    document.getElementById('camera-captured').style.display = 'none';
+    
+    document.getElementById('btn-retake-photo').style.display = 'none';
+    document.getElementById('btn-save-and-register').style.display = 'none';
+    document.getElementById('btn-start-camera').style.display = 'inline-block';
+    
+    // Zeige Upload-Button wenn HTTP oder Kamera-Probleme
+    const isSecure = location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+    if (!isSecure) {
+        document.getElementById('btn-upload-file').style.display = 'inline-block';
+    }
+    
+    capturedImageData = null;
+    document.getElementById('camera-status').textContent = 'Klicke auf "Kamera starten" oder wähle "Foto hochladen".';
+    
+    // Reset file input
+    const fileInput = document.getElementById('file-input');
+    if (fileInput) {
+        fileInput.value = '';
+    }
+}
+
+console.log('✅ Camera-System für Registration Modal geladen');
+console.log('✅ File-Upload Alternative für HTTP aktiviert');
+
 </script>
 {% endblock %}

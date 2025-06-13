@@ -29,6 +29,9 @@ def load_user(user_id_with_prefix): # user_id kommt jetzt als String mit Präfix
 def create_app(config_class=Config):
     app = Flask(__name__)
     app.config.from_object(config_class)
+    
+    # Erhöhe die maximale Request-Größe für Base64-Bilder
+    app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB
 
     db.init_app(app)
     login_manager.init_app(app)

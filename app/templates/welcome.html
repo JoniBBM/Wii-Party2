@@ -285,6 +285,164 @@
         transform: scale(1.1);
     }
 
+    /* Profilbild-Camera Styles */
+    .profile-camera-section {
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 20px;
+        padding: 2rem;
+        backdrop-filter: blur(10px);
+        margin-bottom: 2rem;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        display: none;
+    }
+
+    .camera-container {
+        text-align: center;
+        max-width: 400px;
+        margin: 0 auto;
+    }
+
+    .camera-preview {
+        position: relative;
+        width: 200px;
+        height: 200px;
+        margin: 0 auto 1rem;
+        border-radius: 50%;
+        overflow: hidden;
+        border: 3px solid rgba(255, 255, 255, 0.3);
+        background: rgba(0, 0, 0, 0.1);
+    }
+
+    .camera-video {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        transform: scaleX(-1); /* Mirror effect */
+    }
+
+    .camera-canvas {
+        display: none;
+    }
+
+    .camera-captured {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        border-radius: 50%;
+    }
+
+    .camera-controls {
+        display: flex;
+        gap: 1rem;
+        justify-content: center;
+        flex-wrap: wrap;
+        margin-top: 1rem;
+    }
+
+    .btn-camera {
+        padding: 0.8rem 1.5rem;
+        border-radius: 30px;
+        border: none;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        cursor: pointer;
+    }
+
+    .btn-camera-capture {
+        background: linear-gradient(45deg, #FF6B6B, #EE5A52);
+        color: white;
+        box-shadow: 0 5px 15px rgba(255, 107, 107, 0.4);
+    }
+
+    .btn-camera-capture:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 20px rgba(255, 107, 107, 0.5);
+    }
+
+    .btn-camera-retake {
+        background: linear-gradient(45deg, #FFA726, #FF9800);
+        color: white;
+        box-shadow: 0 5px 15px rgba(255, 167, 38, 0.4);
+    }
+
+    .btn-camera-retake:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 20px rgba(255, 167, 38, 0.5);
+    }
+
+    .btn-camera-save {
+        background: linear-gradient(45deg, #4CAF50, #45A049);
+        color: white;
+        box-shadow: 0 5px 15px rgba(76, 175, 80, 0.4);
+    }
+
+    .btn-camera-save:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 20px rgba(76, 175, 80, 0.5);
+    }
+
+    .btn-camera-skip {
+        background: rgba(255, 255, 255, 0.2);
+        color: white;
+        border: 1px solid rgba(255, 255, 255, 0.3);
+    }
+
+    .btn-camera-skip:hover {
+        background: rgba(255, 255, 255, 0.3);
+        transform: translateY(-2px);
+    }
+
+    .camera-status {
+        margin-top: 1rem;
+        font-size: 0.9rem;
+        opacity: 0.8;
+    }
+
+    .profile-preview {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1rem;
+        justify-content: center;
+        margin-top: 1rem;
+    }
+
+    .profile-preview-item {
+        text-align: center;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 15px;
+        padding: 1rem;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .profile-preview-image {
+        width: 80px;
+        height: 80px;
+        border-radius: 50%;
+        object-fit: cover;
+        border: 2px solid rgba(255, 255, 255, 0.3);
+        margin-bottom: 0.5rem;
+    }
+
+    .profile-preview-name {
+        font-size: 0.9rem;
+        font-weight: 600;
+    }
+
+    .profile-completion-bar {
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 10px;
+        overflow: hidden;
+        height: 8px;
+        margin: 1rem 0;
+    }
+
+    .profile-completion-fill {
+        background: linear-gradient(45deg, #4CAF50, #45A049);
+        height: 100%;
+        width: 0%;
+        transition: width 0.5s ease;
+    }
+
     @media (max-width: 768px) {
         .welcome-title {
             font-size: 2.5rem;
@@ -317,10 +475,61 @@
                 <!-- Spieler-Bereich -->
                 <div class="players-section">
                     <h3><i class="fas fa-users"></i> Registrierte Spieler (<span id="player-count">0</span>)</h3>
+                    
+                    <!-- Profilbild-Fortschrittsanzeige -->
+                    <div id="profile-progress" style="display: none;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                            <span>Profilbilder: <span id="photos-count">0</span>/<span id="total-players">0</span></span>
+                            <span id="completion-percentage">0%</span>
+                        </div>
+                        <div class="profile-completion-bar">
+                            <div class="profile-completion-fill" id="completion-fill"></div>
+                        </div>
+                    </div>
+                    
                     <div id="players-container">
                         <div class="no-players">
                             <i class="fas fa-user-plus fa-3x mb-3"></i>
                             <p>Noch keine Spieler registriert. Besuche die <a href="{{ url_for('main.index') }}" class="text-warning">Startseite</a> und melde dich an!</p>
+                        </div>
+                    </div>
+                    
+                    <!-- Profilbild-Vorschau -->
+                    <div id="profile-preview" class="profile-preview" style="display: none;"></div>
+                </div>
+
+                <!-- Profilbild-Camera Bereich -->
+                <div id="profile-camera-section" class="profile-camera-section">
+                    <h3><i class="fas fa-camera"></i> Profilbild aufnehmen</h3>
+                    <p>Nimm ein Selfie für <strong id="camera-player-name">Spieler</strong> auf!</p>
+                    
+                    <div class="camera-container">
+                        <div class="camera-preview">
+                            <video id="camera-video" class="camera-video" autoplay muted></video>
+                            <canvas id="camera-canvas" class="camera-canvas"></canvas>
+                            <img id="camera-captured" class="camera-captured" style="display: none;">
+                        </div>
+                        
+                        <div class="camera-controls">
+                            <button id="btn-start-camera" class="btn-camera btn-camera-capture">
+                                <i class="fas fa-video"></i> Kamera starten
+                            </button>
+                            <button id="btn-take-photo" class="btn-camera btn-camera-capture" style="display: none;">
+                                <i class="fas fa-camera"></i> Foto aufnehmen
+                            </button>
+                            <button id="btn-retake-photo" class="btn-camera btn-camera-retake" style="display: none;">
+                                <i class="fas fa-redo"></i> Nochmal
+                            </button>
+                            <button id="btn-save-photo" class="btn-camera btn-camera-save" style="display: none;">
+                                <i class="fas fa-save"></i> Speichern
+                            </button>
+                            <button id="btn-skip-photo" class="btn-camera btn-camera-skip">
+                                <i class="fas fa-forward"></i> Überspringen
+                            </button>
+                        </div>
+                        
+                        <div class="camera-status" id="camera-status">
+                            Klicke auf "Kamera starten" um ein Selfie aufzunehmen.
                         </div>
                     </div>
                 </div>
@@ -427,12 +636,27 @@ document.addEventListener('DOMContentLoaded', function() {
             if (playersSection) {
                 playersSection.innerHTML = `
                     <h3><i class="fas fa-users"></i> Registrierte Spieler (<span id="player-count">0</span>)</h3>
+                    
+                    <!-- Profilbild-Fortschrittsanzeige -->
+                    <div id="profile-progress" style="display: none;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                            <span>Profilbilder: <span id="photos-count">0</span>/<span id="total-players">0</span></span>
+                            <span id="completion-percentage">0%</span>
+                        </div>
+                        <div class="profile-completion-bar">
+                            <div class="profile-completion-fill" id="completion-fill"></div>
+                        </div>
+                    </div>
+                    
                     <div id="players-container">
                         <div class="no-players">
                             <i class="fas fa-user-plus fa-3x mb-3"></i>
-                            <p>Noch keine Spieler registriert. Besuche die <a href="/register" class="text-warning">Startseite</a> und melde dich an!</p>
+                            <p>Noch keine Spieler registriert. Besuche die <a href="/" class="text-warning">Startseite</a> und melde dich an!</p>
                         </div>
                     </div>
+                    
+                    <!-- Profilbild-Vorschau -->
+                    <div id="profile-preview" class="profile-preview" style="display: none;"></div>
                 `;
             }
             
@@ -552,6 +776,11 @@ function updatePlayersList(players) {
                 <div class="player-time">
                     ${new Date(player.registration_time).toLocaleTimeString()}
                 </div>
+                <div style="margin-top: 0.5rem;">
+                    <button class="btn-camera btn-camera-capture" style="padding: 0.3rem 0.8rem; font-size: 0.8rem;" onclick="showCameraForPlayer('${player.name}')">
+                        <i class="fas fa-camera"></i> Foto
+                    </button>
+                </div>
             `;
             
             // Nach der Animation als statisch markieren
@@ -600,11 +829,298 @@ function updateTeamsList(teams) {
     });
 }
 
+// PROFILBILD-CAMERA SYSTEM
+
+let cameraStream = null;
+let currentCameraPlayer = null;
+let capturedImageData = null;
+
+// Camera Event Listeners
+document.addEventListener('DOMContentLoaded', function() {
+    const btnStartCamera = document.getElementById('btn-start-camera');
+    const btnTakePhoto = document.getElementById('btn-take-photo');
+    const btnRetakePhoto = document.getElementById('btn-retake-photo');
+    const btnSavePhoto = document.getElementById('btn-save-photo');
+    const btnSkipPhoto = document.getElementById('btn-skip-photo');
+
+    if (btnStartCamera) btnStartCamera.addEventListener('click', startCamera);
+    if (btnTakePhoto) btnTakePhoto.addEventListener('click', takePhoto);
+    if (btnRetakePhoto) btnRetakePhoto.addEventListener('click', retakePhoto);
+    if (btnSavePhoto) btnSavePhoto.addEventListener('click', savePhoto);
+    if (btnSkipPhoto) btnSkipPhoto.addEventListener('click', skipPhoto);
+});
+
+function showCameraForPlayer(playerName) {
+    // Weise den Spieler darauf hin, dass er sich über die Startseite registrieren soll
+    alert(`Hallo ${playerName}! Um ein Profilbild aufzunehmen, gehe bitte zur Startseite und melde dich dort über "Jetzt anmelden!" an. Dort kannst du direkt ein Selfie machen! 📸`);
+    
+    // Optional: Weiterleitung zur Startseite
+    if (confirm('Möchtest du jetzt zur Startseite wechseln?')) {
+        window.location.href = '/';
+    }
+}
+
+function hideCameraSection() {
+    document.getElementById('profile-camera-section').style.display = 'none';
+    stopCamera();
+    currentCameraPlayer = null;
+    capturedImageData = null;
+}
+
+function resetCameraUI() {
+    // Stoppe vorhandene Kamera
+    stopCamera();
+    
+    // Reset UI
+    document.getElementById('btn-start-camera').style.display = 'inline-block';
+    document.getElementById('btn-take-photo').style.display = 'none';
+    document.getElementById('btn-retake-photo').style.display = 'none';
+    document.getElementById('btn-save-photo').style.display = 'none';
+    
+    document.getElementById('camera-video').style.display = 'block';
+    document.getElementById('camera-captured').style.display = 'none';
+    
+    document.getElementById('camera-status').textContent = 'Klicke auf "Kamera starten" um ein Selfie aufzunehmen.';
+    
+    capturedImageData = null;
+}
+
+async function startCamera() {
+    try {
+        document.getElementById('camera-status').textContent = 'Kamera wird gestartet...';
+        
+        cameraStream = await navigator.mediaDevices.getUserMedia({ 
+            video: { 
+                width: { ideal: 640 },
+                height: { ideal: 640 },
+                facingMode: 'user' // Front camera
+            } 
+        });
+        
+        const video = document.getElementById('camera-video');
+        video.srcObject = cameraStream;
+        
+        document.getElementById('btn-start-camera').style.display = 'none';
+        document.getElementById('btn-take-photo').style.display = 'inline-block';
+        document.getElementById('camera-status').textContent = 'Kamera aktiv - Position dich gut und klicke auf "Foto aufnehmen".';
+        
+    } catch (error) {
+        console.error('Kamera-Fehler:', error);
+        document.getElementById('camera-status').textContent = 'Kamera konnte nicht gestartet werden. Prüfe die Berechtigungen.';
+    }
+}
+
+function stopCamera() {
+    if (cameraStream) {
+        cameraStream.getTracks().forEach(track => track.stop());
+        cameraStream = null;
+    }
+}
+
+function takePhoto() {
+    const video = document.getElementById('camera-video');
+    const canvas = document.getElementById('camera-canvas');
+    const capturedImg = document.getElementById('camera-captured');
+    
+    // Canvas auf 200x200 setzen (für kreisrunde Bilder)
+    canvas.width = 200;
+    canvas.height = 200;
+    
+    const ctx = canvas.getContext('2d');
+    
+    // Kreisrunden Schnitt vorbereiten
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.beginPath();
+    ctx.arc(100, 100, 100, 0, 2 * Math.PI);
+    ctx.clip();
+    
+    // Video auf Canvas zeichnen (gespiegelt)
+    ctx.scale(-1, 1); // Spiegeln für natürliche Selfie-Darstellung
+    ctx.drawImage(video, -canvas.width, 0, canvas.width, canvas.height);
+    
+    // Als Bild-Data URL speichern
+    capturedImageData = canvas.toDataURL('image/jpeg', 0.85);
+    
+    // Vorschau anzeigen
+    capturedImg.src = capturedImageData;
+    capturedImg.style.display = 'block';
+    video.style.display = 'none';
+    
+    // Buttons anpassen
+    document.getElementById('btn-take-photo').style.display = 'none';
+    document.getElementById('btn-retake-photo').style.display = 'inline-block';
+    document.getElementById('btn-save-photo').style.display = 'inline-block';
+    
+    document.getElementById('camera-status').textContent = 'Foto aufgenommen! Gefällt es dir? Speichern oder nochmal versuchen.';
+    
+    // Kamera stoppen um Ressourcen zu sparen
+    stopCamera();
+}
+
+function retakePhoto() {
+    // UI zurücksetzen und Kamera neu starten
+    document.getElementById('camera-video').style.display = 'block';
+    document.getElementById('camera-captured').style.display = 'none';
+    
+    document.getElementById('btn-retake-photo').style.display = 'none';
+    document.getElementById('btn-save-photo').style.display = 'none';
+    document.getElementById('btn-start-camera').style.display = 'inline-block';
+    
+    capturedImageData = null;
+    document.getElementById('camera-status').textContent = 'Klicke auf "Kamera starten" um es nochmal zu versuchen.';
+}
+
+async function savePhoto() {
+    if (!capturedImageData || !currentCameraPlayer) {
+        alert('Kein Foto zum Speichern vorhanden.');
+        return;
+    }
+    
+    try {
+        document.getElementById('camera-status').textContent = 'Foto wird gespeichert...';
+        
+        const response = await fetch('/api/upload-profile-image', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                player_name: currentCameraPlayer,
+                image_data: capturedImageData
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            document.getElementById('camera-status').textContent = `✅ Profilbild für ${currentCameraPlayer} gespeichert!`;
+            
+            // Camera verstecken nach erfolgreicher Speicherung
+            setTimeout(() => {
+                hideCameraSection();
+                updateProfileImageStatus(); // Update der Fortschrittsanzeige
+            }, 2000);
+        } else {
+            document.getElementById('camera-status').textContent = `❌ Fehler: ${result.error}`;
+        }
+        
+    } catch (error) {
+        console.error('Upload-Fehler:', error);
+        document.getElementById('camera-status').textContent = '❌ Fehler beim Speichern. Versuche es nochmal.';
+    }
+}
+
+function skipPhoto() {
+    hideCameraSection();
+}
+
+// Profilbild-Status Updates
+async function updateProfileImageStatus() {
+    try {
+        const response = await fetch('/api/profile-image-status');
+        const data = await response.json();
+        
+        if (data.success) {
+            const progressSection = document.getElementById('profile-progress');
+            const photosCount = document.getElementById('photos-count');
+            const totalPlayers = document.getElementById('total-players');
+            const completionPercentage = document.getElementById('completion-percentage');
+            const completionFill = document.getElementById('completion-fill');
+            const profilePreview = document.getElementById('profile-preview');
+            
+            // Prüfe ob Elemente existieren (wichtig für Live-Modus-Wechsel)
+            if (photosCount && totalPlayers && completionPercentage && completionFill) {
+                // Update Zahlen
+                photosCount.textContent = data.players_with_photos;
+                totalPlayers.textContent = data.total_players;
+                completionPercentage.textContent = Math.round(data.completion_percentage) + '%';
+                completionFill.style.width = data.completion_percentage + '%';
+                
+                // Zeige Fortschritt nur wenn Spieler vorhanden
+                if (data.total_players > 0 && progressSection) {
+                    progressSection.style.display = 'block';
+                }
+            }
+            
+            // Update Profilbild-Vorschau
+            if (profilePreview) {
+                updateProfilePreview(data.players);
+            }
+        }
+    } catch (error) {
+        console.error('Fehler beim Laden des Profilbild-Status:', error);
+    }
+}
+
+function updateProfilePreview(players) {
+    const profilePreview = document.getElementById('profile-preview');
+    
+    // Nur Spieler mit Profilbildern anzeigen
+    const playersWithImages = players.filter(p => p.has_profile_image);
+    
+    if (playersWithImages.length === 0) {
+        profilePreview.style.display = 'none';
+        return;
+    }
+    
+    profilePreview.innerHTML = '';
+    profilePreview.style.display = 'flex';
+    
+    playersWithImages.forEach(player => {
+        const previewItem = document.createElement('div');
+        previewItem.className = 'profile-preview-item';
+        previewItem.innerHTML = `
+            <img src="/static/${player.image_path}" class="profile-preview-image" alt="${player.player_name}">
+            <div class="profile-preview-name">${player.player_name}</div>
+        `;
+        profilePreview.appendChild(previewItem);
+    });
+}
+
+// Integration in bestehende Update-Funktion
+const originalUpdatePlayersList = updatePlayersList;
+updatePlayersList = function(players) {
+    originalUpdatePlayersList(players);
+    
+    // Nach dem Update der Spielerliste auch Profilbild-Status updaten
+    if (players.length > 0) {
+        updateProfileImageStatus();
+        
+        // Auto-Kamera für Spieler ohne Profilbild anbieten (optional)
+        checkForPlayersNeedingPhotos(players);
+    }
+};
+
+async function checkForPlayersNeedingPhotos(players) {
+    // Dieser Code ist optional und könnte automatisch die Kamera für neue Spieler öffnen
+    // Momentan deaktiviert um Benutzer nicht zu überraschen
+    
+    /*
+    try {
+        const response = await fetch('/api/profile-image-status');
+        const data = await response.json();
+        
+        if (data.success) {
+            const playersWithoutPhotos = data.players.filter(p => !p.has_profile_image);
+            
+            if (playersWithoutPhotos.length > 0 && !currentCameraPlayer) {
+                // Optional: Auto-Vorschlag für ersten Spieler ohne Foto
+                const firstPlayerNeedingPhoto = playersWithoutPhotos[0];
+                // showCameraForPlayer(firstPlayerNeedingPhoto.player_name);
+            }
+        }
+    } catch (error) {
+        console.error('Fehler beim Prüfen der Profilbild-Anforderungen:', error);
+    }
+    */
+}
+
 // Cleanup bei Seitenverlassen
 window.addEventListener('beforeunload', function() {
     if (updateInterval) {
         clearInterval(updateInterval);
     }
+    stopCamera();
 });
 
 // Cleanup und Ende

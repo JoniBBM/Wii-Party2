@@ -171,6 +171,163 @@ body {
     100% { opacity: 0; transform: translate(-50%, -35%) scale(0.9); }
 }
 
+/* PROFILBILD FACE-OVERLAY SYSTEM */
+.face-overlay-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 10000;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.5s ease-in-out;
+}
+
+.face-overlay-container.show {
+    opacity: 1;
+}
+
+.face-overlay-background {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.3);
+    backdrop-filter: blur(2px);
+}
+
+.face-overlay-title {
+    position: absolute;
+    top: 10%;
+    left: 50%;
+    transform: translateX(-50%);
+    color: white;
+    font-size: 2.5rem;
+    font-weight: 900;
+    text-shadow: 0 4px 15px rgba(0, 0, 0, 0.7);
+    text-align: center;
+    z-index: 10001;
+    animation: fadeInDown 0.8s ease-out;
+}
+
+@keyframes fadeInDown {
+    from {
+        opacity: 0;
+        transform: translateX(-50%) translateY(-30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+    }
+}
+
+.face-grid {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 2rem;
+    max-width: 90%;
+    max-height: 60%;
+    z-index: 10001;
+}
+
+.face-card {
+    background: rgba(255, 255, 255, 0.9);
+    border-radius: 20px;
+    padding: 1.5rem;
+    text-align: center;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    backdrop-filter: blur(10px);
+    border: 3px solid rgba(255, 255, 255, 0.8);
+    animation: faceCardAppear 0.8s ease-out;
+    animation-fill-mode: both;
+    transform: scale(0);
+}
+
+.face-card:nth-child(1) { animation-delay: 0.1s; }
+.face-card:nth-child(2) { animation-delay: 0.2s; }
+.face-card:nth-child(3) { animation-delay: 0.3s; }
+.face-card:nth-child(4) { animation-delay: 0.4s; }
+.face-card:nth-child(5) { animation-delay: 0.5s; }
+.face-card:nth-child(6) { animation-delay: 0.6s; }
+
+@keyframes faceCardAppear {
+    0% {
+        opacity: 0;
+        transform: scale(0) rotate(-10deg);
+    }
+    70% {
+        transform: scale(1.1) rotate(2deg);
+    }
+    100% {
+        opacity: 1;
+        transform: scale(1) rotate(0deg);
+    }
+}
+
+.face-image {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 4px solid #ffffff;
+    margin-bottom: 1rem;
+    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.2);
+    transition: transform 0.3s ease;
+}
+
+.face-image:hover {
+    transform: scale(1.1);
+}
+
+.face-player-name {
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: #333;
+    margin-bottom: 0.5rem;
+}
+
+.face-team-info {
+    font-size: 0.9rem;
+    color: #666;
+    font-weight: 600;
+    padding: 0.3rem 0.8rem;
+    border-radius: 15px;
+    display: inline-block;
+}
+
+.face-overlay-timer {
+    position: absolute;
+    bottom: 15%;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(255, 255, 255, 0.9);
+    color: #333;
+    padding: 1rem 2rem;
+    border-radius: 30px;
+    font-size: 1.5rem;
+    font-weight: 700;
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+    z-index: 10001;
+    animation: pulseTimer 1s ease-in-out infinite alternate;
+}
+
+@keyframes pulseTimer {
+    from {
+        transform: translateX(-50%) scale(1);
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+    }
+    to {
+        transform: translateX(-50%) scale(1.05);
+        box-shadow: 0 12px 35px rgba(0, 0, 0, 0.4);
+    }
+}
+
 /* Spezial-Feld-Effekte */
 .special-field-display {
     position: fixed;
@@ -296,6 +453,16 @@ body {
             <div id="special-field-icon" class="special-field-icon">🎯</div>
             <div id="special-field-title" class="special-field-title">Sonderfeld!</div>
             <div id="special-field-description" class="special-field-description">Etwas Besonderes ist passiert!</div>
+        </div>
+        
+        <!-- Face-Overlay System für Minispiel-Ankündigungen -->
+        <div id="face-overlay-container" class="face-overlay-container">
+            <div class="face-overlay-background"></div>
+            <div class="face-overlay-title" id="face-overlay-title">Die Spieler sind bereit!</div>
+            <div class="face-grid" id="face-grid">
+                <!-- Gesichter werden hier dynamisch eingefügt -->
+            </div>
+            <div class="face-overlay-timer" id="face-overlay-timer">10</div>
         </div>
     </div>
 </div>
@@ -4649,5 +4816,127 @@ function startCameraOrbitAnimationLegacy() {
 }
 
 // Keine automatischen Aktionen mehr - alles ist manuell steuerbar
+
+// PROFILBILD FACE-OVERLAY SYSTEM
+
+let faceOverlayTimer = null;
+let faceOverlayCountdown = 10;
+
+// Integration in die bestehende Update-Funktion
+function checkForFaceOverlay() {
+    fetch('/api/get-player-faces')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.show_faces && data.player_faces.length > 0) {
+                showFaceOverlay(data.player_faces);
+            }
+        })
+        .catch(error => {
+            console.log('Face-Overlay-Check failed (normal if no faces available):', error);
+        });
+}
+
+function showFaceOverlay(playerFaces) {
+    console.log('🎭 Zeige Face-Overlay für Minispiel-Spieler:', playerFaces);
+    
+    const container = document.getElementById('face-overlay-container');
+    const faceGrid = document.getElementById('face-grid');
+    const title = document.getElementById('face-overlay-title');
+    const timer = document.getElementById('face-overlay-timer');
+    
+    // Set title based on number of players
+    const playerCount = playerFaces.length;
+    if (playerCount === 1) {
+        title.textContent = 'Dieser Spieler ist bereit!';
+    } else {
+        title.textContent = `Diese ${playerCount} Spieler sind bereit!`;
+    }
+    
+    // Clear previous faces
+    faceGrid.innerHTML = '';
+    
+    // Add player faces
+    playerFaces.forEach((player, index) => {
+        const faceCard = document.createElement('div');
+        faceCard.className = 'face-card';
+        faceCard.style.animationDelay = `${0.1 + index * 0.1}s`;
+        
+        faceCard.innerHTML = `
+            <img src="/static/${player.image_path}" 
+                 class="face-image" 
+                 alt="${player.player_name}"
+                 onerror="this.style.display='none'">
+            <div class="face-player-name">${player.player_name}</div>
+            <div class="face-team-info" style="background-color: ${player.team_color}; color: white;">
+                ${player.team_name}
+            </div>
+        `;
+        
+        faceGrid.appendChild(faceCard);
+    });
+    
+    // Show overlay with animation
+    container.classList.add('show');
+    
+    // Start countdown timer
+    faceOverlayCountdown = 10;
+    timer.textContent = faceOverlayCountdown;
+    
+    if (faceOverlayTimer) {
+        clearInterval(faceOverlayTimer);
+    }
+    
+    faceOverlayTimer = setInterval(() => {
+        faceOverlayCountdown--;
+        timer.textContent = faceOverlayCountdown;
+        
+        if (faceOverlayCountdown <= 0) {
+            hideFaceOverlay();
+        }
+    }, 1000);
+    
+    // Auto-hide after 10 seconds (backup)
+    setTimeout(() => {
+        hideFaceOverlay();
+    }, 10500);
+}
+
+function hideFaceOverlay() {
+    const container = document.getElementById('face-overlay-container');
+    container.classList.remove('show');
+    
+    if (faceOverlayTimer) {
+        clearInterval(faceOverlayTimer);
+        faceOverlayTimer = null;
+    }
+    
+    console.log('🎭 Face-Overlay versteckt');
+}
+
+// Integration in bestehende Update-Funktion erweitern
+// Suche nach der bestehenden updateGameStatus Funktion und erweitere sie
+const originalUpdateGameStatus = window.updateGameStatus || function() {};
+window.updateGameStatus = function() {
+    originalUpdateGameStatus();
+    
+    // Check for face overlay nur bei SETUP_MINIGAME Phase
+    checkForFaceOverlay();
+};
+
+// Fallback: Wenn updateGameStatus nicht existiert, prüfe regelmäßig
+if (!window.updateGameStatus || typeof window.updateGameStatus !== 'function') {
+    // Prüfe alle 3 Sekunden auf Face-Overlay
+    setInterval(checkForFaceOverlay, 3000);
+}
+
+// Cleanup bei Seitenverlassen
+window.addEventListener('beforeunload', function() {
+    if (faceOverlayTimer) {
+        clearInterval(faceOverlayTimer);
+    }
+});
+
+console.log('✅ Face-Overlay-System für Profilbilder geladen');
+
 </script>
 {% endblock %}

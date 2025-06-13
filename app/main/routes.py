@@ -1,7 +1,7 @@
 from flask import render_template, jsonify, request, session, current_app, redirect, url_for, flash
 from app.main import main_bp
 from app.models import Team, Character, GameSession, GameEvent, Admin, WelcomeSession, PlayerRegistration
-from app import db
+from app import db, csrf
 import random # Für Würfellogik
 import traceback # Für detaillierte Fehlermeldungen
 from flask_login import current_user
@@ -926,3 +926,252 @@ def calculate_position_history(game_session_id):
     except Exception as e:
         current_app.logger.error(f"Fehler beim Berechnen der Positionshistorie: {e}")
         return {}
+
+# PROFILBILD-SYSTEM API ENDPUNKTE
+
+@main_bp.route('/api/test-upload', methods=['POST'])
+def test_upload():
+    """Test-Endpunkt für Upload-Debugging"""
+    current_app.logger.info("=== TEST UPLOAD ROUTE REACHED ===")
+    current_app.logger.info(f"Content-Type: {request.content_type}")
+    current_app.logger.info(f"Data length: {len(request.data) if request.data else 0}")
+    
+    try:
+        data = request.get_json()
+        current_app.logger.info(f"JSON parsed successfully: {bool(data)}")
+        return jsonify({"success": True, "message": "Test successful"})
+    except Exception as e:
+        current_app.logger.error(f"JSON parsing failed: {e}")
+        return jsonify({"success": False, "error": str(e)}), 400
+
+@main_bp.route('/api/upload-profile-image', methods=['POST'])
+@csrf.exempt
+def upload_profile_image():
+    """Upload eines Profilbildes für einen Spieler"""
+    current_app.logger.info("=== UPLOAD PROFILE IMAGE ROUTE REACHED ===")
+    try:
+        import base64
+        import binascii
+        import os
+        from PIL import Image
+        import io
+        
+        # Debug: Log the request data
+        current_app.logger.info(f"Upload request content-type: {request.content_type}")
+        current_app.logger.info(f"Upload request data length: {len(request.data) if request.data else 0}")
+        
+        try:
+            data = request.get_json()
+        except Exception as e:
+            current_app.logger.error(f"JSON parsing failed: {e}")
+            return jsonify({"success": False, "error": "Ungültige JSON-Daten"}), 400
+            
+        if not data:
+            current_app.logger.error("No JSON data received in upload request")
+            return jsonify({"success": False, "error": "Keine Daten empfangen"}), 400
+            
+        player_name = data.get('player_name', '').strip()
+        image_data = data.get('image_data', '')  # Base64-encoded image
+        
+        current_app.logger.info(f"Upload request for player: {player_name}")
+        current_app.logger.info(f"Image data length: {len(image_data) if image_data else 0}")
+        
+        if not player_name:
+            return jsonify({"success": False, "error": "Spielername ist erforderlich"}), 400
+        
+        if not image_data:
+            return jsonify({"success": False, "error": "Bilddaten fehlen"}), 400
+        
+        # Entferne data:image/...;base64, prefix falls vorhanden
+        if 'base64,' in image_data:
+            image_data = image_data.split('base64,')[1]
+        elif image_data.startswith('data:'):
+            # Fallback: Remove any data: prefix even without base64,
+            parts = image_data.split(',', 1)
+            if len(parts) > 1:
+                image_data = parts[1]
+        
+        # Prüfe ob aktive Welcome-Session existiert
+        welcome_session = WelcomeSession.get_active_session()
+        if not welcome_session:
+            return jsonify({"success": False, "error": "Keine aktive Registrierung"}), 400
+        
+        # Prüfe ob Spieler existiert
+        registration = PlayerRegistration.query.filter_by(
+            welcome_session_id=welcome_session.id,
+            player_name=player_name
+        ).first()
+        
+        if not registration:
+            return jsonify({"success": False, "error": "Spieler nicht gefunden"}), 404
+        
+        # Dekodiere Base64-Bild
+        try:
+            # Bereinige Base64-String (entferne Whitespace)
+            image_data = image_data.strip().replace(' ', '').replace('\n', '').replace('\r', '')
+            
+            # Fixe Base64-Padding falls nötig
+            if not image_data:
+                return jsonify({"success": False, "error": "Leere Bilddaten"}), 400
+            
+            padding_needed = len(image_data) % 4
+            if padding_needed:
+                image_data += '=' * (4 - padding_needed)
+            
+            image_bytes = base64.b64decode(image_data, validate=True)
+            image = Image.open(io.BytesIO(image_bytes))
+        except binascii.Error as e:
+            current_app.logger.error(f"Base64 decode error: {e}")
+            return jsonify({"success": False, "error": "Ungültige Base64-Bilddaten"}), 400
+        except Exception as e:
+            current_app.logger.error(f"Image processing error: {e}")
+            return jsonify({"success": False, "error": "Ungültige Bilddaten"}), 400
+        
+        # Validiere Bildformat
+        if image.format not in ['JPEG', 'PNG', 'WEBP']:
+            return jsonify({"success": False, "error": "Ungültiges Bildformat (nur JPEG, PNG, WEBP erlaubt)"}), 400
+        
+        # Resize auf 150x150px
+        image = image.resize((150, 150), Image.Resampling.LANCZOS)
+        
+        # Konvertiere zu RGB falls nötig (für JPEG)
+        if image.mode != 'RGB':
+            image = image.convert('RGB')
+        
+        # Erstelle Dateinamen
+        from datetime import datetime
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        safe_player_name = "".join(c for c in player_name if c.isalnum() or c in ['_', '-'])
+        filename = f"{welcome_session.id}_{safe_player_name}_{timestamp}.jpg"
+        
+        # Speichere Bild
+        profile_images_dir = os.path.join(current_app.static_folder, 'profile_images')
+        os.makedirs(profile_images_dir, exist_ok=True)
+        
+        file_path = os.path.join(profile_images_dir, filename)
+        image.save(file_path, 'JPEG', quality=85)
+        
+        # Speichere Pfad in Datenbank (relativer Pfad für static files)
+        relative_path = f"profile_images/{filename}"
+        registration.profile_image_path = relative_path
+        
+        # Falls Spieler bereits einem Team zugeordnet ist, aktualisiere auch Team-Profilbilder
+        if registration.assigned_team_id:
+            team = Team.query.get(registration.assigned_team_id)
+            if team:
+                team.set_profile_image(player_name, relative_path)
+        
+        db.session.commit()
+        
+        current_app.logger.info(f"Profilbild für Spieler '{player_name}' gespeichert: {relative_path}")
+        
+        return jsonify({
+            "success": True,
+            "message": f"Profilbild für '{player_name}' erfolgreich gespeichert",
+            "image_path": relative_path
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Fehler beim Upload des Profilbildes: {e}", exc_info=True)
+        return jsonify({"success": False, "error": "Ein Fehler ist aufgetreten"}), 500
+
+@main_bp.route('/api/get-player-faces')
+def get_player_faces():
+    """Gibt Profilbilder der aktuell spielenden Teams/Spieler zurück"""
+    try:
+        # Hole aktive Session
+        active_session = GameSession.query.filter_by(is_active=True).first()
+        if not active_session:
+            return jsonify({"success": False, "error": "Keine aktive Spielsitzung"}), 404
+        
+        # Prüfe ob Minispiel läuft und nicht alle Teams spielen
+        if active_session.current_phase != 'SETUP_MINIGAME':
+            return jsonify({
+                "success": True,
+                "show_faces": False,
+                "message": "Kein Minispiel in Vorbereitung"
+            })
+        
+        # Hole ausgewählte Spieler aus der Session
+        selected_players = active_session.get_selected_players()
+        
+        if not selected_players:
+            return jsonify({
+                "success": True, 
+                "show_faces": False,
+                "message": "Keine Spieler ausgewählt"
+            })
+        
+        # Sammle Profilbilder der ausgewählten Spieler
+        player_faces = []
+        
+        for team_id_str, player_names in selected_players.items():
+            team = Team.query.get(int(team_id_str))
+            if not team:
+                continue
+                
+            team_name = team.name
+            team_color = team.character.color if team.character else '#CCCCCC'
+            
+            for player_name in player_names:
+                # Hole Profilbild aus Team-Daten
+                profile_image = team.get_profile_image(player_name)
+                
+                if profile_image:
+                    player_faces.append({
+                        "player_name": player_name,
+                        "team_name": team_name,
+                        "team_id": team.id,
+                        "team_color": team_color,
+                        "image_path": profile_image
+                    })
+        
+        # Nur anzeigen wenn mindestens ein Profilbild vorhanden ist
+        show_faces = len(player_faces) > 0
+        
+        return jsonify({
+            "success": True,
+            "show_faces": show_faces,
+            "player_faces": player_faces,
+            "total_players": len(player_faces)
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"Fehler beim Abrufen der Spieler-Gesichter: {e}", exc_info=True)
+        return jsonify({"success": False, "error": "Ein Fehler ist aufgetreten"}), 500
+
+@main_bp.route('/api/profile-image-status')
+def profile_image_status():
+    """Status der Profilbilder für Welcome-System"""
+    try:
+        welcome_session = WelcomeSession.get_active_session()
+        if not welcome_session:
+            return jsonify({"success": False, "error": "Keine aktive Session"}), 404
+        
+        # Hole alle Registrierungen mit Profilbild-Status
+        registrations = welcome_session.get_registered_players()
+        players_with_images = []
+        
+        for registration in registrations:
+            has_image = registration.profile_image_path is not None
+            players_with_images.append({
+                "player_name": registration.player_name,
+                "has_profile_image": has_image,
+                "image_path": registration.profile_image_path if has_image else None
+            })
+        
+        total_players = len(players_with_images)
+        players_with_photos = sum(1 for p in players_with_images if p["has_profile_image"])
+        
+        return jsonify({
+            "success": True,
+            "total_players": total_players,
+            "players_with_photos": players_with_photos,
+            "completion_percentage": (players_with_photos / total_players * 100) if total_players > 0 else 0,
+            "players": players_with_images
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"Fehler beim Abrufen des Profilbild-Status: {e}", exc_info=True)
+        return jsonify({"success": False, "error": "Ein Fehler ist aufgetreten"}), 500

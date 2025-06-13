@@ -1548,6 +1548,10 @@ def create_team():
                     ).first()
                     if player_registration:
                         player_registration.assigned_team_id = team.id
+                        
+                        # Kopiere Profilbild ins Team falls vorhanden
+                        if player_registration.profile_image_path:
+                            team.set_profile_image(member_name, player_registration.profile_image_path)
             
             # Setze welcome_password für die Klartext-Anzeige
             team.welcome_password = form.password.data
@@ -2505,6 +2509,10 @@ def create_teams():
             # Setze Team-Zuordnung für Spieler
             player.assigned_team_id = selected_team["team"].id
             selected_team["members"].append(player.player_name)
+            
+            # Kopiere Profilbild ins Team falls vorhanden
+            if player.profile_image_path:
+                selected_team["team"].set_profile_image(player.player_name, player.profile_image_path)
         
         # Aktualisiere Team-Members String
         for team_data in created_teams:

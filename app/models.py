@@ -41,6 +41,8 @@ class Team(UserMixin, db.Model):
     members = db.Column(db.String(255), nullable=True)
     # Erweiterte Spieler-Konfiguration (JSON mit Spieler-Details)
     player_config = db.Column(db.Text, nullable=True)  # JSON mit Spieler-Einstellungen
+    # Profilbilder für Team-Mitglieder (JSON: {"player_name": "path/to/image.jpg", ...})
+    profile_images = db.Column(db.Text, nullable=True)  # JSON mit Profilbild-Pfaden
 
     character_name = db.Column(db.String(100), nullable=True)
     character_id = db.Column(db.Integer, db.ForeignKey('character.id'), nullable=True)
@@ -150,6 +152,33 @@ class Team(UserMixin, db.Model):
             config[player_name] = {}
         config[player_name]['can_be_selected'] = can_be_selected
         self.set_player_config(config)
+
+    def get_profile_images(self):
+        """Gibt Profilbilder als Dictionary zurück"""
+        if not self.profile_images:
+            return {}
+        try:
+            return json.loads(self.profile_images)
+        except (json.JSONDecodeError, TypeError):
+            return {}
+
+    def set_profile_image(self, player_name, image_path):
+        """Setzt Profilbild für einen Spieler"""
+        images = self.get_profile_images()
+        images[player_name] = image_path
+        self.profile_images = json.dumps(images)
+
+    def get_profile_image(self, player_name):
+        """Gibt Profilbild-Pfad für einen Spieler zurück"""
+        images = self.get_profile_images()
+        return images.get(player_name)
+
+    def remove_profile_image(self, player_name):
+        """Entfernt Profilbild eines Spielers"""
+        images = self.get_profile_images()
+        if player_name in images:
+            del images[player_name]
+            self.profile_images = json.dumps(images)
 
     def __repr__(self):
         return f'<Team {self.name}>'
@@ -805,6 +834,9 @@ class PlayerRegistration(db.Model):
     welcome_session_id = db.Column(db.Integer, db.ForeignKey('welcome_session.id'), nullable=False)
     player_name = db.Column(db.String(100), nullable=False)
     registration_time = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Profilbild-Funktionalität
+    profile_image_path = db.Column(db.String(300), nullable=True)  # Pfad zum Profilbild
     
     # Team-Zuordnung (wird nach Teamaufteilung gesetzt)
     assigned_team_id = db.Column(db.Integer, db.ForeignKey('team.id'), nullable=True)
