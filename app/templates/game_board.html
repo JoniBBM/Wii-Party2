@@ -4880,8 +4880,8 @@ function checkForFaceOverlay() {
     }
     
     // Erweiterte Phasen-Erkennung für Minispiele  
-    const minigamePhases = ['MINIGAME_ANNOUNCED', 'MINIGAME_STARTED', 'SETUP_MINIGAME', 'MINIGAME_RESULTS', 'DICE_ROLLING', 'PLAYING', 'WAITING_FOR_PLAYERS'];
-    const shouldShowFaces = minigamePhases.includes(currentPhase) && 
+    const minigameStartPhases = ['MINIGAME_ANNOUNCED']; // Nur beim ersten Ankündigen
+    const shouldShowFaces = minigameStartPhases.includes(currentPhase) && 
                            lastKnownPhase !== currentPhase && 
                            faceOverlayShownForPhase !== currentPhase;
     
@@ -4922,7 +4922,8 @@ function checkForFaceOverlay() {
     }
     
     // Reset faceOverlayShownForPhase wenn andere Phase erreicht wird
-    if (!minigamePhases.includes(currentPhase)) {
+    const allMinigamePhases = ['MINIGAME_ANNOUNCED', 'MINIGAME_STARTED', 'SETUP_MINIGAME', 'MINIGAME_RESULTS', 'DICE_ROLLING', 'PLAYING', 'WAITING_FOR_PLAYERS'];
+    if (!allMinigamePhases.includes(currentPhase)) {
         faceOverlayShownForPhase = null;
     }
     
@@ -5536,8 +5537,11 @@ function showFloatingBubbles(playerFaces) {
     console.log('🎭 Zeige automatische schwebende Bubbles für:', playerFaces);
     
     // Entferne vorherige Bubbles falls vorhanden
-    const existingBubbles = document.querySelectorAll('.face-bubble');
-    existingBubbles.forEach(bubble => bubble.remove());
+    const container = document.getElementById('face-overlay-container');
+    if (container) {
+        const existingBubbles = container.querySelectorAll('.face-bubble');
+        existingBubbles.forEach(bubble => bubble.remove());
+    }
     
     // Sicherheitscheck: Stelle sicher, dass playerFaces ein Array ist
     if (!Array.isArray(playerFaces)) {
@@ -5592,44 +5596,65 @@ function showFloatingBubbles(playerFaces) {
 }
 
 function createFloatingBubble(player, index) {
+    // Verwende den gleichen Container wie Simple Test für Vollbild-Kompatibilität
+    const container = document.getElementById('face-overlay-container');
+    if (!container) {
+        console.error('❌ face-overlay-container nicht gefunden');
+        return;
+    }
+    
+    // Force Container-Styling wie Simple Test
+    container.style.cssText = `
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
+        width: 100% !important;
+        height: 100% !important;
+        z-index: 999999999 !important;
+        background: transparent !important;
+        display: block !important;
+        opacity: 1 !important;
+        pointer-events: none !important;
+    `;
+    
     const bubble = document.createElement('div');
     bubble.className = 'face-bubble';
     bubble.style.cssText = `
-        position: fixed;
-        width: 240px;
-        height: 280px;
-        z-index: 9999;
-        pointer-events: none;
-        text-align: center;
+        position: absolute !important;
+        width: 240px !important;
+        height: 280px !important;
+        z-index: 999999999 !important;
+        pointer-events: none !important;
+        text-align: center !important;
     `;
     
     const img = document.createElement('img');
     img.src = `/static/${player.image_path}`;
     img.style.cssText = `
-        width: 200px;
-        height: 200px;
-        border-radius: 50%;
-        border: 6px solid ${player.team_color};
-        object-fit: cover;
-        box-shadow: 0 8px 30px rgba(0,0,0,0.3);
+        width: 200px !important;
+        height: 200px !important;
+        border-radius: 50% !important;
+        border: 6px solid ${player.team_color} !important;
+        object-fit: cover !important;
+        box-shadow: 0 8px 30px rgba(0,0,0,0.3) !important;
     `;
     
     const name = document.createElement('div');
     name.textContent = player.player_name || player.name;
     name.style.cssText = `
-        margin-top: 10px;
-        font-size: 28px;
-        font-weight: bold;
-        color: ${player.team_color};
-        text-shadow: 2px 2px 4px rgba(0,0,0,0.7);
-        background: rgba(0,0,0,0.5);
-        padding: 4px 16px;
-        border-radius: 20px;
+        margin-top: 10px !important;
+        font-size: 28px !important;
+        font-weight: bold !important;
+        color: ${player.team_color} !important;
+        text-shadow: 2px 2px 4px rgba(0,0,0,0.7) !important;
+        background: rgba(0,0,0,0.5) !important;
+        padding: 4px 16px !important;
+        border-radius: 20px !important;
     `;
     
     bubble.appendChild(img);
     bubble.appendChild(name);
-    document.body.appendChild(bubble);
+    container.appendChild(bubble);
     
     // Startposition (zufällig am Rand)
     const startX = Math.random() * (window.innerWidth - 240);
