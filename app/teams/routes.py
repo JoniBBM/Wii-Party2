@@ -833,3 +833,78 @@ def _get_recent_special_field_event(team, session):
     except Exception as e:
         print(f"Error getting special field event: {e}")
         return None
+
+@teams_bp.route('/api/active-fields')
+@login_required
+def get_active_fields():
+    """Gibt eine Übersicht aller aktiven Spezialfelder zurück"""
+    try:
+        from app.models import FieldConfiguration
+        
+        # Hole alle aktivierten Feld-Konfigurationen
+        active_configs = FieldConfiguration.get_all_enabled()
+        
+        field_details = []
+        for config in active_configs:
+            config_dict = config.config_dict
+            
+            # Erstelle benutzerfreundliche Häufigkeits-Beschreibung
+            frequency_desc = ""
+            if config.frequency_type == 'modulo':
+                frequency_desc = f"Alle {config.frequency_value} Felder"
+            elif config.frequency_type == 'fixed_positions':
+                positions = config_dict.get('positions', [])
+                if positions:
+                    frequency_desc = f"Positionen: {', '.join(map(str, positions))}"
+                else:
+                    frequency_desc = "Feste Positionen"
+            elif config.frequency_type == 'probability':
+                frequency_desc = f"{config.frequency_value}% Wahrscheinlichkeit"
+            else:
+                frequency_desc = "Standard"
+            
+            # Erstelle erweiterte Beschreibung basierend auf Konfiguration
+            extended_desc = config.description
+            if config.field_type == 'catapult_forward':
+                min_dist = config_dict.get('min_distance', 3)
+                max_dist = config_dict.get('max_distance', 5)
+                extended_desc += f" ({min_dist}-{max_dist} Felder)"
+            elif config.field_type == 'catapult_backward':
+                min_dist = config_dict.get('min_distance', 4)
+                max_dist = config_dict.get('max_distance', 10)
+                extended_desc += f" ({min_dist}-{max_dist} Felder zurück)"
+            elif config.field_type == 'barrier':
+                targets = config_dict.get('target_numbers', '4,5,6')
+                extended_desc += f" (Befreiung: {targets})"
+            elif config.field_type == 'player_swap':
+                min_dist = config_dict.get('min_distance', 3)
+                extended_desc += f" (Min. Abstand: {min_dist})"
+            
+            field_detail = {
+                'id': config.id,
+                'type': config.field_type,
+                'name': config.display_name,
+                'description': extended_desc,
+                'icon': config.icon or '⬜',
+                'color': config.color_hex or '#6c757d',
+                'emission_color': config.emission_hex or config.color_hex,
+                'frequency': frequency_desc,
+                'frequency_value': config.frequency_value,
+                'config': config_dict
+            }
+            field_details.append(field_detail)
+        
+        # Sortiere nach Feldtyp für bessere Übersicht
+        field_details.sort(key=lambda x: x['name'])
+        
+        return jsonify({
+            'success': True,
+            'fields': field_details,
+            'total_count': len(field_details)
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': f'Fehler beim Laden der Felder: {str(e)}'
+        }), 500
