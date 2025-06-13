@@ -778,10 +778,12 @@ def _get_recent_special_field_event(team, session):
                     'event_id': recent_event.id,
                     'timestamp': recent_event.timestamp.isoformat(),
                     'swap_team_name': event_data.get('swap_team_name'),
+                    'current_team_name': event_data.get('current_team_name'),
                     'current_team_old_position': event_data.get('current_team_old_position'),
                     'current_team_new_position': event_data.get('current_team_new_position'),
                     'swap_team_old_position': event_data.get('swap_team_old_position'),
-                    'swap_team_new_position': event_data.get('swap_team_new_position')
+                    'swap_team_new_position': event_data.get('swap_team_new_position'),
+                    'is_initiating_team': event_data.get('is_initiating_team', False)
                 }
         
         return None

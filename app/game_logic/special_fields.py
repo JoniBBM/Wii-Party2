@@ -170,8 +170,8 @@ def handle_player_swap(current_team, all_teams, game_session, dice_info=None):
     current_team.current_position = old_swap_position
     swap_team.current_position = old_current_position
     
-    # Event erstellen
-    event = GameEvent(
+    # Event für das aktuelle Team erstellen (das gewürfelt hat)
+    current_team_event = GameEvent(
         game_session_id=game_session.id,
         event_type="special_field_player_swap",
         description=f"Team {current_team.name} (Feld {old_current_position}) tauschte Positionen mit Team {swap_team.name} (Feld {old_swap_position})!",
@@ -184,10 +184,31 @@ def handle_player_swap(current_team, all_teams, game_session, dice_info=None):
             "swap_team_id": swap_team.id,
             "swap_team_name": swap_team.name,
             "swap_team_old_position": old_swap_position,
-            "swap_team_new_position": swap_team.current_position
+            "swap_team_new_position": swap_team.current_position,
+            "is_initiating_team": True  # Dieses Team hat gewürfelt
         })
     )
-    db.session.add(event)
+    db.session.add(current_team_event)
+    
+    # Event für das andere Team erstellen (das getauscht wurde)
+    swap_team_event = GameEvent(
+        game_session_id=game_session.id,
+        event_type="special_field_player_swap",
+        description=f"Team {swap_team.name} (Feld {old_swap_position}) wurde mit Team {current_team.name} (Feld {old_current_position}) getauscht!",
+        related_team_id=swap_team.id,
+        data_json=json.dumps({
+            "field_type": "player_swap",
+            "current_team_id": current_team.id,
+            "current_team_name": current_team.name,
+            "current_team_old_position": old_current_position,
+            "current_team_new_position": current_team.current_position,
+            "swap_team_id": swap_team.id,
+            "swap_team_old_position": old_swap_position,
+            "swap_team_new_position": swap_team.current_position,
+            "is_initiating_team": False  # Dieses Team wurde getauscht
+        })
+    )
+    db.session.add(swap_team_event)
     
     return {
         "success": True,

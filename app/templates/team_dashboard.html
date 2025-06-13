@@ -1583,7 +1583,22 @@ function updateDashboard(data) {
                 } else if (event.type === 'catapult_backward') {
                     showCatapultBackwardBanner(event.catapult_distance, event.dice_old_position, event.dice_new_position, event.new_position);
                 } else if (event.type === 'player_swap') {
-                    showPlayerSwapBanner(event.swap_team_name, event.current_team_old_position, event.current_team_new_position);
+                    // Bestimme Position und Team-Namen basierend auf der Rolle
+                    let oldPosition, newPosition, otherTeamName;
+                    
+                    if (event.is_initiating_team) {
+                        // Dieses Team hat gewürfelt
+                        oldPosition = event.current_team_old_position;
+                        newPosition = event.current_team_new_position;
+                        otherTeamName = event.swap_team_name;
+                    } else {
+                        // Dieses Team wurde getauscht
+                        oldPosition = event.swap_team_old_position; 
+                        newPosition = event.swap_team_new_position;
+                        otherTeamName = event.current_team_name;
+                    }
+                    
+                    showPlayerSwapBanner(otherTeamName, oldPosition, newPosition, event.is_initiating_team, otherTeamName);
                 }
             };
             
@@ -1599,8 +1614,16 @@ function updateDashboard(data) {
                 delay = 3000; // Wait for dice result to be processed and shown
             }
             // For catapult and swap events, always add some delay for better UX
-            else if (event.type === 'catapult_forward' || event.type === 'catapult_backward' || event.type === 'player_swap') {
+            else if (event.type === 'catapult_forward' || event.type === 'catapult_backward') {
                 delay = 1500; // Short delay to ensure movement is complete
+            }
+            // For player swap events, longer delay for initiating team to show dice result first
+            else if (event.type === 'player_swap') {
+                if (event.is_initiating_team) {
+                    delay = 4000; // Longer delay for team that rolled dice to see dice result first
+                } else {
+                    delay = 1500; // Shorter delay for team that was swapped
+                }
             }
             // For barrier events, show more quickly
             else if (event.type.includes('barrier')) {
@@ -2328,12 +2351,17 @@ function showCatapultBackwardBanner(catapultDistance, diceOldPosition, diceNewPo
     }
 }
 
-function showPlayerSwapBanner(swapTeamName, oldPosition, newPosition) {
+function showPlayerSwapBanner(swapTeamName, oldPosition, newPosition, isInitiatingTeam, otherTeamName) {
     const banner = document.getElementById('player-swap-banner');
     const messageEl = document.getElementById('player-swap-message');
     
     if (banner && messageEl) {
-        messageEl.textContent = `Du tauschst deine Position mit ${swapTeamName}!`;
+        // Unterschiedliche Nachrichten je nach Team-Rolle
+        if (isInitiatingTeam) {
+            messageEl.textContent = `Du tauschst deine Position mit ${swapTeamName}!`;
+        } else {
+            messageEl.textContent = `${otherTeamName} hat mit dir getauscht!`;
+        }
         
         // Add position info to description if available
         const descEl = banner.querySelector('.banner-description');

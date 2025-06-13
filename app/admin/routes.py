@@ -587,7 +587,20 @@ def set_minigame():
                     
                     # Setze Spieleranzahl nur bei Minispielen, nicht bei Fragen
                     if random_content.get('type') != 'question':
-                        player_count = form.player_count.data or 'all'
+                        # Verwende Spieleranzahl aus Minigame-Konfiguration, falls verfügbar
+                        minigame_player_count = random_content.get('player_count')
+                        form_player_count = form.player_count.data
+                        
+                        # Priorisiere Minigame-Konfiguration über Formular-Eingabe
+                        # Gültige Werte: '1', '2', '3', '4', 'all'
+                        valid_counts = ['1', '2', '3', '4', 'all']
+                        if minigame_player_count and minigame_player_count in valid_counts:
+                            player_count = minigame_player_count
+                            current_app.logger.info(f"Random minigame - using player_count from config: {player_count}")
+                        else:
+                            player_count = form_player_count or 'all'
+                            current_app.logger.info(f"Random minigame - using player_count from form: {player_count} (minigame config was: {minigame_player_count})")
+                        
                         active_session.current_player_count = player_count
                     
                     # Check if all content has been played
@@ -607,7 +620,8 @@ def set_minigame():
                             teams = Team.query.all()
                             selected_players = active_session.select_random_players(teams, player_count)
                             selection_type = "Ganze Teams" if player_count == "all" else f"{player_count} Spieler pro Team"
-                            flash_msg = f"Zufälliges Minispiel '{random_content['name']}' aus Ordner '{active_round.minigame_folder.name}' ausgewählt ({selection_type})."
+                            config_source = " (aus Minigame-Konfiguration)" if minigame_player_count else " (aus Formular)"
+                            flash_msg = f"Zufälliges Minispiel '{random_content['name']}' aus Ordner '{active_round.minigame_folder.name}' ausgewählt ({selection_type}{config_source})."
                         else:
                             flash_msg = f"Zufälliges Minispiel '{random_content['name']}' aus Ordner '{active_round.minigame_folder.name}' ausgewählt."
                     
@@ -644,15 +658,28 @@ def set_minigame():
                         flash(f"Frage '{selected_content['name']}' aus Ordner ausgewählt.", 'info')
                     else:
                         active_session.current_question_id = None
-                        # Setze Spieleranzahl und wähle Spieler aus
-                        player_count = form.player_count.data or 'all'
+                        # Verwende Spieleranzahl aus Minigame-Konfiguration, falls verfügbar
+                        minigame_player_count = selected_content.get('player_count')
+                        form_player_count = form.player_count.data
+                        
+                        # Priorisiere Minigame-Konfiguration über Formular-Eingabe
+                        # Gültige Werte: '1', '2', '3', '4', 'all'
+                        valid_counts = ['1', '2', '3', '4', 'all']
+                        if minigame_player_count and minigame_player_count in valid_counts:
+                            player_count = minigame_player_count
+                            current_app.logger.info(f"Using player_count from minigame config: {player_count}")
+                        else:
+                            player_count = form_player_count or 'all'
+                            current_app.logger.info(f"Using player_count from form: {player_count} (minigame config was: {minigame_player_count})")
+                        
                         active_session.current_player_count = player_count
                         
                         if player_count.isdigit() or player_count == "all":
                             teams = Team.query.all()
                             selected_players = active_session.select_random_players(teams, player_count)
                             selection_type = "Ganze Teams" if player_count == "all" else f"{player_count} Spieler pro Team"
-                            flash(f"Minispiel '{selected_content['name']}' aus Ordner ausgewählt ({selection_type}).", 'info')
+                            config_source = " (aus Minigame-Konfiguration)" if minigame_player_count else " (aus Formular)"
+                            flash(f"Minispiel '{selected_content['name']}' aus Ordner ausgewählt ({selection_type}{config_source}).", 'info')
                         else:
                             flash(f"Minispiel '{selected_content['name']}' aus Ordner ausgewählt.", 'info')
                     
