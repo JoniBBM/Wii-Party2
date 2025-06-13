@@ -301,7 +301,14 @@ def admin_roll_dice():
                 
                 # Prüfe Sonderfeld-Aktion nach Bewegung
                 all_teams = Team.query.all()
-                special_field_result = handle_special_field_action(team, all_teams, active_session)
+                dice_info = {
+                    "old_position": old_position,
+                    "new_position": new_position,
+                    "dice_roll": standard_dice_roll,
+                    "bonus_roll": bonus_dice_roll,
+                    "total_roll": total_roll
+                }
+                special_field_result = handle_special_field_action(team, all_teams, active_session, dice_info)
             else:
                 # Team bleibt blockiert, keine Bewegung
                 new_position = old_position
@@ -313,7 +320,14 @@ def admin_roll_dice():
             
             # SONDERFELD: Prüfe Sonderfeld-Aktion nach Bewegung
             all_teams = Team.query.all()
-            special_field_result = handle_special_field_action(team, all_teams, active_session)
+            dice_info = {
+                "old_position": old_position,
+                "new_position": new_position,
+                "dice_roll": standard_dice_roll,
+                "bonus_roll": bonus_dice_roll,
+                "total_roll": total_roll
+            }
+            special_field_result = handle_special_field_action(team, all_teams, active_session, dice_info)
 
         # Event für den Würfelwurf erstellen
         event_description = f"Admin würfelte für Team {team.name}: {standard_dice_roll}"
@@ -394,7 +408,7 @@ def admin_roll_dice():
             "bonus_roll": bonus_dice_roll,
             "total_roll": total_roll,
             "old_position": old_position,
-            "new_position": new_position,
+            "new_position": team.current_position,  # Aktuelle finale Position (nach Special Field)
             "next_team_id": active_session.current_team_turn_id,
             "next_team_name": next_team_name, 
             "new_phase": active_session.current_phase
@@ -1420,11 +1434,8 @@ def bulk_edit_fields():
     return render_template('admin/bulk_edit_fields.html', form=form)
 
 @admin_bp.route('/api/field_colors')
-@login_required
 def api_field_colors():
-    """API-Endpunkt für Feld-Farb-Mapping (für Frontend-Integration)"""
-    if not isinstance(current_user, Admin):
-        return jsonify({"success": False, "error": "Zugriff verweigert"}), 403
+    """API-Endpunkt für Feld-Farb-Mapping (für Frontend-Integration) - Öffentlich zugänglich"""
     
     try:
         color_mapping = get_field_type_color_mapping()

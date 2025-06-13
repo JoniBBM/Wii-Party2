@@ -353,7 +353,7 @@ with app_instance.app_context():
     print("  📊 Integration im Admin-Dashboard")
     print("\n🌟 SONDERFELD-FEATURES:")
     print("  🚀 Katapult Vorwärts: Wirft Teams 3-5 Felder nach vorne")
-    print("  💥 Katapult Rückwärts: Wirft Teams 2-4 Felder nach hinten")
+    print("  💥 Katapult Rückwärts: Wirft Teams 4-10 Felder nach hinten")
     print("  🔄 Spieler-Tausch: Tauscht Positionen mit zufälligem Team")
     print("  🚧 Sperren-Feld: Blockiert Teams bis bestimmte Zahl gewürfelt wird")
     print("  🎨 Visuelle Effekte: Spezielle Dekos und Animationen für jedes Feld")

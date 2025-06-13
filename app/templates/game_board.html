@@ -2111,7 +2111,7 @@ class WiiPartyIsland {
                         }
                     }
 
-                    // Process special field events (logic without banners)
+                    // Process special field events with banners
                     if (data.special_field_event) {
                         console.log("🎯 Special field event detected:", data.special_field_event);
                         
@@ -2124,6 +2124,16 @@ class WiiPartyIsland {
                             const message = `Noch blockiert! Würfel: ${data.special_field_event.dice_roll}`;
                             console.log("❌ Barrier failed:", message);
                         }
+                    }
+                    
+                    // Handle special field actions with banners
+                    if (data.special_field) {
+                        handleSpecialFieldResponse(data);
+                    }
+                    
+                    // Handle barrier checks with banners
+                    if (data.barrier_check) {
+                        handleBarrierCheckResponse(data);
                     }
 
                     // Track last dice result to prevent loops

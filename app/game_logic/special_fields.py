@@ -13,7 +13,7 @@ _field_distribution_cache = None
 _cache_max_fields = None
 
 
-def handle_catapult_forward(team, current_position, game_session):
+def handle_catapult_forward(team, current_position, game_session, dice_info=None):
     """
     Katapultiert ein Team 3-5 Felder nach vorne (konfigurierbar)
     """
@@ -28,22 +28,33 @@ def handle_catapult_forward(team, current_position, game_session):
     max_board_fields = current_app.config.get('MAX_BOARD_FIELDS', 72)
     catapult_distance = random.randint(min_distance, max_distance)
     
-    old_position = current_position
-    new_position = min(current_position + catapult_distance, max_board_fields)
+    # Katapult-Positionen (vor und nach Katapult)
+    catapult_old_position = current_position
+    catapult_new_position = min(current_position + catapult_distance, max_board_fields)
     
-    team.current_position = new_position
+    # Original Würfel-Bewegung (falls verfügbar)
+    dice_old_position = dice_info.get('old_position') if dice_info else None
+    dice_new_position = dice_info.get('new_position') if dice_info else None
+    
+    team.current_position = catapult_new_position
     
     # Event erstellen
     event = GameEvent(
         game_session_id=game_session.id,
         event_type="special_field_catapult_forward",
-        description=f"Team {team.name} wurde {catapult_distance} Felder nach vorne katapultiert (von Feld {old_position} zu Feld {new_position})!",
+        description=f"Team {team.name} wurde {catapult_distance} Felder nach vorne katapultiert (von Feld {catapult_old_position} zu Feld {catapult_new_position})!",
         related_team_id=team.id,
         data_json=json.dumps({
             "field_type": "catapult_forward",
             "catapult_distance": catapult_distance,
-            "old_position": old_position,
-            "new_position": new_position
+            "old_position": catapult_old_position,
+            "new_position": catapult_new_position,
+            # Original Würfel-Bewegung für Banner
+            "dice_old_position": dice_old_position,
+            "dice_new_position": dice_new_position,
+            "dice_roll": dice_info.get('dice_roll') if dice_info else None,
+            "bonus_roll": dice_info.get('bonus_roll') if dice_info else None,
+            "total_roll": dice_info.get('total_roll') if dice_info else None
         })
     )
     db.session.add(event)
@@ -52,42 +63,56 @@ def handle_catapult_forward(team, current_position, game_session):
         "success": True,
         "action": "catapult_forward", 
         "catapult_distance": catapult_distance,
-        "old_position": old_position,
-        "new_position": new_position,
+        "old_position": catapult_old_position,
+        "new_position": catapult_new_position,
+        # Original Würfel-Bewegung für Banner
+        "dice_old_position": dice_old_position,
+        "dice_new_position": dice_new_position,
         "message": f"🚀 Katapult! {team.name} fliegt {catapult_distance} Felder nach vorne!"
     }
 
 
-def handle_catapult_backward(team, current_position, game_session):
+def handle_catapult_backward(team, current_position, game_session, dice_info=None):
     """
-    Katapultiert ein Team 2-4 Felder nach hinten (konfigurierbar)
+    Katapultiert ein Team 4-10 Felder nach hinten (konfigurierbar)
     """
     config = FieldConfiguration.get_config_for_field('catapult_backward')
     if not config or not config.is_enabled:
         return {"success": False, "action": "none"}
     
     config_data = config.config_dict
-    min_distance = config_data.get('min_distance', 2)
-    max_distance = config_data.get('max_distance', 4)
+    min_distance = config_data.get('min_distance', 4)
+    max_distance = config_data.get('max_distance', 10)
     
     catapult_distance = random.randint(min_distance, max_distance)
     
-    old_position = current_position
-    new_position = max(0, current_position - catapult_distance)
+    # Katapult-Positionen (vor und nach Katapult)
+    catapult_old_position = current_position
+    catapult_new_position = max(0, current_position - catapult_distance)
     
-    team.current_position = new_position
+    # Original Würfel-Bewegung (falls verfügbar)
+    dice_old_position = dice_info.get('old_position') if dice_info else None
+    dice_new_position = dice_info.get('new_position') if dice_info else None
+    
+    team.current_position = catapult_new_position
     
     # Event erstellen
     event = GameEvent(
         game_session_id=game_session.id,
         event_type="special_field_catapult_backward",
-        description=f"Team {team.name} wurde {catapult_distance} Felder nach hinten katapultiert (von Feld {old_position} zu Feld {new_position})!",
+        description=f"Team {team.name} wurde {catapult_distance} Felder nach hinten katapultiert (von Feld {catapult_old_position} zu Feld {catapult_new_position})!",
         related_team_id=team.id,
         data_json=json.dumps({
             "field_type": "catapult_backward",
             "catapult_distance": catapult_distance,
-            "old_position": old_position,
-            "new_position": new_position
+            "old_position": catapult_old_position,
+            "new_position": catapult_new_position,
+            # Original Würfel-Bewegung für Banner
+            "dice_old_position": dice_old_position,
+            "dice_new_position": dice_new_position,
+            "dice_roll": dice_info.get('dice_roll') if dice_info else None,
+            "bonus_roll": dice_info.get('bonus_roll') if dice_info else None,
+            "total_roll": dice_info.get('total_roll') if dice_info else None
         })
     )
     db.session.add(event)
@@ -96,13 +121,16 @@ def handle_catapult_backward(team, current_position, game_session):
         "success": True,
         "action": "catapult_backward",
         "catapult_distance": catapult_distance,
-        "old_position": old_position,
-        "new_position": new_position,
+        "old_position": catapult_old_position,
+        "new_position": catapult_new_position,
+        # Original Würfel-Bewegung für Banner
+        "dice_old_position": dice_old_position,
+        "dice_new_position": dice_new_position,
         "message": f"💥 Rückschlag! {team.name} wird {catapult_distance} Felder zurück geschleudert!"
     }
 
 
-def handle_player_swap(current_team, all_teams, game_session):
+def handle_player_swap(current_team, all_teams, game_session, dice_info=None):
     """
     Tauscht die Position des aktuellen Teams mit einem zufälligen anderen Team (konfigurierbar)
     """
@@ -636,19 +664,26 @@ def get_field_config_for_position(position):
     return FieldConfiguration.get_config_for_field(field_type)
 
 
-def handle_special_field_action(team, all_teams, game_session):
+def handle_special_field_action(team, all_teams, game_session, dice_info=None):
     """
     Hauptfunktion die nach einer Bewegung aufgerufen wird
     Prüft den Feldtyp und führt entsprechende Aktionen aus
+    
+    Args:
+        team: Das Team das sich bewegt hat
+        all_teams: Alle Teams in der Session
+        game_session: Die aktuelle Spielsession
+        dice_info: Optional - Informationen über den Würfelwurf
+                   {"old_position": int, "new_position": int, "dice_roll": int, "bonus_roll": int, "total_roll": int}
     """
     field_type = get_field_type_at_position(team.current_position)
     
     if field_type == 'catapult_forward':
-        return handle_catapult_forward(team, team.current_position, game_session)
+        return handle_catapult_forward(team, team.current_position, game_session, dice_info)
     elif field_type == 'catapult_backward':
-        return handle_catapult_backward(team, team.current_position, game_session)
+        return handle_catapult_backward(team, team.current_position, game_session, dice_info)
     elif field_type == 'player_swap':
-        return handle_player_swap(team, all_teams, game_session)
+        return handle_player_swap(team, all_teams, game_session, dice_info)
     elif field_type == 'barrier':
         return handle_barrier_field(team, game_session)
     elif field_type == 'bonus':

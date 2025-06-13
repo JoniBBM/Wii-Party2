@@ -684,43 +684,105 @@ def _get_recent_special_field_event(team, session):
     try:
         # Hole Events der letzten 10 Sekunden für dieses Team
         recent_time = datetime.utcnow() - timedelta(seconds=10)
-        recent_event = GameEvent.query.filter_by(
-            game_session_id=session.id,
-            related_team_id=team.id,
-            event_type='field_action'
-        ).filter(
+        
+        # Suche nach verschiedenen Event-Typen
+        special_field_event_types = [
+            'field_action',  # Barrier events
+            'special_field_catapult_forward',
+            'special_field_catapult_backward', 
+            'special_field_player_swap'
+        ]
+        
+        recent_event = GameEvent.query.filter(
+            GameEvent.game_session_id == session.id,
+            GameEvent.related_team_id == team.id,
+            GameEvent.event_type.in_(special_field_event_types),
             GameEvent.timestamp >= recent_time
         ).order_by(GameEvent.timestamp.desc()).first()
         
         if recent_event and recent_event.data:
             event_data = recent_event.data
-            # Check if it's a barrier-related event
-            if event_data.get('action') == 'barrier' and event_data.get('barrier_set'):
+            event_type = recent_event.event_type
+            
+            # Handle different event types
+            if event_type == 'field_action':
+                # Check if it's a barrier-related event
+                if event_data.get('action') == 'barrier' and event_data.get('barrier_set'):
+                    return {
+                        'type': 'barrier_set',
+                        'event_id': recent_event.id,
+                        'timestamp': recent_event.timestamp.isoformat(),
+                        'target_config': event_data.get('target_config')
+                    }
+                elif event_data.get('action') == 'check_barrier_release':
+                    # Build dice roll data with all components
+                    dice_roll_data = {
+                        'dice_roll': event_data.get('dice_roll'),
+                        'bonus_roll': event_data.get('bonus_roll', 0),
+                        'total_roll': event_data.get('total_roll', event_data.get('dice_roll'))
+                    }
+                    
+                    if event_data.get('released'):
+                        return {
+                            'type': 'barrier_released',
+                            'event_id': recent_event.id,
+                            'timestamp': recent_event.timestamp.isoformat(),
+                            'dice_roll': dice_roll_data,
+                            'barrier_config': event_data.get('barrier_config'),
+                            'release_method': event_data.get('release_method')
+                        }
+                    else:
+                        return {
+                            'type': 'barrier_failed',
+                            'event_id': recent_event.id,
+                            'timestamp': recent_event.timestamp.isoformat(),
+                            'dice_roll': dice_roll_data,
+                            'barrier_config': event_data.get('barrier_config')
+                        }
+            
+            elif event_type == 'special_field_catapult_forward':
                 return {
-                    'type': 'barrier_set',
-                    'target_config': event_data.get('target_config')
-                }
-            elif event_data.get('action') == 'check_barrier_release':
-                # Build dice roll data with all components
-                dice_roll_data = {
+                    'type': 'catapult_forward',
+                    'event_id': recent_event.id,
+                    'timestamp': recent_event.timestamp.isoformat(),
+                    'catapult_distance': event_data.get('catapult_distance'),
+                    'old_position': event_data.get('old_position'),
+                    'new_position': event_data.get('new_position'),
+                    # Original Würfel-Bewegung
+                    'dice_old_position': event_data.get('dice_old_position'),
+                    'dice_new_position': event_data.get('dice_new_position'),
                     'dice_roll': event_data.get('dice_roll'),
-                    'bonus_roll': event_data.get('bonus_roll', 0),
-                    'total_roll': event_data.get('total_roll', event_data.get('dice_roll'))
+                    'bonus_roll': event_data.get('bonus_roll'),
+                    'total_roll': event_data.get('total_roll')
                 }
-                
-                if event_data.get('released'):
-                    return {
-                        'type': 'barrier_released',
-                        'dice_roll': dice_roll_data,
-                        'barrier_config': event_data.get('barrier_config'),
-                        'release_method': event_data.get('release_method')
-                    }
-                else:
-                    return {
-                        'type': 'barrier_failed',
-                        'dice_roll': dice_roll_data,
-                        'barrier_config': event_data.get('barrier_config')
-                    }
+            
+            elif event_type == 'special_field_catapult_backward':
+                return {
+                    'type': 'catapult_backward',
+                    'event_id': recent_event.id,
+                    'timestamp': recent_event.timestamp.isoformat(),
+                    'catapult_distance': event_data.get('catapult_distance'),
+                    'old_position': event_data.get('old_position'),
+                    'new_position': event_data.get('new_position'),
+                    # Original Würfel-Bewegung
+                    'dice_old_position': event_data.get('dice_old_position'),
+                    'dice_new_position': event_data.get('dice_new_position'),
+                    'dice_roll': event_data.get('dice_roll'),
+                    'bonus_roll': event_data.get('bonus_roll'),
+                    'total_roll': event_data.get('total_roll')
+                }
+            
+            elif event_type == 'special_field_player_swap':
+                return {
+                    'type': 'player_swap',
+                    'event_id': recent_event.id,
+                    'timestamp': recent_event.timestamp.isoformat(),
+                    'swap_team_name': event_data.get('swap_team_name'),
+                    'current_team_old_position': event_data.get('current_team_old_position'),
+                    'current_team_new_position': event_data.get('current_team_new_position'),
+                    'swap_team_old_position': event_data.get('swap_team_old_position'),
+                    'swap_team_new_position': event_data.get('swap_team_new_position')
+                }
         
         return None
         

@@ -74,6 +74,9 @@
                     <div id="current-minigame-name" class="font-weight-bold mb-1">
                         <!-- Wird dynamisch gefüllt -->
                     </div>
+                    <div id="current-minigame-description" class="small text-muted mb-2" style="display: none;">
+                        <!-- Wird dynamisch gefüllt -->
+                    </div>
                     <div id="selected-players-persistent" class="small text-muted">
                         <!-- Wird dynamisch gefüllt -->
                     </div>
@@ -261,6 +264,48 @@
                 <div class="banner-title">Noch blockiert!</div>
                 <div class="banner-subtitle" id="failed-banner-message"></div>
                 <div class="banner-description">Versuche es in der nächsten Runde erneut!</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Catapult Forward Banner -->
+    <div id="catapult-forward-banner" class="announcement-banner catapult-forward-banner">
+        <div class="banner-content">
+            <div class="banner-icon">
+                <i class="fas fa-rocket"></i>
+            </div>
+            <div class="banner-text">
+                <div class="banner-title">Katapult Vorwärts!</div>
+                <div class="banner-subtitle" id="catapult-forward-message"></div>
+                <div class="banner-description">Du fliegst nach vorne!</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Catapult Backward Banner -->
+    <div id="catapult-backward-banner" class="announcement-banner catapult-backward-banner">
+        <div class="banner-content">
+            <div class="banner-icon">
+                <i class="fas fa-bomb"></i>
+            </div>
+            <div class="banner-text">
+                <div class="banner-title">Katapult Rückwärts!</div>
+                <div class="banner-subtitle" id="catapult-backward-message"></div>
+                <div class="banner-description">Du wirst zurück geschleudert!</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Player Swap Banner -->
+    <div id="player-swap-banner" class="announcement-banner player-swap-banner">
+        <div class="banner-content">
+            <div class="banner-icon">
+                <i class="fas fa-exchange-alt"></i>
+            </div>
+            <div class="banner-text">
+                <div class="banner-title">Positionstausch!</div>
+                <div class="banner-subtitle" id="player-swap-message"></div>
+                <div class="banner-description">Du tauschst deine Position!</div>
             </div>
         </div>
     </div>
@@ -979,6 +1024,18 @@
     background: linear-gradient(135deg, #fd7e14 0%, #e55300 100%);
 }
 
+.catapult-forward-banner .banner-content {
+    background: linear-gradient(135deg, #32CD32 0%, #228B22 100%);
+}
+
+.catapult-backward-banner .banner-content {
+    background: linear-gradient(135deg, #FF0000 0%, #CC0000 100%);
+}
+
+.player-swap-banner .banner-content {
+    background: linear-gradient(135deg, #0080FF 0%, #0066CC 100%);
+}
+
 .banner-icon {
     font-size: 4rem;
     margin-bottom: 1rem;
@@ -1346,6 +1403,8 @@ let questionInterfaceInitialized = false;
 let lastSelectedPlayers = null;
 let bannerTimer = null;
 let progressTimer = null;
+let lastSpecialFieldEventId = null;
+let originalDiceMovement = null; // Store original dice movement for display
 
 // Chart-Variablen
 let progressChart = null;
@@ -1431,14 +1490,60 @@ function updateDashboard(data) {
         isCurrentlyMyTurn = false;
     }
     
-    // Check for barrier field events
+    // Check for special field events (with duplicate prevention and delayed display)
     if (gameData.special_field_event) {
-        if (gameData.special_field_event.type === 'barrier_set') {
-            showBarrierFieldBanner(gameData.special_field_event.target_config);
-        } else if (gameData.special_field_event.type === 'barrier_released') {
-            showBarrierReleaseBanner(gameData.special_field_event.dice_roll, gameData.special_field_event.barrier_config);
-        } else if (gameData.special_field_event.type === 'barrier_failed') {
-            showBarrierFailedBanner(gameData.special_field_event.dice_roll, gameData.special_field_event.barrier_config);
+        const event = gameData.special_field_event;
+        
+        // Only show banner if this is a new event
+        if (event.event_id && event.event_id !== lastSpecialFieldEventId) {
+            lastSpecialFieldEventId = event.event_id;
+            
+            // Store original dice movement for dice result display
+            if (event.dice_old_position !== undefined && event.dice_new_position !== undefined) {
+                originalDiceMovement = {
+                    oldPos: event.dice_old_position,
+                    newPos: event.dice_new_position
+                };
+            }
+            
+            // Delay special field banners to show after dice result and movement
+            const showDelayedBanner = () => {
+                if (event.type === 'barrier_set') {
+                    showBarrierFieldBanner(event.target_config);
+                } else if (event.type === 'barrier_released') {
+                    showBarrierReleaseBanner(event.dice_roll, event.barrier_config);
+                } else if (event.type === 'barrier_failed') {
+                    showBarrierFailedBanner(event.dice_roll, event.barrier_config);
+                } else if (event.type === 'catapult_forward') {
+                    showCatapultForwardBanner(event.catapult_distance, event.dice_old_position, event.dice_new_position, event.new_position);
+                } else if (event.type === 'catapult_backward') {
+                    showCatapultBackwardBanner(event.catapult_distance, event.dice_old_position, event.dice_new_position, event.new_position);
+                } else if (event.type === 'player_swap') {
+                    showPlayerSwapBanner(event.swap_team_name, event.current_team_old_position, event.current_team_new_position);
+                }
+            };
+            
+            // Determine appropriate delay based on current state
+            let delay = 0;
+            
+            // If dice animation is currently showing, wait for it to complete
+            if (isDiceAnimationShowing) {
+                delay = 8500; // Wait for full dice animation (8s) + 500ms buffer
+            } 
+            // If this is the current team's turn ending, wait for dice result
+            else if (!currentUser.is_current_turn && isCurrentlyMyTurn) {
+                delay = 3000; // Wait for dice result to be processed and shown
+            }
+            // For catapult and swap events, always add some delay for better UX
+            else if (event.type === 'catapult_forward' || event.type === 'catapult_backward' || event.type === 'player_swap') {
+                delay = 1500; // Short delay to ensure movement is complete
+            }
+            // For barrier events, show more quickly
+            else if (event.type.includes('barrier')) {
+                delay = 500; // Minimal delay for barriers
+            }
+            
+            setTimeout(showDelayedBanner, delay);
         }
     }
     
@@ -2092,6 +2197,86 @@ function showMinigameResults(teams) {
     }
 }
 
+function showCatapultForwardBanner(catapultDistance, diceOldPosition, diceNewPosition, finalPosition) {
+    const banner = document.getElementById('catapult-forward-banner');
+    const messageEl = document.getElementById('catapult-forward-message');
+    
+    if (banner && messageEl) {
+        messageEl.textContent = `Du fliegst ${catapultDistance} Felder nach vorne!`;
+        
+        // Add position info to description if available
+        const descEl = banner.querySelector('.banner-description');
+        if (descEl && finalPosition !== undefined) {
+            if (diceOldPosition !== undefined && diceNewPosition !== undefined) {
+                descEl.textContent = `Würfel: Feld ${diceOldPosition} → ${diceNewPosition}, jetzt auf Feld ${finalPosition}`;
+            } else {
+                descEl.textContent = `Jetzt auf Feld ${finalPosition}`;
+            }
+        }
+        
+        banner.classList.add('show');
+        
+        setTimeout(() => {
+            banner.classList.add('hide');
+            setTimeout(() => {
+                banner.classList.remove('show', 'hide');
+            }, 500);
+        }, 5000);
+    }
+}
+
+function showCatapultBackwardBanner(catapultDistance, diceOldPosition, diceNewPosition, finalPosition) {
+    const banner = document.getElementById('catapult-backward-banner');
+    const messageEl = document.getElementById('catapult-backward-message');
+    
+    if (banner && messageEl) {
+        messageEl.textContent = `Du wirst ${catapultDistance} Felder zurück geschleudert!`;
+        
+        // Add position info to description if available
+        const descEl = banner.querySelector('.banner-description');
+        if (descEl && finalPosition !== undefined) {
+            if (diceOldPosition !== undefined && diceNewPosition !== undefined) {
+                descEl.textContent = `Würfel: Feld ${diceOldPosition} → ${diceNewPosition}, jetzt auf Feld ${finalPosition}`;
+            } else {
+                descEl.textContent = `Jetzt auf Feld ${finalPosition}`;
+            }
+        }
+        
+        banner.classList.add('show');
+        
+        setTimeout(() => {
+            banner.classList.add('hide');
+            setTimeout(() => {
+                banner.classList.remove('show', 'hide');
+            }, 500);
+        }, 5000);
+    }
+}
+
+function showPlayerSwapBanner(swapTeamName, oldPosition, newPosition) {
+    const banner = document.getElementById('player-swap-banner');
+    const messageEl = document.getElementById('player-swap-message');
+    
+    if (banner && messageEl) {
+        messageEl.textContent = `Du tauschst deine Position mit ${swapTeamName}!`;
+        
+        // Add position info to description if available
+        const descEl = banner.querySelector('.banner-description');
+        if (descEl && oldPosition !== undefined && newPosition !== undefined) {
+            descEl.textContent = `Jetzt auf Feld ${newPosition} (war auf Feld ${oldPosition})`;
+        }
+        
+        banner.classList.add('show');
+        
+        setTimeout(() => {
+            banner.classList.add('hide');
+            setTimeout(() => {
+                banner.classList.remove('show', 'hide');
+            }, 500);
+        }, 5000);
+    }
+}
+
 function showDiceWaitingAnimation() {
     const overlay = document.getElementById('dice-animation-overlay');
     const waitingDiv = document.getElementById('dice-waiting');
@@ -2148,7 +2333,19 @@ function showDiceResultAnimation(standardRoll, bonusRoll, totalRoll, oldPos, new
         } else if (!isBlocked && oldPos === newPos) {
             movementText.innerHTML = `<span class="text-success">Du hast die Sperre durchbrochen!</span>`;
         } else {
-            movementText.innerHTML = `Du bewegst dich von Position <span id="old-pos">${oldPos}</span> auf Position <span id="new-pos">${newPos}</span>!`;
+            // Check if there's a recent special field event to show original dice movement
+            let displayOldPos = oldPos;
+            let displayNewPos = newPos;
+            
+            // Use stored original dice movement if available
+            if (originalDiceMovement) {
+                displayOldPos = originalDiceMovement.oldPos;
+                displayNewPos = originalDiceMovement.newPos;
+                // Clear after use to prevent showing old data
+                originalDiceMovement = null;
+            }
+            
+            movementText.innerHTML = `Du bewegst dich von Position <span id="old-pos">${displayOldPos}</span> auf Position <span id="new-pos">${displayNewPos}</span>!`;
         }
         
         // Hide the banner after longer time (8 seconds instead of 3)

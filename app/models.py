@@ -268,7 +268,7 @@ class FieldConfiguration(db.Model):
             {
                 'field_type': 'catapult_backward',
                 'display_name': 'Katapult Rückwärts',
-                'description': 'Schleudert Teams 2-4 Felder nach hinten',
+                'description': 'Schleudert Teams 4-10 Felder nach hinten',
                 'is_enabled': True,
                 'frequency_type': 'modulo',
                 'frequency_value': 13,  # Alle 13 Felder
@@ -276,8 +276,8 @@ class FieldConfiguration(db.Model):
                 'emission_hex': '#CC0000',
                 'icon': '💥',
                 'config_data': json.dumps({
-                    'min_distance': 2,
-                    'max_distance': 4
+                    'min_distance': 4,
+                    'max_distance': 10
                 })
             },
             {
