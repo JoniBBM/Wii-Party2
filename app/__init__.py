@@ -27,7 +27,9 @@ def load_user(user_id_with_prefix): # user_id kommt jetzt als String mit Präfix
     return None
 
 def create_app(config_class=Config):
-    app = Flask(__name__, static_folder='static', static_url_path='/static')
+    import os
+    static_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static')
+    app = Flask(__name__, static_folder=static_folder, static_url_path='/static')
     app.config.from_object(config_class)
     
     # Erhöhe die maximale Request-Größe für Base64-Bilder
