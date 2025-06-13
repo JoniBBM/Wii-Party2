@@ -5,6 +5,8 @@ from app import db
 import random # Für Würfellogik
 import traceback # Für detaillierte Fehlermeldungen
 from flask_login import current_user
+from datetime import datetime, timedelta
+import json
 
 @main_bp.route('/')
 def index():
@@ -659,3 +661,268 @@ def welcome_admin_status():
     except Exception as e:
         current_app.logger.error(f"Fehler in welcome-admin-status: {e}", exc_info=True)
         return jsonify({"success": False, "error": str(e)}), 500
+
+@main_bp.route('/api/victory', methods=['POST'])
+def victory():
+    """API-Endpunkt für Spielgewinn - speichert Victory-Daten"""
+    try:
+        data = request.get_json()
+        winning_team_id = data.get('winning_team_id')
+        winning_team_name = data.get('winning_team_name')
+        
+        if not winning_team_id:
+            return jsonify({"success": False, "error": "Team-ID fehlt"}), 400
+        
+        # Verifiziere dass das Team existiert
+        winning_team = Team.query.get(winning_team_id)
+        if not winning_team:
+            return jsonify({"success": False, "error": "Team nicht gefunden"}), 404
+        
+        # Hole aktive Session
+        active_session = GameSession.query.filter_by(is_active=True).first()
+        if not active_session:
+            return jsonify({"success": False, "error": "Keine aktive Spielsitzung"}), 404
+        
+        # Speichere Victory Event
+        victory_event = GameEvent(
+            game_session_id=active_session.id,
+            event_type="game_victory",
+            description=f"Team {winning_team.name} hat das Spiel gewonnen!",
+            related_team_id=winning_team_id,
+            data_json=str({
+                "winning_team_id": winning_team_id,
+                "winning_team_name": winning_team_name,
+                "victory_timestamp": datetime.utcnow().isoformat(),
+                "final_position": winning_team.current_position
+            })
+        )
+        db.session.add(victory_event)
+        
+        # Beende aktive Session
+        active_session.is_active = False
+        active_session.current_phase = 'GAME_FINISHED'
+        
+        # Speichere Victory-Informationen in Session für Goodbye-Seite
+        session['victory_data'] = {
+            'winning_team_id': winning_team_id,
+            'winning_team_name': winning_team_name,
+            'victory_timestamp': datetime.utcnow().isoformat(),
+            'game_session_id': active_session.id
+        }
+        
+        db.session.commit()
+        
+        current_app.logger.info(f"Spiel beendet - Gewinner: {winning_team.name} (ID: {winning_team_id})")
+        
+        return jsonify({
+            "success": True,
+            "message": f"Victory erfolgreich gespeichert für Team {winning_team.name}"
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Fehler in victory endpoint: {e}", exc_info=True)
+        return jsonify({"success": False, "error": "Ein Fehler ist aufgetreten"}), 500
+
+@main_bp.route('/goodbye')
+def goodbye():
+    """Goodbye-Seite mit Spielstatistiken"""
+    try:
+        # Hole Victory-Daten aus Session
+        victory_data = session.get('victory_data')
+        
+        if not victory_data:
+            # Fallback: Hole letztes beendetes Spiel
+            last_finished_session = GameSession.query.filter_by(
+                current_phase='GAME_FINISHED'
+            ).order_by(GameSession.id.desc()).first()
+            
+            if last_finished_session:
+                # Hole Victory Event
+                victory_event = GameEvent.query.filter_by(
+                    game_session_id=last_finished_session.id,
+                    event_type='game_victory'
+                ).first()
+                
+                if victory_event and victory_event.data_json:
+                    import json
+                    try:
+                        victory_data = eval(victory_event.data_json) if isinstance(victory_event.data_json, str) else victory_event.data_json
+                    except:
+                        victory_data = None
+        
+        # Hole alle Teams und ihre Statistiken
+        teams = Team.query.order_by(Team.current_position.desc()).all()
+        teams_stats = []
+        
+        winning_team = None
+        game_session_id = None
+        if victory_data:
+            winning_team = Team.query.get(victory_data.get('winning_team_id'))
+            game_session_id = victory_data.get('game_session_id')
+        
+        # Berechne detaillierte Minispiel-Statistiken
+        minigame_stats = calculate_minigame_statistics(game_session_id) if game_session_id else {}
+        position_history = calculate_position_history(game_session_id) if game_session_id else {}
+        
+        for team in teams:
+            team_minigame_stats = minigame_stats.get(str(team.id), {})
+            
+            team_stat = {
+                'id': team.id,
+                'name': team.name,
+                'color': team.character.color if team.character else '#CCCCCC',
+                'final_position': team.current_position,
+                'minigame_wins': team_minigame_stats.get('wins', 0),
+                'minigame_participations': team_minigame_stats.get('participations', 0),
+                'minigame_placements': team_minigame_stats.get('placements', []),
+                'position_history': position_history.get(str(team.id), []),
+                'is_winner': team.id == victory_data.get('winning_team_id') if victory_data else False
+            }
+            teams_stats.append(team_stat)
+        
+        # Sortiere Teams nach finaler Position (absteigend)
+        teams_stats.sort(key=lambda x: x['final_position'], reverse=True)
+        
+        # Berechne Spieldauer
+        game_duration = "Unbekannt"
+        total_minigames = 0
+        
+        if victory_data and victory_data.get('game_session_id'):
+            game_session = GameSession.query.get(victory_data['game_session_id'])
+            if game_session and game_session.created_at:
+                victory_time = datetime.fromisoformat(victory_data['victory_timestamp'].replace('Z', '+00:00'))
+                duration = victory_time - game_session.created_at
+                
+                hours = int(duration.total_seconds() // 3600)
+                minutes = int((duration.total_seconds() % 3600) // 60)
+                
+                if hours > 0:
+                    game_duration = f"{hours}h {minutes}m"
+                else:
+                    game_duration = f"{minutes}m"
+                
+                # Zähle Minispiel-Events
+                minigame_events = GameEvent.query.filter_by(
+                    game_session_id=game_session.id,
+                    event_type='minigame_started'
+                ).count()
+                total_minigames = minigame_events
+        
+        return render_template('goodbye.html',
+                             winning_team=winning_team,
+                             teams_stats=teams_stats,
+                             game_duration=game_duration,
+                             total_minigames=total_minigames,
+                             victory_data=victory_data,
+                             minigame_stats=minigame_stats)
+    
+    except Exception as e:
+        current_app.logger.error(f"Fehler auf Goodbye-Seite: {e}", exc_info=True)
+        # Fallback bei Fehlern
+        return render_template('goodbye.html',
+                             winning_team=None,
+                             teams_stats=[],
+                             game_duration="Unbekannt",
+                             total_minigames=0,
+                             victory_data=None,
+                             minigame_stats={})
+
+def calculate_minigame_statistics(game_session_id):
+    """Berechnet detaillierte Minispiel-Statistiken für alle Teams"""
+    if not game_session_id:
+        return {}
+    
+    try:
+        # Hole alle Minispiel-Events für diese Session
+        minigame_events = GameEvent.query.filter_by(
+            game_session_id=game_session_id,
+            event_type='minigame_placements'
+        ).all()
+        
+        team_stats = {}
+        
+        for event in minigame_events:
+            if event.data_json:
+                try:
+                    # Parse Minispiel-Placement-Daten
+                    if isinstance(event.data_json, str):
+                        data = json.loads(event.data_json)
+                    else:
+                        data = event.data_json
+                    
+                    placements = data.get('placements', {})
+                    
+                    for team_id_str, placement in placements.items():
+                        if team_id_str not in team_stats:
+                            team_stats[team_id_str] = {
+                                'wins': 0,
+                                'participations': 0,
+                                'placements': [],
+                                'average_placement': 0.0
+                            }
+                        
+                        team_stats[team_id_str]['participations'] += 1
+                        team_stats[team_id_str]['placements'].append(placement)
+                        
+                        # Zähle Siege (1. Platz)
+                        if placement == 1:
+                            team_stats[team_id_str]['wins'] += 1
+                
+                except (json.JSONDecodeError, KeyError) as e:
+                    current_app.logger.warning(f"Fehler beim Parsen von Minispiel-Daten: {e}")
+        
+        # Berechne Durchschnittsplatzierungen
+        for team_id, stats in team_stats.items():
+            if stats['placements']:
+                stats['average_placement'] = sum(stats['placements']) / len(stats['placements'])
+        
+        return team_stats
+        
+    except Exception as e:
+        current_app.logger.error(f"Fehler beim Berechnen der Minispiel-Statistiken: {e}")
+        return {}
+    
+def calculate_position_history(game_session_id):
+    """Berechnet Positionsverlauf für alle Teams"""
+    if not game_session_id:
+        return {}
+    
+    try:
+        # Hole alle Bewegungs-Events
+        movement_events = GameEvent.query.filter_by(
+            game_session_id=game_session_id
+        ).filter(
+            GameEvent.event_type.in_(['dice_roll', 'admin_dice_roll', 'admin_dice_roll_legacy'])
+        ).order_by(GameEvent.timestamp.asc()).all()
+        
+        position_history = {}
+        
+        for event in movement_events:
+            if event.related_team_id and event.data_json:
+                try:
+                    if isinstance(event.data_json, str):
+                        data = json.loads(event.data_json)
+                    else:
+                        data = event.data_json
+                    
+                    team_id_str = str(event.related_team_id)
+                    new_position = data.get('new_position', 0)
+                    
+                    if team_id_str not in position_history:
+                        position_history[team_id_str] = []
+                    
+                    position_history[team_id_str].append({
+                        'position': new_position,
+                        'timestamp': event.timestamp.isoformat(),
+                        'dice_result': data.get('total_roll', 0)
+                    })
+                
+                except (json.JSONDecodeError, KeyError) as e:
+                    current_app.logger.warning(f"Fehler beim Parsen von Positions-Daten: {e}")
+        
+        return position_history
+        
+    except Exception as e:
+        current_app.logger.error(f"Fehler beim Berechnen der Positionshistorie: {e}")
+        return {}

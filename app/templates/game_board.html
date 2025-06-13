@@ -330,7 +330,8 @@ let BOARD_CONFIG = {
         catapult_forward: { color: 0x32CD32, emission: 0x228B22, name: 'Katapult Vorwärts' },
         catapult_backward: { color: 0xFF0000, emission: 0xCC0000, name: 'Katapult Rückwärts' },
         player_swap: { color: 0x0080FF, emission: 0x0066CC, name: 'Spieler-Tausch' },
-        barrier: { color: 0x666666, emission: 0x333333, name: 'Sperre' }
+        barrier: { color: 0x666666, emission: 0x333333, name: 'Sperre' },
+        safe_zone: { color: 0x90EE90, emission: 0x7FDD7F, name: 'Sichere Zone' }
     },
     fieldSize: 1.0,
     fieldHeight: 0.25,
@@ -392,6 +393,7 @@ function getFieldTypeAtPosition(position) {
     // Fallback auf die alte statische Logik falls noch nicht geladen
     if (position === 0) return 'start';
     else if (position === 72) return 'goal';
+    else if (position === 71) return 'safe_zone'; // Letztes reguläres Feld vor Ziel
     else if (position % 15 === 0) return 'catapult_forward';
     else if (position % 13 === 0) return 'catapult_backward';
     else if (position % 17 === 0) return 'player_swap';
@@ -2503,13 +2505,16 @@ class WiiPartyIsland {
         // Spezielle Behandlung für Zielfeld
         if (finalPositionIndex === this.boardFields.length - 1) {
             console.log("🏆 [VICTORY] Team reached final position, triggering victory sequence");
-            setTimeout(() => {
-                this.triggerVictoryFireworks();
-                this.animateVictory(mii, currentTeam);
-            }, 2000);
-            // Victory ends the sequence
-            console.log("🏆 [VICTORY] Victory sequence initiated, ending movement completion");
+            this.handleVictory(currentTeam, mii);
             return;
+        }
+        
+        // Spezielle Nachricht für Safe Zone
+        if (finalPositionIndex === this.boardFields.length - 2) {
+            console.log("🎯 [SAFE ZONE] Team reached safe zone, needs 8+ to win");
+            setTimeout(() => {
+                this.showStatusMessage(`${currentTeam.name} ist in der Safe Zone! Nächster Wurf muss mindestens 8 sein zum Gewinnen.`, 4000, 'info', true, 'Safe Zone erreicht');
+            }, 1000);
         }
 
         // Warte 2 Sekunden nach Bewegungsabschluss wie gewünscht
@@ -3968,7 +3973,28 @@ class WiiPartyIsland {
         GAME_STATE.isCharacterMoving = true;
         GAME_STATE.isAnimating = true;
 
-        const endPositionIndex = Math.min(startPositionIndex + diceRoll, this.boardFields.length - 1);
+        // End Zone Mechanik implementieren
+        let endPositionIndex;
+        const targetPosition = startPositionIndex + diceRoll;
+        const maxPosition = this.boardFields.length - 1; // Position 72 (goal)
+        const safeZonePosition = maxPosition - 1; // Position 71 (safe zone)
+        
+        if (startPositionIndex < safeZonePosition) {
+            // Normale Bewegung bis zur Safe Zone
+            endPositionIndex = Math.min(targetPosition, safeZonePosition);
+        } else if (startPositionIndex === safeZonePosition) {
+            // Auf Safe Zone - braucht mindestens 8 zum Gewinnen
+            if (diceRoll >= 8) {
+                endPositionIndex = maxPosition; // Gewinn!
+                console.log(`🏆 Team ${currentTeam.name} hat ${diceRoll} gewürfelt und gewinnt!`);
+            } else {
+                endPositionIndex = safeZonePosition; // Bleibt auf Safe Zone
+                console.log(`🎯 Team ${currentTeam.name} braucht mindestens 8 zum Gewinnen (gewürfelt: ${diceRoll})`);
+            }
+        } else {
+            // Schon im Ziel oder darüber hinaus (sollte nicht passieren)
+            endPositionIndex = startPositionIndex;
+        }
                 
         const pathPositions = [];
         if (startPositionIndex < endPositionIndex) {
@@ -4007,8 +4033,58 @@ class WiiPartyIsland {
         }
     }
 
+    handleVictory(winningTeam, characterMesh) {
+        console.log(`🏆 [VICTORY] ${winningTeam.name} hat das Spiel gewonnen!`);
+        
+        // Zeige Victory Message
+        this.showStatusMessage(`🏆 ${winningTeam.name} hat gewonnen! 🎉`, 5000, 'success', true, 'SIEG!');
+        
+        // Starte Victory Sequence
+        setTimeout(() => {
+            this.triggerVictoryFireworks();
+            this.animateVictory(characterMesh, winningTeam);
+            
+            // Warte dann weiter zur Goodbye Seite
+            setTimeout(() => {
+                this.redirectToGoodbye(winningTeam);
+            }, 8000); // 8 Sekunden für Feuerwerk und Animation
+        }, 2000);
+    }
+    
     triggerVictoryFireworks() {
         this.showVictoryEffect();
+    }
+    
+    redirectToGoodbye(winningTeam) {
+        console.log(`🔄 Weiterleitung zur Goodbye-Seite...`);
+        
+        // Sende Victory-Daten an Server
+        fetch("{{ url_for('main.victory') }}", {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                winning_team_id: winningTeam.id,
+                winning_team_name: winningTeam.name
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Weiterleitung zur Goodbye-Seite
+                window.location.href = "{{ url_for('main.goodbye') }}";
+            } else {
+                console.error('Fehler beim Senden der Victory-Daten:', data.error);
+                // Trotzdem weiterleiten
+                window.location.href = "{{ url_for('main.goodbye') }}";
+            }
+        })
+        .catch(error => {
+            console.error('Fehler beim Senden der Victory-Daten:', error);
+            // Trotzdem weiterleiten
+            window.location.href = "{{ url_for('main.goodbye') }}";
+        });
     }
 
     animateVictory(character, team) {
@@ -4044,66 +4120,110 @@ class WiiPartyIsland {
     }
 
     showVictoryEffect() {
-        const colors = [0xFF0066, 0x00FF66, 0x0066FF, 0xFFFF00, 0xFF00FF, 0x00FFFF];
+        console.log('🎆 Starting enhanced victory fireworks!');
+        const colors = [0xFF0066, 0x00FF66, 0x0066FF, 0xFFFF00, 0xFF00FF, 0x00FFFF, 0xFFD700, 0xFF4500];
         
-        for (let i = 0; i < 4; i++) {
+        // Mehrere Feuerwerk-Wellen für spektakuläreren Effekt
+        for (let wave = 0; wave < 3; wave++) {
             setTimeout(() => {
-                const color = colors[Math.floor(Math.random() * colors.length)];
-                const baseEffectY = islandSurfaceY + BOARD_CONFIG.mountainHeight + 3;
-                const pos = new THREE.Vector3(
-                    (Math.random() - 0.5) * 6, 
-                    baseEffectY + Math.random() * 3, 
-                    (Math.random() - 0.5) * 6
-                );
-                
-                const particleCount = 30;
-                const fireworkPositions = new Float32Array(particleCount * 3);
-                
-                for (let j = 0; j < particleCount; j++) {
-                    fireworkPositions[j * 3] = pos.x;
-                    fireworkPositions[j * 3 + 1] = pos.y;
-                    fireworkPositions[j * 3 + 2] = pos.z;
-                }
-                
-                const fireworkGeometry = new THREE.BufferGeometry();
-                fireworkGeometry.setAttribute('position', new THREE.BufferAttribute(fireworkPositions, 3));
-                
-                const fireworkMaterial = new THREE.PointsMaterial({ 
-                    color: color, 
-                    size: 0.2, 
-                    transparent: true, 
-                    opacity: 1 
-                });
-                
-                const fireworks = new THREE.Points(fireworkGeometry, fireworkMaterial);
-                this.scene.add(fireworks);
-                
-                let time = 0;
-                const animateFirework = () => {
-                    time += 0.03;
-                    if (time > 1.5) {
-                        if(fireworks.parent) this.scene.remove(fireworks);
-                        fireworkGeometry.dispose();
-                        fireworkMaterial.dispose();
-                        return;
-                    }
-                    
-                    const currentPositions = fireworks.geometry.attributes.position.array;
-                    for (let j = 0; j < particleCount; j++) {
-                        const angle1 = Math.random() * Math.PI * 2;
-                        const angle2 = Math.random() * Math.PI;
-                        const speed = 0.06 + Math.random() * 0.06;
+                // Pro Welle mehrere Feuerwerke gleichzeitig
+                for (let i = 0; i < 6; i++) {
+                    setTimeout(() => {
+                        const color = colors[Math.floor(Math.random() * colors.length)];
+                        const baseEffectY = islandSurfaceY + BOARD_CONFIG.mountainHeight + 5;
                         
-                        currentPositions[j * 3] += Math.sin(angle2) * Math.cos(angle1) * speed;
-                        currentPositions[j * 3 + 1] += Math.cos(angle2) * speed - 0.01;
-                        currentPositions[j * 3 + 2] += Math.sin(angle2) * Math.sin(angle1) * speed;
-                    }
-                    fireworks.geometry.attributes.position.needsUpdate = true;
-                    fireworkMaterial.opacity = Math.max(0, 1 - (time / 1.5));
-                    requestAnimationFrame(animateFirework);
-                };
-                animateFirework();
-            }, i * 200);
+                        // Verteile Feuerwerke um die Insel herum
+                        const angle = (i / 6) * Math.PI * 2 + (Math.random() - 0.5) * 0.5;
+                        const distance = 8 + Math.random() * 8;
+                        
+                        const pos = new THREE.Vector3(
+                            Math.cos(angle) * distance,
+                            baseEffectY + Math.random() * 8, 
+                            Math.sin(angle) * distance
+                        );
+                        
+                        const particleCount = 50 + Math.random() * 30; // Mehr Partikel
+                        const fireworkPositions = new Float32Array(particleCount * 3);
+                        const fireworkVelocities = new Float32Array(particleCount * 3);
+                        
+                        for (let j = 0; j < particleCount; j++) {
+                            fireworkPositions[j * 3] = pos.x;
+                            fireworkPositions[j * 3 + 1] = pos.y;
+                            fireworkPositions[j * 3 + 2] = pos.z;
+                            
+                            // Realistische 3D-Explosion
+                            const phi = Math.random() * Math.PI * 2;
+                            const costheta = Math.random() * 2 - 1;
+                            const theta = Math.acos(costheta);
+                            const speed = 0.1 + Math.random() * 0.15;
+                            
+                            fireworkVelocities[j * 3] = Math.sin(theta) * Math.cos(phi) * speed;
+                            fireworkVelocities[j * 3 + 1] = Math.abs(Math.sin(theta) * Math.sin(phi)) * speed + 0.05; // Nach oben
+                            fireworkVelocities[j * 3 + 2] = Math.sin(theta) * Math.sin(phi) * speed;
+                        }
+                        
+                        const fireworkGeometry = new THREE.BufferGeometry();
+                        fireworkGeometry.setAttribute('position', new THREE.BufferAttribute(fireworkPositions, 3));
+                        
+                        const fireworkMaterial = new THREE.PointsMaterial({ 
+                            color: color, 
+                            size: 0.3 + Math.random() * 0.2, 
+                            transparent: true, 
+                            opacity: 1,
+                            sizeAttenuation: true
+                        });
+                        
+                        const fireworks = new THREE.Points(fireworkGeometry, fireworkMaterial);
+                        this.scene.add(fireworks);
+                        
+                        // Zusätzlicher Lichteffekt
+                        const light = new THREE.PointLight(color, 3, 25);
+                        light.position.copy(pos);
+                        this.scene.add(light);
+                        
+                        let time = 0;
+                        const gravity = -0.008;
+                        const drag = 0.98;
+                        
+                        const animateFirework = () => {
+                            time += 0.016;
+                            if (time > 4.0) {
+                                if(fireworks.parent) this.scene.remove(fireworks);
+                                if(light.parent) this.scene.remove(light);
+                                fireworkGeometry.dispose();
+                                fireworkMaterial.dispose();
+                                return;
+                            }
+                            
+                            const currentPositions = fireworks.geometry.attributes.position.array;
+                            for (let j = 0; j < particleCount; j++) {
+                                // Physik-basierte Bewegung
+                                fireworkVelocities[j * 3] *= drag;
+                                fireworkVelocities[j * 3 + 1] += gravity;
+                                fireworkVelocities[j * 3 + 1] *= drag;
+                                fireworkVelocities[j * 3 + 2] *= drag;
+                                
+                                currentPositions[j * 3] += fireworkVelocities[j * 3];
+                                currentPositions[j * 3 + 1] += fireworkVelocities[j * 3 + 1];
+                                currentPositions[j * 3 + 2] += fireworkVelocities[j * 3 + 2];
+                            }
+                            
+                            fireworks.geometry.attributes.position.needsUpdate = true;
+                            
+                            // Funkeln-Effekt
+                            const sparkle = Math.sin(time * 15) * 0.3 + 0.7;
+                            fireworkMaterial.opacity = Math.max(0, (1 - (time / 4.0)) * sparkle);
+                            
+                            // Licht verblasst
+                            light.intensity = Math.max(0, 3 * (1 - time / 2.0));
+                            
+                            requestAnimationFrame(animateFirework);
+                        };
+                        animateFirework();
+                        
+                    }, i * 150); // Schnellere Aufeinanderfolge
+                }
+            }, wave * 1500); // Wellen-Delay
         }
     }
 
