@@ -1472,6 +1472,27 @@ def create_team():
                 raw_members = form.members.data.replace('\n', ',')
                 members_list = [m.strip() for m in raw_members.split(',') if m.strip()]
                 team.members = ', '.join(members_list)
+                
+                # Erstelle PlayerRegistration Einträge für die Spieler
+                welcome_session = WelcomeSession.get_active_session()
+                if not welcome_session:
+                    # Erstelle eine neue Session falls keine aktiv
+                    welcome_session = WelcomeSession()
+                    welcome_session.is_active = True
+                    db.session.add(welcome_session)
+                    db.session.flush()  # Um ID zu bekommen
+                
+                # Erstelle Registrierungen für alle Spieler
+                for member_name in members_list:
+                    # Prüfe ob Spieler bereits registriert ist
+                    existing_player = PlayerRegistration.query.filter_by(player_name=member_name).first()
+                    if not existing_player:
+                        player_registration = PlayerRegistration(
+                            welcome_session_id=welcome_session.id,
+                            player_name=member_name,
+                            assigned_team_id=None  # Wird nach Team-Erstellung gesetzt
+                        )
+                        db.session.add(player_registration)
             
             selected_character_id = form.character_id.data
             char = Character.query.get(selected_character_id) 
@@ -1486,6 +1507,24 @@ def create_team():
                 db.session.add(char)
             
             db.session.add(team)
+            db.session.flush()  # Um Team-ID zu bekommen
+            
+            # Aktualisiere PlayerRegistration Einträge mit Team-ID
+            if form.members.data:
+                raw_members = form.members.data.replace('\n', ',')
+                members_list = [m.strip() for m in raw_members.split(',') if m.strip()]
+                
+                for member_name in members_list:
+                    player_registration = PlayerRegistration.query.filter_by(
+                        player_name=member_name,
+                        assigned_team_id=None
+                    ).first()
+                    if player_registration:
+                        player_registration.assigned_team_id = team.id
+            
+            # Setze welcome_password für die Klartext-Anzeige
+            team.welcome_password = form.password.data
+            
             db.session.commit()
             flash('Team erfolgreich erstellt.', 'success')
             return redirect(url_for('admin.admin_dashboard'))
@@ -1523,6 +1562,7 @@ def edit_team(team_id):
         
         if form.password.data:
             team.set_password(form.password.data)
+            team.welcome_password = form.password.data
         
         # Update Position und Dice Result
         team.current_position = form.current_position.data
@@ -1595,6 +1635,56 @@ def edit_team(team_id):
     # Alle Teams für Dropdown in Spieler-Zuordnung laden
     all_teams = Team.query.order_by(Team.name).all()
     return render_template('edit_team.html', title='Team bearbeiten', form=form, team=team, all_teams=all_teams)
+
+@admin_bp.route('/add_player', methods=['GET', 'POST'])
+@login_required
+def add_player():
+    if not isinstance(current_user, Admin): 
+        return redirect(url_for('main.index'))
+    
+    from app.forms import AddPlayerForm
+    form = AddPlayerForm()
+    
+    if form.validate_on_submit():
+        team = Team.query.get_or_404(form.team_id.data)
+        player_name = form.player_name.data.strip()
+        
+        # Prüfe ob Spieler bereits in einem Team ist
+        existing_player = PlayerRegistration.query.filter_by(player_name=player_name).first()
+        if existing_player:
+            flash(f'Spieler "{player_name}" ist bereits registriert.', 'warning')
+            return render_template('add_player.html', title='Spieler hinzufügen', form=form)
+        
+        # Erstelle neue Spielerregistrierung
+        welcome_session = WelcomeSession.get_active_session()
+        if not welcome_session:
+            # Erstelle eine neue Session falls keine aktiv
+            welcome_session = WelcomeSession()
+            welcome_session.is_active = True
+            db.session.add(welcome_session)
+            db.session.commit()
+        
+        player_registration = PlayerRegistration(
+            welcome_session_id=welcome_session.id,
+            player_name=player_name,
+            assigned_team_id=team.id
+        )
+        db.session.add(player_registration)
+        
+        # Füge Spieler auch zur Team-Mitgliederliste hinzu
+        if team.members:
+            current_members = [m.strip() for m in team.members.split(',') if m.strip()]
+            if player_name not in current_members:
+                current_members.append(player_name)
+                team.members = ', '.join(current_members)
+        else:
+            team.members = player_name
+        
+        db.session.commit()
+        flash(f'Spieler "{player_name}" wurde erfolgreich zu Team "{team.name}" hinzugefügt.', 'success')
+        return redirect(url_for('admin.admin_dashboard'))
+    
+    return render_template('add_player.html', title='Spieler hinzufügen', form=form)
 
 @admin_bp.route('/api/update_player_selection_status/<int:team_id>', methods=['POST'])
 @login_required

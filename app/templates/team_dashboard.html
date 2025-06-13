@@ -1405,6 +1405,7 @@ let bannerTimer = null;
 let progressTimer = null;
 let lastSpecialFieldEventId = null;
 let originalDiceMovement = null; // Store original dice movement for display
+let originalDiceRolls = null; // Store original dice roll values for catapult events
 
 // Chart-Variablen
 let progressChart = null;
@@ -1466,8 +1467,21 @@ function updateDashboard(data) {
                 lastGameData.current_user.position !== currentUser.position;
             
             if (positionChanged || currentUser.is_blocked) {
-                // Verwende Server-Daten wenn verfügbar, sonst berechne aus Position
-                if (gameData.last_dice_result) {
+                // Check if we have original dice rolls from catapult/special field events
+                if (originalDiceRolls) {
+                    // Use stored dice roll values from catapult events
+                    const diceData = originalDiceRolls;
+                    // For catapult events, use the original dice movement positions, not final position
+                    const oldPos = originalDiceMovement ? originalDiceMovement.oldPos : lastGameData.current_user.position;
+                    const newPos = originalDiceMovement ? originalDiceMovement.newPos : (lastGameData.current_user.position + diceData.total_roll);
+                    showDiceResultAnimation(diceData.standard_roll, diceData.bonus_roll, diceData.total_roll, 
+                                          oldPos, newPos,
+                                          currentUser.is_blocked, currentUser.blocked_target_number);
+                    // Clear after use to prevent showing old data
+                    originalDiceRolls = null;
+                    originalDiceMovement = null;
+                } else if (gameData.last_dice_result) {
+                    // Use server data when available
                     const diceData = gameData.last_dice_result;
                     showDiceResultAnimation(diceData.standard_roll, diceData.bonus_roll, diceData.total_roll, 
                                           lastGameData.current_user.position, currentUser.position,
@@ -1504,6 +1518,18 @@ function updateDashboard(data) {
                     oldPos: event.dice_old_position,
                     newPos: event.dice_new_position
                 };
+            }
+            
+            // Store original dice roll values for catapult events
+            if (event.dice_roll !== undefined || event.total_roll !== undefined) {
+                originalDiceRolls = {
+                    standard_roll: event.dice_roll || 0,
+                    bonus_roll: event.bonus_roll || 0,
+                    total_roll: event.total_roll || event.dice_roll || 0
+                };
+                
+                // Debug log for catapult events
+                console.log('Catapult event detected - stored dice rolls:', originalDiceRolls);
             }
             
             // Delay special field banners to show after dice result and movement
@@ -1995,6 +2021,8 @@ function handleQuestionSubmit(e) {
 function showQuestionResult(data) {
     // Show a quick feedback message
     const questionContent = document.getElementById('question-content');
+    const questionSection = document.getElementById('question-interface-section');
+    
     if (questionContent) {
         const isCorrect = data.is_correct;
         const resultHtml = `
@@ -2020,6 +2048,15 @@ function showQuestionResult(data) {
         `;
         
         questionContent.innerHTML = resultHtml;
+        
+        // Hide the question result after 10 seconds
+        setTimeout(() => {
+            if (questionSection) {
+                questionSection.style.display = 'none';
+                questionInterfaceInitialized = false;
+                userInteractingWithQuestion = false;
+            }
+        }, 10000);
     }
 }
 
@@ -2333,19 +2370,8 @@ function showDiceResultAnimation(standardRoll, bonusRoll, totalRoll, oldPos, new
         } else if (!isBlocked && oldPos === newPos) {
             movementText.innerHTML = `<span class="text-success">Du hast die Sperre durchbrochen!</span>`;
         } else {
-            // Check if there's a recent special field event to show original dice movement
-            let displayOldPos = oldPos;
-            let displayNewPos = newPos;
-            
-            // Use stored original dice movement if available
-            if (originalDiceMovement) {
-                displayOldPos = originalDiceMovement.oldPos;
-                displayNewPos = originalDiceMovement.newPos;
-                // Clear after use to prevent showing old data
-                originalDiceMovement = null;
-            }
-            
-            movementText.innerHTML = `Du bewegst dich von Position <span id="old-pos">${displayOldPos}</span> auf Position <span id="new-pos">${displayNewPos}</span>!`;
+            // Use the provided positions directly (they should already be correct for catapult events)
+            movementText.innerHTML = `Du bewegst dich von Position <span id="old-pos">${oldPos}</span> auf Position <span id="new-pos">${newPos}</span>!`;
         }
         
         // Hide the banner after longer time (8 seconds instead of 3)
@@ -2425,14 +2451,8 @@ function updateGameStatus(gameData) {
             statusText.innerHTML += `<br><span class="badge badge-danger">${blockedText}</span>`;
         }
         
-        if (gameData.current_minigame_name && minigameInfo) {
-            const isQuestion = gameData.question_data && gameData.question_data.name === gameData.current_minigame_name;
-            minigameInfo.innerHTML = `
-                <strong>${isQuestion ? 'Aktuelle Frage:' : 'Aktuelles Minispiel:'}</strong> ${gameData.current_minigame_name}
-                ${gameData.current_minigame_description ? '<br><em>' + gameData.current_minigame_description + '</em>' : ''}
-            `;
-            minigameInfo.style.display = 'block';
-        } else if (minigameInfo) {
+        // Hide minigame info in status section since it's now shown in the persistent section above
+        if (minigameInfo) {
             minigameInfo.style.display = 'none';
         }
     }
@@ -2808,14 +2828,27 @@ function updateSelectedPlayersInfo(selectedPlayers) {
     const infoSection = document.getElementById('selected-players-info');
     const content = document.getElementById('selected-players-persistent');
     const minigameNameEl = document.getElementById('current-minigame-name');
+    const minigameDescEl = document.getElementById('current-minigame-description');
     const minigameTitleEl = document.getElementById('current-minigame-title');
     
     if (!infoSection || !content || !minigameNameEl) return;
 
     // Zeige Info wenn Minispiel läuft (auch ohne ausgewählte Spieler bei Fragen)
-    if (lastGameData && lastGameData.current_minigame_name) {
+    // Aber verstecke es, wenn das Team bereits gewürfelt hat
+    if (lastGameData && lastGameData.current_minigame_name && 
+        lastGameData.current_phase !== 'DICE_ROLLING') {
         // Setze Minispiel-Name
         minigameNameEl.textContent = lastGameData.current_minigame_name;
+        
+        // Setze Minispiel-Beschreibung
+        if (minigameDescEl) {
+            if (lastGameData.current_minigame_description) {
+                minigameDescEl.textContent = lastGameData.current_minigame_description;
+                minigameDescEl.style.display = 'block';
+            } else {
+                minigameDescEl.style.display = 'none';
+            }
+        }
         
         // Bestimme Icon und Titel basierend auf Typ
         if (lastGameData.question_data) {

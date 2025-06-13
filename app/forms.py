@@ -66,6 +66,16 @@ class EditPlayerForm(FlaskForm):
         teams = Team.query.order_by(Team.name).all()
         self.assigned_team_id.choices = [(0, '-- Kein Team --')] + [(t.id, t.name) for t in teams]
 
+class AddPlayerForm(FlaskForm):
+    player_name = StringField('Spielername', validators=[DataRequired(), Length(min=2, max=100)])
+    team_id = SelectField('Team zuweisen', coerce=int, validators=[DataRequired()])
+    submit = SubmitField('Spieler hinzufügen')
+
+    def __init__(self, *args, **kwargs):
+        super(AddPlayerForm, self).__init__(*args, **kwargs)
+        teams = Team.query.order_by(Team.name).all()
+        self.team_id.choices = [(t.id, t.name) for t in teams]
+
 class SetNextMinigameForm(FlaskForm):
     # Erweiterte Minigame-Auswahl mit direkter Fragen-Erstellung
     minigame_source = RadioField('Inhalts-Quelle', 
