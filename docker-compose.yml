@@ -1,8 +1,9 @@
 services:
+  # HTTP-Service (Standard, ohne Kamera)
   web:
     build: . # Baut das Image basierend auf dem Dockerfile im aktuellen Verzeichnis
     ports:
-      - "5001:5000" # Mappt Port 5000 des Containers auf Port 5001 des Hosts
+      - "8080:8080" # HTTP-Port für normale Nutzung
     volumes:
       # Mountet das gesamte lokale Projektverzeichnis in das /app Verzeichnis im Container.
       # Dadurch werden Code-Änderungen live übernommen und im Container erstellte Dateien
@@ -14,4 +15,26 @@ services:
       - FLASK_APP=app:create_app # Wichtig für die Flask-Anwendungsfabrik
       - FLASK_DEBUG=1
       - PYTHONPATH=/app # Stellt sicher, dass Python Module im /app Verzeichnis findet
+      - USE_HTTPS=false
+      - HTTP_PORT=8080
       # - DATABASE_URL=sqlite:////app/app.db # Könnte explizit gesetzt werden, aber deine config.py sollte das handhaben
+
+  # HTTPS-Service (für Kamera-Funktionalität)
+  web-https:
+    build: .
+    ports:
+      - "5443:5443" # HTTPS-Port für Kamera-Zugriff (AirPlay-Konflikt vermeiden)
+    volumes:
+      - .:/app
+      - ./certs:/app/certs # SSL-Zertifikate mounten
+    environment:
+      - FLASK_APP=app:create_app
+      - FLASK_DEBUG=1
+      - PYTHONPATH=/app
+      - USE_HTTPS=true
+      - HTTPS_PORT=5443
+      - FLASK_PORT=5443
+      - SESSION_COOKIE_SECURE=true
+      - SSL_CERT_PATH=/app/certs/cert.pem
+      - SSL_KEY_PATH=/app/certs/key.pem
+    command: ["python", "run_https.py"]

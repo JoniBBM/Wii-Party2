@@ -587,13 +587,38 @@ class GameSession(db.Model):
         else:
             self.selected_players = json.dumps(players_dict)
 
+    def get_current_team_members(self, team):
+        """Gibt die aktuellen Team-Mitglieder zurück (berücksichtigt PlayerRegistration-Zuweisungen)"""
+        # Prüfe zuerst ob es aktuelle PlayerRegistration-Zuweisungen gibt
+        from app.models import PlayerRegistration, WelcomeSession
+        
+        active_welcome = WelcomeSession.get_active_session()
+        if active_welcome:
+            # Hole Spieler aus aktiver Welcome-Session die diesem Team zugewiesen sind
+            assigned_players = PlayerRegistration.query.filter_by(
+                welcome_session_id=active_welcome.id,
+                assigned_team_id=team.id
+            ).all()
+            
+            if assigned_players:
+                return [player.player_name for player in assigned_players]
+        
+        # Fallback: Verwende team.members falls keine Welcome-Session aktiv ist
+        if team.members:
+            return [m.strip() for m in team.members.split(',') if m.strip()]
+        
+        return []
+
     def select_random_players(self, teams, count_per_team):
         """Wählt faire rotierend Spieler aus jedem Team aus"""
         import random
         selected = {}
         
         for team in teams:
-            if not team.members:
+            # Hole aktuelle Team-Mitglieder (berücksichtigt PlayerRegistration-Zuweisungen)
+            current_members = self.get_current_team_members(team)
+            
+            if not current_members:
                 # Fallback: Verwende Team-Name wenn keine Mitglieder definiert
                 selected[str(team.id)] = [team.name]
                 continue
@@ -602,23 +627,20 @@ class GameSession(db.Model):
             try:
                 # Unterscheidung zwischen "ganzes Team" und regulärer Auswahl
                 if count_per_team == "all":
-                    # Bei "ganzes Team" alle Spieler verwenden (auch nicht-auslosbare)
-                    all_members = [m.strip() for m in team.members.split(',') if m.strip()] if team.members else []
-                    if not all_members:
-                        selected[str(team.id)] = [team.name]
-                        continue
-                    selected[str(team.id)] = all_members
+                    # Bei "ganzes Team" alle Spieler verwenden
+                    selected[str(team.id)] = current_members
                     # Tracking für alle Spieler
-                    self._update_player_rotation_tracking(str(team.id), all_members)
+                    self._update_player_rotation_tracking(str(team.id), current_members)
                 else:
-                    # Bei normaler Auswahl nur auslosbare Spieler verwenden
-                    selectable_members = team.get_selectable_players()
+                    # Bei normaler Auswahl alle verfügbaren Spieler verwenden
+                    # (Da PlayerRegistration bereits die richtigen Spieler enthält)
+                    selectable_members = current_members
                     if not selectable_members:
-                        # Fallback wenn keine auslosbaren Spieler vorhanden
+                        # Fallback wenn keine Spieler vorhanden
                         selected[str(team.id)] = [team.name]
                         continue
                     
-                    # Faire Auswahl basierend auf Rotation aus auslosbaren Spielern
+                    # Faire Auswahl basierend auf Rotation
                     selected_count = min(int(count_per_team), len(selectable_members))
                     selected_members = self._select_fair_rotation(str(team.id), selectable_members, selected_count)
                     selected[str(team.id)] = selected_members

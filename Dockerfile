@@ -1,4 +1,4 @@
-FROM python:3.13-slim
+FROM python:3.11-slim
 
 # Setzt das Arbeitsverzeichnis im Container
 WORKDIR /app
@@ -22,5 +22,19 @@ ENV FLASK_DEBUG=1
 # Stellt sicher, dass Python Module im /app Verzeichnis findet
 ENV PYTHONPATH=/app
 
-# Standardbefehl zum Starten der Anwendung
-CMD ["flask", "run", "--host=0.0.0.0", "--port=5000"]
+# SSL/HTTPS Umgebungsvariablen
+ENV USE_HTTPS=false
+ENV HTTPS_PORT=5000
+ENV HTTP_PORT=8080
+ENV SSL_CERT_PATH=/app/certs/cert.pem
+ENV SSL_KEY_PATH=/app/certs/key.pem
+
+# Ports für HTTP und HTTPS exponieren
+EXPOSE 5000 8080
+
+# Erstelle certs Verzeichnis
+RUN mkdir -p /app/certs
+
+# Standardbefehl zum Starten der Anwendung (HTTP)
+# Für HTTPS: docker run mit "python run_https.py" überschreiben
+CMD ["flask", "run", "--host=0.0.0.0", "--port=8080"]
