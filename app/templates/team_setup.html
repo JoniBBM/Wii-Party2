@@ -296,6 +296,73 @@
         border: 1px solid rgba(255, 255, 255, 0.2);
     }
 
+    /* Charakter-Anpassung Styles */
+    .character-preview-container {
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 15px;
+        padding: 2rem;
+        margin: 1rem 0;
+        text-align: center;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+    
+    .character-preview {
+        width: 300px;
+        height: 300px;
+        margin: 0 auto;
+        border-radius: 15px;
+        background: linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0.05));
+        border: 2px solid rgba(255, 255, 255, 0.3);
+    }
+    
+    .customization-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+        margin-top: 1rem;
+    }
+    
+    .color-group {
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 10px;
+        padding: 1rem;
+        text-align: center;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+    
+    .color-group label {
+        display: block;
+        margin-bottom: 0.5rem;
+        font-weight: 600;
+        color: white;
+    }
+    
+    .color-group input[type="color"] {
+        width: 60px;
+        height: 60px;
+        border: 3px solid rgba(255, 255, 255, 0.3);
+        border-radius: 50%;
+        cursor: pointer;
+        background: none;
+        transition: all 0.3s ease;
+    }
+    
+    .color-group input[type="color"]:hover {
+        transform: scale(1.1);
+        border-color: rgba(255, 255, 255, 0.5);
+    }
+    
+    .color-group input[type="color"]::-webkit-color-swatch-wrapper {
+        padding: 0;
+        border: none;
+        border-radius: 50%;
+    }
+    
+    .color-group input[type="color"]::-webkit-color-swatch {
+        border: none;
+        border-radius: 50%;
+    }
+
     .team-info h4 {
         margin: 0 0 0.5rem 0;
         color: #FFD700;
@@ -306,13 +373,360 @@
         opacity: 0.9;
     }
 
+    /* Erweiterte Charakter-Anpassung Styles */
+    .character-selection-container {
+        margin-bottom: 2rem;
+    }
+    
+    .subsection-title {
+        font-size: 1.1rem;
+        font-weight: 600;
+        margin-bottom: 1rem;
+        color: #FFD700;
+    }
+    
+    .character-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 1rem;
+        margin-bottom: 2rem;
+    }
+    
+    .character-card {
+        background: rgba(255, 255, 255, 0.1);
+        border: 2px solid rgba(255, 255, 255, 0.3);
+        border-radius: 15px;
+        padding: 1rem;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .character-card:hover {
+        transform: translateY(-5px);
+        background: rgba(255, 255, 255, 0.2);
+        border-color: #FFD700;
+        box-shadow: 0 10px 30px rgba(255, 215, 0, 0.3);
+    }
+    
+    .character-card.selected {
+        background: rgba(255, 215, 0, 0.3);
+        border-color: #FFD700;
+        box-shadow: 0 10px 30px rgba(255, 215, 0, 0.4);
+    }
+    
+    .character-card.locked {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+    
+    .character-card .character-name {
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+    }
+    
+    .character-card .character-description {
+        font-size: 0.8rem;
+        opacity: 0.8;
+        margin-bottom: 0.5rem;
+    }
+    
+    .character-card .character-rarity {
+        font-size: 0.7rem;
+        padding: 0.2rem 0.5rem;
+        border-radius: 10px;
+        display: inline-block;
+        margin-bottom: 0.5rem;
+    }
+    
+    .character-card .character-rarity.common {
+        background: rgba(169, 169, 169, 0.3);
+        color: #A9A9A9;
+    }
+    
+    .character-card .character-rarity.rare {
+        background: rgba(135, 206, 235, 0.3);
+        color: #87CEEB;
+    }
+    
+    .character-card .character-rarity.epic {
+        background: rgba(138, 43, 226, 0.3);
+        color: #8A2BE2;
+    }
+    
+    .character-card .character-rarity.legendary {
+        background: rgba(255, 215, 0, 0.3);
+        color: #FFD700;
+    }
+    
+    .character-card .unlock-indicator {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        background: rgba(255, 0, 0, 0.8);
+        color: white;
+        padding: 0.2rem 0.5rem;
+        border-radius: 10px;
+        font-size: 0.7rem;
+    }
+    
+    .character-preview-container {
+        position: relative;
+        margin-bottom: 2rem;
+    }
+    
+    .preview-controls {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        z-index: 10;
+        display: flex;
+        gap: 0.5rem;
+    }
+    
+    .preview-btn {
+        background: rgba(255, 255, 255, 0.2);
+        border: 2px solid rgba(255, 255, 255, 0.3);
+        color: white;
+        padding: 0.5rem;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+    
+    .preview-btn:hover {
+        background: rgba(255, 255, 255, 0.3);
+        border-color: #FFD700;
+    }
+    
+    /* Charakter-Statistiken */
+    .character-stats-container {
+        margin-bottom: 2rem;
+    }
+    
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+    }
+    
+    .stat-item {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        background: rgba(255, 255, 255, 0.1);
+        padding: 0.8rem;
+        border-radius: 10px;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+    
+    .stat-name {
+        font-weight: 600;
+        min-width: 80px;
+        font-size: 0.9rem;
+    }
+    
+    .stat-bar {
+        flex: 1;
+        height: 8px;
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 4px;
+        overflow: hidden;
+    }
+    
+    .stat-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #FFD700, #FFA500);
+        border-radius: 4px;
+        transition: width 0.3s ease;
+    }
+    
+    .stat-value {
+        font-weight: 600;
+        min-width: 20px;
+        text-align: center;
+        font-size: 0.9rem;
+    }
+    
+    /* Anpassungs-Tabs */
+    .customization-tabs {
+        margin-bottom: 2rem;
+    }
+    
+    .tab-nav {
+        display: flex;
+        gap: 0.5rem;
+        margin-bottom: 1rem;
+        flex-wrap: wrap;
+    }
+    
+    .tab-btn {
+        background: rgba(255, 255, 255, 0.1);
+        border: 2px solid rgba(255, 255, 255, 0.3);
+        color: white;
+        padding: 0.8rem 1.2rem;
+        border-radius: 25px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.9rem;
+        font-weight: 600;
+    }
+    
+    .tab-btn:hover {
+        background: rgba(255, 255, 255, 0.2);
+        border-color: rgba(255, 255, 255, 0.5);
+    }
+    
+    .tab-btn.active {
+        background: rgba(255, 215, 0, 0.3);
+        border-color: #FFD700;
+        color: #FFD700;
+    }
+    
+    .tab-content {
+        display: none;
+        animation: fadeIn 0.3s ease;
+    }
+    
+    .tab-content.active {
+        display: block;
+    }
+    
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    
+    /* Anpassungs-Optionen */
+    .customization-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 1.5rem;
+        margin-top: 1rem;
+    }
+    
+    .option-group {
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 15px;
+        padding: 1.5rem;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+    
+    .option-group label {
+        display: block;
+        margin-bottom: 1rem;
+        font-weight: 600;
+        color: #FFD700;
+        font-size: 1rem;
+    }
+    
+    .option-buttons {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+    
+    .option-btn {
+        background: rgba(255, 255, 255, 0.1);
+        border: 2px solid rgba(255, 255, 255, 0.3);
+        color: white;
+        padding: 0.6rem 1rem;
+        border-radius: 20px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        font-size: 0.9rem;
+        font-weight: 500;
+        min-width: 80px;
+    }
+    
+    .option-btn:hover {
+        background: rgba(255, 255, 255, 0.2);
+        border-color: rgba(255, 255, 255, 0.5);
+        transform: translateY(-2px);
+    }
+    
+    .option-btn.active {
+        background: rgba(255, 215, 0, 0.3);
+        border-color: #FFD700;
+        color: #FFD700;
+        transform: translateY(-2px);
+        box-shadow: 0 5px 15px rgba(255, 215, 0, 0.3);
+    }
+    
+    /* Verbesserte Farb-Gruppen */
+    .color-group {
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 15px;
+        padding: 1.5rem;
+        text-align: center;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+    
+    .color-group label {
+        display: block;
+        margin-bottom: 1rem;
+        font-weight: 600;
+        color: #FFD700;
+        font-size: 1rem;
+    }
+    
+    .color-group input[type="color"] {
+        width: 80px;
+        height: 80px;
+        border: 4px solid rgba(255, 255, 255, 0.3);
+        border-radius: 50%;
+        cursor: pointer;
+        background: none;
+        transition: all 0.3s ease;
+    }
+    
+    .color-group input[type="color"]:hover {
+        transform: scale(1.1);
+        border-color: #FFD700;
+        box-shadow: 0 5px 20px rgba(255, 215, 0, 0.3);
+    }
+    
+    .color-group input[type="color"]::-webkit-color-swatch-wrapper {
+        padding: 0;
+        border: none;
+        border-radius: 50%;
+    }
+    
+    .color-group input[type="color"]::-webkit-color-swatch {
+        border: none;
+        border-radius: 50%;
+    }
+    
+    /* Responsive Design */
     @media (max-width: 768px) {
         .setup-title {
             font-size: 2rem;
         }
         
-        .characters-grid {
-            grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+        .character-grid {
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        }
+        
+        .customization-grid {
+            grid-template-columns: 1fr;
+        }
+        
+        .tab-nav {
+            justify-content: center;
+        }
+        
+        .tab-btn {
+            padding: 0.6rem 1rem;
+            font-size: 0.8rem;
+        }
+        
+        .stats-grid {
+            grid-template-columns: 1fr;
         }
         
         .setup-buttons {
@@ -322,6 +736,41 @@
         .setup-card {
             padding: 1.5rem;
             margin: 1rem;
+        }
+        
+        .option-buttons {
+            justify-content: center;
+        }
+        
+        .option-btn {
+            min-width: 70px;
+            padding: 0.5rem 0.8rem;
+        }
+        
+        .color-group input[type="color"] {
+            width: 60px;
+            height: 60px;
+        }
+    }
+    
+    @media (max-width: 480px) {
+        .tab-nav {
+            flex-direction: column;
+            align-items: center;
+        }
+        
+        .tab-btn {
+            width: 100%;
+            justify-content: center;
+            max-width: 200px;
+        }
+        
+        .character-grid {
+            grid-template-columns: 1fr;
+        }
+        
+        .stats-grid {
+            grid-template-columns: 1fr;
         }
     }
 </style>
@@ -356,6 +805,9 @@
                 {% endwith %}
 
                 <form id="setup-form" method="POST">
+                    <!-- CSRF Token -->
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                    
                     <!-- Team-Name Sektion -->
                     <div class="form-section">
                         <h3 class="section-title"><i class="fas fa-flag"></i> Team-Name</h3>
@@ -372,43 +824,315 @@
                         </div>
                     </div>
 
-                    <!-- Charakter-Auswahl Sektion -->
+                    <!-- Erweiterte Charakter-Erstellung Sektion -->
                     <div class="form-section">
-                        <h3 class="section-title"><i class="fas fa-user"></i> Charakter auswählen</h3>
+                        <h3 class="section-title"><i class="fas fa-user-edit"></i> Charakter erstellen</h3>
                         
-                        {% if available_characters %}
-                            <div class="characters-grid">
-                                {% for character in available_characters %}
-                                <div class="character-card" onclick="selectCharacter({{ character.id }})">
-                                    <input type="radio" 
-                                           name="character_id" 
-                                           value="{{ character.id }}" 
-                                           id="character-{{ character.id }}"
-                                           {% if team.character_id == character.id %}checked{% endif %}>
-                                    
-                                    <div class="character-image">
-                                        {% if character.image_file %}
-                                            <img src="{{ url_for('static', filename='images/' + character.image_file) }}" 
-                                                 alt="{{ character.name }}" 
-                                                 style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">
-                                        {% else %}
-                                            <i class="fas fa-user"></i>
-                                        {% endif %}
+                        <!-- Charakter-Auswahl -->
+                        <div class="character-selection-container">
+                            <h4 class="subsection-title">Basis-Charakter wählen</h4>
+                            <div class="character-grid" id="character-grid">
+                                <!-- Charaktere werden hier dynamisch geladen -->
+                            </div>
+                        </div>
+                        
+                        <!-- 3D Charakter Vorschau -->
+                        <div class="character-preview-container">
+                            <div id="character-preview" class="character-preview">
+                                <div class="preview-controls">
+                                    <button type="button" class="preview-btn" onclick="resetCameraView()">
+                                        <i class="fas fa-redo"></i> Ansicht zurücksetzen
+                                    </button>
+                                    <button type="button" class="preview-btn" onclick="randomizeCharacter()">
+                                        <i class="fas fa-random"></i> Zufällig
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Charakter-Statistiken -->
+                        <div class="character-stats-container">
+                            <h4 class="subsection-title">Charakter-Eigenschaften</h4>
+                            <div class="stats-grid">
+                                <div class="stat-item">
+                                    <span class="stat-name">Stärke</span>
+                                    <div class="stat-bar">
+                                        <div class="stat-fill" id="strength-bar"></div>
+                                    </div>
+                                    <span class="stat-value" id="strength-value">5</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-name">Geschwindigkeit</span>
+                                    <div class="stat-bar">
+                                        <div class="stat-fill" id="speed-bar"></div>
+                                    </div>
+                                    <span class="stat-value" id="speed-value">5</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-name">Glück</span>
+                                    <div class="stat-bar">
+                                        <div class="stat-fill" id="luck-bar"></div>
+                                    </div>
+                                    <span class="stat-value" id="luck-value">5</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-name">Charisma</span>
+                                    <div class="stat-bar">
+                                        <div class="stat-fill" id="charisma-bar"></div>
+                                    </div>
+                                    <span class="stat-value" id="charisma-value">5</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Anpassungs-Kategorien -->
+                        <div class="customization-tabs">
+                            <div class="tab-nav">
+                                <button type="button" class="tab-btn active" data-tab="appearance">
+                                    <i class="fas fa-user"></i> Aussehen
+                                </button>
+                                <button type="button" class="tab-btn" data-tab="clothing">
+                                    <i class="fas fa-tshirt"></i> Kleidung
+                                </button>
+                                <button type="button" class="tab-btn" data-tab="accessories">
+                                    <i class="fas fa-glasses"></i> Accessoires
+                                </button>
+                                <button type="button" class="tab-btn" data-tab="colors">
+                                    <i class="fas fa-palette"></i> Farben
+                                </button>
+                                <button type="button" class="tab-btn" data-tab="animations">
+                                    <i class="fas fa-running"></i> Stil
+                                </button>
+                            </div>
+                            
+                            <!-- Aussehen Tab -->
+                            <div class="tab-content active" id="appearance-tab">
+                                <div class="customization-grid">
+                                    <div class="option-group">
+                                        <label>Gesichtsform</label>
+                                        <div class="option-buttons">
+                                            <button type="button" class="option-btn" data-option="faceShape" data-value="oval">Oval</button>
+                                            <button type="button" class="option-btn" data-option="faceShape" data-value="round">Rund</button>
+                                            <button type="button" class="option-btn" data-option="faceShape" data-value="square">Eckig</button>
+                                            <button type="button" class="option-btn" data-option="faceShape" data-value="heart">Herz</button>
+                                        </div>
                                     </div>
                                     
-                                    <div class="character-name">{{ character.name }}</div>
+                                    <div class="option-group">
+                                        <label>Körpertyp</label>
+                                        <div class="option-buttons">
+                                            <button type="button" class="option-btn" data-option="bodyType" data-value="slim">Schlank</button>
+                                            <button type="button" class="option-btn active" data-option="bodyType" data-value="normal">Normal</button>
+                                            <button type="button" class="option-btn" data-option="bodyType" data-value="athletic">Athletisch</button>
+                                            <button type="button" class="option-btn" data-option="bodyType" data-value="chunky">Kräftig</button>
+                                        </div>
+                                    </div>
                                     
-                                    <div class="character-color" 
-                                         style="background-color: {{ character.color or '#FFFFFF' }};"></div>
+                                    <div class="option-group">
+                                        <label>Größe</label>
+                                        <div class="option-buttons">
+                                            <button type="button" class="option-btn" data-option="height" data-value="short">Klein</button>
+                                            <button type="button" class="option-btn active" data-option="height" data-value="normal">Normal</button>
+                                            <button type="button" class="option-btn" data-option="height" data-value="tall">Groß</button>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="option-group">
+                                        <label>Frisur</label>
+                                        <div class="option-buttons">
+                                            <button type="button" class="option-btn active" data-option="hairStyle" data-value="short">Kurz</button>
+                                            <button type="button" class="option-btn" data-option="hairStyle" data-value="medium">Mittel</button>
+                                            <button type="button" class="option-btn" data-option="hairStyle" data-value="long">Lang</button>
+                                            <button type="button" class="option-btn" data-option="hairStyle" data-value="curly">Lockig</button>
+                                            <button type="button" class="option-btn" data-option="hairStyle" data-value="bald">Glatze</button>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="option-group">
+                                        <label>Augenform</label>
+                                        <div class="option-buttons">
+                                            <button type="button" class="option-btn active" data-option="eyeShape" data-value="normal">Normal</button>
+                                            <button type="button" class="option-btn" data-option="eyeShape" data-value="big">Groß</button>
+                                            <button type="button" class="option-btn" data-option="eyeShape" data-value="small">Klein</button>
+                                            <button type="button" class="option-btn" data-option="eyeShape" data-value="sleepy">Schläfrig</button>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="option-group">
+                                        <label>Bart</label>
+                                        <div class="option-buttons">
+                                            <button type="button" class="option-btn active" data-option="beardStyle" data-value="none">Keiner</button>
+                                            <button type="button" class="option-btn" data-option="beardStyle" data-value="mustache">Schnurrbart</button>
+                                            <button type="button" class="option-btn" data-option="beardStyle" data-value="goatee">Ziegenbart</button>
+                                            <button type="button" class="option-btn" data-option="beardStyle" data-value="full">Vollbart</button>
+                                        </div>
+                                    </div>
                                 </div>
-                                {% endfor %}
                             </div>
-                        {% else %}
-                            <div class="no-characters">
-                                <i class="fas fa-exclamation-triangle fa-2x mb-3"></i>
-                                <p>Keine Charaktere verfügbar. Alle sind bereits ausgewählt.</p>
+                            
+                            <!-- Kleidung Tab -->
+                            <div class="tab-content" id="clothing-tab">
+                                <div class="customization-grid">
+                                    <div class="option-group">
+                                        <label>Oberteil</label>
+                                        <div class="option-buttons">
+                                            <button type="button" class="option-btn active" data-option="shirtType" data-value="tshirt">T-Shirt</button>
+                                            <button type="button" class="option-btn" data-option="shirtType" data-value="polo">Polo</button>
+                                            <button type="button" class="option-btn" data-option="shirtType" data-value="hoodie">Hoodie</button>
+                                            <button type="button" class="option-btn" data-option="shirtType" data-value="formal">Hemd</button>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="option-group">
+                                        <label>Hose</label>
+                                        <div class="option-buttons">
+                                            <button type="button" class="option-btn active" data-option="pantsType" data-value="jeans">Jeans</button>
+                                            <button type="button" class="option-btn" data-option="pantsType" data-value="shorts">Shorts</button>
+                                            <button type="button" class="option-btn" data-option="pantsType" data-value="formal">Formell</button>
+                                            <button type="button" class="option-btn" data-option="pantsType" data-value="athletic">Sport</button>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="option-group">
+                                        <label>Schuhe</label>
+                                        <div class="option-buttons">
+                                            <button type="button" class="option-btn active" data-option="shoeType" data-value="sneakers">Sneakers</button>
+                                            <button type="button" class="option-btn" data-option="shoeType" data-value="boots">Stiefel</button>
+                                            <button type="button" class="option-btn" data-option="shoeType" data-value="formal">Formell</button>
+                                            <button type="button" class="option-btn" data-option="shoeType" data-value="sandals">Sandalen</button>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
-                        {% endif %}
+                            
+                            <!-- Accessoires Tab -->
+                            <div class="tab-content" id="accessories-tab">
+                                <div class="customization-grid">
+                                    <div class="option-group">
+                                        <label>Kopfbedeckung</label>
+                                        <div class="option-buttons">
+                                            <button type="button" class="option-btn active" data-option="hat" data-value="none">Keine</button>
+                                            <button type="button" class="option-btn" data-option="hat" data-value="cap">Kappe</button>
+                                            <button type="button" class="option-btn" data-option="hat" data-value="beanie">Beanie</button>
+                                            <button type="button" class="option-btn" data-option="hat" data-value="formal">Hut</button>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="option-group">
+                                        <label>Brille</label>
+                                        <div class="option-buttons">
+                                            <button type="button" class="option-btn active" data-option="glasses" data-value="none">Keine</button>
+                                            <button type="button" class="option-btn" data-option="glasses" data-value="normal">Normal</button>
+                                            <button type="button" class="option-btn" data-option="glasses" data-value="sunglasses">Sonnenbrille</button>
+                                            <button type="button" class="option-btn" data-option="glasses" data-value="reading">Lesebrille</button>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="option-group">
+                                        <label>Schmuck</label>
+                                        <div class="option-buttons">
+                                            <button type="button" class="option-btn active" data-option="jewelry" data-value="none">Keiner</button>
+                                            <button type="button" class="option-btn" data-option="jewelry" data-value="watch">Uhr</button>
+                                            <button type="button" class="option-btn" data-option="jewelry" data-value="chain">Kette</button>
+                                            <button type="button" class="option-btn" data-option="jewelry" data-value="rings">Ringe</button>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="option-group">
+                                        <label>Rucksack</label>
+                                        <div class="option-buttons">
+                                            <button type="button" class="option-btn active" data-option="backpack" data-value="none">Keiner</button>
+                                            <button type="button" class="option-btn" data-option="backpack" data-value="school">Schule</button>
+                                            <button type="button" class="option-btn" data-option="backpack" data-value="hiking">Wandern</button>
+                                            <button type="button" class="option-btn" data-option="backpack" data-value="stylish">Stylisch</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Farben Tab -->
+                            <div class="tab-content" id="colors-tab">
+                                <div class="customization-grid">
+                                    <div class="color-group">
+                                        <label for="skin-color">Hautfarbe</label>
+                                        <input type="color" id="skin-color" name="skin_color" value="#FFDE97">
+                                    </div>
+                                    
+                                    <div class="color-group">
+                                        <label for="hair-color">Haarfarbe</label>
+                                        <input type="color" id="hair-color" name="hair_color" value="#2C1810">
+                                    </div>
+                                    
+                                    <div class="color-group">
+                                        <label for="eye-color">Augenfarbe</label>
+                                        <input type="color" id="eye-color" name="eye_color" value="#4169E1">
+                                    </div>
+                                    
+                                    <div class="color-group">
+                                        <label for="shirt-color">Oberteil-Farbe</label>
+                                        <input type="color" id="shirt-color" name="shirt_color" value="#4169E1">
+                                    </div>
+                                    
+                                    <div class="color-group">
+                                        <label for="pants-color">Hosen-Farbe</label>
+                                        <input type="color" id="pants-color" name="pants_color" value="#8B4513">
+                                    </div>
+                                    
+                                    <div class="color-group">
+                                        <label for="shoe-color">Schuh-Farbe</label>
+                                        <input type="color" id="shoe-color" name="shoe_color" value="#8B4513">
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Animationen Tab -->
+                            <div class="tab-content" id="animations-tab">
+                                <div class="customization-grid">
+                                    <div class="option-group">
+                                        <label>Animationsstil</label>
+                                        <div class="option-buttons">
+                                            <button type="button" class="option-btn active" data-option="animationStyle" data-value="normal">Normal</button>
+                                            <button type="button" class="option-btn" data-option="animationStyle" data-value="energetic">Energisch</button>
+                                            <button type="button" class="option-btn" data-option="animationStyle" data-value="calm">Ruhig</button>
+                                            <button type="button" class="option-btn" data-option="animationStyle" data-value="quirky">Verrückt</button>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="option-group">
+                                        <label>Gangstil</label>
+                                        <div class="option-buttons">
+                                            <button type="button" class="option-btn active" data-option="walkStyle" data-value="normal">Normal</button>
+                                            <button type="button" class="option-btn" data-option="walkStyle" data-value="bouncy">Hüpfend</button>
+                                            <button type="button" class="option-btn" data-option="walkStyle" data-value="confident">Selbstbewusst</button>
+                                            <button type="button" class="option-btn" data-option="walkStyle" data-value="sneaky">Schleichend</button>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="option-group">
+                                        <label>Ruhehaltung</label>
+                                        <div class="option-buttons">
+                                            <button type="button" class="option-btn active" data-option="idleStyle" data-value="normal">Normal</button>
+                                            <button type="button" class="option-btn" data-option="idleStyle" data-value="fidgety">Zappelig</button>
+                                            <button type="button" class="option-btn" data-option="idleStyle" data-value="relaxed">Entspannt</button>
+                                            <button type="button" class="option-btn" data-option="idleStyle" data-value="proud">Stolz</button>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="option-group">
+                                        <label>Stimme</label>
+                                        <div class="option-buttons">
+                                            <button type="button" class="option-btn active" data-option="voiceType" data-value="normal">Normal</button>
+                                            <button type="button" class="option-btn" data-option="voiceType" data-value="deep">Tief</button>
+                                            <button type="button" class="option-btn" data-option="voiceType" data-value="high">Hoch</button>
+                                            <button type="button" class="option-btn" data-option="voiceType" data-value="robotic">Roboter</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Verstecktes Feld für Charakter-ID -->
+                        <input type="hidden" id="selected-character-id" name="character_id" value="1">
                     </div>
 
                     <!-- Buttons -->
@@ -430,16 +1154,407 @@
     </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/controls/OrbitControls.js"></script>
+<script src="{{ url_for('static', filename='js/characters/defaultCharacter.js') }}"></script>
+
 <script>
-let selectedCharacterId = null;
+let selectedCharacterId = 1;
+let availableCharacters = [];
+let scene, camera, renderer, character, controls;
+let currentCustomization = {};
+
+// Charakter-Daten laden
+async function loadCharacterData() {
+    try {
+        const response = await fetch('/api/characters');
+        if (response.ok) {
+            availableCharacters = await response.json();
+            renderCharacterGrid();
+        }
+    } catch (error) {
+        console.error('Fehler beim Laden der Charaktere:', error);
+        // Fallback: Standard-Charakter
+        availableCharacters = [{
+            id: 1,
+            name: 'Standard-Charakter',
+            description: 'Ein vielseitiger Charakter für alle Situationen',
+            rarity: 'common',
+            is_unlocked: true,
+            stats: {strength: 5, speed: 5, luck: 5, charisma: 5}
+        }];
+        renderCharacterGrid();
+    }
+}
+
+// Charakter-Auswahl-Grid rendern
+function renderCharacterGrid() {
+    const grid = document.getElementById('character-grid');
+    grid.innerHTML = '';
+    
+    availableCharacters.forEach(char => {
+        const card = document.createElement('div');
+        card.className = `character-card ${char.is_unlocked ? '' : 'locked'}`;
+        card.dataset.characterId = char.id;
+        
+        card.innerHTML = `
+            <div class="character-name">${char.name}</div>
+            <div class="character-description">${char.description || ''}</div>
+            <div class="character-rarity ${char.rarity}">${char.rarity.toUpperCase()}</div>
+            ${!char.is_unlocked ? '<div class="unlock-indicator">🔒</div>' : ''}
+        `;
+        
+        if (char.is_unlocked) {
+            card.addEventListener('click', () => selectCharacter(char.id));
+        }
+        
+        grid.appendChild(card);
+    });
+    
+    // Ersten verfügbaren Charakter auswählen
+    if (availableCharacters.length > 0) {
+        const firstAvailable = availableCharacters.find(char => char.is_unlocked);
+        if (firstAvailable) {
+            selectCharacter(firstAvailable.id);
+        }
+    }
+}
+
+// Charakter auswählen
+function selectCharacter(characterId) {
+    selectedCharacterId = characterId;
+    document.getElementById('selected-character-id').value = characterId;
+    
+    // Visuelle Auswahl aktualisieren
+    document.querySelectorAll('.character-card').forEach(card => {
+        card.classList.remove('selected');
+    });
+    
+    const selectedCard = document.querySelector(`[data-character-id="${characterId}"]`);
+    if (selectedCard) {
+        selectedCard.classList.add('selected');
+    }
+    
+    // Charakter-Details laden
+    const selectedChar = availableCharacters.find(char => char.id === characterId);
+    if (selectedChar) {
+        updateCharacterStats(selectedChar.stats);
+        updateCharacterPreview();
+    }
+}
+
+// Charakter-Statistiken aktualisieren
+function updateCharacterStats(stats) {
+    ['strength', 'speed', 'luck', 'charisma'].forEach(stat => {
+        const value = stats[stat] || 5;
+        const bar = document.getElementById(`${stat}-bar`);
+        const valueDisplay = document.getElementById(`${stat}-value`);
+        
+        if (bar && valueDisplay) {
+            bar.style.width = `${(value / 10) * 100}%`;
+            valueDisplay.textContent = value;
+        }
+    });
+}
+
+// 3D Charakter-Vorschau initialisieren
+function initCharacterPreview() {
+    const container = document.getElementById('character-preview');
+    
+    // Scene setup
+    scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x2a2a2a);
+    
+    // Camera setup
+    camera = new THREE.PerspectiveCamera(75, container.clientWidth / container.clientHeight, 0.1, 1000);
+    camera.position.set(0, 0.5, 1.5);
+    
+    // Renderer setup
+    renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(container.clientWidth, container.clientHeight);
+    renderer.setClearColor(0x2a2a2a);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    container.appendChild(renderer.domElement);
+    
+    // Controls setup
+    controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+    controls.enableZoom = true;
+    controls.enablePan = false;
+    controls.minDistance = 1;
+    controls.maxDistance = 3;
+    controls.minPolarAngle = Math.PI / 6;
+    controls.maxPolarAngle = Math.PI / 2;
+    
+    // Lighting setup
+    const ambientLight = new THREE.AmbientLight(0x404040, 0.6);
+    scene.add(ambientLight);
+    
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    directionalLight.position.set(2, 2, 2);
+    directionalLight.castShadow = true;
+    scene.add(directionalLight);
+    
+    // Load initial character
+    updateCharacterPreview();
+    
+    // Animation loop
+    function animate() {
+        requestAnimationFrame(animate);
+        controls.update();
+        renderer.render(scene, camera);
+    }
+    animate();
+}
+
+// Charakter-Vorschau aktualisieren
+function updateCharacterPreview() {
+    // Remove existing character
+    if (character) {
+        scene.remove(character);
+    }
+    
+    // Get current customization values
+    const customization = getCurrentCustomization();
+    
+    // Create new character with customization
+    console.log('Creating character with customization:', customization);
+    character = createDefaultCharacter('#FF6B6B', customization);
+    scene.add(character);
+}
+
+// Aktuelle Anpassungen abrufen
+function getCurrentCustomization() {
+    const customization = {
+        // Basis-Farben
+        shirtColor: getInputValue('shirt-color', '#4169E1'),
+        pantsColor: getInputValue('pants-color', '#8B4513'),
+        hairColor: getInputValue('hair-color', '#2C1810'),
+        shoeColor: getInputValue('shoe-color', '#8B4513'),
+        skinColor: getInputValue('skin-color', '#FFDE97'),
+        eyeColor: getInputValue('eye-color', '#4169E1'),
+        
+        // Aussehen
+        faceShape: getActiveOption('faceShape', 'oval'),
+        bodyType: getActiveOption('bodyType', 'normal'),
+        height: getActiveOption('height', 'normal'),
+        hairStyle: getActiveOption('hairStyle', 'short'),
+        eyeShape: getActiveOption('eyeShape', 'normal'),
+        beardStyle: getActiveOption('beardStyle', 'none'),
+        
+        // Kleidung
+        shirtType: getActiveOption('shirtType', 'tshirt'),
+        pantsType: getActiveOption('pantsType', 'jeans'),
+        shoeType: getActiveOption('shoeType', 'sneakers'),
+        
+        // Accessoires
+        hat: getActiveOption('hat', 'none'),
+        glasses: getActiveOption('glasses', 'none'),
+        jewelry: getActiveOption('jewelry', 'none'),
+        backpack: getActiveOption('backpack', 'none'),
+        
+        // Animationen
+        animationStyle: getActiveOption('animationStyle', 'normal'),
+        walkStyle: getActiveOption('walkStyle', 'normal'),
+        idleStyle: getActiveOption('idleStyle', 'normal'),
+        voiceType: getActiveOption('voiceType', 'normal')
+    };
+    
+    console.log('getCurrentCustomization returning:', customization);
+    return customization;
+}
+
+// Hilfsfunktionen
+function getInputValue(id, defaultValue) {
+    const input = document.getElementById(id);
+    return input ? input.value : defaultValue;
+}
+
+function getActiveOption(optionName, defaultValue) {
+    const activeBtn = document.querySelector(`[data-option="${optionName}"].active`);
+    return activeBtn ? activeBtn.dataset.value : defaultValue;
+}
+
+// Tab-Navigation
+function setupTabs() {
+    const tabBtns = document.querySelectorAll('.tab-btn');
+    const tabContents = document.querySelectorAll('.tab-content');
+    
+    tabBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const tabName = btn.dataset.tab;
+            
+            // Alle Tabs deaktivieren
+            tabBtns.forEach(b => b.classList.remove('active'));
+            tabContents.forEach(c => c.classList.remove('active'));
+            
+            // Aktiven Tab aktivieren
+            btn.classList.add('active');
+            document.getElementById(`${tabName}-tab`).classList.add('active');
+        });
+    });
+}
+
+// Anpassungsoptionen Setup
+function setupCustomizationOptions() {
+    const optionBtns = document.querySelectorAll('.option-btn');
+    
+    optionBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const optionName = btn.dataset.option;
+            
+            // Alle Buttons in dieser Gruppe deaktivieren
+            document.querySelectorAll(`[data-option="${optionName}"]`).forEach(b => {
+                b.classList.remove('active');
+            });
+            
+            // Aktiven Button aktivieren
+            btn.classList.add('active');
+            
+            // Vorschau aktualisieren
+            updateCharacterPreview();
+        });
+    });
+}
+
+// Farb-Listener
+function setupColorListeners() {
+    const colorInputs = ['skin-color', 'hair-color', 'eye-color', 'shirt-color', 'pants-color', 'shoe-color'];
+    
+    colorInputs.forEach(inputId => {
+        const input = document.getElementById(inputId);
+        if (input) {
+            input.addEventListener('input', updateCharacterPreview);
+        }
+    });
+}
+
+// Kamera-Ansicht zurücksetzen
+function resetCameraView() {
+    if (camera && controls) {
+        camera.position.set(0, 0.5, 1.5);
+        controls.reset();
+    }
+}
+
+// Charakter randomisieren
+function randomizeCharacter() {
+    // Zufällige Optionen auswählen
+    const options = [
+        { name: 'faceShape', values: ['oval', 'round', 'square', 'heart'] },
+        { name: 'bodyType', values: ['slim', 'normal', 'athletic', 'chunky'] },
+        { name: 'hairStyle', values: ['short', 'medium', 'long', 'curly', 'bald'] },
+        { name: 'eyeShape', values: ['normal', 'big', 'small', 'sleepy'] },
+        { name: 'beardStyle', values: ['none', 'mustache', 'goatee', 'full'] },
+        { name: 'shirtType', values: ['tshirt', 'polo', 'hoodie', 'formal'] },
+        { name: 'pantsType', values: ['jeans', 'shorts', 'formal', 'athletic'] },
+        { name: 'shoeType', values: ['sneakers', 'boots', 'formal', 'sandals'] },
+        { name: 'hat', values: ['none', 'cap', 'beanie', 'formal'] },
+        { name: 'glasses', values: ['none', 'normal', 'sunglasses', 'reading'] },
+        { name: 'jewelry', values: ['none', 'watch', 'chain', 'rings'] },
+        { name: 'backpack', values: ['none', 'school', 'hiking', 'stylish'] },
+        { name: 'animationStyle', values: ['normal', 'energetic', 'calm', 'quirky'] },
+        { name: 'walkStyle', values: ['normal', 'bouncy', 'confident', 'sneaky'] },
+        { name: 'idleStyle', values: ['normal', 'fidgety', 'relaxed', 'proud'] },
+        { name: 'voiceType', values: ['normal', 'deep', 'high', 'robotic'] }
+    ];
+    
+    options.forEach(option => {
+        const randomValue = option.values[Math.floor(Math.random() * option.values.length)];
+        const btn = document.querySelector(`[data-option="${option.name}"][data-value="${randomValue}"]`);
+        if (btn) {
+            btn.click();
+        }
+    });
+    
+    // Zufällige Farben
+    const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E9'];
+    document.getElementById('shirt-color').value = colors[Math.floor(Math.random() * colors.length)];
+    document.getElementById('pants-color').value = colors[Math.floor(Math.random() * colors.length)];
+    document.getElementById('hair-color').value = colors[Math.floor(Math.random() * colors.length)];
+    document.getElementById('shoe-color').value = colors[Math.floor(Math.random() * colors.length)];
+    
+    updateCharacterPreview();
+}
+
+// Bestehende Werte laden
+function loadExistingCustomization() {
+    const teamCustomization = {{ team.get_character_customization() | tojson }};
+    if (teamCustomization) {
+        // Farben setzen
+        setInputValue('skin-color', teamCustomization.skinColor);
+        setInputValue('hair-color', teamCustomization.hairColor);
+        setInputValue('eye-color', teamCustomization.eyeColor);
+        setInputValue('shirt-color', teamCustomization.shirtColor);
+        setInputValue('pants-color', teamCustomization.pantsColor);
+        setInputValue('shoe-color', teamCustomization.shoeColor);
+        
+        // Optionen setzen
+        setActiveOption('faceShape', teamCustomization.faceShape);
+        setActiveOption('bodyType', teamCustomization.bodyType);
+        setActiveOption('height', teamCustomization.height);
+        setActiveOption('hairStyle', teamCustomization.hairStyle);
+        setActiveOption('eyeShape', teamCustomization.eyeShape);
+        setActiveOption('beardStyle', teamCustomization.beardStyle);
+        setActiveOption('shirtType', teamCustomization.shirtType);
+        setActiveOption('pantsType', teamCustomization.pantsType);
+        setActiveOption('shoeType', teamCustomization.shoeType);
+        setActiveOption('hat', teamCustomization.hat);
+        setActiveOption('glasses', teamCustomization.glasses);
+        setActiveOption('jewelry', teamCustomization.jewelry);
+        setActiveOption('backpack', teamCustomization.backpack);
+        setActiveOption('animationStyle', teamCustomization.animationStyle);
+        setActiveOption('walkStyle', teamCustomization.walkStyle);
+        setActiveOption('idleStyle', teamCustomization.idleStyle);
+        setActiveOption('voiceType', teamCustomization.voiceType);
+    }
+}
+
+function setInputValue(id, value) {
+    const input = document.getElementById(id);
+    if (input && value) {
+        input.value = value;
+    }
+}
+
+function setActiveOption(optionName, value) {
+    if (!value) return;
+    
+    // Alle Buttons in dieser Gruppe deaktivieren
+    document.querySelectorAll(`[data-option="${optionName}"]`).forEach(btn => {
+        btn.classList.remove('active');
+    });
+    
+    // Aktiven Button aktivieren
+    const activeBtn = document.querySelector(`[data-option="${optionName}"][data-value="${value}"]`);
+    if (activeBtn) {
+        activeBtn.classList.add('active');
+    }
+}
+
+// Window resize handler
+window.addEventListener('resize', function() {
+    if (renderer && camera) {
+        const container = document.getElementById('character-preview');
+        camera.aspect = container.clientWidth / container.clientHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(container.clientWidth, container.clientHeight);
+    }
+});
+
+// Alte Funktionen (für Kompatibilität)
+// selectedCharacterId bereits oben deklariert
 
 document.addEventListener('DOMContentLoaded', function() {
-    // Prüfe bereits ausgewählten Charakter
-    const checkedRadio = document.querySelector('input[name="character_id"]:checked');
-    if (checkedRadio) {
-        selectedCharacterId = parseInt(checkedRadio.value);
-        updateCharacterSelection();
-    }
+    // Initialisiere erweiterte Charakter-Anpassung
+    loadCharacterData();
+    loadExistingCustomization();
+    initCharacterPreview();
+    setupColorListeners();
+    setupTabs();
+    setupCustomizationOptions();
 
     // Form submission
     document.getElementById('setup-form').addEventListener('submit', function(e) {
@@ -498,15 +1613,19 @@ function submitSetup() {
     submitBtn.disabled = true;
     submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Wird gespeichert...';
 
+    // Sammle alle Anpassungsdaten
+    const customization = getCurrentCustomization();
+    
     const formData = {
         team_name: teamName,
-        character_id: selectedCharacterId
+        character_id: selectedCharacterId || 1,
+        customization: customization
     };
 
     // CSRF Token aus Meta-Tag holen
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
     
-    console.log('Sending team setup with data:', formData);
+    console.log('Sending comprehensive team setup with data:', formData);
     console.log('CSRF Token:', csrfToken);
 
     fetch(window.location.href, {

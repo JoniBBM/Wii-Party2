@@ -13,17 +13,8 @@ class Config:
     # Session-Konfiguration für Teams (kurze Session-Dauer)
     PERMANENT_SESSION_LIFETIME = 1800  # 30 Minuten
     SESSION_COOKIE_HTTPONLY = True
-    SESSION_COOKIE_SECURE = os.environ.get('SESSION_COOKIE_SECURE', 'False').lower() == 'true'  # Automatisch True bei HTTPS
+    SESSION_COOKIE_SECURE = False  # Für HTTP (Development)
     SESSION_COOKIE_SAMESITE = 'Lax'
-    
-    # SSL/HTTPS-Konfiguration
-    SSL_DISABLE = os.environ.get('SSL_DISABLE', 'False').lower() == 'true'
-    SSL_CERT_PATH = os.environ.get('SSL_CERT_PATH') or os.path.join(basedir, 'certs', 'cert.pem')
-    SSL_KEY_PATH = os.environ.get('SSL_KEY_PATH') or os.path.join(basedir, 'certs', 'key.pem')
-    USE_HTTPS = os.environ.get('USE_HTTPS', 'False').lower() == 'true'
-    HTTPS_PORT = int(os.environ.get('HTTPS_PORT', '5000'))
-    HTTP_PORT = int(os.environ.get('HTTP_PORT', '8080'))  # Fallback HTTP Port
-    FORCE_HTTPS_REDIRECT = os.environ.get('FORCE_HTTPS_REDIRECT', 'False').lower() == 'true'
     ADMIN_USERNAME = os.environ.get('ADMIN_USERNAME') or 'admin'
     # Geändertes Standard-Admin-Passwort
     ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD') or '1234qwer!' 

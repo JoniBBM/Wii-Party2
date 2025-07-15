@@ -47,6 +47,9 @@ class Team(UserMixin, db.Model):
     character_name = db.Column(db.String(100), nullable=True)
     character_id = db.Column(db.Integer, db.ForeignKey('character.id'), nullable=True)
     character = db.relationship('Character', backref='teams')
+    
+    # Charakter-Anpassungen (JSON: {"shirtColor": "#FF0000", "pantsColor": "#00FF00", ...})
+    character_customization = db.Column(db.Text, nullable=True)  # JSON mit Charakter-Anpassungen
 
     current_position = db.Column(db.Integer, default=0)
     minigame_placement = db.Column(db.Integer, nullable=True)
@@ -127,6 +130,140 @@ class Team(UserMixin, db.Model):
             self.player_config = None
         else:
             self.player_config = json.dumps(config_dict)
+    
+    def get_character_customization(self):
+        """Gibt die erweiterte Charakter-Anpassungen als Dictionary zurück"""
+        defaults = {
+            # Basic colors
+            'shirtColor': '#4169E1',   # Royal Blue
+            'pantsColor': '#8B4513',   # Saddle Brown
+            'hairColor': '#2C1810',    # Dark Brown
+            'shoeColor': '#8B4513',    # Saddle Brown
+            'skinColor': '#FFDE97',    # Skin color
+            'eyeColor': '#4169E1',     # Eye color
+            
+            # Body features
+            'bodyType': 'normal',      # slim, normal, athletic, chunky
+            'height': 'normal',        # short, normal, tall
+            
+            # Face features
+            'faceShape': 'oval',       # oval, round, square, heart
+            'eyeShape': 'normal',      # normal, big, small, sleepy
+            'eyebrowStyle': 'normal',  # normal, thick, thin, bushy
+            'noseShape': 'normal',     # normal, small, big, pointed
+            'mouthShape': 'normal',    # normal, small, big, wide
+            'beardStyle': 'none',      # none, mustache, goatee, full
+            
+            # Hair
+            'hairStyle': 'short',      # short, medium, long, bald, curly
+            'hairLength': 'short',     # short, medium, long
+            
+            # Clothing
+            'shirtType': 'tshirt',     # tshirt, polo, hoodie, formal
+            'pantsType': 'jeans',      # jeans, shorts, formal, athletic
+            'shoeType': 'sneakers',    # sneakers, boots, formal, sandals
+            
+            # Accessories
+            'hat': 'none',             # none, cap, beanie, formal
+            'glasses': 'none',         # none, normal, sunglasses, reading
+            'jewelry': 'none',         # none, watch, chain, rings
+            'backpack': 'none',        # none, school, hiking, stylish
+            
+            # Animation style
+            'animationStyle': 'normal', # normal, energetic, calm, quirky
+            'walkStyle': 'normal',      # normal, bouncy, confident, sneaky
+            'idleStyle': 'normal',      # normal, fidgety, relaxed, proud
+            
+            # Voice/Sound
+            'voiceType': 'normal',      # normal, deep, high, robotic
+            'voicePitch': 1.0,          # 0.5-2.0
+            
+            # Special effects
+            'aura': 'none',             # none, sparkles, fire, electric
+            'trail': 'none',            # none, stars, bubbles, flames
+            
+            # Pose/Expression
+            'defaultPose': 'normal',    # normal, confident, shy, heroic
+            'defaultExpression': 'happy' # happy, serious, playful, determined
+        }
+        
+        if not self.character_customization:
+            return defaults
+        
+        try:
+            base_customization = json.loads(self.character_customization)
+            # Merge with defaults to ensure all fields are present
+            defaults.update(base_customization)
+            return defaults
+        except (json.JSONDecodeError, TypeError):
+            return defaults
+    
+    def set_character_customization(self, customization_dict):
+        """Setzt die erweiterte Charakter-Anpassungen aus Dictionary"""
+        if customization_dict is None:
+            self.character_customization = None
+        else:
+            self.character_customization = json.dumps(customization_dict)
+    
+    def get_character_parts(self):
+        """Gibt die aktuellen Charakter-Teile basierend auf Anpassungen zurück"""
+        customization = self.get_character_customization()
+        
+        # Build parts configuration based on customization
+        parts = {
+            'head': f"head_{customization.get('faceShape', 'oval')}.obj",
+            'body': f"body_{customization.get('bodyType', 'normal')}.obj",
+            'hair': f"hair_{customization.get('hairStyle', 'short')}.obj",
+            'shirt': f"shirt_{customization.get('shirtType', 'tshirt')}.obj",
+            'pants': f"pants_{customization.get('pantsType', 'jeans')}.obj",
+            'shoes': f"shoes_{customization.get('shoeType', 'sneakers')}.obj",
+            'eyes': f"eyes_{customization.get('eyeShape', 'normal')}.obj",
+            'eyebrows': f"eyebrows_{customization.get('eyebrowStyle', 'normal')}.obj",
+            'nose': f"nose_{customization.get('noseShape', 'normal')}.obj",
+            'mouth': f"mouth_{customization.get('mouthShape', 'normal')}.obj"
+        }
+        
+        # Add accessories if selected
+        if customization.get('hat', 'none') != 'none':
+            parts['hat'] = f"hat_{customization['hat']}.obj"
+        if customization.get('glasses', 'none') != 'none':
+            parts['glasses'] = f"glasses_{customization['glasses']}.obj"
+        if customization.get('jewelry', 'none') != 'none':
+            parts['jewelry'] = f"jewelry_{customization['jewelry']}.obj"
+        if customization.get('backpack', 'none') != 'none':
+            parts['backpack'] = f"backpack_{customization['backpack']}.obj"
+        if customization.get('beardStyle', 'none') != 'none':
+            parts['beard'] = f"beard_{customization['beardStyle']}.obj"
+        
+        return parts
+    
+    def get_character_animations(self):
+        """Gibt die Charakter-Animationen basierend auf Anpassungen zurück"""
+        customization = self.get_character_customization()
+        
+        animations = {
+            'idle': f"idle_{customization.get('idleStyle', 'normal')}.anim",
+            'walk': f"walk_{customization.get('walkStyle', 'normal')}.anim",
+            'run': f"run_{customization.get('animationStyle', 'normal')}.anim",
+            'jump': f"jump_{customization.get('animationStyle', 'normal')}.anim",
+            'celebrate': f"celebrate_{customization.get('animationStyle', 'normal')}.anim",
+            'disappointed': f"disappointed_{customization.get('animationStyle', 'normal')}.anim",
+            'thinking': f"thinking_{customization.get('animationStyle', 'normal')}.anim",
+            'wave': f"wave_{customization.get('animationStyle', 'normal')}.anim"
+        }
+        
+        return animations
+    
+    def get_character_voice_config(self):
+        """Gibt die Stimm-Konfiguration basierend auf Anpassungen zurück"""
+        customization = self.get_character_customization()
+        
+        return {
+            'type': customization.get('voiceType', 'normal'),
+            'pitch': customization.get('voicePitch', 1.0),
+            'volume': 1.0,
+            'effects': []
+        }
 
     def get_selectable_players(self):
         """Gibt eine Liste der Spieler zurück, die für Auslosung verfügbar sind"""
@@ -507,9 +644,343 @@ class Character(db.Model):
     color = db.Column(db.String(7), default="#FFFFFF")
     description = db.Column(db.Text, nullable=True)
     is_selected = db.Column(db.Boolean, default=False, nullable=False)
+    
+    # Enhanced character properties
+    category = db.Column(db.String(50), default="default")  # default, special, premium, unlocked
+    rarity = db.Column(db.String(20), default="common")  # common, rare, epic, legendary
+    unlock_condition = db.Column(db.Text, nullable=True)  # JSON: {"type": "points", "value": 1000}
+    is_unlocked = db.Column(db.Boolean, default=True)
+    
+    # Character stats/attributes
+    stats = db.Column(db.Text, nullable=True)  # JSON: {"strength": 5, "speed": 3, "luck": 4}
+    
+    # Asset paths for modular parts
+    parts_config = db.Column(db.Text, nullable=True)  # JSON: {"head": "head1.obj", "body": "body1.obj"}
+    
+    # Animation and effects
+    animation_config = db.Column(db.Text, nullable=True)  # JSON: {"idle": "idle.anim", "walk": "walk.anim"}
+    voice_config = db.Column(db.Text, nullable=True)  # JSON: {"type": "voice1", "pitch": 1.0}
+    
+    # Display properties
+    preview_image = db.Column(db.String(120), nullable=True)  # High-res preview image
+    thumbnail = db.Column(db.String(120), nullable=True)  # Small thumbnail
+    
+    # Metadata
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Customization options
+    customization_options = db.Column(db.Text, nullable=True)  # JSON: Available customization options
+    
+    def get_stats(self):
+        """Returns character stats as dictionary"""
+        if not self.stats:
+            return {"strength": 5, "speed": 5, "luck": 5, "charisma": 5}
+        try:
+            return json.loads(self.stats)
+        except (json.JSONDecodeError, TypeError):
+            return {"strength": 5, "speed": 5, "luck": 5, "charisma": 5}
+    
+    def set_stats(self, stats_dict):
+        """Sets character stats from dictionary"""
+        if stats_dict is None:
+            self.stats = None
+        else:
+            self.stats = json.dumps(stats_dict)
+    
+    def get_parts_config(self):
+        """Returns parts configuration as dictionary"""
+        if not self.parts_config:
+            return {}
+        try:
+            return json.loads(self.parts_config)
+        except (json.JSONDecodeError, TypeError):
+            return {}
+    
+    def set_parts_config(self, parts_dict):
+        """Sets parts configuration from dictionary"""
+        if parts_dict is None:
+            self.parts_config = None
+        else:
+            self.parts_config = json.dumps(parts_dict)
+    
+    def get_animation_config(self):
+        """Returns animation configuration as dictionary"""
+        if not self.animation_config:
+            return {}
+        try:
+            return json.loads(self.animation_config)
+        except (json.JSONDecodeError, TypeError):
+            return {}
+    
+    def set_animation_config(self, animation_dict):
+        """Sets animation configuration from dictionary"""
+        if animation_dict is None:
+            self.animation_config = None
+        else:
+            self.animation_config = json.dumps(animation_dict)
+    
+    def get_voice_config(self):
+        """Returns voice configuration as dictionary"""
+        if not self.voice_config:
+            return {"type": "default", "pitch": 1.0}
+        try:
+            return json.loads(self.voice_config)
+        except (json.JSONDecodeError, TypeError):
+            return {"type": "default", "pitch": 1.0}
+    
+    def set_voice_config(self, voice_dict):
+        """Sets voice configuration from dictionary"""
+        if voice_dict is None:
+            self.voice_config = None
+        else:
+            self.voice_config = json.dumps(voice_dict)
+    
+    def get_unlock_condition(self):
+        """Returns unlock condition as dictionary"""
+        if not self.unlock_condition:
+            return {}
+        try:
+            return json.loads(self.unlock_condition)
+        except (json.JSONDecodeError, TypeError):
+            return {}
+    
+    def set_unlock_condition(self, condition_dict):
+        """Sets unlock condition from dictionary"""
+        if condition_dict is None:
+            self.unlock_condition = None
+        else:
+            self.unlock_condition = json.dumps(condition_dict)
+    
+    def get_customization_options(self):
+        """Returns customization options as dictionary"""
+        if not self.customization_options:
+            return {
+                "faces": ["face1", "face2", "face3"],
+                "tshirts": ["tshirt1", "tshirt2", "tshirt3"],
+                "pants": ["pants1", "pants2", "pants3"],
+                "shoes": ["shoes1", "shoes2", "shoes3"],
+                "accessories": ["acc1", "acc2", "acc3"]
+            }
+        try:
+            return json.loads(self.customization_options)
+        except (json.JSONDecodeError, TypeError):
+            return {
+                "faces": ["face1", "face2", "face3"],
+                "tshirts": ["tshirt1", "tshirt2", "tshirt3"],
+                "pants": ["pants1", "pants2", "pants3"],
+                "shoes": ["shoes1", "shoes2", "shoes3"],
+                "accessories": ["acc1", "acc2", "acc3"]
+            }
+    
+    def set_customization_options(self, options_dict):
+        """Sets customization options from dictionary"""
+        if options_dict is None:
+            self.customization_options = None
+        else:
+            self.customization_options = json.dumps(options_dict)
+    
+    def is_available_for_team(self, team=None):
+        """Check if character is available for a team"""
+        if not self.is_unlocked:
+            return False
+        
+        if team and self.unlock_condition:
+            condition = self.get_unlock_condition()
+            # Add unlock logic here based on team progress, points, etc.
+            return True
+        
+        return True
 
     def __repr__(self):
         return f'<Character {self.name}>'
+
+class CharacterPart(db.Model):
+    """Model for individual character parts and accessories"""
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    category = db.Column(db.String(50), nullable=False)  # face, hair, shirt, pants, shoes, accessory
+    subcategory = db.Column(db.String(50), nullable=True)  # hat, glasses, jewelry, etc.
+    
+    # Asset information
+    asset_path = db.Column(db.String(200), nullable=False)  # Path to 3D model or image
+    texture_path = db.Column(db.String(200), nullable=True)  # Path to texture file
+    icon_path = db.Column(db.String(200), nullable=True)  # Path to icon for UI
+    
+    # Properties
+    rarity = db.Column(db.String(20), default="common")  # common, rare, epic, legendary
+    unlock_condition = db.Column(db.Text, nullable=True)  # JSON unlock requirements
+    is_unlocked = db.Column(db.Boolean, default=True)
+    
+    # Visual properties
+    color_customizable = db.Column(db.Boolean, default=True)  # Can this part be recolored?
+    default_color = db.Column(db.String(7), default="#FFFFFF")
+    
+    # Compatibility
+    compatible_body_types = db.Column(db.Text, nullable=True)  # JSON: ["normal", "athletic", "slim"]
+    compatible_face_shapes = db.Column(db.Text, nullable=True)  # JSON: ["oval", "round", "square"]
+    conflicts_with = db.Column(db.Text, nullable=True)  # JSON: Other parts this conflicts with
+    
+    # Stats/Effects
+    stats_modifier = db.Column(db.Text, nullable=True)  # JSON: {"luck": +1, "speed": -1}
+    special_effects = db.Column(db.Text, nullable=True)  # JSON: ["sparkles", "glow"]
+    
+    # Animation properties
+    animation_modifiers = db.Column(db.Text, nullable=True)  # JSON: Animation modifications
+    
+    # Metadata
+    description = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    def get_unlock_condition(self):
+        """Returns unlock condition as dictionary"""
+        if not self.unlock_condition:
+            return {}
+        try:
+            return json.loads(self.unlock_condition)
+        except (json.JSONDecodeError, TypeError):
+            return {}
+    
+    def set_unlock_condition(self, condition_dict):
+        """Sets unlock condition from dictionary"""
+        if condition_dict is None:
+            self.unlock_condition = None
+        else:
+            self.unlock_condition = json.dumps(condition_dict)
+    
+    def get_compatible_body_types(self):
+        """Returns compatible body types as list"""
+        if not self.compatible_body_types:
+            return ["normal", "slim", "athletic", "chunky"]
+        try:
+            return json.loads(self.compatible_body_types)
+        except (json.JSONDecodeError, TypeError):
+            return ["normal", "slim", "athletic", "chunky"]
+    
+    def set_compatible_body_types(self, types_list):
+        """Sets compatible body types from list"""
+        if types_list is None:
+            self.compatible_body_types = None
+        else:
+            self.compatible_body_types = json.dumps(types_list)
+    
+    def get_compatible_face_shapes(self):
+        """Returns compatible face shapes as list"""
+        if not self.compatible_face_shapes:
+            return ["oval", "round", "square", "heart"]
+        try:
+            return json.loads(self.compatible_face_shapes)
+        except (json.JSONDecodeError, TypeError):
+            return ["oval", "round", "square", "heart"]
+    
+    def set_compatible_face_shapes(self, shapes_list):
+        """Sets compatible face shapes from list"""
+        if shapes_list is None:
+            self.compatible_face_shapes = None
+        else:
+            self.compatible_face_shapes = json.dumps(shapes_list)
+    
+    def get_conflicts_with(self):
+        """Returns conflicting parts as list"""
+        if not self.conflicts_with:
+            return []
+        try:
+            return json.loads(self.conflicts_with)
+        except (json.JSONDecodeError, TypeError):
+            return []
+    
+    def set_conflicts_with(self, conflicts_list):
+        """Sets conflicting parts from list"""
+        if conflicts_list is None:
+            self.conflicts_with = None
+        else:
+            self.conflicts_with = json.dumps(conflicts_list)
+    
+    def get_stats_modifier(self):
+        """Returns stats modifier as dictionary"""
+        if not self.stats_modifier:
+            return {}
+        try:
+            return json.loads(self.stats_modifier)
+        except (json.JSONDecodeError, TypeError):
+            return {}
+    
+    def set_stats_modifier(self, modifier_dict):
+        """Sets stats modifier from dictionary"""
+        if modifier_dict is None:
+            self.stats_modifier = None
+        else:
+            self.stats_modifier = json.dumps(modifier_dict)
+    
+    def get_special_effects(self):
+        """Returns special effects as list"""
+        if not self.special_effects:
+            return []
+        try:
+            return json.loads(self.special_effects)
+        except (json.JSONDecodeError, TypeError):
+            return []
+    
+    def set_special_effects(self, effects_list):
+        """Sets special effects from list"""
+        if effects_list is None:
+            self.special_effects = None
+        else:
+            self.special_effects = json.dumps(effects_list)
+    
+    def get_animation_modifiers(self):
+        """Returns animation modifiers as dictionary"""
+        if not self.animation_modifiers:
+            return {}
+        try:
+            return json.loads(self.animation_modifiers)
+        except (json.JSONDecodeError, TypeError):
+            return {}
+    
+    def set_animation_modifiers(self, modifiers_dict):
+        """Sets animation modifiers from dictionary"""
+        if modifiers_dict is None:
+            self.animation_modifiers = None
+        else:
+            self.animation_modifiers = json.dumps(modifiers_dict)
+    
+    def is_compatible_with(self, body_type="normal", face_shape="oval"):
+        """Check if this part is compatible with given body type and face shape"""
+        if body_type not in self.get_compatible_body_types():
+            return False
+        if face_shape not in self.get_compatible_face_shapes():
+            return False
+        return True
+    
+    def is_available_for_team(self, team=None):
+        """Check if part is available for a team"""
+        if not self.is_unlocked:
+            return False
+        
+        if team and self.unlock_condition:
+            condition = self.get_unlock_condition()
+            # Add unlock logic here based on team progress, points, etc.
+            return True
+        
+        return True
+    
+    @staticmethod
+    def get_parts_by_category(category, subcategory=None):
+        """Get all parts for a specific category"""
+        query = CharacterPart.query.filter_by(category=category)
+        if subcategory:
+            query = query.filter_by(subcategory=subcategory)
+        return query.all()
+    
+    @staticmethod
+    def get_available_parts_for_team(team, category, subcategory=None):
+        """Get available parts for a team in a specific category"""
+        parts = CharacterPart.get_parts_by_category(category, subcategory)
+        return [part for part in parts if part.is_available_for_team(team)]
+    
+    def __repr__(self):
+        return f'<CharacterPart {self.name} ({self.category})>'
 
 class GameSession(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -587,38 +1058,13 @@ class GameSession(db.Model):
         else:
             self.selected_players = json.dumps(players_dict)
 
-    def get_current_team_members(self, team):
-        """Gibt die aktuellen Team-Mitglieder zurück (berücksichtigt PlayerRegistration-Zuweisungen)"""
-        # Prüfe zuerst ob es aktuelle PlayerRegistration-Zuweisungen gibt
-        from app.models import PlayerRegistration, WelcomeSession
-        
-        active_welcome = WelcomeSession.get_active_session()
-        if active_welcome:
-            # Hole Spieler aus aktiver Welcome-Session die diesem Team zugewiesen sind
-            assigned_players = PlayerRegistration.query.filter_by(
-                welcome_session_id=active_welcome.id,
-                assigned_team_id=team.id
-            ).all()
-            
-            if assigned_players:
-                return [player.player_name for player in assigned_players]
-        
-        # Fallback: Verwende team.members falls keine Welcome-Session aktiv ist
-        if team.members:
-            return [m.strip() for m in team.members.split(',') if m.strip()]
-        
-        return []
-
     def select_random_players(self, teams, count_per_team):
         """Wählt faire rotierend Spieler aus jedem Team aus"""
         import random
         selected = {}
         
         for team in teams:
-            # Hole aktuelle Team-Mitglieder (berücksichtigt PlayerRegistration-Zuweisungen)
-            current_members = self.get_current_team_members(team)
-            
-            if not current_members:
+            if not team.members:
                 # Fallback: Verwende Team-Name wenn keine Mitglieder definiert
                 selected[str(team.id)] = [team.name]
                 continue
@@ -627,20 +1073,23 @@ class GameSession(db.Model):
             try:
                 # Unterscheidung zwischen "ganzes Team" und regulärer Auswahl
                 if count_per_team == "all":
-                    # Bei "ganzes Team" alle Spieler verwenden
-                    selected[str(team.id)] = current_members
+                    # Bei "ganzes Team" alle Spieler verwenden (auch nicht-auslosbare)
+                    all_members = [m.strip() for m in team.members.split(',') if m.strip()] if team.members else []
+                    if not all_members:
+                        selected[str(team.id)] = [team.name]
+                        continue
+                    selected[str(team.id)] = all_members
                     # Tracking für alle Spieler
-                    self._update_player_rotation_tracking(str(team.id), current_members)
+                    self._update_player_rotation_tracking(str(team.id), all_members)
                 else:
-                    # Bei normaler Auswahl alle verfügbaren Spieler verwenden
-                    # (Da PlayerRegistration bereits die richtigen Spieler enthält)
-                    selectable_members = current_members
+                    # Bei normaler Auswahl nur auslosbare Spieler verwenden
+                    selectable_members = team.get_selectable_players()
                     if not selectable_members:
-                        # Fallback wenn keine Spieler vorhanden
+                        # Fallback wenn keine auslosbaren Spieler vorhanden
                         selected[str(team.id)] = [team.name]
                         continue
                     
-                    # Faire Auswahl basierend auf Rotation
+                    # Faire Auswahl basierend auf Rotation aus auslosbaren Spielern
                     selected_count = min(int(count_per_team), len(selectable_members))
                     selected_members = self._select_fair_rotation(str(team.id), selectable_members, selected_count)
                     selected[str(team.id)] = selected_members

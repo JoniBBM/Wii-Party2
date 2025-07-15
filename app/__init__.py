@@ -27,34 +27,11 @@ def load_user(user_id_with_prefix): # user_id kommt jetzt als String mit Präfix
     return None
 
 def create_app(config_class=Config):
-    import os
-    static_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static')
-    app = Flask(__name__, static_folder=static_folder, static_url_path='/static')
+    app = Flask(__name__)
     app.config.from_object(config_class)
     
     # Erhöhe die maximale Request-Größe für Base64-Bilder
     app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB
-    
-    # SSL/HTTPS-Konfiguration
-    if app.config.get('USE_HTTPS') and not app.config.get('SSL_DISABLE'):
-        # Konfiguriere Session Cookies für HTTPS
-        app.config['SESSION_COOKIE_SECURE'] = True
-        
-        # HTTPS-Redirect Middleware hinzufügen falls gewünscht
-        if app.config.get('FORCE_HTTPS_REDIRECT'):
-            @app.before_request
-            def force_https():
-                from flask import request, redirect, url_for
-                if not request.is_secure and request.endpoint != 'static':
-                    # Redirect zu HTTPS, aber behalte alle Parameter
-                    https_url = request.url.replace('http://', 'https://', 1)
-                    # Ersetze HTTP-Port durch HTTPS-Port falls nötig
-                    if f":{app.config.get('HTTP_PORT', 8080)}" in https_url:
-                        https_url = https_url.replace(
-                            f":{app.config.get('HTTP_PORT', 8080)}", 
-                            f":{app.config.get('HTTPS_PORT', 5000)}"
-                        )
-                    return redirect(https_url, code=301)
 
     db.init_app(app)
     login_manager.init_app(app)

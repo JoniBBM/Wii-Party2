@@ -1099,11 +1099,14 @@ function handleRegistration(event) {
     // CSRF Token holen
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
 
-    // Button deaktivieren während Request
+    // Button deaktivieren während Request - sicher prüfen
     const submitBtn = event.target.querySelector('button[type="submit"]');
-    const originalText = submitBtn.innerHTML;
-    submitBtn.disabled = true;
-    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Wird angemeldet...';
+    let originalText = '';
+    if (submitBtn) {
+        originalText = submitBtn.innerHTML;
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Wird angemeldet...';
+    }
 
     fetch('/api/register-player', {
         method: 'POST',
@@ -1113,7 +1116,37 @@ function handleRegistration(event) {
         },
         body: JSON.stringify({ player_name: playerName })
     })
-    .then(response => response.json())
+    .then(async response => {
+        if (!response.ok) {
+            // Bei 400 Bad Request, versuche JSON Response zu lesen für Fehlerdetails
+            if (response.status === 400) {
+                try {
+                    const text = await response.text();
+                    console.error('400 Bad Request response:', text);
+                    try {
+                        const errorData = JSON.parse(text);
+                        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+                    } catch (parseError) {
+                        console.error('Could not parse error response as JSON:', parseError);
+                        throw new Error(`HTTP error! status: ${response.status} - ${text}`);
+                    }
+                } catch (readError) {
+                    console.error('Could not read error response:', readError);
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+            }
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+            const text = await response.text();
+            console.error('Expected JSON, got:', text);
+            throw new Error('Server returned non-JSON response');
+        }
+        
+        return response.json();
+    })
     .then(data => {
         if (data.success) {
             showRegistrationStatus('Erfolgreich angemeldet! 🎉', 'success');
@@ -1126,12 +1159,20 @@ function handleRegistration(event) {
     })
     .catch(error => {
         console.error('Registration error:', error);
-        showRegistrationStatus('Ein Fehler ist aufgetreten. Versuche es nochmal!', 'error');
+        let errorMessage = 'Ein Fehler ist aufgetreten. Versuche es nochmal!';
+        if (error.message.includes('Server returned non-JSON response')) {
+            errorMessage = 'Server-Fehler: Ungültige Antwort erhalten';
+        } else if (error.message.includes('HTTP error!')) {
+            errorMessage = 'Netzwerk-Fehler: Verbindung zum Server fehlgeschlagen';
+        }
+        showRegistrationStatus(errorMessage, 'error');
     })
     .finally(() => {
-        // Button wieder aktivieren
-        submitBtn.disabled = false;
-        submitBtn.innerHTML = originalText;
+        // Button wieder aktivieren - sicher prüfen
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalText;
+        }
     });
 }
 
@@ -1595,12 +1636,27 @@ async function savePhotoAndRegister() {
         return;
     }
     
-    // Erst Spieler registrieren
-    await registerPlayer(playerName);
+    // Button deaktivieren während der Anmeldung
+    const saveBtn = document.getElementById('btn-save-and-register');
+    if (saveBtn) {
+        saveBtn.disabled = true;
+        saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Wird gespeichert...';
+    }
     
-    // Dann Foto hochladen falls erfolgreich und Foto vorhanden
-    if (capturedImageData) {
-        await uploadProfileImage(playerName);
+    try {
+        // Erst Spieler registrieren
+        const playerRegistered = await registerPlayer(playerName);
+        
+        // Dann Foto hochladen falls erfolgreich und Foto vorhanden
+        if (playerRegistered && capturedImageData) {
+            await uploadProfileImage(playerName);
+        }
+    } finally {
+        // Button wieder aktivieren
+        if (saveBtn) {
+            saveBtn.disabled = false;
+            saveBtn.innerHTML = '<i class="fas fa-save"></i> Speichern & Anmelden';
+        }
     }
 }
 
@@ -1612,7 +1668,22 @@ async function skipPhotoAndRegister() {
         return;
     }
     
-    await registerPlayer(playerName);
+    // Button deaktivieren während der Anmeldung
+    const skipBtn = document.getElementById('btn-skip-photo');
+    if (skipBtn) {
+        skipBtn.disabled = true;
+        skipBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Wird angemeldet...';
+    }
+    
+    try {
+        await registerPlayer(playerName);
+    } finally {
+        // Button wieder aktivieren
+        if (skipBtn) {
+            skipBtn.disabled = false;
+            skipBtn.innerHTML = '<i class="fas fa-forward"></i> Ohne Foto anmelden';
+        }
+    }
 }
 
 async function registerPlayer(playerName) {
@@ -1620,6 +1691,11 @@ async function registerPlayer(playerName) {
         document.getElementById('camera-status').textContent = 'Spieler wird angemeldet...';
         
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+        
+        console.log('Sending registration request:', {
+            player_name: playerName,
+            csrf_token: csrfToken ? '***' : 'NOT_FOUND'
+        });
         
         const response = await fetch('/api/register-player', {
             method: 'POST',
@@ -1630,19 +1706,59 @@ async function registerPlayer(playerName) {
             body: JSON.stringify({ player_name: playerName })
         });
         
+        if (!response.ok) {
+            // Bei 400 Bad Request, versuche JSON Response zu lesen für Fehlerdetails
+            if (response.status === 400) {
+                try {
+                    const text = await response.text();
+                    console.error('400 Bad Request response:', text);
+                    try {
+                        const errorData = JSON.parse(text);
+                        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+                    } catch (parseError) {
+                        console.error('Could not parse error response as JSON:', parseError);
+                        throw new Error(`HTTP error! status: ${response.status} - ${text}`);
+                    }
+                } catch (readError) {
+                    console.error('Could not read error response:', readError);
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+            }
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+            const text = await response.text();
+            console.error('Expected JSON, got:', text);
+            throw new Error('Server returned non-JSON response');
+        }
+        
         const data = await response.json();
         
         if (data.success) {
             document.getElementById('camera-status').textContent = '✅ Spieler erfolgreich angemeldet!';
+            showRegistrationStatus('Erfolgreich angemeldet! 🎉', 'success');
+            setTimeout(() => {
+                closeRegistrationPopup();
+            }, 2000);
             return true;
         } else {
             showRegistrationStatus(data.error || 'Fehler bei der Anmeldung', 'error');
+            document.getElementById('camera-status').innerHTML = `<div style="color: #ff6b6b;">❌ ${data.error || 'Fehler bei der Anmeldung'}</div>`;
             return false;
         }
         
     } catch (error) {
         console.error('Registration error:', error);
-        showRegistrationStatus('Ein Fehler ist aufgetreten. Versuche es nochmal!', 'error');
+        let errorMessage = 'Ein Fehler ist aufgetreten. Versuche es nochmal!';
+        if (error.message.includes('Server returned non-JSON response')) {
+            errorMessage = 'Server-Fehler: Ungültige Antwort erhalten';
+        } else if (error.message.includes('HTTP error!')) {
+            errorMessage = 'Netzwerk-Fehler: Verbindung zum Server fehlgeschlagen';
+        }
+        showRegistrationStatus(errorMessage, 'error');
+        document.getElementById('camera-status').innerHTML = `<div style="color: #ff6b6b;">❌ ${errorMessage}</div>`;
         return false;
     }
 }

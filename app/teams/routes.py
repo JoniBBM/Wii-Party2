@@ -1,9 +1,10 @@
 from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify
 from flask_login import login_user, logout_user, login_required, current_user
-from app.models import Team, db, Admin, GameSession, GameRound, QuestionResponse, GameEvent
+from app.models import Team, db, Admin, GameSession, GameRound, QuestionResponse, GameEvent, Character, CharacterPart
 from flask import current_app
 from app.forms import TeamLoginForm, QuestionAnswerForm
 from app.admin.minigame_utils import get_question_from_folder
+from app import csrf
 import json
 from datetime import datetime, timedelta
 
@@ -356,6 +357,7 @@ def team_dashboard():
 
 @teams_bp.route('/setup', methods=['GET', 'POST'])
 @login_required
+@csrf.exempt
 def team_setup():
     """Team-Setup für Teams aus dem Welcome-System"""
     if not isinstance(current_user, Team):
@@ -376,6 +378,61 @@ def team_setup():
             data = request.get_json() if request.is_json else request.form
             new_team_name = data.get('team_name', '').strip()
             character_id = data.get('character_id')
+            
+            # Erweiterte Charakter-Anpassung Daten
+            customization_data = data.get('customization', {})
+            
+            # Rückwärtskompatibilität mit alten Farbdaten
+            if not customization_data:
+                character_customization = {
+                    'shirtColor': data.get('shirt_color', '#4169E1'),
+                    'pantsColor': data.get('pants_color', '#8B4513'),
+                    'hairColor': data.get('hair_color', '#2C1810'),
+                    'shoeColor': data.get('shoe_color', '#8B4513')
+                }
+            else:
+                # Neue umfassende Anpassungsdaten
+                character_customization = {
+                    # Basis-Farben
+                    'shirtColor': customization_data.get('shirtColor', '#4169E1'),
+                    'pantsColor': customization_data.get('pantsColor', '#8B4513'),
+                    'hairColor': customization_data.get('hairColor', '#2C1810'),
+                    'shoeColor': customization_data.get('shoeColor', '#8B4513'),
+                    'skinColor': customization_data.get('skinColor', '#FFDE97'),
+                    'eyeColor': customization_data.get('eyeColor', '#4169E1'),
+                    
+                    # Aussehen
+                    'faceShape': customization_data.get('faceShape', 'oval'),
+                    'bodyType': customization_data.get('bodyType', 'normal'),
+                    'height': customization_data.get('height', 'normal'),
+                    'hairStyle': customization_data.get('hairStyle', 'short'),
+                    'eyeShape': customization_data.get('eyeShape', 'normal'),
+                    'beardStyle': customization_data.get('beardStyle', 'none'),
+                    
+                    # Kleidung
+                    'shirtType': customization_data.get('shirtType', 'tshirt'),
+                    'pantsType': customization_data.get('pantsType', 'jeans'),
+                    'shoeType': customization_data.get('shoeType', 'sneakers'),
+                    
+                    # Accessoires
+                    'hat': customization_data.get('hat', 'none'),
+                    'glasses': customization_data.get('glasses', 'none'),
+                    'jewelry': customization_data.get('jewelry', 'none'),
+                    'backpack': customization_data.get('backpack', 'none'),
+                    
+                    # Animationen
+                    'animationStyle': customization_data.get('animationStyle', 'normal'),
+                    'walkStyle': customization_data.get('walkStyle', 'normal'),
+                    'idleStyle': customization_data.get('idleStyle', 'normal'),
+                    'voiceType': customization_data.get('voiceType', 'normal'),
+                    
+                    # Zusätzliche Eigenschaften
+                    'voicePitch': customization_data.get('voicePitch', 1.0),
+                    'defaultPose': customization_data.get('defaultPose', 'normal'),
+                    'defaultExpression': customization_data.get('defaultExpression', 'happy'),
+                    'aura': customization_data.get('aura', 'none'),
+                    'trail': customization_data.get('trail', 'none')
+                }
             
             # Validierung
             if not new_team_name:
@@ -398,25 +455,45 @@ def team_setup():
                 flash('Team-Name ist bereits vergeben.', 'danger')
                 return redirect(url_for('teams.team_setup'))
             
-            # Charakter-Validierung falls angegeben
+            # Erstelle oder finde Default-Charakter für alle Teams
             character = None
+            if not character_id:
+                character_id = 1  # Default auf Default-Charakter setzen
+                
             if character_id:
                 try:
                     character_id = int(character_id)
-                    character = Character.query.filter_by(id=character_id, is_selected=False).first()
-                    if not character:
-                        if request.is_json:
-                            return jsonify({"success": False, "error": "Charakter ist nicht verfügbar"}), 400
-                        flash('Charakter ist nicht verfügbar.', 'danger')
-                        return redirect(url_for('teams.team_setup'))
+                    # Für Default-Charakter (ID 1) keine Verfügbarkeitsprüfung
+                    if character_id == 1:
+                        character = Character.query.get(character_id)
+                        if not character:
+                            # Erstelle Default-Charakter falls nicht vorhanden
+                            character = Character(
+                                id=1,
+                                name="Default Character",
+                                js_file="js/characters/defaultCharacter.js",
+                                image_file="default.png",
+                                color="#FF6B6B",
+                                is_selected=False
+                            )
+                            db.session.add(character)
+                            db.session.flush()  # Um ID zu bekommen
+                    else:
+                        # Für andere Charaktere normale Verfügbarkeitsprüfung
+                        character = Character.query.filter_by(id=character_id, is_selected=False).first()
+                        if not character:
+                            if request.is_json:
+                                return jsonify({"success": False, "error": "Charakter ist nicht verfügbar"}), 400
+                            flash('Charakter ist nicht verfügbar.', 'danger')
+                            return redirect(url_for('teams.team_setup'))
                 except ValueError:
                     if request.is_json:
                         return jsonify({"success": False, "error": "Ungültige Charakter-ID"}), 400
                     flash('Ungültige Charakter-ID.', 'danger')
                     return redirect(url_for('teams.team_setup'))
             
-            # Markiere alten Charakter als verfügbar falls vorhanden
-            if current_user.character_id:
+            # Für Default-Charakter (ID 1) keine Exklusivität - alle Teams können ihn verwenden
+            if current_user.character_id and current_user.character_id != 1:
                 old_character = Character.query.get(current_user.character_id)
                 if old_character:
                     old_character.is_selected = False
@@ -426,7 +503,12 @@ def team_setup():
             if character:
                 current_user.character_id = character.id
                 current_user.character_name = character.name
-                character.is_selected = True
+                # Default-Charakter wird nicht als "selected" markiert, da alle ihn verwenden können
+                if character.id != 1:
+                    character.is_selected = True
+            
+            # Speichere Charakter-Anpassung
+            current_user.set_character_customization(character_customization)
             
             db.session.commit()
             
@@ -453,6 +535,93 @@ def team_setup():
     return render_template('team_setup.html', 
                          team=current_user, 
                          available_characters=available_characters)
+
+@teams_bp.route('/api/characters')
+def api_characters():
+    """API endpoint für Charakterdaten"""
+    try:
+        # Hole alle verfügbaren Charaktere
+        characters = Character.query.all()
+        
+        character_data = []
+        for char in characters:
+            # Prüfe ob Charakter für aktuelles Team verfügbar ist
+            is_available = True
+            current_team = current_user if isinstance(current_user, Team) else None
+            
+            if not char.is_available_for_team(current_team):
+                is_available = False
+            
+            char_info = {
+                'id': char.id,
+                'name': char.name,
+                'description': char.description,
+                'category': char.category,
+                'rarity': char.rarity,
+                'color': char.color,
+                'is_unlocked': char.is_unlocked,
+                'is_available': is_available,
+                'stats': char.get_stats(),
+                'customization_options': char.get_customization_options(),
+                'preview_image': char.preview_image,
+                'thumbnail': char.thumbnail
+            }
+            
+            character_data.append(char_info)
+        
+        return jsonify(character_data)
+    
+    except Exception as e:
+        current_app.logger.error(f"Fehler beim Laden der Charakterdaten: {e}")
+        return jsonify({'error': 'Fehler beim Laden der Charakterdaten'}), 500
+
+@teams_bp.route('/api/character-parts')
+def api_character_parts():
+    """API endpoint für Charakter-Teile"""
+    try:
+        category = request.args.get('category')
+        subcategory = request.args.get('subcategory')
+        
+        if category:
+            parts = CharacterPart.get_parts_by_category(category, subcategory)
+        else:
+            parts = CharacterPart.query.all()
+        
+        parts_data = []
+        for part in parts:
+            # Prüfe ob Teil für aktuelles Team verfügbar ist
+            is_available = True
+            current_team = current_user if isinstance(current_user, Team) else None
+            
+            if not part.is_available_for_team(current_team):
+                is_available = False
+            
+            part_info = {
+                'id': part.id,
+                'name': part.name,
+                'category': part.category,
+                'subcategory': part.subcategory,
+                'rarity': part.rarity,
+                'is_unlocked': part.is_unlocked,
+                'is_available': is_available,
+                'asset_path': part.asset_path,
+                'icon_path': part.icon_path,
+                'color_customizable': part.color_customizable,
+                'default_color': part.default_color,
+                'description': part.description,
+                'compatible_body_types': part.get_compatible_body_types(),
+                'compatible_face_shapes': part.get_compatible_face_shapes(),
+                'stats_modifier': part.get_stats_modifier(),
+                'special_effects': part.get_special_effects()
+            }
+            
+            parts_data.append(part_info)
+        
+        return jsonify(parts_data)
+    
+    except Exception as e:
+        current_app.logger.error(f"Fehler beim Laden der Charakter-Teile: {e}")
+        return jsonify({'error': 'Fehler beim Laden der Charakter-Teile'}), 500
 
 @teams_bp.route('/api/dashboard-status')
 @login_required

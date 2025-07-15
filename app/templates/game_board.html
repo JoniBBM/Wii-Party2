@@ -498,12 +498,8 @@ body {
 <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/controls/OrbitControls.js"></script>
 
-<script src="{{ url_for('static', filename='js/characters/tungTungTungSahur.js') }}"></script>
-<script src="{{ url_for('static', filename='js/characters/ballerinaCappuccina.js') }}"></script>
-<script src="{{ url_for('static', filename='js/characters/bombardinoCrocodilo.js') }}"></script>
-<script src="{{ url_for('static', filename='js/characters/liriliLarila.js') }}"></script>
-<script src="{{ url_for('static', filename='js/characters/tralaleroTralala.js') }}"></script>
-<script src="{{ url_for('static', filename='js/characters/trippiTroppi.js') }}"></script>
+<!-- Italian brainrot character scripts moved to backup folder -->
+<!-- tungTungTungSahur.js, ballerinaCappuccina.js, bombardinoCrocodilo.js, liriliLarila.js, tralaleroTralala.js, trippiTroppi.js -->
 <script src="{{ url_for('static', filename='js/characters/defaultCharacter.js') }}"></script>
 
 <script>
@@ -532,7 +528,7 @@ let BOARD_CONFIG = {
     pathColor: 0xD7CCC8,
     pathBorderColor: 0xBCAAA4,
     characterElevation: 0.4,
-    characterSize: 0.4,
+    characterSize: 1.0,
     mountainHeight: 24,
     mountainBaseRadius: 20,
     mountainTopRadius: 0.01,
@@ -758,13 +754,15 @@ let localTeams = [
         {
             name: "{{ team.character.name | e }}",
             js_file: "{{ team.character.js_file | e }}",
-            image_file: "{{ team.character.image_file | default('') | e }}"
+            image_file: "{{ team.character.image_file | default('') | e }}",
+            customization: {{ team.get_character_customization() | tojson }}
         }
         {% else %}
         {
             name: "Default",
             js_file: "js/characters/defaultCharacter.js",
-            image_file: "default.png"
+            image_file: "default.png",
+            customization: {{ team.get_character_customization() | tojson }}
         }
         {% endif %},
         bonus_dice_sides: {{ team.bonus_dice_sides if team.bonus_dice_sides else 0 }},
@@ -816,12 +814,19 @@ class WiiPartyIsland {
         
         this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
         this.controls.enableDamping = true;
-        this.controls.dampingFactor = 0.05;
+        this.controls.dampingFactor = 0.1;
+        this.controls.screenSpacePanning = false;
         this.controls.minDistance = 5;
         this.controls.maxDistance = 60;
         this.controls.maxPolarAngle = Math.PI / 1.8;
         this.controls.target.set(0, 6, 0);
         this.controls.enabled = false;
+        this.controls.enablePan = true;
+        this.controls.enableZoom = true;
+        this.controls.enableRotate = true;
+        
+        // Trackpad-Zoom-Gesten für Notebooks hinzufügen
+        this.setupTrackpadZoom();
         
         this.pathPoints = [];
         this.boardFields = [];
@@ -1169,13 +1174,14 @@ class WiiPartyIsland {
         }
         
         // Verbesserte Distanz-Berechnung mit Höhen-Berücksichtigung
+        // Use same weighting as path dots for consistency
         const distances = [0];
         for (let i = 1; i < highResPoints.length; i++) {
             const prev = highResPoints[i - 1];
             const curr = highResPoints[i];
             const dist = Math.sqrt(
                 Math.pow(curr.x - prev.x, 2) + 
-                Math.pow(curr.y - prev.y, 2) * 0.5 + // Höhen-Unterschiede weniger gewichten
+                Math.pow(curr.y - prev.y, 2) * 0.3 + // Match path dots weighting
                 Math.pow(curr.z - prev.z, 2)
             );
             distances.push(distances[distances.length - 1] + dist);
@@ -1184,7 +1190,7 @@ class WiiPartyIsland {
         const totalLength = distances[distances.length - 1];
         const segmentLength = totalLength / (fieldCount - 1);
         
-        // Präzise Feld-Platzierung
+        // Präzise Feld-Platzierung mit verbesserter Interpolation
         for (let i = 0; i < fieldCount; i++) {
             if (i === 0) {
                 // START: Direkt auf der Insel, KEINE Rampe
@@ -1205,25 +1211,119 @@ class WiiPartyIsland {
                     onFlatLand: false
                 });
             } else {
-                // Normale Felder: Gleichmäßig verteilt
+                // Normale Felder: Gleichmäßig verteilt mit Interpolation
                 const targetDistance = i * segmentLength;
-                let bestIndex = 0;
+                let segmentIndex = 0;
                 
-                for (let j = 1; j < distances.length; j++) {
-                    if (distances[j] >= targetDistance) {
-                        bestIndex = (distances[j] - targetDistance) < (targetDistance - distances[j - 1]) ? j : j - 1;
+                // Find the right segment
+                for (let j = 0; j < distances.length - 1; j++) {
+                    if (targetDistance >= distances[j] && targetDistance <= distances[j + 1]) {
+                        segmentIndex = j;
                         break;
                     }
                 }
                 
-                const point = highResPoints[bestIndex];
-                this.pathPoints.push({
-                    x: point.x,
-                    y: point.y + 0.1, // Leicht erhöht für bessere Sichtbarkeit
-                    z: point.z,
-                    index: i,
-                    onFlatLand: point.onFlatLand
-                });
+                // Interpolate within the segment
+                const segmentStart = distances[segmentIndex];
+                const segmentEnd = distances[segmentIndex + 1];
+                const currentSegmentLength = segmentEnd - segmentStart;
+                
+                if (currentSegmentLength > 0) {
+                    const t = (targetDistance - segmentStart) / currentSegmentLength;
+                    const point1 = highResPoints[segmentIndex];
+                    const point2 = highResPoints[segmentIndex + 1];
+                    
+                    const interpolatedPoint = {
+                        x: point1.x + t * (point2.x - point1.x),
+                        y: point1.y + t * (point2.y - point1.y),
+                        z: point1.z + t * (point2.z - point1.z),
+                        onFlatLand: point1.onFlatLand || point2.onFlatLand
+                    };
+                    
+                    // Check minimum distance to previous fields
+                    let validPosition = true;
+                    const minDistance = 0.8; // Minimum distance between fields
+                    
+                    for (let k = 0; k < this.pathPoints.length; k++) {
+                        const existingField = this.pathPoints[k];
+                        const distance = Math.sqrt(
+                            Math.pow(interpolatedPoint.x - existingField.x, 2) +
+                            Math.pow(interpolatedPoint.z - existingField.z, 2)
+                        );
+                        if (distance < minDistance) {
+                            validPosition = false;
+                            break;
+                        }
+                    }
+                    
+                    if (validPosition) {
+                        this.pathPoints.push({
+                            x: interpolatedPoint.x,
+                            y: interpolatedPoint.y + 0.1, // Leicht erhöht für bessere Sichtbarkeit
+                            z: interpolatedPoint.z,
+                            index: i,
+                            onFlatLand: interpolatedPoint.onFlatLand
+                        });
+                    } else {
+                        // If too close, try to find a better position further along the path
+                        let adjustedTarget = targetDistance + (minDistance * 0.5);
+                        
+                        // Find new segment
+                        let newSegmentIndex = segmentIndex;
+                        for (let j = segmentIndex; j < distances.length - 1; j++) {
+                            if (adjustedTarget >= distances[j] && adjustedTarget <= distances[j + 1]) {
+                                newSegmentIndex = j;
+                                break;
+                            }
+                        }
+                        
+                        if (newSegmentIndex < distances.length - 1) {
+                            const newSegmentStart = distances[newSegmentIndex];
+                            const newSegmentEnd = distances[newSegmentIndex + 1];
+                            const newSegmentLength = newSegmentEnd - newSegmentStart;
+                            
+                            if (newSegmentLength > 0) {
+                                const newT = (adjustedTarget - newSegmentStart) / newSegmentLength;
+                                const newPoint1 = highResPoints[newSegmentIndex];
+                                const newPoint2 = highResPoints[newSegmentIndex + 1];
+                                
+                                const adjustedPoint = {
+                                    x: newPoint1.x + newT * (newPoint2.x - newPoint1.x),
+                                    y: newPoint1.y + newT * (newPoint2.y - newPoint1.y),
+                                    z: newPoint1.z + newT * (newPoint2.z - newPoint1.z),
+                                    onFlatLand: newPoint1.onFlatLand || newPoint2.onFlatLand
+                                };
+                                
+                                this.pathPoints.push({
+                                    x: adjustedPoint.x,
+                                    y: adjustedPoint.y + 0.1,
+                                    z: adjustedPoint.z,
+                                    index: i,
+                                    onFlatLand: adjustedPoint.onFlatLand
+                                });
+                            }
+                        } else {
+                            // Fallback: use original position
+                            this.pathPoints.push({
+                                x: interpolatedPoint.x,
+                                y: interpolatedPoint.y + 0.1,
+                                z: interpolatedPoint.z,
+                                index: i,
+                                onFlatLand: interpolatedPoint.onFlatLand
+                            });
+                        }
+                    }
+                } else {
+                    // Fallback to nearest point
+                    const point = highResPoints[segmentIndex];
+                    this.pathPoints.push({
+                        x: point.x,
+                        y: point.y + 0.1,
+                        z: point.z,
+                        index: i,
+                        onFlatLand: point.onFlatLand
+                    });
+                }
             }
         }
         
@@ -1332,6 +1432,7 @@ class WiiPartyIsland {
 
     createSpiralPath() {
         this.createGameFields();
+        this.createPathConnections();
     }
 
     createGameFields() {
@@ -1353,6 +1454,151 @@ class WiiPartyIsland {
             });
             this.scene.add(field);
         });
+    }
+
+    createPathConnections() {
+        if (!this.pathPoints || this.pathPoints.length < 2) {
+            console.error("Need at least 2 path points to create path connections.");
+            return;
+        }
+
+        const pathGroup = new THREE.Group();
+        
+        // Regenerate the continuous path from the original algorithm
+        const fieldCount = 73;
+        const mountainFootY = islandSurfaceY;
+        
+        // Use the same high-res points generation as in calculatePathPoints
+        const highResPoints = [];
+        const samples = 1200;
+        
+        for (let i = 0; i < samples; i++) {
+            const progress = i / (samples - 1);
+            let radius;
+            
+            if (progress < 0.05) {
+                radius = BOARD_CONFIG.spiralStartRadius * (1.0 - progress * 2);
+            } else if (progress < 0.88) {
+                const localProgress = (progress - 0.05) / 0.83;
+                const easedProgress = Math.pow(localProgress, 0.82);
+                radius = THREE.MathUtils.lerp(
+                    BOARD_CONFIG.mountainBaseRadius - 0.8, 
+                    BOARD_CONFIG.mountainTopRadius * 2.0,
+                    easedProgress
+                );
+            } else {
+                const gipfelProgress = (progress - 0.88) / 0.12;
+                radius = Math.max(1.5, BOARD_CONFIG.mountainTopRadius * 10.0 * (1.0 - gipfelProgress * 0.6));
+            }
+            
+            const spiralProgress = Math.pow(progress, 1.15);
+            const angle = spiralProgress * Math.PI * 2 * BOARD_CONFIG.spiralLoops;
+            const x = Math.cos(angle) * radius;
+            const z = Math.sin(angle) * radius;
+            const distanceToCenter = Math.sqrt(x * x + z * z);
+            
+            let y;
+            if (distanceToCenter > BOARD_CONFIG.mountainBaseRadius - 1.0) {
+                y = islandSurfaceY + 0.3;
+            } else {
+                const mountainProgress = Math.max(0, Math.min(1, 
+                    1 - (distanceToCenter / (BOARD_CONFIG.mountainBaseRadius - 1.0))
+                ));
+                const smoothProgress = Math.pow(mountainProgress, 0.75);
+                y = mountainFootY + smoothProgress * BOARD_CONFIG.mountainHeight;
+                y += Math.sin(angle * 1.5) * 0.02 * (1 - smoothProgress);
+            }
+            
+            highResPoints.push({ x, y, z, progress });
+        }
+        
+        // Calculate cumulative distances for equal spacing
+        // Weight height changes less to avoid spacing issues at ground-to-mountain transition
+        const distances = [0];
+        for (let i = 1; i < highResPoints.length; i++) {
+            const prev = highResPoints[i - 1];
+            const curr = highResPoints[i];
+            const dist = Math.sqrt(
+                Math.pow(curr.x - prev.x, 2) + 
+                Math.pow(curr.y - prev.y, 2) * 0.3 + // Reduce height weight for smoother transition
+                Math.pow(curr.z - prev.z, 2)
+            );
+            distances.push(distances[distances.length - 1] + dist);
+        }
+        
+        const totalPathLength = distances[distances.length - 1];
+        const targetDotSpacing = 0.3; // Target distance between dots
+        const numDots = Math.floor(totalPathLength / targetDotSpacing);
+        
+        // Create dots at equal arc-length intervals
+        for (let dotIndex = 1; dotIndex < numDots; dotIndex++) {
+            const targetDistance = (dotIndex / numDots) * totalPathLength;
+            
+            // Find the segment where this distance falls
+            let segmentIndex = 0;
+            for (let i = 0; i < distances.length - 1; i++) {
+                if (targetDistance >= distances[i] && targetDistance <= distances[i + 1]) {
+                    segmentIndex = i;
+                    break;
+                }
+            }
+            
+            // Interpolate within the segment
+            const segmentStart = distances[segmentIndex];
+            const segmentEnd = distances[segmentIndex + 1];
+            const segmentLength = segmentEnd - segmentStart;
+            
+            if (segmentLength > 0) {
+                const t = (targetDistance - segmentStart) / segmentLength;
+                const point1 = highResPoints[segmentIndex];
+                const point2 = highResPoints[segmentIndex + 1];
+                
+                const interpolatedPoint = {
+                    x: point1.x + t * (point2.x - point1.x),
+                    y: point1.y + t * (point2.y - point1.y),
+                    z: point1.z + t * (point2.z - point1.z)
+                };
+                
+                // Skip points that are too close to actual field positions
+                let tooCloseToField = false;
+                for (let j = 0; j < this.pathPoints.length; j++) {
+                    const fieldPos = this.pathPoints[j];
+                    const distance = Math.sqrt(
+                        Math.pow(interpolatedPoint.x - fieldPos.x, 2) + 
+                        Math.pow(interpolatedPoint.z - fieldPos.z, 2)
+                    );
+                    if (distance < 0.4) {
+                        tooCloseToField = true;
+                        break;
+                    }
+                }
+                
+                if (!tooCloseToField) {
+                    const dotGeometry = new THREE.SphereGeometry(0.015, 8, 8);
+                    const dotMaterial = new THREE.MeshLambertMaterial({ 
+                        color: 0xBCAAA4,
+                        transparent: true,
+                        opacity: 0.7
+                    });
+                    const dot = new THREE.Mesh(dotGeometry, dotMaterial);
+                    
+                    // Ensure dots are properly positioned above the mountain surface
+                    const distanceToCenter = Math.sqrt(interpolatedPoint.x * interpolatedPoint.x + interpolatedPoint.z * interpolatedPoint.z);
+                    let dotHeight = interpolatedPoint.y + 0.05; // Base height increase
+                    
+                    // If we're on the mountain (not flat land), add extra height
+                    if (distanceToCenter < BOARD_CONFIG.mountainBaseRadius) {
+                        dotHeight += 0.15; // Significantly more height to stay above mountain surface
+                    }
+                    
+                    dot.position.set(interpolatedPoint.x, dotHeight, interpolatedPoint.z);
+                    
+                    pathGroup.add(dot);
+                }
+            }
+        }
+        
+        this.scene.add(pathGroup);
     }
 
     createGameField(point, type, index) {
@@ -2110,7 +2356,8 @@ class WiiPartyIsland {
 
             let characterMesh;
             try {
-                characterMesh = createFunction(team.color || '#CCCCCC');
+                const customization = team.character_info ? team.character_info.customization : null;
+                characterMesh = createFunction(team.color || '#CCCCCC', customization);
             } catch (error) {
                 console.error(`❌ Fehler beim Erstellen des Charakters für Team ${team.name}:`, error);
                 characterMesh = null;
@@ -2119,7 +2366,8 @@ class WiiPartyIsland {
             if (!characterMesh || typeof characterMesh.scale === 'undefined') {
                 console.warn(`⚠️ Fallback zu Default-Charakter für Team ${team.name}`);
                 try {
-                    this.miiCharacters[team.id] = window.createDefaultCharacter(team.color || '#CCCCCC');
+                    const customization = team.character_info ? team.character_info.customization : null;
+                    this.miiCharacters[team.id] = window.createDefaultCharacter(team.color || '#CCCCCC', customization);
                     if(this.miiCharacters[team.id]) {
                         this.miiCharacters[team.id].scale.setScalar(BOARD_CONFIG.characterSize);
                     } else {
@@ -4525,14 +4773,14 @@ class WiiPartyIsland {
             this.updateCameraFollow();
         }
         
-        if (GAME_STATE.freeCameraMode) {
+        if (GAME_STATE.freeCameraMode && !GAME_STATE.isAnimatingCamera && !GAME_STATE.cameraTransitioning) {
             this.controls.update();
         }
         
         this.updateCharacterAnimations(time);
         
         // Safety check: Ensure camera is always at a valid position
-        if (this.camera.position.y < 1 || isNaN(this.camera.position.x) || isNaN(this.camera.position.y) || isNaN(this.camera.position.z)) {
+        if (!GAME_STATE.freeCameraMode && (this.camera.position.y < 1 || isNaN(this.camera.position.x) || isNaN(this.camera.position.y) || isNaN(this.camera.position.z))) {
             console.warn('🚨 Camera position invalid, resetting to safe position');
             this.camera.position.set(25, 20, 25);
             this.camera.lookAt(0, 5, 0);
@@ -4540,6 +4788,112 @@ class WiiPartyIsland {
         }
         
         this.renderer.render(this.scene, this.camera);
+    }
+
+    setupTrackpadZoom() {
+        // Smartphone Pinch-to-Zoom Support
+        let initialTouchDistance = 0;
+        let initialCameraDistance = 0;
+        let isPinching = false;
+        
+        // Touch Start - Pinch-Geste beginnen
+        this.renderer.domElement.addEventListener('touchstart', (event) => {
+            if (!GAME_STATE.freeCameraMode) return;
+            
+            if (event.touches.length === 2) {
+                event.preventDefault();
+                
+                const touch1 = event.touches[0];
+                const touch2 = event.touches[1];
+                
+                // Anfangsdistanz zwischen den Fingern
+                initialTouchDistance = Math.hypot(
+                    touch2.clientX - touch1.clientX,
+                    touch2.clientY - touch1.clientY
+                );
+                
+                // Anfangsdistanz der Kamera zum Zielpunkt
+                initialCameraDistance = this.camera.position.distanceTo(this.controls.target);
+                
+                isPinching = true;
+                console.log('Pinch-Geste gestartet, Anfangsdistanz:', initialTouchDistance);
+            }
+        }, { passive: false });
+        
+        // Touch Move - Pinch-Zoom ausführen
+        this.renderer.domElement.addEventListener('touchmove', (event) => {
+            if (!GAME_STATE.freeCameraMode || !isPinching) return;
+            
+            if (event.touches.length === 2) {
+                event.preventDefault();
+                
+                const touch1 = event.touches[0];
+                const touch2 = event.touches[1];
+                
+                // Aktuelle Distanz zwischen den Fingern
+                const currentTouchDistance = Math.hypot(
+                    touch2.clientX - touch1.clientX,
+                    touch2.clientY - touch1.clientY
+                );
+                
+                if (initialTouchDistance > 0) {
+                    // Zoom-Faktor basierend auf Finger-Distanz-Änderung
+                    const zoomRatio = currentTouchDistance / initialTouchDistance;
+                    
+                    // Neue Kamera-Distanz berechnen
+                    const newCameraDistance = initialCameraDistance / zoomRatio;
+                    
+                    // Kamera-Position entsprechend anpassen
+                    const direction = new THREE.Vector3();
+                    this.camera.getWorldDirection(direction);
+                    
+                    // Neue Position berechnen
+                    const newPosition = this.controls.target.clone();
+                    newPosition.addScaledVector(direction, -newCameraDistance);
+                    
+                    this.camera.position.copy(newPosition);
+                    this.controls.update();
+                    
+                    console.log('Zoom-Ratio:', zoomRatio.toFixed(2), 'Neue Distanz:', newCameraDistance.toFixed(2));
+                }
+            }
+        }, { passive: false });
+        
+        // Touch End - Pinch-Geste beenden
+        this.renderer.domElement.addEventListener('touchend', (event) => {
+            if (!GAME_STATE.freeCameraMode) return;
+            
+            if (event.touches.length < 2) {
+                isPinching = false;
+                initialTouchDistance = 0;
+                initialCameraDistance = 0;
+                console.log('Pinch-Geste beendet');
+            }
+        }, { passive: true });
+        
+        // Laptop-Trackpad Zoom Support (für Trackpad-Gesten)
+        this.renderer.domElement.addEventListener('wheel', (event) => {
+            if (!GAME_STATE.freeCameraMode) return;
+            
+            // Nur bei Trackpad-ähnlichen Events (kleine, kontinuierliche Werte)
+            const isLikelyTrackpad = Math.abs(event.deltaY) < 50 && event.deltaY % 1 !== 0;
+            
+            if (isLikelyTrackpad) {
+                event.preventDefault();
+                
+                // Sanfterer Zoom für Trackpad
+                const zoomFactor = 1 + (event.deltaY * 0.005);
+                
+                const direction = new THREE.Vector3();
+                this.camera.getWorldDirection(direction);
+                
+                const distance = this.camera.position.distanceTo(this.controls.target);
+                const zoomStep = distance * (1 - zoomFactor) * 0.1;
+                
+                this.camera.position.addScaledVector(direction, zoomStep);
+                this.controls.update();
+            }
+        }, { passive: false });
     }
 }
 

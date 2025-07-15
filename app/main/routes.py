@@ -503,25 +503,38 @@ def registration_status():
         return jsonify({"success": False, "error": str(e)}), 500
 
 @main_bp.route('/api/register-player', methods=['POST'])
+@csrf.exempt
 def register_player():
     """Spieler registrieren"""
     try:
+        current_app.logger.info("Player registration attempt received")
         
         data = request.get_json()
+        if not data:
+            current_app.logger.error("No JSON data received")
+            return jsonify({"success": False, "error": "Keine Daten empfangen"}), 400
+            
         player_name = data.get('player_name', '').strip()
+        current_app.logger.info(f"Registration attempt for player: '{player_name}'")
         
         if not player_name:
+            current_app.logger.error("Empty player name")
             return jsonify({"success": False, "error": "Name ist erforderlich"}), 400
         
         if len(player_name) > 50:
+            current_app.logger.error(f"Player name too long: {len(player_name)} chars")
             return jsonify({"success": False, "error": "Name ist zu lang (max. 50 Zeichen)"}), 400
         
         # Prüfe ob Registrierung aktiv ist
         welcome_session = WelcomeSession.get_active_session()
         if not welcome_session:
+            current_app.logger.error("No active welcome session found")
             return jsonify({"success": False, "error": "Keine aktive Registrierung"}), 400
         
+        current_app.logger.info(f"Active welcome session found: {welcome_session.id}")
+        
         if welcome_session.teams_created:
+            current_app.logger.error("Teams already created")
             return jsonify({"success": False, "error": "Registrierung ist bereits abgeschlossen"}), 400
         
         # Prüfe ob Name bereits existiert
@@ -531,6 +544,7 @@ def register_player():
         ).first()
         
         if existing:
+            current_app.logger.error(f"Player name already exists: '{player_name}'")
             return jsonify({"success": False, "error": "Name ist bereits vergeben"}), 400
         
         # Erstelle neue Registrierung
@@ -553,6 +567,40 @@ def register_player():
         db.session.rollback()
         current_app.logger.error(f"Fehler bei Spielerregistrierung: {e}", exc_info=True)
         return jsonify({"success": False, "error": "Ein Fehler ist aufgetreten"}), 500
+
+@main_bp.route('/api/debug-welcome-session')
+def debug_welcome_session():
+    """Debug-Route für Welcome-Session Status"""
+    try:
+        welcome_session = WelcomeSession.get_active_session()
+        if not welcome_session:
+            return jsonify({
+                "success": False,
+                "message": "No active welcome session",
+                "all_sessions": [
+                    {
+                        "id": s.id,
+                        "is_active": s.is_active,
+                        "start_time": s.start_time.isoformat(),
+                        "teams_created": s.teams_created
+                    }
+                    for s in WelcomeSession.query.all()
+                ]
+            })
+        
+        return jsonify({
+            "success": True,
+            "active_session": {
+                "id": welcome_session.id,
+                "is_active": welcome_session.is_active,
+                "start_time": welcome_session.start_time.isoformat(),
+                "teams_created": welcome_session.teams_created,
+                "player_count": welcome_session.player_registrations.count()
+            }
+        })
+    except Exception as e:
+        current_app.logger.error(f"Debug welcome session error: {e}", exc_info=True)
+        return jsonify({"success": False, "error": str(e)}), 500
 
 @main_bp.route('/api/welcome-status')
 def welcome_status():
@@ -1075,29 +1123,6 @@ def upload_profile_image():
         db.session.rollback()
         current_app.logger.error(f"Fehler beim Upload des Profilbildes: {e}", exc_info=True)
         return jsonify({"success": False, "error": "Ein Fehler ist aufgetreten"}), 500
-
-@main_bp.route('/debug/static-files')
-def debug_static_files():
-    """Debug-Route um statische Dateien zu prüfen"""
-    import os
-    from flask import current_app
-    
-    debug_info = {
-        'static_folder': current_app.static_folder,
-        'static_url_path': current_app.static_url_path,
-        'profile_images_exists': False,
-        'profile_images_files': []
-    }
-    
-    if current_app.static_folder:
-        profile_images_dir = os.path.join(current_app.static_folder, 'profile_images')
-        debug_info['profile_images_dir'] = profile_images_dir
-        debug_info['profile_images_exists'] = os.path.exists(profile_images_dir)
-        
-        if os.path.exists(profile_images_dir):
-            debug_info['profile_images_files'] = os.listdir(profile_images_dir)
-    
-    return jsonify(debug_info)
 
 @main_bp.route('/api/get-player-faces')
 def get_player_faces():

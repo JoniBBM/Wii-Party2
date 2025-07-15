@@ -485,6 +485,8 @@ def set_minigame():
                 
                 # Zufällige Spielerauswahl bei numerischen Werten oder "ganzes Team"
                 if player_count.isdigit() or player_count == "all":
+                    # Stelle sicher, dass die Teams mit aktuellen Daten geladen werden
+                    db.session.expire_all()
                     teams = Team.query.all()
                     selected_players = active_session.select_random_players(teams, player_count)
                     
@@ -617,6 +619,8 @@ def set_minigame():
                         active_session.current_question_id = None
                         # Spielerauswahl für Minispiele
                         if player_count.isdigit() or player_count == "all":
+                            # Stelle sicher, dass die Teams mit aktuellen Daten geladen werden
+                            db.session.expire_all()
                             teams = Team.query.all()
                             selected_players = active_session.select_random_players(teams, player_count)
                             selection_type = "Ganze Teams" if player_count == "all" else f"{player_count} Spieler pro Team"
@@ -675,6 +679,8 @@ def set_minigame():
                         active_session.current_player_count = player_count
                         
                         if player_count.isdigit() or player_count == "all":
+                            # Stelle sicher, dass die Teams mit aktuellen Daten geladen werden
+                            db.session.expire_all()
                             teams = Team.query.all()
                             selected_players = active_session.select_random_players(teams, player_count)
                             selection_type = "Ganze Teams" if player_count == "all" else f"{player_count} Spieler pro Team"
@@ -1822,6 +1828,29 @@ def update_player_name():
         current_app.logger.error(f"Fehler beim Update des Spielernamens: {e}", exc_info=True)
         return jsonify({'success': False, 'error': 'Serverfehler beim Speichern'})
 
+def _update_team_members_from_registrations():
+    """Aktualisiert die Team-Member-Listen basierend auf PlayerRegistration-Zuweisungen"""
+    try:
+        # Alle Teams holen
+        teams = Team.query.all()
+        
+        # Für jedes Team die Members-Liste aktualisieren
+        for team in teams:
+            # Hole alle Spieler die diesem Team zugewiesen sind
+            assigned_players = PlayerRegistration.query.filter_by(assigned_team_id=team.id).all()
+            
+            # Erstelle neue Members-Liste
+            member_names = [player.name for player in assigned_players if player.name]
+            
+            # Aktualisiere das Team
+            team.members = ', '.join(member_names) if member_names else None
+            
+        current_app.logger.info("Team-Member-Listen wurden aktualisiert")
+        
+    except Exception as e:
+        current_app.logger.error(f"Fehler beim Aktualisieren der Team-Member-Listen: {e}", exc_info=True)
+        raise
+
 @admin_bp.route('/reassign_player', methods=['POST'])
 @login_required
 def reassign_player():
@@ -1847,6 +1876,9 @@ def reassign_player():
         else:
             # Kein Team zuweisen
             player.assigned_team_id = None
+        
+        # Aktualisiere die Team-Member-Listen nach der Zuweisung
+        _update_team_members_from_registrations()
         
         db.session.commit()
         return jsonify({'success': True})
