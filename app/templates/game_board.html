@@ -818,7 +818,7 @@ class WiiPartyIsland {
         this.controls.screenSpacePanning = false;
         this.controls.minDistance = 5;
         this.controls.maxDistance = 60;
-        this.controls.maxPolarAngle = Math.PI / 1.8;
+        // Polar angle restriction removed for free camera
         this.controls.target.set(0, 6, 0);
         this.controls.enabled = false;
         this.controls.enablePan = true;
@@ -1137,9 +1137,9 @@ class WiiPartyIsland {
                     easedProgress
                 );
             } else {
-                // Gipfel-Bereich - sanfterer Übergang
+                // Gipfel-Bereich - ausgewogene Platzierung
                 const gipfelProgress = (progress - 0.88) / 0.12;
-                radius = Math.max(1.5, BOARD_CONFIG.mountainTopRadius * 10.0 * (1.0 - gipfelProgress * 0.6));
+                radius = Math.max(2.5, BOARD_CONFIG.mountainTopRadius * 10.0 * (1.0 - gipfelProgress * 0.5));
             }
             
             // Sanftere Spirale
@@ -1207,6 +1207,19 @@ class WiiPartyIsland {
                     x: 0,
                     y: mountainFootY + BOARD_CONFIG.mountainHeight + 0.5, // Höher positioniert
                     z: 0,
+                    index: i,
+                    onFlatLand: false
+                });
+            } else if (i >= fieldCount - 10) {
+                // Letzte 10 Felder: Ordentlich um den Gipfel arrangieren
+                const peakFieldIndex = i - (fieldCount - 10);
+                const peakRadius = 3.5;
+                const peakAngle = (peakFieldIndex / 9) * Math.PI * 2;
+                
+                this.pathPoints.push({
+                    x: Math.cos(peakAngle) * peakRadius,
+                    y: mountainFootY + BOARD_CONFIG.mountainHeight * 0.9,
+                    z: Math.sin(peakAngle) * peakRadius,
                     index: i,
                     onFlatLand: false
                 });
@@ -4780,7 +4793,7 @@ class WiiPartyIsland {
         this.updateCharacterAnimations(time);
         
         // Safety check: Ensure camera is always at a valid position
-        if (!GAME_STATE.freeCameraMode && (this.camera.position.y < 1 || isNaN(this.camera.position.x) || isNaN(this.camera.position.y) || isNaN(this.camera.position.z))) {
+        if (!GAME_STATE.freeCameraMode && (isNaN(this.camera.position.x) || isNaN(this.camera.position.y) || isNaN(this.camera.position.z))) {
             console.warn('🚨 Camera position invalid, resetting to safe position');
             this.camera.position.set(25, 20, 25);
             this.camera.lookAt(0, 5, 0);

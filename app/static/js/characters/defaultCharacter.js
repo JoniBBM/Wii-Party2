@@ -51,26 +51,26 @@ function createDefaultCharacter(colorHex, customization = {}) {
 
     // ADAPTIVE Körper basierend auf Body-Type
     let bodyScale = 1.0;
-    let bodyWidth = 0.15;
-    let bodyHeight = 0.45;
+    let bodyWidth = 0.18;
+    let bodyHeight = 0.55;
     
     switch (custom.bodyType) {
         case 'slim':
             bodyScale = 0.8;
-            bodyWidth = 0.12;
+            bodyWidth = 0.15;
             break;
         case 'athletic':
             bodyScale = 1.2;
-            bodyWidth = 0.18;
+            bodyWidth = 0.22;
             break;
         case 'chunky':
             bodyScale = 1.4;
-            bodyWidth = 0.22;
-            bodyHeight = 0.5;
+            bodyWidth = 0.26;
+            bodyHeight = 0.6;
             break;
         default: // normal
             bodyScale = 1.0;
-            bodyWidth = 0.15;
+            bodyWidth = 0.18;
     }
     
     // Höhen-Anpassung
@@ -94,7 +94,7 @@ function createDefaultCharacter(colorHex, customization = {}) {
             shininess: 30
         })
     );
-    body.position.y = 0.3 * heightMultiplier; // Höher positioniert
+    body.position.y = 0.3 * heightMultiplier; // Wird später nach Bein-Definition korrigiert
     
     // Körper-Gruppe für alle anhängenden Teile
     const bodyGroup = new THREE.Group();
@@ -130,7 +130,7 @@ function createDefaultCharacter(colorHex, customization = {}) {
             shininess: 40
         })
     );
-    head.position.y = (0.55 + (bodyHeight * heightMultiplier * 0.1)); // Kopf oben auf Körper
+    head.position.y = body.position.y + (bodyHeight * heightMultiplier * 0.5) + 0.25; // Kopf direkt auf Körper
     head.scale.set(headScale.x, headScale.y, headScale.z);
     bodyGroup.add(head);
 
@@ -144,8 +144,8 @@ function createDefaultCharacter(colorHex, customization = {}) {
             eyeScale = { x: 1.4, y: 1.8, z: 1 };
             break;
         case 'small':
-            eyeSize = 0.04;
-            eyeScale = { x: 1.0, y: 1.2, z: 1 };
+            eyeSize = 0.05;
+            eyeScale = { x: 1.1, y: 1.3, z: 1 };
             break;
         case 'sleepy':
             eyeSize = 0.06;
@@ -168,14 +168,24 @@ function createDefaultCharacter(colorHex, customization = {}) {
         eye.scale.set(eyeScale.x, eyeScale.y, eyeScale.z);
         bodyGroup.add(eye);
 
+        // Pupille mit besserer Größenverteilung
+        let pupilSize = eyeSize * 0.6; // Größeres Verhältnis für bessere Sichtbarkeit
+        let pupilZ = 0.25; // Standard Z-Position
+        
+        if (custom.eyeShape === 'small') {
+            pupilSize = eyeSize * 0.8; // Noch größer für kleine Augen
+            pupilZ = 0.26; // Weiter vorne für kleine Augen
+        }
+        
         const pupil = new THREE.Mesh(
-            new THREE.SphereGeometry(eyeSize * 0.5, 8, 8),
+            new THREE.SphereGeometry(pupilSize, 8, 8),
             new THREE.MeshPhongMaterial({
                 color: eyeColor,
                 shininess: 100
             })
         );
-        pupil.position.set(i === 0 ? 0.12 : -0.12, head.position.y + 0.08, 0.24);
+        pupil.position.set(i === 0 ? 0.12 : -0.12, head.position.y + 0.08, pupilZ);
+        // Pupille nicht skalieren, um korrekte Größe zu behalten
         bodyGroup.add(pupil);
     }
 
@@ -250,8 +260,8 @@ function createDefaultCharacter(colorHex, customization = {}) {
                     shininess: 30
                 })
             );
-            hair.position.set(0, head.position.y + 0.15, 0);
-            hair.scale.set(1, 0.6, 1);
+            hair.position.set(0, head.position.y + 0.18, -0.05);
+            hair.scale.set(0.9, 0.5, 0.9);
             break;
         case 'medium':
             hair = new THREE.Mesh(
@@ -261,8 +271,8 @@ function createDefaultCharacter(colorHex, customization = {}) {
                     shininess: 30
                 })
             );
-            hair.position.set(0, head.position.y + 0.15, 0);
-            hair.scale.set(1.1, 0.8, 1.1);
+            hair.position.set(0, head.position.y + 0.18, -0.05);
+            hair.scale.set(1.0, 0.6, 1.0);
             break;
         case 'long':
             hair = new THREE.Mesh(
@@ -272,8 +282,8 @@ function createDefaultCharacter(colorHex, customization = {}) {
                     shininess: 30
                 })
             );
-            hair.position.set(0, head.position.y + 0.12, 0);
-            hair.scale.set(1.2, 1.2, 1.2);
+            hair.position.set(0, head.position.y + 0.15, -0.05);
+            hair.scale.set(1.1, 0.8, 1.1);
             break;
         case 'curly':
             hair = new THREE.Mesh(
@@ -283,8 +293,8 @@ function createDefaultCharacter(colorHex, customization = {}) {
                     shininess: 20
                 })
             );
-            hair.position.set(0, head.position.y + 0.16, 0);
-            hair.scale.set(1.3, 1.0, 1.3);
+            hair.position.set(0, head.position.y + 0.19, -0.05);
+            hair.scale.set(1.2, 0.7, 1.2);
             break;
         case 'bald':
             // Kein Haar
@@ -297,8 +307,8 @@ function createDefaultCharacter(colorHex, customization = {}) {
                     shininess: 30
                 })
             );
-            hair.position.set(0, head.position.y + 0.15, 0);
-            hair.scale.set(1, 0.6, 1);
+            hair.position.set(0, head.position.y + 0.18, -0.05);
+            hair.scale.set(0.9, 0.5, 0.9);
     }
     
     if (hair) {
@@ -416,6 +426,110 @@ function createDefaultCharacter(colorHex, customization = {}) {
             legLength = 0.35;
     }
     
+    // Korrigiere Körper-Position: Körper sitzt direkt auf Beinen
+    body.position.y = (0.05 + (legLength * heightMultiplier * 0.5) + (bodyHeight * heightMultiplier * 0.5)) * heightMultiplier;
+    
+    // Korrigiere Kopf-Position: Kopf sitzt direkt auf Körper
+    head.position.y = body.position.y + (bodyHeight * heightMultiplier * 0.5) + 0.25;
+    
+    // Korrigiere Arm-Positionen: Arme an korrigierter Körperposition
+    bodyGroup.children.forEach(child => {
+        if (child.geometry && child.geometry.type === 'CylinderGeometry' && 
+            child.geometry.parameters.height === armLength * heightMultiplier) {
+            const isRightArm = child.position.x > 0;
+            child.position.set(
+                isRightArm ? (bodyWidth + 0.08) : -(bodyWidth + 0.08), 
+                body.position.y + 0.1, 
+                0
+            );
+        }
+    });
+    
+    // Korrigiere alle kopfbezogenen Elemente-Positionen
+    bodyGroup.children.forEach(child => {
+        // Augen
+        if (child.geometry && child.geometry.type === 'SphereGeometry' && 
+            child.material.color.getHex() === 0xffffff && child.geometry.parameters.radius === eyeSize) {
+            const isRightEye = child.position.x > 0;
+            child.position.set(isRightEye ? 0.12 : -0.12, head.position.y + 0.08, 0.2);
+        }
+        // Pupillen
+        if (child.geometry && child.geometry.type === 'SphereGeometry' && 
+            (child.geometry.parameters.radius === eyeSize * 0.6 || child.geometry.parameters.radius === eyeSize * 0.7 || child.geometry.parameters.radius === eyeSize * 0.8)) {
+            const isRightPupil = child.position.x > 0;
+            let pupilZ = 0.25; // Standard Z-Position
+            if (custom.eyeShape === 'small') {
+                pupilZ = 0.26; // Weiter vorne für kleine Augen
+            }
+            child.position.set(isRightPupil ? 0.12 : -0.12, head.position.y + 0.08, pupilZ);
+        }
+    });
+    
+    // Mund
+    if (mouth) {
+        mouth.position.set(0, head.position.y - 0.12, 0.22);
+    }
+    
+    // Bart
+    if (facial_hair) {
+        switch (custom.beardStyle) {
+            case 'mustache':
+                facial_hair.position.set(0, head.position.y - 0.05, 0.2);
+                break;
+            case 'goatee':
+                facial_hair.position.set(0, head.position.y - 0.15, 0.2);
+                break;
+            case 'full':
+                facial_hair.position.set(0, head.position.y - 0.1, 0.15);
+                break;
+        }
+    }
+    
+    // Haare
+    if (hair) {
+        switch (custom.hairStyle) {
+            case 'short':
+            case 'medium':
+                hair.position.set(0, head.position.y + 0.18, -0.05);
+                break;
+            case 'long':
+                hair.position.set(0, head.position.y + 0.15, -0.05);
+                break;
+            case 'curly':
+                hair.position.set(0, head.position.y + 0.19, -0.05);
+                break;
+            default:
+                hair.position.set(0, head.position.y + 0.18, -0.05);
+        }
+    }
+    
+    // Hut
+    if (hat) {
+        switch (custom.hat) {
+            case 'cap':
+                hat.position.set(0, head.position.y + 0.25, 0);
+                break;
+            case 'beanie':
+                hat.position.set(0, head.position.y + 0.15, 0);
+                break;
+            case 'formal':
+                // hatBase und hatTop werden separat behandelt
+                bodyGroup.children.forEach(child => {
+                    if (child.geometry && child.geometry.type === 'CylinderGeometry' && 
+                        child.material.color.getHex() === 0x000000) {
+                        if (child.geometry.parameters.height === 0.03) {
+                            child.position.set(0, head.position.y + 0.28, 0);
+                        } else if (child.geometry.parameters.height === 0.15) {
+                            child.position.set(0, head.position.y + 0.38, 0);
+                        }
+                    }
+                });
+                break;
+        }
+    }
+    
+    // Brille (wird später korrigiert wenn sie existiert)
+    
     // Anpassung basierend auf Hosen-Typ
     let legGeometry;
     switch (custom.pantsType) {
@@ -487,65 +601,126 @@ function createDefaultCharacter(colorHex, customization = {}) {
     switch (custom.glasses) {
         case 'normal':
             glasses = new THREE.Group();
-            // Brillenrahmen
-            const frame = new THREE.Mesh(
-                new THREE.TorusGeometry(0.08, 0.01, 8, 16),
+            // Zwei separate Brillengläser
+            for (let i = 0; i < 2; i++) {
+                const eyeX = i === 0 ? 0.12 : -0.12;
+                // Brillenrahmen für jedes Auge
+                const frame = new THREE.Mesh(
+                    new THREE.TorusGeometry(0.06, 0.008, 8, 16),
+                    new THREE.MeshPhongMaterial({
+                        color: 0x333333,
+                        shininess: 60
+                    })
+                );
+                frame.position.set(eyeX, head.position.y + 0.08, 0.21);
+                glasses.add(frame);
+                
+                // Brillenglas
+                const lens = new THREE.Mesh(
+                    new THREE.CircleGeometry(0.055, 16),
+                    new THREE.MeshPhongMaterial({
+                        color: 0xffffff,
+                        transparent: true,
+                        opacity: 0.2,
+                        shininess: 90
+                    })
+                );
+                lens.position.set(eyeX, head.position.y + 0.08, 0.22);
+                glasses.add(lens);
+            }
+            // Nasensteg
+            const normalBridge = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.008, 0.008, 0.04, 8),
                 new THREE.MeshPhongMaterial({
-                    color: 0x000000,
-                    shininess: 50
+                    color: 0x333333,
+                    shininess: 60
                 })
             );
-            frame.position.set(0, head.position.y + 0.05, 0.22);
-            glasses.add(frame);
-            
-            // Brillengläser
-            const lens = new THREE.Mesh(
-                new THREE.CircleGeometry(0.07, 16),
-                new THREE.MeshPhongMaterial({
-                    color: 0xffffff,
-                    transparent: true,
-                    opacity: 0.3
-                })
-            );
-            lens.position.set(0, head.position.y + 0.05, 0.23);
-            glasses.add(lens);
+            normalBridge.position.set(0, head.position.y + 0.08, 0.21);
+            normalBridge.rotation.z = Math.PI / 2;
+            glasses.add(normalBridge);
             break;
         case 'sunglasses':
             glasses = new THREE.Group();
-            // Dunkle Gläser
-            const darkLens = new THREE.Mesh(
-                new THREE.CircleGeometry(0.09, 16),
+            // Zwei separate Sonnenbrillen-Gläser
+            for (let i = 0; i < 2; i++) {
+                const eyeX = i === 0 ? 0.12 : -0.12;
+                // Dunkle Gläser
+                const darkLens = new THREE.Mesh(
+                    new THREE.CircleGeometry(0.065, 16),
+                    new THREE.MeshPhongMaterial({
+                        color: 0x1a1a1a,
+                        shininess: 120,
+                        transparent: true,
+                        opacity: 0.9
+                    })
+                );
+                darkLens.position.set(eyeX, head.position.y + 0.08, 0.22);
+                glasses.add(darkLens);
+                
+                // Coole Rahmen
+                const coolFrame = new THREE.Mesh(
+                    new THREE.TorusGeometry(0.07, 0.01, 8, 16),
+                    new THREE.MeshPhongMaterial({
+                        color: 0x2a2a2a,
+                        shininess: 90
+                    })
+                );
+                coolFrame.position.set(eyeX, head.position.y + 0.08, 0.21);
+                glasses.add(coolFrame);
+            }
+            // Nasensteg
+            const sunBridge = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.01, 0.01, 0.04, 8),
                 new THREE.MeshPhongMaterial({
-                    color: 0x000000,
-                    shininess: 100
+                    color: 0x2a2a2a,
+                    shininess: 90
                 })
             );
-            darkLens.position.set(0, head.position.y + 0.05, 0.23);
-            glasses.add(darkLens);
-            
-            // Coole Rahmen
-            const coolFrame = new THREE.Mesh(
-                new THREE.TorusGeometry(0.1, 0.015, 8, 16),
-                new THREE.MeshPhongMaterial({
-                    color: 0x333333,
-                    shininess: 80
-                })
-            );
-            coolFrame.position.set(0, head.position.y + 0.05, 0.22);
-            glasses.add(coolFrame);
+            sunBridge.position.set(0, head.position.y + 0.08, 0.21);
+            sunBridge.rotation.z = Math.PI / 2;
+            glasses.add(sunBridge);
             break;
         case 'reading':
             glasses = new THREE.Group();
-            // Kleine Lesebrille
-            const readingFrame = new THREE.Mesh(
-                new THREE.TorusGeometry(0.06, 0.008, 8, 16),
+            // Zwei separate Lesebrille-Gläser
+            for (let i = 0; i < 2; i++) {
+                const eyeX = i === 0 ? 0.12 : -0.12;
+                // Kleine Lesebrille
+                const readingFrame = new THREE.Mesh(
+                    new THREE.TorusGeometry(0.05, 0.006, 8, 16),
+                    new THREE.MeshPhongMaterial({
+                        color: 0x8B4513,
+                        shininess: 40
+                    })
+                );
+                readingFrame.position.set(eyeX, head.position.y + 0.06, 0.21);
+                glasses.add(readingFrame);
+                
+                // Lesebrille-Glas
+                const readingLens = new THREE.Mesh(
+                    new THREE.CircleGeometry(0.045, 16),
+                    new THREE.MeshPhongMaterial({
+                        color: 0xffffff,
+                        transparent: true,
+                        opacity: 0.15,
+                        shininess: 80
+                    })
+                );
+                readingLens.position.set(eyeX, head.position.y + 0.06, 0.22);
+                glasses.add(readingLens);
+            }
+            // Nasensteg
+            const readingBridge = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.006, 0.006, 0.03, 8),
                 new THREE.MeshPhongMaterial({
                     color: 0x8B4513,
-                    shininess: 30
+                    shininess: 40
                 })
             );
-            readingFrame.position.set(0, head.position.y + 0.02, 0.22);
-            glasses.add(readingFrame);
+            readingBridge.position.set(0, head.position.y + 0.06, 0.21);
+            readingBridge.rotation.z = Math.PI / 2;
+            glasses.add(readingBridge);
             break;
         default: // none
             // Keine Brille
@@ -554,6 +729,15 @@ function createDefaultCharacter(colorHex, customization = {}) {
     
     if (glasses) {
         bodyGroup.add(glasses);
+        
+        // Korrigiere Brillen-Position
+        glasses.children.forEach(child => {
+            if (child.geometry && child.geometry.type === 'TorusGeometry') {
+                child.position.set(0, head.position.y + 0.05, 0.22);
+            } else if (child.geometry && child.geometry.type === 'CircleGeometry') {
+                child.position.set(0, head.position.y + 0.05, 0.23);
+            }
+        });
     }
     
     // ADAPTIVE Schmuck basierend auf Schmuck-Auswahl
@@ -572,14 +756,47 @@ function createDefaultCharacter(colorHex, customization = {}) {
             jewelry.rotation.z = Math.PI / 2;
             break;
         case 'chain':
-            jewelry = new THREE.Mesh(
-                new THREE.TorusGeometry(0.12, 0.008, 8, 16),
+            jewelry = new THREE.Group();
+            // Hauptkette
+            const mainChain = new THREE.Mesh(
+                new THREE.TorusGeometry(0.1, 0.006, 8, 16),
                 new THREE.MeshPhongMaterial({
                     color: 0xFFD700,
-                    shininess: 100
+                    shininess: 120
                 })
             );
-            jewelry.position.set(0, body.position.y + 0.15, 0.12);
+            mainChain.position.set(0, body.position.y + 0.18, 0.14);
+            jewelry.add(mainChain);
+            
+            // Kleine Kettenglieder für Detaileffekt
+            for (let i = 0; i < 8; i++) {
+                const angle = (i / 8) * Math.PI * 2;
+                const link = new THREE.Mesh(
+                    new THREE.TorusGeometry(0.015, 0.004, 6, 8),
+                    new THREE.MeshPhongMaterial({
+                        color: 0xFFD700,
+                        shininess: 120
+                    })
+                );
+                link.position.set(
+                    Math.sin(angle) * 0.1,
+                    body.position.y + 0.18 + Math.cos(angle) * 0.03,
+                    0.14
+                );
+                link.rotation.x = angle;
+                jewelry.add(link);
+            }
+            
+            // Anhänger
+            const pendant = new THREE.Mesh(
+                new THREE.SphereGeometry(0.02, 8, 8),
+                new THREE.MeshPhongMaterial({
+                    color: 0xFFD700,
+                    shininess: 140
+                })
+            );
+            pendant.position.set(0, body.position.y + 0.1, 0.15);
+            jewelry.add(pendant);
             break;
         case 'rings':
             jewelry = new THREE.Group();
@@ -791,15 +1008,28 @@ function createDefaultCharacter(colorHex, customization = {}) {
 
             // ADAPTIVE Blinzeln (nur in bodyGroup suchen)
             let eyeWhiteFound = 0;
+            const isBlinking = Math.sin(adjustedTime * 1.5) > 0.9;
+            
             if (bodyGroup) {
                 bodyGroup.children.forEach(child => {
+                    // Augen blinzeln
                     if (child.geometry && child.geometry.type === 'SphereGeometry' &&
                         child.geometry.parameters && Math.abs(child.geometry.parameters.radius - eyeSize) < 0.001 && eyeWhiteFound < 2) {
                         eyeWhiteFound++;
-                        if (Math.sin(adjustedTime * 1.5) > 0.9) {
+                        if (isBlinking) {
                             child.scale.y = 0.1; // Blinzeln
                         } else {
                             child.scale.y = eyeScale.y; // Zurück zu normaler Größe
+                        }
+                    }
+                    
+                    // Pupillen während Blinzeln verstecken
+                    if (child.geometry && child.geometry.type === 'SphereGeometry' &&
+                        child.geometry.parameters && (child.geometry.parameters.radius === eyeSize * 0.6 || child.geometry.parameters.radius === eyeSize * 0.7 || child.geometry.parameters.radius === eyeSize * 0.8)) {
+                        if (isBlinking) {
+                            child.visible = false; // Pupillen verstecken
+                        } else {
+                            child.visible = true; // Pupillen wieder zeigen
                         }
                     }
                 });
@@ -820,9 +1050,12 @@ function createDefaultCharacter(colorHex, customization = {}) {
             if (custom.animationStyle === 'quirky' && bodyGroup) {
                 bodyGroup.children.forEach((child) => {
                     if (child.geometry && child.geometry.type === 'SphereGeometry' &&
-                        child.geometry.parameters && child.geometry.parameters.radius === eyeSize * 0.5) {
-                        child.position.x += Math.sin(adjustedTime * 8) * 0.01;
-                        child.position.y += Math.cos(adjustedTime * 6) * 0.005;
+                        child.geometry.parameters && (child.geometry.parameters.radius === eyeSize * 0.6 || child.geometry.parameters.radius === eyeSize * 0.7 || child.geometry.parameters.radius === eyeSize * 0.8)) {
+                        const isRightPupil = child.position.z > 0.24; // Pupillen sind bei z > 0.24
+                        const baseX = isRightPupil ? 0.12 : -0.12;
+                        const baseY = head.position.y + 0.08;
+                        child.position.x = baseX + Math.sin(adjustedTime * 8) * 0.01;
+                        child.position.y = baseY + Math.cos(adjustedTime * 6) * 0.005;
                     }
                 });
             }
