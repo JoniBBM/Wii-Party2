@@ -26,7 +26,7 @@ def team_login():
     if form.validate_on_submit():
         team = Team.query.filter_by(name=form.team_name.data).first()
         if team and team.check_password(form.password.data):
-            login_user(team)
+            login_user(team, remember=True)  # Remember session für längere Laufzeit
             flash(f'Team "{team.name}" erfolgreich eingeloggt.', 'success')
             return redirect(url_for('teams.team_dashboard'))
         else:

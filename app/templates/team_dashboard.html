@@ -3027,15 +3027,19 @@ document.addEventListener('visibilitychange', function() {
 function validateSession() {
     fetch('/teams/api/dashboard-status')
         .then(response => {
-            if (response.status === 401 || response.status === 403) {
-                // Session abgelaufen oder ungültig
+            if (response.status === 401) {
+                // Session abgelaufen
                 console.log('Session abgelaufen - Weiterleitung zum Login');
                 window.location.href = '/teams/login';
+            } else if (response.status === 403) {
+                // Forbidden - aber nicht ausloggen, nur warnen
+                console.warn('Zugriff verweigert, aber Session bleibt bestehen');
             }
             return response.json();
         })
         .catch(error => {
             console.error('Session-Validierung fehlgeschlagen:', error);
+            // Netzwerkfehler führen nicht zum Logout
         });
 }
 
@@ -3045,8 +3049,8 @@ document.addEventListener('DOMContentLoaded', function() {
     updateLastDiceResultDisplay();
     loadActiveFields(); // Lade aktive Felder beim Start
     
-    // Session-Validierung alle 5 Minuten
-    setInterval(validateSession, 300000); // 5 Minuten
+    // Session-Validierung alle 30 Minuten
+    setInterval(validateSession, 1800000); // 30 Minuten (war 5 Minuten)
     
     // Initialize progress chart if data exists
     if (lastProgressData && lastProgressData.length > 0) {

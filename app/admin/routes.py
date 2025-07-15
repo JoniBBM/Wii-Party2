@@ -231,7 +231,7 @@ def login():
     if form.validate_on_submit():
         admin = Admin.query.filter_by(username=form.username.data).first()
         if admin and admin.check_password(form.password.data):
-            login_user(admin)
+            login_user(admin, remember=True)  # Remember session für längere Laufzeit
             flash('Admin erfolgreich eingeloggt.', 'success')
             return redirect(url_for('admin.admin_dashboard'))
         else:

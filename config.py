@@ -11,7 +11,7 @@ class Config:
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     
     # Session-Konfiguration für Teams (kurze Session-Dauer)
-    PERMANENT_SESSION_LIFETIME = 1800  # 30 Minuten
+    PERMANENT_SESSION_LIFETIME = 86400  # 24 Stunden (war 30 Minuten)
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SECURE = False  # Für HTTP (Development)
     SESSION_COOKIE_SAMESITE = 'Lax'
