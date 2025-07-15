@@ -4,7 +4,11 @@ FROM python:3.13-slim
 WORKDIR /app
 
 # Systemabhängigkeiten installieren
-RUN apt-get update && apt-get install -y sqlite3 libsqlite3-dev build-essential && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y \
+    sqlite3 libsqlite3-dev \
+    postgresql-client libpq-dev \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
 
 # Python Output Buffering deaktivieren, damit print() Anweisungen sofort in den Logs erscheinen
 ENV PYTHONUNBUFFERED=1

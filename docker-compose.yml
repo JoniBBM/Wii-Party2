@@ -1,17 +1,80 @@
 services:
-  web:
-    build: . # Baut das Image basierend auf dem Dockerfile im aktuellen Verzeichnis
-    ports:
-      - "5001:5000" # Mappt Port 5000 des Containers auf Port 5001 des Hosts
-    volumes:
-      # Mountet das gesamte lokale Projektverzeichnis in das /app Verzeichnis im Container.
-      # Dadurch werden Code-Änderungen live übernommen und im Container erstellte Dateien
-      # (wie app.db und der migrations-Ordner, wenn sie in /app erstellt werden)
-      # bleiben auf dem Host-System erhalten.
-      - .:/app
+  # PostgreSQL Database Container
+  db:
+    image: postgres:15-alpine
+    container_name: wii-party-db
+    restart: unless-stopped
     environment:
-      # Überschreibt ggf. ENV-Variablen aus dem Dockerfile oder setzt sie, falls nicht im Dockerfile
-      - FLASK_APP=app:create_app # Wichtig für die Flask-Anwendungsfabrik
-      - FLASK_DEBUG=1
-      - PYTHONPATH=/app # Stellt sicher, dass Python Module im /app Verzeichnis findet
-      # - DATABASE_URL=sqlite:////app/app.db # Könnte explizit gesetzt werden, aber deine config.py sollte das handhaben
+      - POSTGRES_DB=wii_party
+      - POSTGRES_USER=wii_party_user
+      - POSTGRES_PASSWORD=secure_db_password_2024
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    # Entferne Port-Mapping für bessere Sicherheit
+    # ports:
+    #   - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U wii_party_user -d wii_party"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    secrets:
+      - db_password
+    networks:
+      - wii-party-network
+
+  # Web Application Container
+  web:
+    build: .
+    container_name: wii-party-web
+    ports:
+      - "5001:5000"
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      # Nur spezifische Ordner mounten, nicht das gesamte Projekt
+      - ./app:/app/app:ro  # Read-only App-Code
+      - ./migrations:/app/migrations:ro  # Read-only Migrations
+      - web_uploads:/app/app/static/profile_images
+      - web_saved_rounds:/app/app/static/saved_rounds
+      - web_logs:/app/logs
+    env_file:
+      - .env
+    environment:
+      # Override .env for Docker
+      - DATABASE_URL=postgresql://wii_party_user:secure_db_password_2024@db:5432/wii_party
+      - FLASK_APP=app:create_app
+      - PYTHONPATH=/app
+      - FLASK_ENV=production
+      - FLASK_DEBUG=0
+    restart: unless-stopped
+    networks:
+      - wii-party-network
+    # Sicherheits-Einstellungen
+    security_opt:
+      - no-new-privileges:true
+    user: "1000:1000"  # Non-root user
+
+# Docker Secrets für sichere Passwörter
+secrets:
+  db_password:
+    file: ./secrets/db_password.txt
+
+# Named volumes for data persistence
+volumes:
+  postgres_data:
+    driver: local
+  web_uploads:
+    driver: local
+  web_saved_rounds:
+    driver: local
+  web_logs:
+    driver: local
+
+# Isoliertes Netzwerk
+networks:
+  wii-party-network:
+    driver: bridge
+    internal: false  # Für Internet-Zugang (Dependencies installieren)

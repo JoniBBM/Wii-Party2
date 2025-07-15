@@ -8,23 +8,7 @@
     <p>Video-Datei: <strong>{{ video_filename }}</strong></p>
 
     <form method="POST" action="{{ url_for('admin.enter_video_scores', video_filename=video_filename) }}">
-        {# Kein CSRF-Token hier, da wir kein WTForm direkt für diese dynamischen Felder verwenden,
-           aber in einer Produktions-App wäre das zu überdenken oder anders zu lösen.
-           Für dieses Projekt ist es vorerst OK, wenn CSRF nur auf WTForms angewendet wird.
-           Alternativ: Ein Dummy-WTForm erstellen, nur um das Token zu haben.
-           Oder CSRF-Schutz für diese Route deaktivieren (nicht empfohlen).
-
-           Da wir das Formular manuell erstellen, fügen wir das CSRF-Token manuell hinzu,
-           falls es von Flask-WTF für POST erwartet wird, auch ohne explizites WTForm-Objekt
-           für die Eingabefelder. Normalerweise wird es aber mit `form.hidden_tag()` gerendert.
-           Da hier `ScoreForm` in der Route nicht zum Rendern der Felder verwendet wird,
-           könnte man ein CSRF-Token manuell erzeugen oder hoffen, dass es nicht strikt geprüft wird
-           für diese Art von manueller Formularerstellung.
-           Sicherer wäre, ein leeres WTForm zu übergeben und dessen hidden_tag() zu nutzen.
-           
-           Für jetzt lassen wir es ohne explizites CSRF-Token im Template, da die `ScoreForm`
-           in der Route nicht für die Felder hier genutzt wird. Der Schutz greift dann nicht.
-        #}
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
 
         <table class="table table-striped">
             <thead>

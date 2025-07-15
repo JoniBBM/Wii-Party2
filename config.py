@@ -5,19 +5,27 @@ basedir = os.path.abspath(os.path.dirname(__file__))
 load_dotenv(os.path.join(basedir, '.env')) # Lädt .env, falls vorhanden
 
 class Config:
-    SECRET_KEY = os.environ.get('SECRET_KEY') or 'eine-sehr-geheime-zeichenkette'
+    # Security Configuration - No default values for production secrets
+    SECRET_KEY = os.environ.get('SECRET_KEY')
+    if not SECRET_KEY:
+        raise ValueError("SECRET_KEY environment variable is required")
+    
     SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or \
-        'sqlite:///' + os.path.join(basedir, 'app.db') # Stellt sicher, dass app.db im Root-Verzeichnis des Projekts landet
+        'sqlite:///' + os.path.join(basedir, 'app.db')
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     
-    # Session-Konfiguration für Teams (kurze Session-Dauer)
-    PERMANENT_SESSION_LIFETIME = 86400  # 24 Stunden (war 30 Minuten)
+    # Session-Konfiguration für Teams
+    PERMANENT_SESSION_LIFETIME = 86400  # 24 Stunden
     SESSION_COOKIE_HTTPONLY = True
-    SESSION_COOKIE_SECURE = False  # Für HTTP (Development)
+    SESSION_COOKIE_SECURE = os.environ.get('SESSION_COOKIE_SECURE', 'False').lower() in ('true', '1', 'on')
     SESSION_COOKIE_SAMESITE = 'Lax'
-    ADMIN_USERNAME = os.environ.get('ADMIN_USERNAME') or 'admin'
-    # Geändertes Standard-Admin-Passwort
-    ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD') or '1234qwer!' 
+    
+    # Admin Configuration - No default passwords
+    ADMIN_USERNAME = os.environ.get('ADMIN_USERNAME')
+    ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD')
+    
+    if not ADMIN_USERNAME or not ADMIN_PASSWORD:
+        raise ValueError("ADMIN_USERNAME and ADMIN_PASSWORD environment variables are required") 
     MINIGAME_VIDEO_FOLDER = os.path.join(basedir, 'app', 'static', 'minigame_videos')
 
     # KONFIGURATION FÜR MINIGAME-ORDNER
@@ -81,8 +89,8 @@ class Config:
     SOUND_EFFECTS = True  # Für zukünftige Audio-Implementation
     
     # DEBUGGING
-    DEBUG_SPECIAL_FIELDS = False  # Zusätzliche Debug-Logs für Sonderfelder
-    FORCE_SPECIAL_FIELD_TRIGGERS = False  # Immer Sonderfeld-Aktionen auslösen (nur für Tests)
+    DEBUG_SPECIAL_FIELDS = os.environ.get('DEBUG_SPECIAL_FIELDS', 'False').lower() in ('true', '1', 'on')
+    FORCE_SPECIAL_FIELD_TRIGGERS = os.environ.get('FORCE_SPECIAL_FIELD_TRIGGERS', 'False').lower() in ('true', '1', 'on')
 
     # Logging Konfiguration (optional, aber hilfreich für Debugging)
     LOG_TO_STDOUT = os.environ.get('LOG_TO_STDOUT')
