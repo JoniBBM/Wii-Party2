@@ -4,6 +4,9 @@ from flask_login import LoginManager
 from flask_migrate import Migrate
 from flask_wtf.csrf import CSRFProtect
 from config import Config
+from app.utils.security import init_security
+from app.utils.assets import init_assets
+from app.utils.logging import init_logging
 import os
 
 db = SQLAlchemy()
@@ -37,6 +40,15 @@ def create_app(config_class=Config):
     login_manager.init_app(app)
     migrate.init_app(app, db)
     csrf.init_app(app)
+    
+    # Initialize security features
+    init_security(app)
+    
+    # Initialize asset management
+    init_assets(app)
+    
+    # Initialize logging system
+    init_logging(app)
 
     # Setze die Login-Views für die Blueprints
     # Dies ist der Ort, an den Benutzer weitergeleitet werden, wenn @login_required fehlschlägt
