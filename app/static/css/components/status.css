@@ -1,0 +1,180 @@
+/* Status Messages and Alerts */
+
+/* Status messages */
+.status-message {
+    padding: 1rem;
+    border-radius: 0.375rem;
+    margin-bottom: 1rem;
+    font-size: 1rem;
+    display: block;
+}
+
+.status-message.status-success {
+    background-color: #d4edda;
+    border-left: 4px solid #28a745;
+    color: #155724;
+}
+
+.status-message.status-error {
+    background-color: #f8d7da;
+    border-left: 4px solid #dc3545;
+    color: #721c24;
+}
+
+.status-message.status-warning {
+    background-color: #fff3cd;
+    border-left: 4px solid #ffc107;
+    color: #856404;
+}
+
+.status-message.status-info {
+    background-color: #d1ecf1;
+    border-left: 4px solid #17a2b8;
+    color: #0c5460;
+}
+
+/* Camera status messages */
+.camera-status {
+    padding: 1rem;
+    border-radius: 0.375rem;
+    margin-bottom: 1rem;
+    text-align: center;
+}
+
+.camera-status-success {
+    color: #4CAF50;
+}
+
+.camera-status-error {
+    color: #ff6b6b;
+}
+
+.camera-status-warning {
+    color: #ffa726;
+}
+
+.camera-status-info {
+    color: #17a2b8;
+}
+
+.camera-status-detail {
+    font-size: 0.8rem;
+    margin-top: 0.5rem;
+}
+
+/* Inline status messages */
+.inline-status {
+    margin-bottom: 1rem;
+}
+
+.inline-status-warning {
+    color: #ffa726;
+}
+
+.inline-status-error {
+    color: #ff6b6b;
+}
+
+.inline-status-success {
+    color: #4CAF50;
+}
+
+.inline-status-detail {
+    font-size: 0.8rem;
+    opacity: 0.8;
+}
+
+/* Upload status messages */
+.upload-status {
+    padding: 1rem;
+    border-radius: 0.375rem;
+    margin-bottom: 1rem;
+    text-align: center;
+}
+
+.upload-status-success {
+    color: #4CAF50;
+}
+
+.upload-status-error {
+    color: #ff6b6b;
+}
+
+.upload-status-detail {
+    font-size: 0.8rem;
+    margin-top: 0.5rem;
+}
+
+/* Permission status messages */
+.permission-status {
+    padding: 1rem;
+    border-radius: 0.375rem;
+    margin-bottom: 1rem;
+    text-align: center;
+}
+
+.permission-granted {
+    color: #4CAF50;
+}
+
+.permission-denied {
+    color: #ff6b6b;
+}
+
+.permission-pending {
+    color: #ffa726;
+}
+
+.permission-detail {
+    font-size: 0.8rem;
+    margin-top: 0.5rem;
+}
+
+/* Info section styling */
+.info-section {
+    padding: 1rem;
+    border-radius: 0.375rem;
+    margin-bottom: 1rem;
+    background-color: #f8f9fa;
+    border-left: 4px solid #6c757d;
+}
+
+.info-section.hidden {
+    display: none;
+}
+
+/* Dice order section */
+.dice-order-hidden {
+    display: none;
+}
+
+/* Alert styling */
+.alert-custom {
+    border-width: 3px;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+}
+
+/* Status animations */
+.status-pulse {
+    animation: statusPulse 2s infinite;
+}
+
+@keyframes statusPulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.7; }
+    100% { opacity: 1; }
+}
+
+/* Responsive status messages */
+@media (max-width: 768px) {
+    .status-message {
+        padding: 0.75rem;
+        font-size: 0.9rem;
+    }
+    
+    .camera-status-detail,
+    .upload-status-detail,
+    .permission-detail {
+        font-size: 0.7rem;
+    }
+}

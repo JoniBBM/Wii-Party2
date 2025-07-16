@@ -169,25 +169,24 @@
                                             <div class="btn-group btn-group-sm">
                                                 <button class="btn btn-outline-primary btn-sm" 
                                                         type="button"
-                                                        onclick="editPlayerName({{ player.id }})" 
+                                                        data-action="edit-player-name" data-player-id="{{ player.id }}" 
                                                         id="edit-btn-{{ player.id }}">
                                                     <i class="fas fa-edit"></i> Bearbeiten
                                                 </button>
                                                 <button class="btn btn-outline-success btn-sm d-none" 
                                                         type="button"
-                                                        onclick="savePlayerName({{ player.id }})" 
+                                                        data-action="save-player-name" data-player-id="{{ player.id }}" 
                                                         id="save-btn-{{ player.id }}">
                                                     <i class="fas fa-save"></i> Speichern
                                                 </button>
                                                 <button class="btn btn-outline-secondary btn-sm d-none" 
                                                         type="button"
-                                                        onclick="cancelPlayerEdit({{ player.id }})" 
+                                                        data-action="cancel-player-edit" data-player-id="{{ player.id }}" 
                                                         id="cancel-btn-{{ player.id }}">
                                                     <i class="fas fa-times"></i> Abbrechen
                                                 </button>
-                                                <select class="form-control form-control-sm" 
-                                                        style="width: auto; display: inline-block;"
-                                                        onchange="handleTeamChange(this, {{ player.id }})"
+                                                <select class="form-control form-control-sm form-control-auto-width" 
+                                                        data-action="handle-team-change" data-player-id="{{ player.id }}"
                                                         id="team-select-{{ player.id }}">
                                                     <option value="">-- Team ändern --</option>
                                                     {% for other_team in all_teams %}
@@ -254,7 +253,7 @@
                                             </td>
                                             <td>
                                                 <button class="btn btn-sm btn-{{ 'secondary' if can_be_selected else 'success' }}"
-                                                        onclick="togglePlayerSelection('{{ player_name }}', {{ team.id }}, {{ loop.index }}, {{ 'false' if can_be_selected else 'true' }})"
+                                                        data-action="toggle-player-selection" data-player-name="{{ player_name }}" data-team-id="{{ team.id }}" data-row-index="{{ loop.index }}" data-new-status="{{ 'false' if can_be_selected else 'true' }}"
                                                         id="toggle-btn-{{ loop.index }}">
                                                     <i class="fas fa-{{ 'ban' if can_be_selected else 'check' }}"></i>
                                                     {{ 'Deaktivieren' if can_be_selected else 'Aktivieren' }}
@@ -529,13 +528,21 @@ function togglePlayerSelection(playerName, teamId, rowIndex, newStatus) {
                 statusBadge.className = 'badge badge-success';
                 toggleBtn.innerHTML = '<i class="fas fa-ban"></i> Deaktivieren';
                 toggleBtn.className = 'btn btn-sm btn-secondary';
-                toggleBtn.setAttribute('onclick', `togglePlayerSelection('${playerName}', ${teamId}, ${rowIndex}, 'false')`);
+                toggleBtn.setAttribute('data-action', 'toggle-player-selection');
+                toggleBtn.setAttribute('data-player-name', playerName);
+                toggleBtn.setAttribute('data-team-id', teamId);
+                toggleBtn.setAttribute('data-row-index', rowIndex);
+                toggleBtn.setAttribute('data-new-status', 'false');
             } else {
                 statusBadge.textContent = 'Nein';
                 statusBadge.className = 'badge badge-secondary';
                 toggleBtn.innerHTML = '<i class="fas fa-check"></i> Aktivieren';
                 toggleBtn.className = 'btn btn-sm btn-success';
-                toggleBtn.setAttribute('onclick', `togglePlayerSelection('${playerName}', ${teamId}, ${rowIndex}, 'true')`);
+                toggleBtn.setAttribute('data-action', 'toggle-player-selection');
+                toggleBtn.setAttribute('data-player-name', playerName);
+                toggleBtn.setAttribute('data-team-id', teamId);
+                toggleBtn.setAttribute('data-row-index', rowIndex);
+                toggleBtn.setAttribute('data-new-status', 'true');
             }
             
             // Erfolgs-Toast oder Notification

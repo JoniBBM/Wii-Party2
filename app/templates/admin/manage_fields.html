@@ -144,7 +144,7 @@
                                 {% endif %}
                             </td>
                             <td>
-                                <span class="field-type-badge" style="background-color: {{ config.color_hex }}; color: white; padding: 2px 8px; border-radius: 4px; font-size: 0.8em;">
+                                <span class="field-type-badge" style="--field-color: {{ config.color_hex }};">
                                     {% if config.icon %}{{ config.icon }}{% endif %} {{ config.field_type }}
                                 </span>
                             </td>
@@ -169,17 +169,17 @@
                             </td>
                             <td>
                                 <div class="d-flex align-items-center">
-                                    <div class="color-preview mr-2" style="width: 20px; height: 20px; background-color: {{ config.color_hex }}; border: 1px solid #ccc; border-radius: 3px;" title="Hauptfarbe: {{ config.color_hex }}"></div>
+                                    <div class="color-preview mr-2 field-color-preview" style="--field-color: {{ config.color_hex }};" title="Hauptfarbe: {{ config.color_hex }}"></div>
                                     {% if config.emission_hex and config.emission_hex != config.color_hex %}
-                                        <div class="color-preview" style="width: 20px; height: 20px; background-color: {{ config.emission_hex }}; border: 1px solid #ccc; border-radius: 3px;" title="Effektfarbe: {{ config.emission_hex }}"></div>
+                                        <div class="color-preview field-color-preview" style="--field-color: {{ config.emission_hex }};" title="Effektfarbe: {{ config.emission_hex }}"></div>
                                     {% endif %}
                                 </div>
                             </td>
                             <td>
                                 {% if stats %}
-                                    <div class="progress" style="height: 20px;">
+                                    <div class="progress progress-custom">
                                         <div class="progress-bar" role="progressbar" 
-                                             style="width: {{ stats.percentage }}%; background-color: {{ config.color_hex }};" 
+                                             style="--progress-width: {{ stats.percentage }}%; --field-color: {{ config.color_hex }};" 
                                              title="{{ stats.count }} Felder ({{ stats.percentage }}%)">
                                             {% if stats.percentage > 10 %}
                                                 {{ stats.count }}
@@ -210,7 +210,7 @@
                                     </a>
                                     {% if config.field_type not in ['start', 'goal', 'normal'] %}
                                         <button type="button" class="btn btn-outline-danger btn-sm" 
-                                                onclick="confirmToggleField('{{ config.field_type }}', {{ config.is_enabled|tojson }})"
+                                                data-action="confirm-toggle-field" data-field-type="{{ config.field_type }}" data-enabled="{{ config.is_enabled|tojson }}"
                                                 title="{% if config.is_enabled %}Deaktivieren{% else %}Aktivieren{% endif %}">
                                             <i class="fas fa-{% if config.is_enabled %}toggle-on{% else %}toggle-off{% endif %}"></i>
                                         </button>
@@ -270,7 +270,7 @@
                     <div class="col-md-6 mb-3">
                         <div class="d-flex align-items-center">
                             <div class="color-preview mr-3" 
-                                 style="width: 40px; height: 40px; background-color: {{ color_info.color }}; border: 2px solid #333; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 1.2em;">
+                                 class="field-legend-preview" style="--field-color: {{ color_info.color }};">
                                 {% if color_info.icon %}{{ color_info.icon }}{% endif %}
                             </div>
                             <div>

@@ -428,7 +428,7 @@
                                             {{ team.current_position }} / {{ max_board_fields - 1 }}
                                         </span>
                                         <div class="progress progress-sm mt-1">
-                                            <div class="progress-bar" style="width: {{ (team.current_position / (max_board_fields - 1) * 100)|round(1) }}%"></div>
+                                            <div class="progress-bar" style="--progress-width: {{ (team.current_position / (max_board_fields - 1) * 100)|round(1) }}%"></div>
                                         </div>
                                     </td>
                                     <td>
@@ -460,7 +460,7 @@
                 </div>
                 <div class="card-body">
                     <!-- Würfelreihenfolge -->
-                    <div class="info-section mb-4" id="dice-order-section" {% if not dice_roll_order_names %}style="display: none;"{% endif %}>
+                    <div class="info-section mb-4" id="dice-order-section" {% if not dice_roll_order_names %}class="dice-order-hidden"{% endif %}>
                         <h6 class="text-primary">
                             <i class="fas fa-dice mr-1"></i>
                             Würfelreihenfolge
@@ -645,7 +645,7 @@
                 <i class="fas fa-gamepad mr-2"></i>
                 Zum Spielbrett
             </a>
-            <button type="button" class="btn btn-info btn-lg mr-3" onclick="TeamDashboard.refresh()">
+            <button type="button" class="btn btn-info btn-lg mr-3" data-action="refresh-dashboard">
                 <i class="fas fa-sync-alt mr-2"></i>
                 Aktualisieren
             </button>

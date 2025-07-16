@@ -907,7 +907,7 @@
 <!-- Registrierungs-Pop-up -->
 <div id="registration-popup" class="registration-popup">
     <div class="registration-modal">
-        <button class="popup-close" onclick="closeRegistrationPopup()">&times;</button>
+        <button class="popup-close">&times;</button>
         
         <!-- Step Indicator -->
         <div class="step-indicator">
@@ -929,10 +929,10 @@
                 </div>
                 
                 <div class="registration-buttons">
-                    <button type="button" class="btn-popup btn-popup-primary" onclick="proceedToCamera()">
+                    <button type="button" class="btn-popup btn-popup-primary" data-action="proceed-camera">
                         <i class="fas fa-camera"></i> Weiter zum Foto
                     </button>
-                    <button type="button" class="btn-popup btn-popup-secondary" onclick="closeRegistrationPopup()">
+                    <button type="button" class="btn-popup btn-popup-secondary" data-action="close-popup">
                         Abbrechen
                     </button>
                 </div>
@@ -949,26 +949,26 @@
             <div class="camera-preview">
                 <video id="camera-video" class="camera-video" autoplay muted></video>
                 <canvas id="camera-canvas" class="camera-canvas"></canvas>
-                <img id="camera-captured" class="camera-captured" style="display: none;">
+                <img id="camera-captured" class="camera-captured hidden">
             </div>
             
             <div class="camera-controls">
                 <button id="btn-start-camera" class="btn-camera btn-camera-capture">
                     <i class="fas fa-video"></i> Kamera starten
                 </button>
-                <button id="btn-upload-file" class="btn-camera btn-camera-retake" style="display: none;">
+                <button id="btn-upload-file" class="btn-camera btn-camera-retake hidden">
                     <i class="fas fa-upload"></i> Foto hochladen
                 </button>
-                <button id="btn-check-permissions" class="btn-camera btn-camera-retake" style="display: none;">
+                <button id="btn-check-permissions" class="btn-camera btn-camera-retake hidden">
                     <i class="fas fa-shield-alt"></i> Berechtigungen prüfen
                 </button>
-                <button id="btn-take-photo" class="btn-camera btn-camera-capture" style="display: none;">
+                <button id="btn-take-photo" class="btn-camera btn-camera-capture hidden">
                     <i class="fas fa-camera"></i> Foto aufnehmen
                 </button>
-                <button id="btn-retake-photo" class="btn-camera btn-camera-retake" style="display: none;">
+                <button id="btn-retake-photo" class="btn-camera btn-camera-retake hidden">
                     <i class="fas fa-redo"></i> Nochmal
                 </button>
-                <button id="btn-save-and-register" class="btn-camera btn-camera-save" style="display: none;">
+                <button id="btn-save-and-register" class="btn-camera btn-camera-save hidden">
                     <i class="fas fa-save"></i> Speichern & Anmelden
                 </button>
                 <button id="btn-skip-photo" class="btn-camera btn-camera-skip">
@@ -977,14 +977,14 @@
             </div>
             
             <!-- Hidden File Input für HTTP-Fallback -->
-            <input type="file" id="file-input" accept="image/*" capture="user" style="display: none;">
+            <input type="file" id="file-input" accept="image/*" capture="user" class="file-input-hidden">
             
             <div class="camera-status" id="camera-status">
                 Klicke auf "Kamera starten" um ein Selfie aufzunehmen.
             </div>
             
             <div class="registration-buttons">
-                <button type="button" class="btn-popup btn-popup-secondary" onclick="backToNameStep()">
+                <button type="button" class="btn-popup btn-popup-secondary" data-action="back-name">
                     <i class="fas fa-arrow-left"></i> Zurück
                 </button>
             </div>
@@ -1242,10 +1242,10 @@ async function proceedToCamera() {
         
         if (!isSecure) {
             statusMessage = `
-                <div style="color: #ffa726; margin-bottom: 1rem;">
+                <div class="inline-status inline-status-warning">
                     ⚠️ HTTP-Verbindung erkannt - Kamera möglicherweise eingeschränkt
                 </div>
-                <div style="font-size: 0.8rem; opacity: 0.8;">
+                <div class="inline-status-detail">
                     Auf manchen Geräten/Browsern funktioniert die Kamera nur über HTTPS.
                     <br>Du kannst aber trotzdem versuchen oder ein Foto hochladen!
                 </div>
@@ -1258,10 +1258,10 @@ async function proceedToCamera() {
             }
         } else {
             statusMessage = `
-                <div style="color: #ffa726; margin-bottom: 1rem;">
+                <div class="inline-status inline-status-warning">
                     ⚠️ Kamera möglicherweise nicht verfügbar auf diesem Gerät.
                 </div>
-                <div style="font-size: 0.8rem; opacity: 0.8;">
+                <div class="inline-status-detail">
                     Du kannst trotzdem "Kamera starten" versuchen, ein Foto hochladen oder "Ohne Foto fortfahren" wählen.
                 </div>
             `;
@@ -1513,14 +1513,14 @@ async function checkAndRequestPermissions() {
                 
                 if (permission.state === 'granted') {
                     document.getElementById('camera-status').innerHTML = `
-                        <div style="color: #4CAF50;">✅ Kamera-Berechtigung erteilt!</div>
-                        <div style="font-size: 0.8rem; margin-top: 0.5rem;">Versuche jetzt "Kamera starten"</div>
+                        <div class="inline-status-success">✅ Kamera-Berechtigung erteilt!</div>
+                        <div class="inline-status-detail">Versuche jetzt "Kamera starten"</div>
                     `;
                     return;
                 } else if (permission.state === 'denied') {
                     document.getElementById('camera-status').innerHTML = `
-                        <div style="color: #ff6b6b;">❌ Kamera-Berechtigung verweigert</div>
-                        <div style="font-size: 0.8rem; margin-top: 0.5rem;">
+                        <div class="inline-status-error">❌ Kamera-Berechtigung verweigert</div>
+                        <div class="inline-status-detail">
                             Bitte erlaube den Kamera-Zugriff in deinen Browser-Einstellungen:
                             <br>• Klicke auf das Schloss-Symbol in der Adressleiste
                             <br>• Wähle "Kamera" → "Erlauben"
@@ -1531,7 +1531,7 @@ async function checkAndRequestPermissions() {
                 } else {
                     document.getElementById('camera-status').innerHTML = `
                         <div style="color: #ffa726;">⚠️ Kamera-Berechtigung noch nicht erteilt</div>
-                        <div style="font-size: 0.8rem; margin-top: 0.5rem;">Versuche "Kamera starten" um die Berechtigung anzufordern</div>
+                        <div class="inline-status-detail">Versuche "Kamera starten" um die Berechtigung anzufordern</div>
                     `;
                     return;
                 }
@@ -1547,27 +1547,27 @@ async function checkAndRequestPermissions() {
             
             if (cameras.length === 0) {
                 document.getElementById('camera-status').innerHTML = `
-                    <div style="color: #ff6b6b;">❌ Keine Kamera gefunden</div>
-                    <div style="font-size: 0.8rem; margin-top: 0.5rem;">Stelle sicher, dass eine Kamera angeschlossen und aktiviert ist</div>
+                    <div class="inline-status-error">❌ Keine Kamera gefunden</div>
+                    <div class="inline-status-detail">Stelle sicher, dass eine Kamera angeschlossen und aktiviert ist</div>
                 `;
             } else {
                 document.getElementById('camera-status').innerHTML = `
-                    <div style="color: #4CAF50;">✅ ${cameras.length} Kamera(s) gefunden</div>
-                    <div style="font-size: 0.8rem; margin-top: 0.5rem;">Versuche jetzt "Kamera starten"</div>
+                    <div class="inline-status-success">✅ ${cameras.length} Kamera(s) gefunden</div>
+                    <div class="inline-status-detail">Versuche jetzt "Kamera starten"</div>
                 `;
             }
         } catch (deviceError) {
             document.getElementById('camera-status').innerHTML = `
                 <div style="color: #ffa726;">⚠️ Kann Geräte nicht auflisten</div>
-                <div style="font-size: 0.8rem; margin-top: 0.5rem;">Versuche trotzdem "Kamera starten"</div>
+                <div class="inline-status-detail">Versuche trotzdem "Kamera starten"</div>
             `;
         }
         
     } catch (error) {
         console.error('Berechtigungsprüfung fehlgeschlagen:', error);
         document.getElementById('camera-status').innerHTML = `
-            <div style="color: #ff6b6b;">❌ Berechtigungsprüfung fehlgeschlagen</div>
-            <div style="font-size: 0.8rem; margin-top: 0.5rem;">Versuche "Kamera starten" oder "Ohne Foto fortfahren"</div>
+            <div class="inline-status-error">❌ Berechtigungsprüfung fehlgeschlagen</div>
+            <div class="inline-status-detail">Versuche "Kamera starten" oder "Ohne Foto fortfahren"</div>
         `;
     }
 }
@@ -1745,7 +1745,7 @@ async function registerPlayer(playerName) {
             return true;
         } else {
             showRegistrationStatus(data.error || 'Fehler bei der Anmeldung', 'error');
-            document.getElementById('camera-status').innerHTML = `<div style="color: #ff6b6b;">❌ ${data.error || 'Fehler bei der Anmeldung'}</div>`;
+            document.getElementById('camera-status').innerHTML = `<div class="inline-status-error">❌ ${data.error || 'Fehler bei der Anmeldung'}</div>`;
             return false;
         }
         
@@ -1758,7 +1758,7 @@ async function registerPlayer(playerName) {
             errorMessage = 'Netzwerk-Fehler: Verbindung zum Server fehlgeschlagen';
         }
         showRegistrationStatus(errorMessage, 'error');
-        document.getElementById('camera-status').innerHTML = `<div style="color: #ff6b6b;">❌ ${errorMessage}</div>`;
+        document.getElementById('camera-status').innerHTML = `<div class="inline-status-error">❌ ${errorMessage}</div>`;
         return false;
     }
 }
@@ -1844,7 +1844,7 @@ function handleFileUpload(event) {
     // Prüfe Dateityp
     if (!file.type.startsWith('image/')) {
         document.getElementById('camera-status').innerHTML = `
-            <div style="color: #ff6b6b;">❌ Bitte wähle eine Bilddatei (JPG, PNG, etc.)</div>
+            <div class="inline-status-error">❌ Bitte wähle eine Bilddatei (JPG, PNG, etc.)</div>
         `;
         return;
     }
@@ -1852,7 +1852,7 @@ function handleFileUpload(event) {
     // Prüfe Dateigröße (max 10MB)
     if (file.size > 10 * 1024 * 1024) {
         document.getElementById('camera-status').innerHTML = `
-            <div style="color: #ff6b6b;">❌ Datei zu groß (max. 10MB)</div>
+            <div class="inline-status-error">❌ Datei zu groß (max. 10MB)</div>
         `;
         return;
     }
@@ -1913,15 +1913,15 @@ function processUploadedImage(img) {
         document.getElementById('btn-save-and-register').style.display = 'inline-block';
         
         document.getElementById('camera-status').innerHTML = `
-            <div style="color: #4CAF50;">✅ Bild erfolgreich hochgeladen!</div>
-            <div style="font-size: 0.8rem; margin-top: 0.5rem;">Gefällt es dir? Speichern oder neues Bild wählen.</div>
+            <div class="inline-status-success">✅ Bild erfolgreich hochgeladen!</div>
+            <div class="inline-status-detail">Gefällt es dir? Speichern oder neues Bild wählen.</div>
         `;
         
     } catch (error) {
         console.error('Bild-Verarbeitung fehlgeschlagen:', error);
         document.getElementById('camera-status').innerHTML = `
-            <div style="color: #ff6b6b;">❌ Bild konnte nicht verarbeitet werden</div>
-            <div style="font-size: 0.8rem; margin-top: 0.5rem;">Versuche ein anderes Bild oder "Ohne Foto fortfahren"</div>
+            <div class="inline-status-error">❌ Bild konnte nicht verarbeitet werden</div>
+            <div class="inline-status-detail">Versuche ein anderes Bild oder "Ohne Foto fortfahren"</div>
         `;
     }
 }

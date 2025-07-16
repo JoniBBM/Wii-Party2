@@ -1,0 +1,552 @@
+/* Admin Dashboard Styles */
+
+/* Progress bars */
+.progress-custom {
+    height: 20px;
+}
+
+.progress-bar-custom {
+    width: var(--progress-width);
+}
+
+.progress-bar-custom[style*="--progress-width"] {
+    width: var(--progress-width) !important;
+}
+
+/* Team management controls */
+#team-management-controls {
+    display: none;
+}
+
+#team-management-controls.show {
+    display: block;
+}
+
+/* Character selection */
+.character-option {
+    background-color: var(--character-color);
+}
+
+.character-avatar {
+    width: 40px;
+    height: 40px;
+    background-color: var(--character-color);
+    border: 2px solid #333;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2em;
+    color: white;
+}
+
+/* Special fields legend */
+.special-fields-legend {
+    list-style: none;
+    padding: 0;
+}
+
+.special-fields-legend li {
+    margin-bottom: 5px;
+}
+
+.field-catapult-forward {
+    color: #4CAF50;
+}
+
+.field-catapult-backward {
+    color: #F44336;
+}
+
+.field-player-swap {
+    color: #2196F3;
+}
+
+.field-barrier {
+    color: #9E9E9E;
+}
+
+.field-bonus {
+    color: #FFD54F;
+}
+
+.field-minigame {
+    color: #BA68C8;
+}
+
+.field-event {
+    color: #AED581;
+}
+
+.field-trap {
+    color: #E57373;
+}
+
+/* Phase sections */
+.phase-section {
+    display: none;
+}
+
+.phase-section.show {
+    display: block;
+}
+
+.phase-question {
+    display: none;
+}
+
+.phase-question.show {
+    display: block;
+}
+
+.phase-dice-rolling {
+    display: none;
+}
+
+.phase-dice-rolling.show {
+    display: block;
+}
+
+.phase-minigame-setup {
+    display: none;
+}
+
+.phase-minigame-setup.show {
+    display: block;
+}
+
+.phase-minigame-announced {
+    display: none;
+}
+
+.phase-minigame-announced.show {
+    display: block;
+}
+
+/* Dice result admin */
+#dice-result-admin {
+    display: none;
+}
+
+#dice-result-admin.show {
+    display: block;
+}
+
+/* Admin bonus section */
+#admin-bonus-section {
+    display: none;
+}
+
+#admin-bonus-section.show {
+    display: block;
+}
+
+/* Minigame sections */
+.minigame-section {
+    display: none;
+}
+
+.minigame-section.show {
+    display: block;
+}
+
+#manual-section {
+    display: none;
+}
+
+#manual-section.show {
+    display: block;
+}
+
+#direct_question-section {
+    display: none;
+}
+
+#direct_question-section.show {
+    display: block;
+}
+
+#folder_random-section {
+    display: none;
+}
+
+#folder_random-section.show {
+    display: block;
+}
+
+#folder_selected-section {
+    display: none;
+}
+
+#folder_selected-section.show {
+    display: block;
+}
+
+/* Question options */
+.question-options-section {
+    display: none;
+}
+
+.question-options-section.show {
+    display: block;
+}
+
+#direct-text-answer {
+    display: none;
+}
+
+#direct-text-answer.show {
+    display: block;
+}
+
+/* Form styling */
+.form-control-narrow {
+    max-width: 200px;
+}
+
+/* Inline forms */
+.form-inline-custom {
+    display: inline;
+}
+
+/* Badge styling */
+.badge-custom {
+    font-size: 1.1em;
+}
+
+.badge-monospace {
+    font-family: monospace;
+}
+
+/* Card styling */
+.card-compact {
+    font-size: 0.85em;
+}
+
+.card-detail {
+    font-size: 0.75em;
+    color: #666;
+}
+
+/* Admin specific utilities */
+.admin-section {
+    margin-bottom: 2rem;
+}
+
+.admin-controls {
+    background-color: #f8f9fa;
+    padding: 1rem;
+    border-radius: 0.25rem;
+    margin-bottom: 1rem;
+}
+
+.admin-status {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.admin-badge {
+    font-size: 0.9rem;
+    padding: 0.25rem 0.5rem;
+}
+
+/* Dynamic visibility classes */
+.hidden {
+    display: none;
+}
+
+.visible {
+    display: block;
+}
+
+/* Field legend styling */
+.field-legend-preview {
+    width: 40px;
+    height: 40px;
+    border: 2px solid #333;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2em;
+    color: white;
+    margin-right: 1rem;
+}
+
+/* Team card styling */
+.team-card-compact {
+    font-size: 0.85em;
+}
+
+.team-card-detail {
+    font-size: 0.75em;
+    color: #666;
+}
+
+/* Badge styling enhancements */
+.badge-team-password {
+    font-family: monospace;
+}
+
+.badge-team-status {
+    font-size: 1.1em;
+}
+
+/* Button styling */
+.btn-narrow {
+    max-width: 200px;
+}
+
+/* Special field colors */
+.field-color-catapult-forward {
+    color: #4CAF50;
+}
+
+.field-color-catapult-backward {
+    color: #F44336;
+}
+
+.field-color-player-swap {
+    color: #2196F3;
+}
+
+.field-color-barrier {
+    color: #9E9E9E;
+}
+
+.field-color-bonus {
+    color: #FFD54F;
+}
+
+.field-color-minigame {
+    color: #BA68C8;
+}
+
+.field-color-event {
+    color: #AED581;
+}
+
+.field-color-trap {
+    color: #E57373;
+}
+
+/* Form control styling */
+.form-control-xs {
+    padding: 0.125rem 0.25rem;
+    font-size: 0.75rem;
+    line-height: 1.25;
+    border-radius: 0.15rem;
+}
+
+/* Admin layout helpers */
+.admin-row-center {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.admin-row-between {
+    display: flex;
+    justify-content: between;
+    align-items: center;
+}
+
+.admin-flex-wrap {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+}
+
+.admin-text-center {
+    text-center;
+}
+
+.admin-margin-top-sm {
+    margin-top: 0.5rem;
+}
+
+.admin-margin-top-md {
+    margin-top: 1rem;
+}
+
+.admin-margin-bottom-sm {
+    margin-bottom: 0.5rem;
+}
+
+.admin-margin-bottom-md {
+    margin-bottom: 1rem;
+}
+
+.admin-padding-sm {
+    padding: 0.5rem;
+}
+
+.admin-padding-md {
+    padding: 1rem;
+}
+
+/* Template specific styles moved from inline */
+.dice-control-section, .question-control-section {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border-left: 4px solid #007bff;
+}
+
+.current-turn-display, .question-info {
+    background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.dice-result-admin {
+    background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
+    border-radius: 8px;
+    padding: 15px;
+    border: 2px solid #ffc107;
+}
+
+.result-number {
+    font-size: 2rem;
+    font-weight: bold;
+    color: #495057;
+}
+
+.result-number.total {
+    color: #28a745;
+    font-size: 2.5rem;
+}
+
+.minigame-section {
+    border: 1px solid #dee2e6;
+    border-radius: 0.375rem;
+    padding: 1rem;
+    margin-top: 0.5rem;
+    background-color: #f8f9fa;
+}
+
+.question-options-section {
+    background: #e3f2fd;
+    border-radius: 8px;
+    padding: 1rem;
+    margin: 1rem 0;
+    border-left: 4px solid #2196f3;
+}
+
+#question-responses-container {
+    border: 1px solid #dee2e6;
+    border-radius: 0.375rem;
+    background-color: #f8f9fa;
+    padding: 1rem;
+}
+
+.response-item {
+    transition: all 0.3s ease;
+    border-radius: 0.25rem;
+    padding: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.response-item.correct {
+    background-color: #d4edda;
+    border-left: 4px solid #28a745;
+}
+
+.response-item.incorrect {
+    background-color: #f8d7da;
+    border-left: 4px solid #dc3545;
+}
+
+.response-item.new {
+    animation: slideIn 0.5s ease;
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Enhanced progress styling */
+.progress {
+    background-color: #e9ecef;
+}
+
+.progress-bar {
+    transition: width 0.3s ease;
+}
+
+.alert-info {
+    border-left: 4px solid #17a2b8;
+}
+
+.text-warning {
+    font-weight: bold;
+}
+
+/* Field management styling */
+.stat-box {
+    padding: 10px;
+    border-radius: 8px;
+    background: rgba(255,255,255,0.8);
+    margin-bottom: 10px;
+}
+
+.stat-box h6 {
+    margin-bottom: 2px;
+    font-weight: bold;
+}
+
+.color-dots-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+}
+
+.color-dot-item {
+    position: relative;
+}
+
+.color-dot {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    border: 2px solid #333;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.8em;
+    color: white;
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
+    cursor: pointer;
+    transition: transform 0.2s ease;
+}
+
+.color-dot:hover {
+    transform: scale(1.2);
+}
+
+.field-legend-item {
+    padding: 8px;
+    border-radius: 8px;
+    background: rgba(255,255,255,0.5);
+    transition: background-color 0.2s ease;
+}
+
+.field-legend-item:hover {
+    background: rgba(255,255,255,0.8);
+}
+
+.field-color-preview {
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+.btn-xs {
+    padding: 0.125rem 0.25rem;
+    font-size: 0.75rem;
+    line-height: 1.25;
+    border-radius: 0.15rem;
+}

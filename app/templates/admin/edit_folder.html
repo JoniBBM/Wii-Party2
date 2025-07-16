@@ -101,7 +101,7 @@
                                                 <i class="fas fa-edit"></i>
                                             </a>
                                             <form method="POST" action="{{ url_for('admin.delete_folder_minigame', folder_id=folder.id, minigame_id=game.id) }}" 
-                                                  style="display: inline;" onsubmit="return confirm('Minispiel wirklich löschen?')">
+                                                  class="form-inline-custom" data-confirm="Minispiel wirklich löschen?">
                                                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                                 <button type="submit" class="btn btn-outline-danger btn-sm">
                                                     <i class="fas fa-trash"></i>
@@ -145,7 +145,7 @@
                                                 <i class="fas fa-edit"></i>
                                             </a>
                                             <form method="POST" action="{{ url_for('admin.delete_question', folder_id=folder.id, question_id=question.id) }}" 
-                                                  style="display: inline;" onsubmit="return confirm('Frage wirklich löschen?')">
+                                                  class="form-inline-custom" data-confirm="Frage wirklich löschen?">
                                                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                                 <button type="submit" class="btn btn-outline-danger btn-sm">
                                                     <i class="fas fa-trash"></i>

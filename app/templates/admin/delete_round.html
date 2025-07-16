@@ -71,7 +71,7 @@
                         </div>
                         
                         <div class="text-center">
-                            {{ form.submit(class="btn btn-danger btn-lg", onclick="return confirm('Spielrunde wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden!')") }}
+                            {{ form.submit(class="btn btn-danger btn-lg", **{"data-confirm": "Spielrunde wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden!"}) }}
                             <a href="{{ url_for('admin.manage_rounds') }}" class="btn btn-secondary btn-lg ml-2">
                                 <i class="fas fa-times"></i> Abbrechen
                             </a>

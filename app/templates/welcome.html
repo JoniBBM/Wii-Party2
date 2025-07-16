@@ -4,6 +4,7 @@
 
 {% block styles %}
 {{ super() }}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pages/welcome.css') }}">
 <style>
     .welcome-container {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -477,8 +478,8 @@
                     <h3><i class="fas fa-users"></i> Registrierte Spieler (<span id="player-count">0</span>)</h3>
                     
                     <!-- Profilbild-Fortschrittsanzeige -->
-                    <div id="profile-progress" style="display: none;">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                    <div id="profile-progress" class="hidden">
+                        <div class="profile-progress-header">
                             <span>Profilbilder: <span id="photos-count">0</span>/<span id="total-players">0</span></span>
                             <span id="completion-percentage">0%</span>
                         </div>
@@ -495,7 +496,7 @@
                     </div>
                     
                     <!-- Profilbild-Vorschau -->
-                    <div id="profile-preview" class="profile-preview" style="display: none;"></div>
+                    <div id="profile-preview" class="profile-preview" class="hidden"></div>
                 </div>
 
                 <!-- Profilbild-Camera Bereich -->
@@ -507,20 +508,20 @@
                         <div class="camera-preview">
                             <video id="camera-video" class="camera-video" autoplay muted></video>
                             <canvas id="camera-canvas" class="camera-canvas"></canvas>
-                            <img id="camera-captured" class="camera-captured" style="display: none;">
+                            <img id="camera-captured" class="camera-captured" class="hidden">
                         </div>
                         
                         <div class="camera-controls">
                             <button id="btn-start-camera" class="btn-camera btn-camera-capture">
                                 <i class="fas fa-video"></i> Kamera starten
                             </button>
-                            <button id="btn-take-photo" class="btn-camera btn-camera-capture" style="display: none;">
+                            <button id="btn-take-photo" class="btn-camera btn-camera-capture" class="hidden">
                                 <i class="fas fa-camera"></i> Foto aufnehmen
                             </button>
-                            <button id="btn-retake-photo" class="btn-camera btn-camera-retake" style="display: none;">
+                            <button id="btn-retake-photo" class="btn-camera btn-camera-retake" class="hidden">
                                 <i class="fas fa-redo"></i> Nochmal
                             </button>
-                            <button id="btn-save-photo" class="btn-camera btn-camera-save" style="display: none;">
+                            <button id="btn-save-photo" class="btn-camera btn-camera-save" class="hidden">
                                 <i class="fas fa-save"></i> Speichern
                             </button>
                             <button id="btn-skip-photo" class="btn-camera btn-camera-skip">
@@ -543,11 +544,11 @@
                 <div class="players-section">
                     <h3><i class="fas fa-info-circle"></i> Spiel-Information</h3>
                     <div class="text-center p-4">
-                        <i class="fas fa-gamepad fa-4x mb-3" style="opacity: 0.7;"></i>
-                        <p style="font-size: 1.2rem; margin-bottom: 2rem;">
+                        <i class="fas fa-gamepad fa-4x mb-3 welcome-no-teams-icon"></i>
+                        <p class="welcome-no-teams-title">
                             Das Wii Party Spiel ist bereit!
                         </p>
-                        <p style="opacity: 0.8;">
+                        <p class="welcome-no-teams-subtitle">
                             Der Administrator wird das Welcome-System starten, wenn es Zeit ist, Teams zu bilden.
                             <br><br>
                             Bis dahin können Sie sich entspannen und auf den Spielspaß freuen!
@@ -557,7 +558,7 @@
             {% endif %}
 
             <!-- Team-Bereich (nur sichtbar wenn Teams erstellt) -->
-            <div id="teams-section" class="teams-section" style="display: none;">
+            <div id="teams-section" class="teams-section" class="hidden">
                 <h3><i class="fas fa-flag"></i> Teams</h3>
                 <div id="teams-container"></div>
             </div>
@@ -638,8 +639,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     <h3><i class="fas fa-users"></i> Registrierte Spieler (<span id="player-count">0</span>)</h3>
                     
                     <!-- Profilbild-Fortschrittsanzeige -->
-                    <div id="profile-progress" style="display: none;">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                    <div id="profile-progress" class="hidden">
+                        <div class="profile-progress-header">
                             <span>Profilbilder: <span id="photos-count">0</span>/<span id="total-players">0</span></span>
                             <span id="completion-percentage">0%</span>
                         </div>
@@ -656,7 +657,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     </div>
                     
                     <!-- Profilbild-Vorschau -->
-                    <div id="profile-preview" class="profile-preview" style="display: none;"></div>
+                    <div id="profile-preview" class="profile-preview" class="hidden"></div>
                 `;
             }
             
@@ -776,8 +777,8 @@ function updatePlayersList(players) {
                 <div class="player-time">
                     ${new Date(player.registration_time).toLocaleTimeString()}
                 </div>
-                <div style="margin-top: 0.5rem;">
-                    <button class="btn-camera btn-camera-capture" style="padding: 0.3rem 0.8rem; font-size: 0.8rem;" onclick="showCameraForPlayer('${player.name}')">
+                <div class="margin-top-sm">
+                    <button class="btn-camera btn-camera-capture btn-camera-compact" data-action="show-camera-for-player" data-player-name="${player.name}">
                         <i class="fas fa-camera"></i> Foto
                     </button>
                 </div>

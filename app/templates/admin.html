@@ -2,6 +2,14 @@
 
 {% block title %}Admin Dashboard - Wii Party U Deluxe{% endblock %}
 
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin/dashboard.css') }}">
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/admin/admin-dashboard.js') }}"></script>
+{% endblock %}
+
 {% block content %}
 <div class="container mt-4">
     <h1 class="mb-4">Admin Dashboard</h1>
@@ -44,9 +52,9 @@
                         {% if played_stats %}
                         <div class="mb-2">
                             <strong>Spielfortschritt:</strong>
-                            <div class="progress mb-1" style="height: 20px;">
+                            <div class="progress mb-1 progress-custom">
                                 {% set progress_percent = (played_stats.played / played_stats.total * 100) if played_stats.total > 0 else 0 %}
-                                <div class="progress-bar bg-info" role="progressbar" style="width: {{ progress_percent }}%">
+                                <div class="progress-bar bg-info progress-bar-custom" role="progressbar" style="--progress-width: {{ progress_percent }}%">
                                     {{ played_stats.played }}/{{ played_stats.total }}
                                 </div>
                             </div>
@@ -123,7 +131,7 @@
                     </div>
                     
                     <!-- Team-Management-Controls -->
-                    <div id="team-management-controls" class="mt-3" style="display: none;">
+                    <div id="team-management-controls" class="mt-3 hidden">
                         <div class="form-group">
                             <label for="team-count-select" class="form-label">Anzahl Teams:</label>
                             <select id="team-count-select" class="form-control form-control-sm">
@@ -174,7 +182,7 @@
                                     {% if color_info.enabled and field_type not in ['normal'] %}
                                         <div class="color-dot-item" title="{{ color_info.display_name }}">
                                             <div class="color-dot" 
-                                                 style="background-color: {{ color_info.color }};">
+                                                 style="--character-color: {{ color_info.color }};">
                                                 {{ color_info.icon or '?' }}
                                             </div>
                                         </div>
@@ -216,8 +224,8 @@
                             {% for field_type, color_info in field_color_mapping.items() %}
                             <div class="col-md-3 col-sm-6 mb-3">
                                 <div class="field-legend-item d-flex align-items-center">
-                                    <div class="field-color-preview mr-3" 
-                                         style="width: 40px; height: 40px; background-color: {{ color_info.color }}; border: 2px solid #333; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.2em; color: white;">
+                                    <div class="field-legend-preview" 
+                                         style="--character-color: {{ color_info.color }};">
                                         {{ color_info.icon or '?' }}
                                     </div>
                                     <div>
@@ -239,19 +247,19 @@
                             <div class="col-md-6">
                                 <h6><i class="fas fa-star"></i> Sonderfelder:</h6>
                                 <ul class="small">
-                                    <li><span style="color: #4CAF50;">🚀 Katapult Vorwärts</span> - Schleudert Teams 3-5 Felder nach vorne</li>
-                                    <li><span style="color: #F44336;">💥 Katapult Rückwärts</span> - Schleudert Teams 2-4 Felder nach hinten</li>
-                                    <li><span style="color: #2196F3;">🔄 Spieler-Tausch</span> - Tauscht Positionen zwischen Teams</li>
-                                    <li><span style="color: #9E9E9E;">🚧 Sperren-Feld</span> - Blockiert bis bestimmte Zahl gewürfelt wird</li>
+                                    <li><span class="field-color-catapult-forward">🚀 Katapult Vorwärts</span> - Schleudert Teams 3-5 Felder nach vorne</li>
+                                    <li><span class="field-color-catapult-backward">💥 Katapult Rückwärts</span> - Schleudert Teams 2-4 Felder nach hinten</li>
+                                    <li><span class="field-color-player-swap">🔄 Spieler-Tausch</span> - Tauscht Positionen zwischen Teams</li>
+                                    <li><span class="field-color-barrier">🚧 Sperren-Feld</span> - Blockiert bis bestimmte Zahl gewürfelt wird</li>
                                 </ul>
                             </div>
                             <div class="col-md-6">
                                 <h6><i class="fas fa-dice"></i> Basis-Felder:</h6>
                                 <ul class="small">
-                                    <li><span style="color: #FFD54F;">⭐ Bonusfeld</span> - Gibt Teams einen Vorteil</li>
-                                    <li><span style="color: #BA68C8;">🎮 Minispiel</span> - Startet Minispiele oder Fragen</li>
-                                    <li><span style="color: #AED581;">🎲 Ereignisfeld</span> - Zufälliges Ereignis passiert</li>
-                                    <li><span style="color: #E57373;">⚠️ Falle</span> - Schadet Teams oder blockiert sie</li>
+                                    <li><span class="field-color-bonus">⭐ Bonusfeld</span> - Gibt Teams einen Vorteil</li>
+                                    <li><span class="field-color-minigame">🎮 Minispiel</span> - Startet Minispiele oder Fragen</li>
+                                    <li><span class="field-color-event">🎲 Ereignisfeld</span> - Zufälliges Ereignis passiert</li>
+                                    <li><span class="field-color-trap">⚠️ Falle</span> - Schadet Teams oder blockiert sie</li>
                                 </ul>
                             </div>
                         </div>
@@ -321,10 +329,10 @@
                                 <div class="d-flex justify-content-between align-items-center mb-2">
                                     <p class="mb-0"><strong>🎯 Ausgewählte Spieler:</strong></p>
                                     <div class="btn-group btn-group-sm">
-                                        <button class="btn btn-outline-info" onclick="showRotationStats()">
+                                        <button class="btn btn-outline-info" data-action="show-rotation-stats">
                                             <i class="fas fa-chart-bar"></i> Statistiken
                                         </button>
-                                        <button class="btn btn-outline-warning" onclick="resetRotation()">
+                                        <button class="btn btn-outline-warning" data-action="reset-rotation">
                                             <i class="fas fa-sync-alt"></i> Rotation Reset
                                         </button>
                                     </div>
@@ -357,8 +365,7 @@
                 <hr>
 
                 <!-- Fragen-Kontrollen -->
-                <div id="question-control-section" class="question-control-section p-4 mb-4 border rounded bg-light" 
-                     style="{% if active_session.current_phase != 'QUESTION_ACTIVE' or not active_session.current_question_id %}display: none;{% endif %}">
+                <div id="question-control-section" class="question-control-section p-4 mb-4 border rounded bg-light {% if active_session.current_phase != 'QUESTION_ACTIVE' or not active_session.current_question_id %}hidden{% endif %}">
                     <h4 class="text-primary"><i class="fas fa-question-circle"></i> Frage läuft</h4>
                     
                     <div class="row">
@@ -377,7 +384,7 @@
                                 <form method="POST" action="{{ url_for('admin.end_question') }}" class="d-inline">
                                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                     <button type="submit" class="btn btn-warning btn-lg" 
-                                            onclick="return confirm('Frage beenden und automatische Platzierung berechnen?')">
+                                            data-confirm="Frage beenden und automatische Platzierung berechnen?">
                                         <i class="fas fa-stop-circle"></i> Frage beenden
                                     </button>
                                 </form>
@@ -397,8 +404,7 @@
                 </div>
 
                 <!-- Würfel-Steuerung -->
-                <div id="dice-control-section" class="dice-control-section p-4 mb-4 border rounded bg-light"
-                     style="{% if active_session.current_phase != 'DICE_ROLLING' %}display: none;{% endif %}">
+                <div id="dice-control-section" class="dice-control-section p-4 mb-4 border rounded bg-light {% if active_session.current_phase != 'DICE_ROLLING' %}hidden{% endif %}">
                     <h4 class="text-primary"><i class="fas fa-dice"></i> Würfel-Steuerung</h4>
                     
                     <div class="row">
@@ -407,7 +413,7 @@
                                 <h6><strong>Aktueller Zug:</strong></h6>
                                 <div id="current-turn-info">
                                     {% if active_session.current_team_turn %}
-                                        <span class="badge badge-primary" style="font-size: 1.1em;">
+                                        <span class="badge badge-primary badge-team-status">
                                             {{ active_session.current_team_turn.name }}
                                         </span>
                                         <small class="d-block mt-1">
@@ -432,7 +438,7 @@
                         </div>
                         
                         <div class="col-md-6">
-                            <div id="dice-result-admin" class="dice-result-admin" style="display: none;">
+                            <div id="dice-result-admin" class="dice-result-admin hidden">
                                 <h6>Würfelergebnis:</h6>
                                 <div class="result-display p-3 bg-white border rounded">
                                     <div class="row text-center">
@@ -442,7 +448,7 @@
                                                 <div class="result-number" id="admin-standard-roll">-</div>
                                             </div>
                                         </div>
-                                        <div class="col-4" id="admin-bonus-section" style="display: none;">
+                                        <div class="col-4 hidden" id="admin-bonus-section">
                                             <div class="result-part">
                                                 <small>Bonus</small>
                                                 <div class="result-number" id="admin-bonus-roll">-</div>
@@ -485,7 +491,7 @@
 
                 <!-- ERWEITERTE MINIGAME/FRAGEN-AUSWAHL -->
                 <div id="content-selection-section" 
-                     style="{% if active_session.current_phase not in ['SETUP_MINIGAME', 'ROUND_OVER'] %}display: none;{% endif %}">
+                     class="{% if active_session.current_phase not in ['SETUP_MINIGAME', 'ROUND_OVER'] %}hidden{% endif %}">
                     <h4>Nächsten Inhalt festlegen</h4>
                     
                     <!-- NEU: Verfügbarkeits-Info -->
@@ -503,7 +509,7 @@
                                 <form method="POST" action="{{ url_for('admin.reset_played_content') }}" class="d-inline">
                                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                     <button type="submit" class="btn btn-outline-warning btn-sm" 
-                                            onclick="return confirm('Alle gespielten Inhalte zurücksetzen? Damit werden alle Spiele wieder verfügbar.')">
+                                            data-confirm="Alle gespielten Inhalte zurücksetzen? Damit werden alle Spiele wieder verfügbar.">
                                         <i class="fas fa-undo"></i> Zurücksetzen
                                     </button>
                                 </form>
@@ -546,7 +552,7 @@
                         </div>
                         
                         <!-- Manuelle Eingabe -->
-                        <div id="manual-section" class="minigame-section" style="display: none;">
+                        <div id="manual-section" class="minigame-section hidden">
                             <div class="row">
                                 <div class="col-md-6">
                                     <div class="form-group">
@@ -575,7 +581,7 @@
                         </div>
                         
                         <!-- Direkte Fragen-Erstellung -->
-                        <div id="direct_question-section" class="minigame-section" style="display: none;">
+                        <div id="direct_question-section" class="minigame-section hidden">
                             <h5 class="text-success mb-3"><i class="fas fa-plus-circle mr-2"></i>Direkte Frage erstellen</h5>
                             
                             <div class="row">
@@ -625,12 +631,12 @@
                                 </div>
                                 <div class="form-group">
                                     {{ set_minigame_form.correct_option.label(class="form-control-label") }}
-                                    {{ set_minigame_form.correct_option(class="form-control", style="max-width: 200px;") }}
+                                    {{ set_minigame_form.correct_option(class="form-control btn-narrow") }}
                                 </div>
                             </div>
                             
                             <!-- Freitext-Antwort -->
-                            <div id="direct-text-answer" class="question-options-section" style="display: none;">
+                            <div id="direct-text-answer" class="question-options-section hidden">
                                 <div class="form-group">
                                     {{ set_minigame_form.correct_text.label(class="form-control-label") }}
                                     {{ set_minigame_form.correct_text(class="form-control", placeholder="Die korrekte Antwort") }}
@@ -644,7 +650,7 @@
                         </div>
                         
                         <!-- Ordner-Zufällig -->
-                        <div id="folder_random-section" class="minigame-section" style="display: none;">
+                        <div id="folder_random-section" class="minigame-section hidden">
                             {% if active_round and active_round.minigame_folder %}
                                 <div class="alert alert-success">
                                     <i class="fas fa-dice"></i> 
@@ -668,7 +674,7 @@
                         </div>
                         
                         <!-- Ordner-Auswahl -->
-                        <div id="folder_selected-section" class="minigame-section" style="display: none;">
+                        <div id="folder_selected-section" class="minigame-section hidden">
                             {% if active_round and active_round.minigame_folder %}
                                 <div class="form-group">
                                     {{ set_minigame_form.selected_folder_minigame_id.label(class="form-control-label") }}
@@ -693,7 +699,7 @@
 
                 <!-- Platzierungen eingeben -->
                 <div id="placement-section" 
-                     style="{% if active_session.current_phase != 'MINIGAME_ANNOUNCED' %}display: none;{% endif %}">
+                     class="{% if active_session.current_phase != 'MINIGAME_ANNOUNCED' %}hidden{% endif %}">
                     <h4>Platzierungen für "<span id="current-minigame-name">{{ active_session.current_minigame_name }}</span>" eingeben</h4>
                     {% if teams %}
                         <form method="POST" action="{{ url_for('admin.record_placements') }}" class="mb-3 p-3 border rounded bg-light">
@@ -787,7 +793,7 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-dismiss="modal">Schließen</button>
-                    <button type="button" class="btn btn-warning" onclick="resetRotation(); $('#rotationModal').modal('hide');">
+                    <button type="button" class="btn btn-warning" data-action="reset-rotation" data-dismiss="modal">
                         <i class="fas fa-sync-alt"></i> Rotation zurücksetzen
                     </button>
                 </div>
@@ -829,7 +835,7 @@
                                     <form method="POST" action="{{ url_for('admin.unblock_team', team_id=team.id) }}" class="d-inline mt-1">
                                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                         <button type="submit" class="btn btn-outline-warning btn-xs" 
-                                                onclick="return confirm('Team {{ team.name }} manuell freigeben?')"
+                                                data-confirm="Team {{ team.name }} manuell freigeben?"
                                                 title="Team manuell freigeben">
                                             <i class="fas fa-unlock"></i> Freigeben
                                         </button>
@@ -840,8 +846,8 @@
                                 <a href="{{ url_for('admin.edit_team', team_id=team.id) }}" class="btn btn-outline-primary btn-sm">
                                     <i class="fas fa-edit"></i> Bearbeiten
                                 </a>
-                                <form method="POST" action="{{ url_for('admin.delete_team', team_id=team.id) }}" style="display: inline;" 
-                                      onsubmit="return confirm('Team {{ team.name }} wirklich löschen?');" class="w-50">
+                                <form method="POST" action="{{ url_for('admin.delete_team', team_id=team.id) }}" class="form-inline-custom w-50" 
+                                      data-confirm="Team {{ team.name }} wirklich löschen?">
                                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                                     <button type="submit" class="btn btn-outline-danger btn-sm w-100">
                                         <i class="fas fa-trash-alt"></i> Löschen
@@ -859,883 +865,19 @@
     </div>
 </div>
 
-<style>
-.dice-control-section, .question-control-section {
-    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-    border-left: 4px solid #007bff;
-}
 
-.current-turn-display, .question-info {
-    background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-}
-
-.dice-result-admin {
-    background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
-    border-radius: 8px;
-    padding: 15px;
-    border: 2px solid #ffc107;
-}
-
-.result-number {
-    font-size: 2rem;
-    font-weight: bold;
-    color: #495057;
-}
-
-.result-number.total {
-    color: #28a745;
-    font-size: 2.5rem;
-}
-
-.minigame-section {
-    border: 1px solid #dee2e6;
-    border-radius: 0.375rem;
-    padding: 1rem;
-    margin-top: 0.5rem;
-    background-color: #f8f9fa;
-}
-
-.question-options-section {
-    background: #e3f2fd;
-    border-radius: 8px;
-    padding: 1rem;
-    margin: 1rem 0;
-    border-left: 4px solid #2196f3;
-}
-
-#question-responses-container {
-    border: 1px solid #dee2e6;
-    border-radius: 0.375rem;
-    background-color: #f8f9fa;
-    padding: 1rem;
-}
-
-.response-item {
-    transition: all 0.3s ease;
-    border-radius: 0.25rem;
-    padding: 0.5rem;
-    margin-bottom: 0.5rem;
-}
-
-.response-item.correct {
-    background-color: #d4edda;
-    border-left: 4px solid #28a745;
-}
-
-.response-item.incorrect {
-    background-color: #f8d7da;
-    border-left: 4px solid #dc3545;
-}
-
-.response-item.new {
-    animation: slideIn 0.5s ease;
-}
-
-@keyframes slideIn {
-    from {
-        opacity: 0;
-        transform: translateY(-10px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-
-/* NEU: Spielstatistiken-Styling */
-.progress {
-    background-color: #e9ecef;
-}
-
-.progress-bar {
-    transition: width 0.3s ease;
-}
-
-.alert-info {
-    border-left: 4px solid #17a2b8;
-}
-
-.text-warning {
-    font-weight: bold;
-}
-
-/* NEU: Feld-Management Styling */
-.stat-box {
-    padding: 10px;
-    border-radius: 8px;
-    background: rgba(255,255,255,0.8);
-    margin-bottom: 10px;
-}
-
-.stat-box h6 {
-    margin-bottom: 2px;
-    font-weight: bold;
-}
-
-.color-dots-container {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 5px;
-}
-
-.color-dot-item {
-    position: relative;
-}
-
-.color-dot {
-    width: 24px;
-    height: 24px;
-    border-radius: 50%;
-    border: 2px solid #333;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 0.8em;
-    color: white;
-    text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
-    cursor: pointer;
-    transition: transform 0.2s ease;
-}
-
-.color-dot:hover {
-    transform: scale(1.2);
-}
-
-.field-legend-item {
-    padding: 8px;
-    border-radius: 8px;
-    background: rgba(255,255,255,0.5);
-    transition: background-color 0.2s ease;
-}
-
-.field-legend-item:hover {
-    background: rgba(255,255,255,0.8);
-}
-
-.field-color-preview {
-    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-}
-
-.btn-xs {
-    padding: 0.125rem 0.25rem;
-    font-size: 0.75rem;
-    line-height: 1.25;
-    border-radius: 0.15rem;
-}
-</style>
-
+<!-- JavaScript configuration for admin dashboard -->
 <script>
-// Global CSRF Token
-const csrfToken = "{{ csrf_token() }}";
+// Configure admin dashboard
+window.adminUrls = {
+    rollDice: "{{ url_for('admin.admin_roll_dice') }}",
+    boardStatus: "{{ url_for('main.board_status') }}"
+};
 
-document.addEventListener('DOMContentLoaded', function() {
-    const rollDiceBtn = document.getElementById('admin-roll-dice');
-    let isRollingDice = false;
-    let questionResponsesInterval = null;
-    let currentPhase = "{{ active_session.current_phase if active_session else '' }}";
-    let lastResponseCount = 0;
-    
-    // Minigame-Source Auswahl
-    const sourceRadios = document.querySelectorAll('input[name="minigame_source"]');
-    const sections = document.querySelectorAll('.minigame-section');
-    
-    function showMinigameSection(selectedValue) {
-        sections.forEach(section => section.style.display = 'none');
-        const targetSection = document.getElementById(selectedValue + '-section');
-        if (targetSection) targetSection.style.display = 'block';
-        
-        localStorage.setItem('adminMinigameSource', selectedValue);
-    }
-    
-    sourceRadios.forEach(radio => {
-        radio.addEventListener('change', function() {
-            if (this.checked) showMinigameSection(this.value);
-        });
-    });
-    
-    const savedSource = localStorage.getItem('adminMinigameSource');
-    if (savedSource) {
-        const savedRadio = document.getElementById('source_' + savedSource);
-        if (savedRadio) {
-            savedRadio.checked = true;
-            showMinigameSection(savedSource);
-        }
-    } else {
-        const checkedRadio = document.querySelector('input[name="minigame_source"]:checked');
-        if (checkedRadio) showMinigameSection(checkedRadio.value);
-    }
-    
-    // Direkte Fragen-Erstellung
-    const directQuestionType = document.getElementById('direct-question-type');
-    const mcOptions = document.getElementById('direct-mc-options');
-    const textAnswer = document.getElementById('direct-text-answer');
-    
-    function toggleDirectQuestionType() {
-        if (directQuestionType) {
-            const selectedType = directQuestionType.value;
-            if (mcOptions && textAnswer) {
-                if (selectedType === 'multiple_choice') {
-                    mcOptions.style.display = 'block';
-                    textAnswer.style.display = 'none';
-                } else {
-                    mcOptions.style.display = 'none';
-                    textAnswer.style.display = 'block';
-                }
-            }
-        }
-    }
-    
-    if (directQuestionType) {
-        directQuestionType.addEventListener('change', toggleDirectQuestionType);
-        toggleDirectQuestionType();
-    }
-    
-    // Fragen-Antworten automatisch laden
-    function loadQuestionResponses() {
-        if (currentPhase !== 'QUESTION_ACTIVE') return;
-        
-        fetch('/admin/api/question-responses')
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    displayQuestionResponses(data.responses, data.total_teams);
-                    
-                    // Update response count
-                    const responseCount = document.getElementById('question-response-count');
-                    if (responseCount) {
-                        const count = data.responses.length;
-                        const total = data.total_teams;
-                        responseCount.innerHTML = `${count}/${total} Teams haben geantwortet`;
-                        
-                        if (count === total && count > 0) {
-                            responseCount.innerHTML += ' <span class="badge badge-success">Alle</span>';
-                        }
-                    }
-                }
-            })
-            .catch(error => {
-                console.warn('Fehler beim Laden der Antworten:', error);
-            });
-    }
-
-    function displayQuestionResponses(responses, totalTeams) {
-        const responsesList = document.getElementById('question-responses-list');
-        if (!responsesList) return;
-        
-        if (responses.length === 0) {
-            responsesList.innerHTML = '<div class="text-center text-muted"><i class="fas fa-clock"></i> Warte auf Antworten...</div>';
-            return;
-        }
-        
-        let html = '<div class="row">';
-        responses.forEach((response, index) => {
-            const statusIcon = response.is_correct ? '<i class="fas fa-check text-success"></i>' : '<i class="fas fa-times text-danger"></i>';
-            const statusClass = response.is_correct ? 'correct' : 'incorrect';
-            const isNew = index >= lastResponseCount;
-            
-            html += `
-                <div class="col-md-6 mb-2">
-                    <div class="response-item ${statusClass} ${isNew ? 'new' : ''}">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <div>
-                                <strong>${response.team_name}</strong>
-                                <small class="d-block text-muted">${response.answer_preview}</small>
-                                ${response.answered_at ? `<small class="text-muted">${response.answered_at}</small>` : ''}
-                            </div>
-                            <span>${statusIcon}</span>
-                        </div>
-                    </div>
-                </div>
-            `;
-        });
-        html += '</div>';
-        
-        if (responses.length === totalTeams && totalTeams > 0) {
-            html += '<div class="alert alert-success mt-3 mb-0"><i class="fas fa-check-circle"></i> Alle Teams haben geantwortet!</div>';
-        }
-        
-        responsesList.innerHTML = html;
-        lastResponseCount = responses.length;
-    }
-    
-    // Würfel-Funktionalität
-    if (rollDiceBtn) {
-        rollDiceBtn.addEventListener('click', adminRollDice);
-    }
-    
-    function adminRollDice() {
-        if (isRollingDice) return;
-        isRollingDice = true;
-        
-        rollDiceBtn.disabled = true;
-        rollDiceBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Würfeln...';
-        
-        fetch("{{ url_for('admin.admin_roll_dice') }}", {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': csrfToken 
-            },
-            body: JSON.stringify({})
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                showDiceResult(data);
-                setTimeout(updateGameStatus, 500);
-            } else {
-                alert('Fehler: ' + (data.error || 'Unbekannter Fehler'));
-                resetDiceButton();
-            }
-        })
-        .catch(error => {
-            alert('Netzwerkfehler beim Würfeln.');
-            resetDiceButton();
-        });
-    }
-    
-    function resetDiceButton() {
-        isRollingDice = false;
-        if (rollDiceBtn) {
-            rollDiceBtn.disabled = false;
-            rollDiceBtn.innerHTML = '<i class="fas fa-dice"></i> Für aktuelles Team würfeln';
-            rollDiceBtn.classList.remove('btn-secondary');
-            rollDiceBtn.classList.add('btn-success');
-        }
-    }
-    
-    function showDiceResult(data) {
-        document.getElementById('admin-standard-roll').textContent = data.standard_roll;
-        document.getElementById('admin-total-roll').textContent = data.total_roll;
-        
-        const bonusSection = document.getElementById('admin-bonus-section');
-        if (data.bonus_roll > 0) {
-            document.getElementById('admin-bonus-roll').textContent = data.bonus_roll;
-            bonusSection.style.display = 'block';
-        } else {
-            bonusSection.style.display = 'none';
-        }
-        
-        const diceResultDiv = document.getElementById('dice-result-admin');
-        diceResultDiv.style.display = 'block';
-        
-        setTimeout(() => diceResultDiv.style.display = 'none', 4000);
-    }
-    
-    function updateGameStatus() {
-        fetch("{{ url_for('main.board_status') }}?t=" + new Date().getTime())
-            .then(response => response.json())
-            .then(data => {
-                if (data.game_session) {
-                    const newPhase = data.game_session.current_phase;
-                    
-                    // Phase hat sich geändert - Update UI
-                    if (newPhase !== currentPhase) {
-                        currentPhase = newPhase;
-                        updatePhaseDisplay(newPhase);
-                        updateSectionVisibility(newPhase);
-                        
-                        // Question responses polling starten/stoppen
-                        if (newPhase === 'QUESTION_ACTIVE') {
-                            startQuestionResponsesPolling();
-                        } else {
-                            stopQuestionResponsesPolling();
-                        }
-                    }
-                    
-                    // Würfel-spezifische Updates
-                    if (newPhase === 'DICE_ROLLING') {
-                        const newTeamId = data.game_session.current_team_turn_id;
-                        updateCurrentTeamDisplay(data.teams, newTeamId);
-                        resetDiceButton();
-                    }
-                    
-                    // Update current content info
-                    updateContentInfo(data.game_session);
-                }
-            })
-            .catch(error => console.warn('Status-Update fehlgeschlagen:', error));
-    }
-    
-    function updatePhaseDisplay(phase) {
-        const phaseDisplay = document.getElementById('current-phase-display');
-        if (phaseDisplay) {
-            let phaseText = '';
-            switch(phase) {
-                case 'SETUP_MINIGAME':
-                    phaseText = 'Inhalt festlegen';
-                    break;
-                case 'MINIGAME_ANNOUNCED':
-                    phaseText = 'Minispiel angekündigt - Warte auf Platzierungen';
-                    break;
-                case 'QUESTION_ACTIVE':
-                    phaseText = 'Frage läuft - Teams antworten';
-                    break;
-                case 'DICE_ROLLING':
-                    phaseText = 'Würfelrunde aktiv';
-                    break;
-                case 'ROUND_OVER':
-                    phaseText = 'Runde beendet - Nächsten Inhalt festlegen';
-                    break;
-                default:
-                    phaseText = phase.replace('_', ' ').title();
-            }
-            phaseDisplay.textContent = phaseText;
-            phaseDisplay.setAttribute('data-phase', phase);
-        }
-    }
-    
-    function updateSectionVisibility(phase) {
-        // Alle Sektionen ausblenden
-        const sections = [
-            'question-control-section',
-            'dice-control-section', 
-            'content-selection-section',
-            'placement-section'
-        ];
-        
-        sections.forEach(sectionId => {
-            const section = document.getElementById(sectionId);
-            if (section) section.style.display = 'none';
-        });
-        
-        // Richtige Sektion anzeigen
-        let targetSection = null;
-        switch(phase) {
-            case 'QUESTION_ACTIVE':
-                targetSection = 'question-control-section';
-                break;
-            case 'DICE_ROLLING':
-                targetSection = 'dice-control-section';
-                break;
-            case 'SETUP_MINIGAME':
-            case 'ROUND_OVER':
-                targetSection = 'content-selection-section';
-                break;
-            case 'MINIGAME_ANNOUNCED':
-                targetSection = 'placement-section';
-                break;
-        }
-        
-        if (targetSection) {
-            const section = document.getElementById(targetSection);
-            if (section) section.style.display = 'block';
-        }
-    }
-    
-    function updateCurrentTeamDisplay(teams, currentTeamId) {
-        const currentTurnInfo = document.getElementById('current-turn-info');
-        if (!currentTurnInfo) return;
-        
-        if (!currentTeamId) {
-            currentTurnInfo.innerHTML = '<span class="text-muted">Runde beendet</span>';
-            return;
-        }
-        
-        const currentTeam = teams.find(t => t.id === currentTeamId);
-        if (currentTeam) {
-            let bonusText = 'Standard';
-            if (currentTeam.bonus_dice_sides === 6) bonusText = '1-6';
-            else if (currentTeam.bonus_dice_sides === 4) bonusText = '1-4';
-            else if (currentTeam.bonus_dice_sides === 2) bonusText = '1-2';
-            
-            currentTurnInfo.innerHTML = `
-                <span class="badge badge-primary" style="font-size: 1.1em;">
-                    ${currentTeam.name}
-                </span>
-                <small class="d-block mt-1">
-                    Position: ${currentTeam.position} | Bonus: ${bonusText}
-                </small>
-            `;
-        }
-    }
-    
-    function updateContentInfo(gameSession) {
-        const contentInfo = document.getElementById('current-content-info');
-        const minigameName = document.getElementById('current-minigame-name');
-        
-        if (contentInfo) {
-            if (gameSession.current_minigame_name) {
-                const isQuestion = gameSession.current_phase === 'QUESTION_ACTIVE';
-                const icon = isQuestion ? '❓' : '🎮';
-                const type = isQuestion ? 'Frage' : 'Minispiel';
-                
-                contentInfo.innerHTML = `
-                    <p><strong>Aktueller Inhalt:</strong> ${icon} ${type}: ${gameSession.current_minigame_name}</p>
-                    ${gameSession.current_minigame_description ? `<p><em>Beschreibung: ${gameSession.current_minigame_description}</em></p>` : ''}
-                `;
-            } else {
-                contentInfo.innerHTML = '<p>Noch kein Inhalt für diese Runde festgelegt.</p>';
-            }
-        }
-        
-        if (minigameName) {
-            minigameName.textContent = gameSession.current_minigame_name || '';
-        }
-    }
-    
-    function startQuestionResponsesPolling() {
-        if (questionResponsesInterval) clearInterval(questionResponsesInterval);
-        
-        // Sofort laden
-        loadQuestionResponses();
-        
-        // Alle 2 Sekunden aktualisieren
-        questionResponsesInterval = setInterval(loadQuestionResponses, 2000);
-    }
-    
-    function stopQuestionResponsesPolling() {
-        if (questionResponsesInterval) {
-            clearInterval(questionResponsesInterval);
-            questionResponsesInterval = null;
-        }
-        lastResponseCount = 0;
-    }
-    
-    // Initial setup basierend auf aktueller Phase
-    if (currentPhase === 'QUESTION_ACTIVE') {
-        startQuestionResponsesPolling();
-    }
-    
-    // Auto-Update alle 3 Sekunden (häufiger für bessere Responsivität)
-    setInterval(updateGameStatus, 3000);
-
-    // Welcome-System initialisierung
-    updateWelcomeStatus();
-    setInterval(updateWelcomeStatus, 5000);
-
-    // Welcome-System Event Listeners (mit Event-Delegation da Button dynamisch ersetzt wird)
-    // Event-Listener werden jetzt direkt in updateWelcomeStatus() gesetzt
-    
-    // Entferne alten Event-Listener Code da er durch dynamischen HTML ersetzt wird
-    /*document.getElementById('start-welcome-btn').addEventListener('click', function() {
-        fetch('/admin/api/start-welcome', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-Requested-With': 'XMLHttpRequest',
-                'X-CSRFToken': csrfToken
-            },
-            credentials: 'same-origin',
-            body: JSON.stringify({})  // Leerer Body, aber als JSON
-        })
-        .then(response => {
-            if (!response.ok) {
-                return response.text().then(text => {
-                    console.error('Response error:', text);
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                });
-            }
-            return response.json();
-        })
-        .then(data => {
-            if (data.success) {
-                updateWelcomeStatus();
-                // Öffne Welcome-Seite in neuem Tab
-                window.open('/welcome', '_blank');
-            } else {
-                alert('Fehler beim Starten des Welcome-Systems: ' + data.error);
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            alert('Ein Fehler ist aufgetreten: ' + error.message);
-        });
-    });*/
+// Initialize admin dashboard
+initAdminDashboard({
+    csrfToken: "{{ csrf_token() }}",
+    currentPhase: "{{ active_session.current_phase if active_session else '' }}"
 });
-
-function updateWelcomeStatus() {
-    fetch('/api/welcome-admin-status')
-        .then(response => response.json())
-        .then(data => {
-            const statusCard = document.getElementById('welcome-status-card');
-            const startBtn = document.getElementById('start-welcome-btn');
-            
-            if (data.active) {
-                let teamsDisplay = '';
-                if (data.teams_created && data.teams && data.teams.length > 0) {
-                    teamsDisplay = `
-                        <div class="mt-3">
-                            <small class="text-info"><strong>Teams & Passwörter:</strong></small>
-                            <div class="mt-2">
-                                ${data.teams.map(team => `
-                                    <div class="card card-body p-2 mb-2" style="font-size: 0.85em;">
-                                        <div class="d-flex justify-content-between align-items-center">
-                                            <strong>Team ${team.name}</strong>
-                                            <span class="badge badge-dark" style="font-family: monospace;">🔑 ${team.password}</span>
-                                        </div>
-                                        <div style="font-size: 0.75em; color: #666;">
-                                            ${team.members.join(', ')}
-                                        </div>
-                                    </div>
-                                `).join('')}
-                            </div>
-                        </div>
-                    `;
-                }
-                
-                statusCard.innerHTML = `
-                    <div class="text-success">
-                        <i class="fas fa-check-circle"></i> <strong>Aktiv</strong>
-                    </div>
-                    <div class="mt-2">
-                        <small class="text-muted">Spieler registriert: <strong>${data.player_count || 0}</strong></small>
-                    </div>
-                    ${data.teams_created ? `
-                        <div class="mt-2">
-                            <small class="text-info">Teams erstellt: <strong>${data.team_count || 0}</strong></small>
-                        </div>
-                        <div class="mt-2">
-                            <span class="badge badge-success">Bereit zum Spielstart</span>
-                        </div>
-                        ${teamsDisplay}
-                    ` : `
-                        <div class="mt-2">
-                            <span class="badge badge-warning">Warten auf Teamaufteilung</span>
-                        </div>
-                    `}
-                `;
-                startBtn.innerHTML = '<i class="fas fa-stop"></i> Beenden';
-                startBtn.className = 'btn btn-danger btn-sm';
-                startBtn.onclick = function() {
-                    if (confirm('Welcome-System wirklich beenden?')) {
-                        fetch('/admin/api/end-registration', {
-                            method: 'POST',
-                            headers: { 
-                                'Content-Type': 'application/json',
-                                'X-Requested-With': 'XMLHttpRequest',
-                                'X-CSRFToken': csrfToken
-                            },
-                            credentials: 'same-origin',
-                            body: JSON.stringify({})
-                        })
-                        .then(response => response.json())
-                        .then(data => {
-                            if (data.success) {
-                                updateWelcomeStatus();
-                                alert('Welcome-System erfolgreich beendet.');
-                            } else {
-                                alert('Fehler beim Beenden: ' + data.error);
-                            }
-                        })
-                        .catch(error => {
-                            console.error('Error:', error);
-                            alert('Ein Fehler ist aufgetreten beim Beenden des Welcome-Systems');
-                        });
-                    }
-                };
-                
-                // Zeige Team-Management-Controls wenn aktiv aber noch keine Teams erstellt
-                const teamControls = document.getElementById('team-management-controls');
-                if (data.teams_created) {
-                    teamControls.style.display = 'none';
-                } else {
-                    teamControls.style.display = 'block';
-                }
-            } else {
-                statusCard.innerHTML = `
-                    <div class="text-muted">
-                        <i class="fas fa-pause-circle"></i> <strong>Inaktiv</strong>
-                    </div>
-                    <div class="mt-2">
-                        <small class="text-muted">Welcome-System ist nicht aktiv</small>
-                    </div>
-                `;
-                startBtn.innerHTML = '<i class="fas fa-play"></i> Starten';
-                startBtn.className = 'btn btn-success btn-sm';
-                startBtn.onclick = function() {
-                    fetch('/admin/api/start-welcome', {
-                        method: 'POST',
-                        headers: { 
-                            'Content-Type': 'application/json',
-                            'X-Requested-With': 'XMLHttpRequest',
-                            'X-CSRFToken': csrfToken
-                        },
-                        credentials: 'same-origin',
-                        body: JSON.stringify({})
-                    }).then(response => {
-                        if (!response.ok) {
-                            return response.json().then(errorData => {
-                                throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
-                            });
-                        }
-                        return response.json();
-                    })
-                    .then(data => {
-                        if (data.success) {
-                            updateWelcomeStatus();
-                            // Admin bleibt im Dashboard - kein automatisches Öffnen der Welcome-Seite
-                            alert('Welcome-System erfolgreich gestartet! Welcome-Seite ist jetzt aktiv.');
-                        } else {
-                            alert('Fehler beim Starten: ' + data.error);
-                            // Aktualisiere Status da etwas nicht stimmt
-                            updateWelcomeStatus();
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Error:', error);
-                        alert('Ein Fehler ist aufgetreten: ' + error.message);
-                        // Aktualisiere Status da etwas nicht stimmt
-                        updateWelcomeStatus();
-                    });
-                };
-                
-                // Verstecke Team-Management-Controls wenn inaktiv
-                const teamControls = document.getElementById('team-management-controls');
-                teamControls.style.display = 'none';
-            }
-        })
-        .catch(error => {
-            console.error('Error updating welcome status:', error);
-            const statusCard = document.getElementById('welcome-status-card');
-            statusCard.innerHTML = `
-                <div class="text-danger">
-                    <i class="fas fa-exclamation-triangle"></i> Fehler beim Laden
-                </div>
-            `;
-        });
-}
-
-// Team-Management-Controls Event-Listener
-document.getElementById('team-count-select').addEventListener('change', function() {
-    const createBtn = document.getElementById('create-teams-admin-btn');
-    createBtn.disabled = this.value === '';
-});
-
-document.getElementById('create-teams-admin-btn').addEventListener('click', function() {
-    const teamCount = document.getElementById('team-count-select').value;
-    if (!teamCount) {
-        alert('Bitte wähle zuerst die Anzahl der Teams!');
-        return;
-    }
-    
-    if (confirm(`${teamCount} Teams erstellen? Dies teilt die registrierten Spieler automatisch auf.`)) {
-        fetch('/admin/api/create-teams', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': csrfToken
-            },
-            body: JSON.stringify({ team_count: parseInt(teamCount) })
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                updateWelcomeStatus();
-                alert('Teams erfolgreich erstellt! Passwörter sind im Admin-Dashboard sichtbar.');
-            } else {
-                alert('Fehler beim Erstellen der Teams: ' + data.error);
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            alert('Ein Fehler ist aufgetreten beim Erstellen der Teams');
-        });
-    }
-});
-
-// Vollbild-Spielstart Button
-document.getElementById('start-fullscreen-game-btn').addEventListener('click', function() {
-    // Öffne Spielbrett in neuem Fenster/Tab
-    const gameWindow = window.open('/admin/open-board', '_blank');
-    
-    // Warte kurz, dann aktiviere Vollbild
-    setTimeout(() => {
-        if (gameWindow) {
-            // Versuche Vollbild zu aktivieren
-            gameWindow.postMessage({action: 'requestFullscreen'}, '*');
-            
-            // Falls postMessage nicht funktioniert, öffne Dialog
-            if (!gameWindow.document.fullscreenElement) {
-                gameWindow.alert('Für die beste Erfahrung drücke F11 für Vollbild!');
-            }
-        }
-    }, 1000);
-});
-
-// Spieler-Rotation Management
-function showRotationStats() {
-    fetch('/admin/player_rotation_stats')
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                let statsHtml = '<h5>Spieler-Rotation Statistiken</h5>';
-                
-                if (Object.keys(data.stats).length === 0) {
-                    statsHtml += '<p class="text-muted">Noch keine Rotations-Daten verfügbar.</p>';
-                } else {
-                    statsHtml += '<div class="row">';
-                    for (const [teamName, stats] of Object.entries(data.stats)) {
-                        statsHtml += `
-                            <div class="col-md-6 mb-3">
-                                <div class="card">
-                                    <div class="card-header">
-                                        <strong>${teamName}</strong>
-                                        <small class="text-muted">(${stats.total_games} Spiele gesamt)</small>
-                                    </div>
-                                    <div class="card-body">
-                                        <div class="player-stats">
-                        `;
-                        
-                        for (const [playerName, gameCount] of Object.entries(stats.players)) {
-                            const isEqual = gameCount === stats.least_played && gameCount === stats.most_played;
-                            const isLeast = gameCount === stats.least_played && !isEqual;
-                            const isMost = gameCount === stats.most_played && !isEqual;
-                            
-                            let badgeClass = 'badge-secondary';
-                            if (isLeast) badgeClass = 'badge-success';
-                            if (isMost) badgeClass = 'badge-warning';
-                            
-                            statsHtml += `<span class="badge ${badgeClass} mr-1">${playerName}: ${gameCount}</span>`;
-                        }
-                        
-                        statsHtml += `
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        `;
-                    }
-                    statsHtml += '</div>';
-                }
-                
-                // Zeige Modal
-                document.getElementById('rotationModalBody').innerHTML = statsHtml;
-                $('#rotationModal').modal('show');
-            } else {
-                alert('Fehler beim Laden der Statistiken: ' + data.error);
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            alert('Ein Fehler ist aufgetreten beim Laden der Statistiken');
-        });
-}
-
-function resetRotation() {
-    if (confirm('Spieler-Rotation zurücksetzen? Alle Spieler starten wieder mit 0 Einsätzen.')) {
-        fetch('/admin/reset_player_rotation', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': csrfToken
-            }
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                alert('Spieler-Rotation erfolgreich zurückgesetzt!');
-                location.reload(); // Seite neu laden
-            } else {
-                alert('Fehler beim Zurücksetzen: ' + data.error);
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            alert('Ein Fehler ist aufgetreten beim Zurücksetzen');
-        });
-    }
-}
 </script>
 {% endblock %}
