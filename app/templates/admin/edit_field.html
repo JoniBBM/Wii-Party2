@@ -118,7 +118,7 @@
                             </div>
                             
                             <!-- Feste Positionen (nur bei frequency_type = 'fixed_positions') -->
-                            <div class="form-group" id="fixed_positions_group" class="hidden">
+                            <div class="form-group" id="fixed_positions_group" style="display: none;">
                                 {{ form.fixed_positions.label(class="form-control-label") }}
                                 {{ form.fixed_positions(class="form-control", placeholder="z.B. 15,30,45,60") }}
                                 <small class="form-text text-muted">
@@ -141,7 +141,7 @@
                                             {{ form.color_hex(class="form-control", id="color_hex") }}
                                             <div class="input-group-append">
                                                 <div class="input-group-text color-preview" id="color-preview" 
-                                                     style="--field-color: {{ form.color_hex.data or '#81C784' }}; width: 40px;">
+                                                     style="background-color: {{ form.color_hex.data or '#81C784' }}; width: 40px;">
                                                 </div>
                                             </div>
                                         </div>
@@ -154,7 +154,7 @@
                                             {{ form.emission_hex(class="form-control", id="emission_hex") }}
                                             <div class="input-group-append">
                                                 <div class="input-group-text color-preview" id="emission-preview" 
-                                                     style="--field-color: {{ form.emission_hex.data or '#4CAF50' }}; width: 40px;">
+                                                     style="background-color: {{ form.emission_hex.data or '#4CAF50' }}; width: 40px;">
                                                 </div>
                                             </div>
                                         </div>
@@ -250,7 +250,7 @@
                                 <div>
                                     {% if config and config.field_type not in ['start', 'goal', 'normal'] %}
                                         <button type="button" class="btn btn-outline-danger" 
-                                                data-action="confirm-delete-field" data-field-type="{{ config.field_type }}">
+                                                onclick="confirmDeleteField('{{ config.field_type }}')">
                                             <i class="fas fa-trash-alt"></i> Feld-Typ löschen
                                         </button>
                                     {% endif %}
@@ -274,7 +274,7 @@
                 <div class="card-body text-center">
                     <div class="field-preview-container mb-3">
                         <div class="field-preview" id="field-preview-element" 
-                             class="field-legend-preview" style="--field-color: ${config.color};">
+                             style="width: 60px; height: 60px; border-radius: 50%; margin: 0 auto; display: flex; align-items: center; justify-content: center; color: white; font-size: 1.5em; font-weight: bold; border: 3px solid #333;">
                             {{ form.icon.data if form.icon.data else '?' }}
                         </div>
                     </div>

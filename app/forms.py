@@ -3,7 +3,6 @@ from flask_wtf import FlaskForm
 from wtforms import StringField, PasswordField, SubmitField, IntegerField, BooleanField, SelectField, HiddenField, TextAreaField, RadioField, FloatField, SelectMultipleField
 from wtforms.validators import DataRequired, Length, EqualTo, NumberRange, Optional, ValidationError
 from app.models import Character, MinigameFolder, GameRound, Team, FieldConfiguration
-from app.utils.validation import validate_team_name, validate_member_list, validate_hex_color, ValidationError as CustomValidationError
 
 class AdminLoginForm(FlaskForm):
     username = StringField('Benutzername', validators=[DataRequired(), Length(min=4, max=25)])
@@ -32,19 +31,6 @@ class CreateTeamForm(FlaskForm):
         super(CreateTeamForm, self).__init__(*args, **kwargs)
         from app.models import Character 
         self.character_id.choices = [(c.id, c.name) for c in Character.query.filter_by(is_selected=False).all()]
-    
-    def validate_team_name(self, team_name):
-        try:
-            validate_team_name(team_name.data)
-        except CustomValidationError as e:
-            raise ValidationError(str(e))
-    
-    def validate_members(self, members):
-        if members.data:
-            try:
-                validate_member_list(members.data)
-            except CustomValidationError as e:
-                raise ValidationError(str(e))
 
 class EditTeamForm(FlaskForm):
     team_name = StringField('Teamname', validators=[DataRequired(), Length(min=2, max=50)])

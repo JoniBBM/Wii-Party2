@@ -3,7 +3,6 @@
 {% block title %}Spiel beendet - Danke fürs Mitspielen{% endblock %}
 
 {% block content %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/pages/goodbye.css') }}">
 <style>
     .goodbye-container {
         min-height: 100vh;
@@ -338,15 +337,15 @@
 
 <div class="goodbye-container">
     <!-- Konfetti Animation -->
-    <div class="confetti confetti-pos-1"></div>
-    <div class="confetti confetti-pos-2"></div>
-    <div class="confetti confetti-pos-3"></div>
-    <div class="confetti confetti-pos-4"></div>
-    <div class="confetti confetti-pos-5"></div>
-    <div class="confetti confetti-pos-6"></div>
-    <div class="confetti confetti-pos-7"></div>
-    <div class="confetti confetti-pos-8"></div>
-    <div class="confetti confetti-pos-9"></div>
+    <div class="confetti" style="left: 10%; animation-delay: 0s;"></div>
+    <div class="confetti" style="left: 20%; animation-delay: -0.5s;"></div>
+    <div class="confetti" style="left: 30%; animation-delay: -1s;"></div>
+    <div class="confetti" style="left: 40%; animation-delay: -1.5s;"></div>
+    <div class="confetti" style="left: 50%; animation-delay: -2s;"></div>
+    <div class="confetti" style="left: 60%; animation-delay: -2.5s;"></div>
+    <div class="confetti" style="left: 70%; animation-delay: -3s;"></div>
+    <div class="confetti" style="left: 80%; animation-delay: -3.5s;"></div>
+    <div class="confetti" style="left: 90%; animation-delay: -4s;"></div>
     
     <!-- Winner Announcement -->
     <div class="winner-announcement">
@@ -365,7 +364,7 @@
         <div class="team-stats">
             {% for team in teams_stats %}
             <div class="team-stat-card {% if team.is_winner %}winner{% endif %}">
-                <div class="team-name" style="--team-color: {{ team.color }};">
+                <div class="team-name" style="color: {{ team.color }};">
                     {{ team.name }}
                     {% if team.is_winner %}👑{% endif %}
                 </div>
@@ -425,7 +424,7 @@
             {% for team in teams_stats %}
             <div class="stat-row">
                 <div class="stat-item">
-                    <div class="stat-value" style="--team-color: {{ team.color }};">{{ team.name }}</div>
+                    <div class="stat-value" style="color: {{ team.color }};">{{ team.name }}</div>
                     <div class="stat-label">Team</div>
                 </div>
                 <div class="stat-item">

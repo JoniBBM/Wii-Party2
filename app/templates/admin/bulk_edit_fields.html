@@ -42,13 +42,13 @@
                                 <i class="fas fa-check-square"></i> Feld-Konfigurationen auswählen
                             </h5>
                             <div class="selection-controls">
-                                <button type="button" class="btn btn-outline-light btn-sm" data-action="select-all">
+                                <button type="button" class="btn btn-outline-light btn-sm" onclick="selectAll()">
                                     <i class="fas fa-check-double"></i> Alle auswählen
                                 </button>
-                                <button type="button" class="btn btn-outline-light btn-sm" data-action="select-none">
+                                <button type="button" class="btn btn-outline-light btn-sm" onclick="selectNone()">
                                     <i class="fas fa-times"></i> Auswahl aufheben
                                 </button>
-                                <button type="button" class="btn btn-outline-light btn-sm" data-action="select-inverse">
+                                <button type="button" class="btn btn-outline-light btn-sm" onclick="selectInverse()">
                                     <i class="fas fa-exchange-alt"></i> Umkehren
                                 </button>
                             </div>
@@ -60,7 +60,7 @@
                                 <table class="table table-hover mb-0">
                                     <thead class="thead-light">
                                         <tr>
-                                            <th class="checkbox-column">
+                                            <th style="width: 50px;">
                                                 <div class="form-check">
                                                     <input class="form-check-input" type="checkbox" id="selectAllCheckbox">
                                                     <label class="form-check-label" for="selectAllCheckbox"></label>
@@ -94,13 +94,13 @@
                             </div>
                             <div class="col-md-6 text-right">
                                 <div class="btn-group btn-group-sm" role="group">
-                                    <button type="button" class="btn btn-outline-primary" data-action="select-by-status" data-status="enabled">
+                                    <button type="button" class="btn btn-outline-primary" onclick="selectByStatus('enabled')">
                                         <i class="fas fa-check"></i> Nur Aktive
                                     </button>
-                                    <button type="button" class="btn btn-outline-secondary" data-action="select-by-status" data-status="disabled">
+                                    <button type="button" class="btn btn-outline-secondary" onclick="selectByStatus('disabled')">
                                         <i class="fas fa-times"></i> Nur Deaktivierte
                                     </button>
-                                    <button type="button" class="btn btn-outline-info" data-action="select-by-type" data-type="special">
+                                    <button type="button" class="btn btn-outline-info" onclick="selectByType('special')">
                                         <i class="fas fa-star"></i> Nur Sonderfelder
                                     </button>
                                 </div>
@@ -128,7 +128,7 @@
                         </div>
 
                         <!-- Häufigkeits-Änderung -->
-                        <div class="action-options" id="changeFrequencyOptions" class="hidden">
+                        <div class="action-options" id="changeFrequencyOptions" style="display: none;">
                             <div class="form-group">
                                 {{ form.new_frequency_type.label(class="form-control-label") }}
                                 {{ form.new_frequency_type(class="form-control") }}
@@ -143,14 +143,14 @@
                         </div>
 
                         <!-- Farb-Änderung -->
-                        <div class="action-options" id="changeColorsOptions" class="hidden">
+                        <div class="action-options" id="changeColorsOptions" style="display: none;">
                             <div class="form-group">
                                 {{ form.new_color_hex.label(class="form-control-label") }}
                                 <div class="input-group">
                                     {{ form.new_color_hex(class="form-control", id="newColorHex") }}
                                     <div class="input-group-append">
                                         <div class="input-group-text color-preview" id="newColorPreview" 
-                                             style="--field-color: #81C784; width: 40px;">
+                                             style="background-color: #81C784; width: 40px;">
                                         </div>
                                     </div>
                                 </div>
@@ -161,7 +161,7 @@
                                     {{ form.new_emission_hex(class="form-control", id="newEmissionHex") }}
                                     <div class="input-group-append">
                                         <div class="input-group-text color-preview" id="newEmissionPreview" 
-                                             style="--field-color: #4CAF50; width: 40px;">
+                                             style="background-color: #4CAF50; width: 40px;">
                                         </div>
                                     </div>
                                 </div>
@@ -172,7 +172,7 @@
                         </div>
 
                         <!-- Lösch-Warnung -->
-                        <div class="action-options" id="deleteWarning" class="hidden">
+                        <div class="action-options" id="deleteWarning" style="display: none;">
                             <div class="alert alert-danger">
                                 <h6><i class="fas fa-exclamation-triangle"></i> Vorsicht!</h6>
                                 <p class="mb-0">
@@ -188,7 +188,7 @@
                         </div>
 
                         <!-- Vorschau -->
-                        <div class="action-preview mt-3" id="actionPreview" class="hidden">
+                        <div class="action-preview mt-3" id="actionPreview" style="display: none;">
                             <h6><i class="fas fa-eye"></i> Vorschau</h6>
                             <div class="preview-content bg-light p-3 rounded">
                                 <div id="previewText">Wählen Sie Felder und eine Aktion aus</div>
@@ -207,19 +207,19 @@
                     <div class="card-body">
                         <div class="quick-actions">
                             <button type="button" class="btn btn-outline-success btn-sm btn-block mb-2" 
-                                    data-action="quick-action" data-quick-action="enable_all_special">
+                                    onclick="quickAction('enable_all_special')">
                                 <i class="fas fa-check-circle"></i> Alle Sonderfelder aktivieren
                             </button>
                             <button type="button" class="btn btn-outline-warning btn-sm btn-block mb-2" 
-                                    data-action="quick-action" data-quick-action="disable_all_special">
+                                    onclick="quickAction('disable_all_special')">
                                 <i class="fas fa-pause-circle"></i> Alle Sonderfelder deaktivieren
                             </button>
                             <button type="button" class="btn btn-outline-primary btn-sm btn-block mb-2" 
-                                    data-action="quick-action" data-quick-action="reset_colors">
+                                    onclick="quickAction('reset_colors')">
                                 <i class="fas fa-palette"></i> Standard-Farben wiederherstellen
                             </button>
                             <button type="button" class="btn btn-outline-secondary btn-sm btn-block" 
-                                    data-action="quick-action" data-quick-action="balance_frequencies">
+                                    onclick="quickAction('balance_frequencies')">
                                 <i class="fas fa-balance-scale"></i> Häufigkeiten ausbalancieren
                             </button>
                         </div>
@@ -375,7 +375,7 @@ function renderFieldTable() {
                 </div>
             </td>
             <td>
-                <span class="field-type-badge" style="--field-color: ${config.color};">
+                <span class="field-type-badge" style="background-color: ${config.color};">
                     ${config.icon || '?'} ${config.field_type}
                 </span>
             </td>
@@ -395,11 +395,11 @@ function renderFieldTable() {
             <td>
                 <div class="d-flex align-items-center">
                     <div class="color-preview mr-2" 
-                         class="field-color-preview" style="--field-color: ${config.color};"
+                         style="width: 20px; height: 20px; background-color: ${config.color}; border: 1px solid #ccc; border-radius: 3px;"
                          title="Hauptfarbe: ${config.color}"></div>
                     ${config.emission && config.emission !== config.color ? `
                         <div class="color-preview" 
-                             class="field-color-preview" style="--field-color: ${config.emission};"
+                             style="width: 20px; height: 20px; background-color: ${config.emission}; border: 1px solid #ccc; border-radius: 3px;"
                              title="Effektfarbe: ${config.emission}"></div>
                     ` : ''}
                 </div>

@@ -6,4 +6,3 @@ Flask-WTF
 python-dotenv
 Werkzeug
 Pillow
-psycopg2-binary

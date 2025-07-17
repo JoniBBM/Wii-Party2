@@ -4,7 +4,6 @@
 
 {% block head_extra %}
 <meta name="csrf-token" content="{{ csrf_token() }}">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/pages/game_board.css') }}">
 <style>
 /* CSS Reset und body setup */
 * {
@@ -474,15 +473,15 @@ body {
         </div>
         
         <!-- Würfelergebnis-Anzeige nur temporär beim Würfeln -->
-        <div id="dice-result-display" class="dice-result-display hidden">
+        <div id="dice-result-display" class="dice-result-display" style="display: none;">
             <div id="dice-result-standard" class="dice-result-part">Standard: <span>-</span></div>
-            <div id="dice-result-bonus" class="dice-result-part hidden">Bonus: <span>-</span></div>
+            <div id="dice-result-bonus" class="dice-result-part" style="display: none;">Bonus: <span>-</span></div>
             <div class="dice-result-total">Gesamt: <span class="dice-result-number">0</span></div>
             <div class="dice-result-text">Felder</div>
         </div>
         
         <!-- Sonderfeld-Anzeige -->
-        <div id="special-field-display" class="special-field-display hidden">
+        <div id="special-field-display" class="special-field-display" style="display: none;">
             <div id="special-field-icon" class="special-field-icon">🎯</div>
             <div id="special-field-title" class="special-field-title">Sonderfeld!</div>
             <div id="special-field-description" class="special-field-description">Etwas Besonderes ist passiert!</div>
@@ -5313,7 +5312,7 @@ function showFaceOverlay(playerFaces) {
         img.onerror = () => {
             faceImage.style.backgroundImage = 'none';
             faceImage.style.backgroundColor = '#4CAF50';
-            faceImage.innerHTML = '<span class="default-face-icon">👤</span>';
+            faceImage.innerHTML = '<span style="color: white; font-size: 3rem; line-height: 112px; display: block; text-align: center;">👤</span>';
         };
         img.src = imagePath;
         
@@ -5709,7 +5708,7 @@ function testSimpleOverlay() {
     `;
     
     // Verstecke Grid, zeige nur Titel und Timer
-    faceGrid.innerHTML = '<div class="face-grid-test">TEST: Das Overlay funktioniert!</div>';
+    faceGrid.innerHTML = '<div style="color: white !important; font-size: 2rem !important; text-align: center !important; z-index: 999999999 !important;">TEST: Das Overlay funktioniert!</div>';
     title.textContent = 'OVERLAY-TEST ERFOLGREICH!';
     timer.textContent = '5';
     
@@ -5749,10 +5748,10 @@ function createDirectOverlay() {
             color: white;
             font-family: Arial, sans-serif;
         ">
-            <h1 class="game-overlay-title">
+            <h1 style="font-size: 4rem; margin-bottom: 2rem; text-align: center;">
                 🎭 FACE OVERLAY TEST
             </h1>
-            <p class="game-overlay-subtitle">
+            <p style="font-size: 2rem; margin-bottom: 3rem; text-align: center;">
                 Das ist ein direktes Overlay - es sollte über ALLEM stehen!
             </p>
             <div style="
@@ -5768,9 +5767,9 @@ function createDirectOverlay() {
                     text-align: center;
                     border: 3px solid white;
                 ">
-                    <div class="test-player-avatar">👤</div>
-                    <div class="test-player-name">Test Spieler 1</div>
-                    <div class="test-player-team">Team Rot</div>
+                    <div style="font-size: 4rem; margin-bottom: 1rem;">👤</div>
+                    <div style="font-size: 1.2rem; font-weight: bold;">Test Spieler 1</div>
+                    <div style="font-size: 1rem; margin-top: 0.5rem;">Team Rot</div>
                 </div>
                 <div style="
                     background: rgba(33, 150, 243, 0.9);
@@ -5779,9 +5778,9 @@ function createDirectOverlay() {
                     text-align: center;
                     border: 3px solid white;
                 ">
-                    <div class="test-player-avatar">👤</div>
-                    <div class="test-player-name">Test Spieler 2</div>
-                    <div class="test-player-team">Team Blau</div>
+                    <div style="font-size: 4rem; margin-bottom: 1rem;">👤</div>
+                    <div style="font-size: 1.2rem; font-weight: bold;">Test Spieler 2</div>
+                    <div style="font-size: 1rem; margin-top: 0.5rem;">Team Blau</div>
                 </div>
             </div>
             <div id="direct-timer" style="

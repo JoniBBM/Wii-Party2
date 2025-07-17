@@ -2,11 +2,6 @@ from flask import render_template, jsonify, request, session, current_app, redir
 from app.main import main_bp
 from app.models import Team, Character, GameSession, GameEvent, Admin, WelcomeSession, PlayerRegistration
 from app import db, csrf
-from app.utils.validation import (
-    validate_team_name, validate_player_name, validate_member_list,
-    validate_position, validate_dice_result, validate_json_data,
-    validate_image_data, sanitize_string, ValidationError, rate_limit_check
-)
 import random # Für Würfellogik
 import traceback # Für detaillierte Fehlermeldungen
 from flask_login import current_user
@@ -182,48 +177,20 @@ def minigame_status():
 
 @main_bp.route('/api/update-position', methods=['POST']) # Dieser Endpunkt wird aktuell nicht vom Client genutzt, da Position serverseitig gesetzt wird.
 def update_position():
-    try:
-        # Rate limiting
-        client_ip = request.remote_addr
-        if not rate_limit_check(f"update_position_{client_ip}", limit=30, window=60):
-            return jsonify({"success": False, "error": "Rate limit exceeded"}), 429
-        
-        data = request.json
-        if not data:
-            return jsonify({"success": False, "error": "Keine Daten empfangen"}), 400
-        
-        # Validate required fields
-        try:
-            validate_json_data(data, ['team_id', 'position'])
-        except ValidationError as e:
-            return jsonify({"success": False, "error": str(e)}), 400
-        
-        team_id = data.get('team_id')
-        position = data.get('position')
-        
-        # Validate team_id
-        try:
-            team_id = int(team_id)
-        except (ValueError, TypeError):
-            return jsonify({"success": False, "error": "Ungültige Team-ID"}), 400
-        
-        # Validate position
-        try:
-            position = validate_position(position)
-        except ValidationError as e:
-            return jsonify({"success": False, "error": str(e)}), 400
-        
-        team = Team.query.get(team_id)
-        if team:
-            team.current_position = position
-            db.session.commit()
-            return jsonify({"success": True})
-        else:
-            return jsonify({"success": False, "error": "Team nicht gefunden"}), 404
+    data = request.json
+    team_id = data.get('team_id')
+    position = data.get('position')
     
-    except Exception as e:
-        current_app.logger.error(f"Error in update_position: {str(e)}")
-        return jsonify({"success": False, "error": "Interner Serverfehler"}), 500
+    if team_id is None or position is None:
+        return jsonify({"success": False, "error": "Ungültige Parameter"}), 400
+    
+    team = Team.query.get(team_id)
+    if team:
+        team.current_position = position
+        db.session.commit()
+        return jsonify({"success": True})
+    
+    return jsonify({"success": False, "error": "Team nicht gefunden"}), 404
 
 @main_bp.route('/api/roll_dice_action', methods=['POST'])
 def roll_dice_action():
@@ -547,20 +514,16 @@ def register_player():
             current_app.logger.error("No JSON data received")
             return jsonify({"success": False, "error": "Keine Daten empfangen"}), 400
             
-        # Rate limiting
-        client_ip = request.remote_addr
-        if not rate_limit_check(f"register_player_{client_ip}", limit=10, window=60):
-            return jsonify({"success": False, "error": "Rate limit exceeded"}), 429
-        
-        # Validate and sanitize player name
         player_name = data.get('player_name', '').strip()
         current_app.logger.info(f"Registration attempt for player: '{player_name}'")
         
-        try:
-            player_name = validate_player_name(player_name)
-        except ValidationError as e:
-            current_app.logger.error(f"Player name validation failed: {str(e)}")
-            return jsonify({"success": False, "error": str(e)}), 400
+        if not player_name:
+            current_app.logger.error("Empty player name")
+            return jsonify({"success": False, "error": "Name ist erforderlich"}), 400
+        
+        if len(player_name) > 50:
+            current_app.logger.error(f"Player name too long: {len(player_name)} chars")
+            return jsonify({"success": False, "error": "Name ist zu lang (max. 50 Zeichen)"}), 400
         
         # Prüfe ob Registrierung aktiv ist
         welcome_session = WelcomeSession.get_active_session()
@@ -1041,11 +1004,6 @@ def upload_profile_image():
         from PIL import Image
         import io
         
-        # Rate limiting
-        client_ip = request.remote_addr
-        if not rate_limit_check(f"upload_image_{client_ip}", limit=20, window=60):
-            return jsonify({"success": False, "error": "Rate limit exceeded"}), 429
-        
         # Debug: Log the request data
         current_app.logger.info(f"Upload request content-type: {request.content_type}")
         current_app.logger.info(f"Upload request data length: {len(request.data) if request.data else 0}")
@@ -1060,23 +1018,26 @@ def upload_profile_image():
             current_app.logger.error("No JSON data received in upload request")
             return jsonify({"success": False, "error": "Keine Daten empfangen"}), 400
             
-        # Validate player name
         player_name = data.get('player_name', '').strip()
         image_data = data.get('image_data', '')  # Base64-encoded image
         
         current_app.logger.info(f"Upload request for player: {player_name}")
         current_app.logger.info(f"Image data length: {len(image_data) if image_data else 0}")
         
-        try:
-            player_name = validate_player_name(player_name)
-        except ValidationError as e:
-            return jsonify({"success": False, "error": str(e)}), 400
+        if not player_name:
+            return jsonify({"success": False, "error": "Spielername ist erforderlich"}), 400
         
-        # Validate image data
-        try:
-            image_data = validate_image_data(image_data, max_size_mb=5.0)
-        except ValidationError as e:
-            return jsonify({"success": False, "error": str(e)}), 400
+        if not image_data:
+            return jsonify({"success": False, "error": "Bilddaten fehlen"}), 400
+        
+        # Entferne data:image/...;base64, prefix falls vorhanden
+        if 'base64,' in image_data:
+            image_data = image_data.split('base64,')[1]
+        elif image_data.startswith('data:'):
+            # Fallback: Remove any data: prefix even without base64,
+            parts = image_data.split(',', 1)
+            if len(parts) > 1:
+                image_data = parts[1]
         
         # Prüfe ob aktive Welcome-Session existiert
         welcome_session = WelcomeSession.get_active_session()

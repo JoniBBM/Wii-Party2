@@ -83,7 +83,7 @@
                             <form method="POST" action="{{ url_for('admin.activate_round', round_id=round.id) }}" class="w-100">
                                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 <button type="submit" class="btn btn-success btn-sm w-100" 
-                                        data-confirm="Diese Runde aktivieren? Die aktuelle Runde wird deaktiviert.">
+                                        onclick="return confirm('Diese Runde aktivieren? Die aktuelle Runde wird deaktiviert.')">
                                     <i class="fas fa-play"></i> Aktivieren
                                 </button>
                             </form>
