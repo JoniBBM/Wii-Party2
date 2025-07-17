@@ -169,7 +169,6 @@ def main():
             print("✅ Team.blocked_target_number - Zahl die gewürfelt werden muss")
             print("✅ Team.blocked_turns_remaining - Verbleibende blockierte Züge")
             print("✅ Team.extra_moves_remaining - Extra-Bewegungen verfügbar")
-            print("✅ Team.has_shield - Schutz vor Fallen")
             print("✅ Team.reset_special_field_status() - Setzt alle Stati zurück")
             print("\n🎮 SONDERFELD-AKTIONEN VERFÜGBAR:")
             print("🚀 Katapult Vorwärts - Wirft Teams 3-5 Felder nach vorne")

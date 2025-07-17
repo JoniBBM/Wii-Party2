@@ -127,20 +127,6 @@ def update_field_config(config_id, form_data):
         
         # Debug logging
         current_app.logger.info(f"[BARRIER CONFIG] Received target_numbers: '{target_numbers_str}'")
-    elif config.field_type == 'bonus':
-        extended_config['bonus_type'] = form_data.get('bonus_type', 'extra_dice')
-    elif config.field_type == 'trap':
-        trap_effects = form_data.getlist('trap_effects')  # Multiple select
-        if trap_effects:
-            extended_config['trap_effects'] = trap_effects
-        else:
-            extended_config['trap_effects'] = ['move_back', 'skip_turn', 'remove_bonus']
-    elif config.field_type == 'chance':
-        chance_events = form_data.getlist('chance_events')  # Multiple select
-        if chance_events:
-            extended_config['events'] = chance_events
-        else:
-            extended_config['events'] = ['bonus_move', 'lose_turn', 'extra_roll']
     
     # Feste Positionen für frequency_type 'fixed_positions'
     if config.frequency_type == 'fixed_positions':
@@ -224,47 +210,6 @@ def get_field_type_templates():
             'config_fields': [
                 {'name': 'target_numbers', 'type': 'text', 'default': '4,5,6', 'label': 'Befreiungsbedingung', 
                  'placeholder': 'z.B. -3, 5+, 6, oder 2,4,6'}
-            ]
-        },
-        'bonus': {
-            'display_name': 'Bonusfeld',
-            'description': 'Gibt Teams einen Vorteil',
-            'color_hex': '#FFD54F',
-            'emission_hex': '#FFA000',
-            'icon': '⭐',
-            'frequency_type': 'modulo',
-            'frequency_value': 8,
-            'config_fields': [
-                {'name': 'bonus_type', 'type': 'select', 'default': 'extra_dice', 'label': 'Bonus-Typ',
-                 'options': [('extra_dice', 'Extra-Würfel'), ('extra_move', 'Extra-Bewegung')]}
-            ]
-        },
-        'trap': {
-            'display_name': 'Falle',
-            'description': 'Schadet Teams oder blockiert sie',
-            'color_hex': '#E57373',
-            'emission_hex': '#D32F2F',
-            'icon': '⚠️',
-            'frequency_type': 'modulo',
-            'frequency_value': 25,
-            'config_fields': [
-                {'name': 'trap_effects', 'type': 'multiselect', 'default': ['move_back', 'skip_turn', 'remove_bonus'],
-                 'label': 'Fallen-Effekte',
-                 'options': [('move_back', 'Zurück bewegen'), ('skip_turn', 'Zug überspringen'), ('remove_bonus', 'Bonus entfernen')]}
-            ]
-        },
-        'chance': {
-            'display_name': 'Ereignisfeld',
-            'description': 'Zufällige Ereignisse',
-            'color_hex': '#AED581',
-            'emission_hex': '#689F38',
-            'icon': '🎲',
-            'frequency_type': 'modulo',
-            'frequency_value': 20,
-            'config_fields': [
-                {'name': 'chance_events', 'type': 'multiselect', 'default': ['bonus_move', 'lose_turn', 'extra_roll'],
-                 'label': 'Mögliche Ereignisse',
-                 'options': [('bonus_move', 'Bonus-Bewegung'), ('lose_turn', 'Zug verlieren'), ('extra_roll', 'Extra-Wurf')]}
             ]
         },
         'minigame': {

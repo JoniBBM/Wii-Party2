@@ -63,7 +63,6 @@ class Team(UserMixin, db.Model):
     blocked_config = db.Column(db.Text, nullable=True)  # JSON config for barrier conditions
     blocked_turns_remaining = db.Column(db.Integer, default=0)  # Runden blockiert
     extra_moves_remaining = db.Column(db.Integer, default=0)  # Extra-Bewegungen
-    has_shield = db.Column(db.Boolean, default=False, nullable=False)  # Schutz vor Fallen
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
@@ -475,20 +474,6 @@ class FieldConfiguration(db.Model):
                 })
             },
             {
-                'field_type': 'bonus',
-                'display_name': 'Bonusfeld',
-                'description': 'Gibt dem Team einen Vorteil',
-                'is_enabled': True,
-                'frequency_type': 'modulo',
-                'frequency_value': 8,  # Alle 8 Felder
-                'color_hex': '#FFD700',
-                'emission_hex': '#FF8C00',
-                'icon': '⭐',
-                'config_data': json.dumps({
-                    'bonus_type': 'extra_dice'
-                })
-            },
-            {
                 'field_type': 'minigame',
                 'display_name': 'Minispiel',
                 'description': 'Startet ein Minispiel oder eine Frage',
@@ -499,34 +484,6 @@ class FieldConfiguration(db.Model):
                 'emission_hex': '#6A1B9A',
                 'icon': '🎮',
                 'config_data': json.dumps({})
-            },
-            {
-                'field_type': 'chance',
-                'display_name': 'Ereignisfeld',
-                'description': 'Zufälliges Ereignis passiert',
-                'is_enabled': True,
-                'frequency_type': 'modulo',
-                'frequency_value': 20,  # Alle 20 Felder
-                'color_hex': '#ADFF2F',
-                'emission_hex': '#9ACD32',
-                'icon': '🎲',
-                'config_data': json.dumps({
-                    'events': ['bonus_move', 'lose_turn', 'extra_roll']
-                })
-            },
-            {
-                'field_type': 'trap',
-                'display_name': 'Falle',
-                'description': 'Schadet dem Team oder blockiert es',
-                'is_enabled': True,
-                'frequency_type': 'modulo',
-                'frequency_value': 25,  # Alle 25 Felder
-                'color_hex': '#FF4500',
-                'emission_hex': '#B22222',
-                'icon': '⚠️',
-                'config_data': json.dumps({
-                    'trap_effects': ['move_back', 'skip_turn', 'remove_bonus']
-                })
             }
         ]
         

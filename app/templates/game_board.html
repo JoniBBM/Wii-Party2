@@ -509,9 +509,6 @@ let BOARD_CONFIG = {
         // Standard-Fallback-Farben - werden dynamisch überschrieben
         start: { color: 0x00BFFF, emission: 0x0066CC, name: 'Start' },
         normal: { color: 0x00FF00, emission: 0x00CC00, name: 'Normales Feld' },
-        bonus: { color: 0xFFD700, emission: 0xFF8C00, name: 'Bonusfeld' },
-        chance: { color: 0xADFF2F, emission: 0x9ACD32, name: 'Ereignisfeld' },
-        trap: { color: 0xFF4500, emission: 0xB22222, name: 'Falle' },
         minigame: { color: 0x8A2BE2, emission: 0x6A1B9A, name: 'Minispiel' },
         goal: { color: 0xFF6600, emission: 0xCC4400, name: 'Ziel' },
         catapult_forward: { color: 0x32CD32, emission: 0x228B22, name: 'Katapult Vorwärts' },
@@ -4212,29 +4209,11 @@ class WiiPartyIsland {
                 icon = "⬜";
                 fieldColor = "#81C784";
                 break;
-            case 'bonus':
-                title = "Bonusfeld!";
-                description = `${teamName} hat ein Bonusfeld erreicht! Du erhältst einen Vorteil für den nächsten Zug oder bekommst einen Extrawurf.`;
-                icon = "⭐";
-                fieldColor = "#FFD54F";
-                break;
             case 'minigame':
                 title = "Minispiel-Feld";
                 description = `${teamName} ist auf einem Minispiel-Feld gelandet! Bereite dich auf eine Herausforderung vor.`;
                 icon = "🎮";
                 fieldColor = "#BA68C8";
-                break;
-            case 'chance':
-                title = "Ereignisfeld";
-                description = `${teamName} hat ein Ereignisfeld erreicht! Ein zufälliges Ereignis wird ausgelöst - das kann gut oder schlecht sein.`;
-                icon = "🎲";
-                fieldColor = "#AED581";
-                break;
-            case 'trap':
-                title = "Falle!";
-                description = `${teamName} ist in eine Falle geraten! Du verlierst möglicherweise deinen nächsten Zug oder wirst zurückgesetzt.`;
-                icon = "⚠️";
-                fieldColor = "#E57373";
                 break;
             case 'catapult_forward':
                 title = "Katapult Vorwärts!";

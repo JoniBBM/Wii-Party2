@@ -350,29 +350,6 @@ class FieldConfigurationForm(FlaskForm):
     target_numbers = StringField('Ziel-Zahlen (komma-getrennt)', validators=[Optional()],
                                 default='4,5,6', render_kw={"placeholder": "z.B. 4,5,6"})
     
-    # Bonus-Feld
-    bonus_type = SelectField('Bonus-Typ', choices=[
-        ('extra_dice', 'Extra-Würfel'),
-        ('extra_move', 'Extra-Bewegung'),
-        ('shield', 'Schutzschild')
-    ], validators=[Optional()], default='extra_dice')
-    
-    # Fallen-Feld
-    trap_effects = SelectMultipleField('Fallen-Effekte', choices=[
-        ('move_back', 'Zurück bewegen'),
-        ('skip_turn', 'Zug überspringen'),
-        ('remove_bonus', 'Bonus entfernen'),
-        ('lose_dice', 'Würfel verlieren')
-    ], validators=[Optional()])
-    
-    # Ereignis-Feld
-    chance_events = SelectMultipleField('Mögliche Ereignisse', choices=[
-        ('bonus_move', 'Bonus-Bewegung'),
-        ('lose_turn', 'Zug verlieren'),
-        ('extra_roll', 'Extra-Wurf'),
-        ('teleport', 'Teleportation'),
-        ('swap_random', 'Zufälliger Tausch')
-    ], validators=[Optional()])
     
     submit = SubmitField('Konfiguration speichern')
 
