@@ -308,11 +308,14 @@
     
     .character-preview {
         width: 300px;
-        height: 300px;
+        height: 350px;
         margin: 0 auto;
         border-radius: 15px;
         background: linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0.05));
         border: 2px solid rgba(255, 255, 255, 0.3);
+        display: flex;
+        align-items: center;
+        justify-content: center;
     }
     
     .customization-grid {
@@ -1267,7 +1270,7 @@ function initCharacterPreview() {
     
     // Camera setup
     camera = new THREE.PerspectiveCamera(75, container.clientWidth / container.clientHeight, 0.1, 1000);
-    camera.position.set(0, 0.5, 1.5);
+    camera.position.set(0, 0.3, 1.8);
     
     // Renderer setup
     renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -1283,10 +1286,11 @@ function initCharacterPreview() {
     controls.dampingFactor = 0.05;
     controls.enableZoom = true;
     controls.enablePan = false;
-    controls.minDistance = 1;
-    controls.maxDistance = 3;
-    controls.minPolarAngle = Math.PI / 6;
-    controls.maxPolarAngle = Math.PI / 2;
+    controls.minDistance = 1.2;
+    controls.maxDistance = 3.5;
+    controls.minPolarAngle = Math.PI / 8;
+    controls.maxPolarAngle = Math.PI / 1.8;
+    controls.target.set(0, 0.3, 0); // Zentrale Ausrichtung auf Charakter
     
     // Lighting setup
     const ambientLight = new THREE.AmbientLight(0x404040, 0.6);
@@ -1434,7 +1438,8 @@ function setupColorListeners() {
 // Kamera-Ansicht zurücksetzen
 function resetCameraView() {
     if (camera && controls) {
-        camera.position.set(0, 0.5, 1.5);
+        camera.position.set(0, 0.3, 1.8);
+        controls.target.set(0, 0.3, 0);
         controls.reset();
     }
 }

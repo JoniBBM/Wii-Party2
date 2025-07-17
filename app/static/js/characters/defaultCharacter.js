@@ -94,7 +94,7 @@ function createDefaultCharacter(colorHex, customization = {}) {
             shininess: 30
         })
     );
-    body.position.y = 0.3 * heightMultiplier; // Wird später nach Bein-Definition korrigiert
+    body.position.y = 0.35 * heightMultiplier; // Wird später nach Bein-Definition korrigiert
     
     // Körper-Gruppe für alle anhängenden Teile
     const bodyGroup = new THREE.Group();
@@ -427,7 +427,7 @@ function createDefaultCharacter(colorHex, customization = {}) {
     }
     
     // Korrigiere Körper-Position: Körper sitzt direkt auf Beinen
-    body.position.y = (0.05 + (legLength * heightMultiplier * 0.5) + (bodyHeight * heightMultiplier * 0.5)) * heightMultiplier;
+    body.position.y = (0.1 + (legLength * heightMultiplier * 0.5) + (bodyHeight * heightMultiplier * 0.5)) * heightMultiplier;
     
     // Korrigiere Kopf-Position: Kopf sitzt direkt auf Körper
     head.position.y = body.position.y + (bodyHeight * heightMultiplier * 0.5) + 0.25;
@@ -554,7 +554,7 @@ function createDefaultCharacter(colorHex, customization = {}) {
                 shininess: 30
             })
         );
-        leg.position.set(i === 0 ? 0.08 : -0.08, 0.05 * heightMultiplier, 0); // Beine höher positioniert
+        leg.position.set(i === 0 ? 0.08 : -0.08, 0.1 * heightMultiplier, 0); // Beine höher positioniert
         bodyGroup.add(leg);
     }
 
@@ -589,7 +589,7 @@ function createDefaultCharacter(colorHex, customization = {}) {
             })
         );
         shoe.scale.set(shoeScale.x, shoeScale.y, shoeScale.z);
-        shoe.position.set(i === 0 ? 0.08 : -0.08, -0.08 * heightMultiplier, 0.12); // Schuhe auf Bodenebene
+        shoe.position.set(i === 0 ? 0.08 : -0.08, -0.05 * heightMultiplier, 0.12); // Schuhe auf Bodenebene
         bodyGroup.add(shoe);
     }
 
