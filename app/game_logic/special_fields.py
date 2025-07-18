@@ -685,6 +685,209 @@ def get_field_config_for_position(position):
     return FieldConfiguration.get_config_for_field(field_type)
 
 
+def handle_minigame_field(team, all_teams, game_session):
+    """
+    Behandelt das Landen auf einem Minigame-Feld
+    Triggert ein Feld-Minigame je nach Konfiguration
+    """
+    try:
+        import os
+        
+        # Lade Konfiguration
+        config_path = os.path.join(current_app.static_folder, 'field_minigames', 'config.json')
+        if not os.path.exists(config_path):
+            return {"success": False, "action": "none", "message": "Feld-Minigame Konfiguration nicht gefunden"}
+        
+        with open(config_path, 'r', encoding='utf-8') as f:
+            config = json.load(f)
+        
+        field_config = config.get('field_minigames', {})
+        if not field_config.get('enabled', True):
+            return {"success": False, "action": "none", "message": "Feld-Minigames sind deaktiviert"}
+        
+        # Bestimme Minigame-Modus
+        modes = field_config.get('modes', {})
+        active_modes = [mode for mode, settings in modes.items() if settings.get('enabled', True)]
+        
+        if not active_modes:
+            return {"success": False, "action": "none", "message": "Keine aktiven Minigame-Modi"}
+        
+        # Auswahl des Modus basierend auf default_mode
+        default_mode = field_config.get('default_mode', 'random')
+        
+        if default_mode == 'random':
+            # Zufällige Auswahl des Modus
+            selected_mode = random.choice(active_modes)
+        elif default_mode in active_modes:
+            # Verwende den voreingestellten Modus
+            selected_mode = default_mode
+        else:
+            # Fallback auf zufälligen Modus
+            selected_mode = random.choice(active_modes)
+        
+        # Bestimme Gegner-Team basierend auf Modus
+        opponent_team = None
+        if selected_mode == 'team_vs_team':
+            # Wähle zufälliges anderes Team
+            other_teams = [t for t in all_teams if t.id != team.id]
+            if other_teams:
+                opponent_team = random.choice(other_teams)
+            else:
+                # Fallback zu team_vs_all wenn nur ein Team vorhanden
+                selected_mode = 'team_vs_all'
+        
+        # Wähle Minigame-Inhalt
+        content_folder = os.path.join(current_app.static_folder, 'field_minigames', selected_mode)
+        content_files = []
+        
+        if os.path.exists(content_folder):
+            for file in os.listdir(content_folder):
+                if file.endswith('.json'):
+                    content_files.append(file)
+        
+        if not content_files:
+            return {"success": False, "action": "none", "message": f"Keine Inhalte für Modus {selected_mode}"}
+        
+        # Zufällige Auswahl des Inhalts
+        selected_file = random.choice(content_files)
+        content_path = os.path.join(content_folder, selected_file)
+        
+        with open(content_path, 'r', encoding='utf-8') as f:
+            content = json.load(f)
+        
+        # Setze Session-Daten für Feld-Minigame
+        game_session.field_minigame_mode = selected_mode
+        game_session.field_minigame_landing_team_id = team.id
+        game_session.field_minigame_opponent_team_id = opponent_team.id if opponent_team else None
+        game_session.field_minigame_content_id = selected_file
+        game_session.field_minigame_content_type = content.get('type', 'question')
+        game_session.current_phase = 'FIELD_MINIGAME_TRIGGERED'
+        
+        # Event erstellen
+        event = GameEvent(
+            game_session_id=game_session.id,
+            event_type="field_minigame_triggered",
+            description=f"Team {team.name} landete auf Minigame-Feld - {selected_mode}",
+            related_team_id=team.id,
+            data_json=json.dumps({
+                "field_type": "minigame",
+                "mode": selected_mode,
+                "landing_team_id": team.id,
+                "opponent_team_id": opponent_team.id if opponent_team else None,
+                "content_id": selected_file,
+                "content_type": content.get('type', 'question'),
+                "content": content
+            })
+        )
+        db.session.add(event)
+        
+        # Vorbereite Rückgabe-Daten
+        opponent_name = opponent_team.name if opponent_team else "alle anderen Teams"
+        mode_name = modes.get(selected_mode, {}).get('name', selected_mode)
+        
+        return {
+            "success": True,
+            "action": "field_minigame_triggered",
+            "mode": selected_mode,
+            "mode_name": mode_name,
+            "landing_team": team.name,
+            "opponent_team": opponent_name,
+            "content": content,
+            "message": f"🎮 Minigame! {team.name} gegen {opponent_name} - {mode_name}"
+        }
+        
+    except Exception as e:
+        current_app.logger.error(f"Fehler beim Behandeln des Minigame-Felds: {e}")
+        return {"success": False, "action": "none", "message": f"Fehler beim Starten des Minigames: {str(e)}"}
+
+
+def handle_field_minigame_result(game_session, winning_team_id):
+    """
+    Behandelt das Ergebnis eines Feld-Minigames
+    Belohnt das gewinnende Team mit Vorwärtsbewegung
+    """
+    try:
+        if not game_session.field_minigame_landing_team_id:
+            return {"success": False, "message": "Kein aktives Feld-Minigame"}
+        
+        # Lade Konfiguration
+        config_path = os.path.join(current_app.static_folder, 'field_minigames', 'config.json')
+        with open(config_path, 'r', encoding='utf-8') as f:
+            config = json.load(f)
+        
+        field_config = config.get('field_minigames', {})
+        mode_config = field_config.get('modes', {}).get(game_session.field_minigame_mode, {})
+        
+        # Prüfe ob das landende Team gewonnen hat
+        landing_team = game_session.field_minigame_landing_team
+        won = (winning_team_id == game_session.field_minigame_landing_team_id)
+        
+        if won:
+            # Team gewinnt - bewege vorwärts
+            reward_forward = mode_config.get('reward_forward', 5)
+            max_board_fields = current_app.config.get('MAX_BOARD_FIELDS', 72)
+            
+            old_position = landing_team.current_position
+            new_position = min(old_position + reward_forward, max_board_fields)
+            landing_team.current_position = new_position
+            
+            game_session.field_minigame_result = 'won'
+            
+            # Event erstellen
+            event = GameEvent(
+                game_session_id=game_session.id,
+                event_type="field_minigame_completed",
+                description=f"Team {landing_team.name} gewann das Feld-Minigame und bewegt sich {reward_forward} Felder vor",
+                related_team_id=landing_team.id,
+                data_json=json.dumps({
+                    "result": "won",
+                    "reward_forward": reward_forward,
+                    "old_position": old_position,
+                    "new_position": new_position,
+                    "mode": game_session.field_minigame_mode
+                })
+            )
+            db.session.add(event)
+            
+            result_message = f"🎉 {landing_team.name} gewinnt und bewegt sich {reward_forward} Felder vor!"
+            
+        else:
+            # Team verliert - keine Bewegung
+            game_session.field_minigame_result = 'lost'
+            
+            # Event erstellen
+            event = GameEvent(
+                game_session_id=game_session.id,
+                event_type="field_minigame_completed",
+                description=f"Team {landing_team.name} verlor das Feld-Minigame - keine Bewegung",
+                related_team_id=landing_team.id,
+                data_json=json.dumps({
+                    "result": "lost",
+                    "mode": game_session.field_minigame_mode
+                })
+            )
+            db.session.add(event)
+            
+            result_message = f"❌ {landing_team.name} verliert - keine Bewegung"
+        
+        # Setze Phase zurück
+        game_session.current_phase = 'FIELD_MINIGAME_COMPLETED'
+        
+        return {
+            "success": True,
+            "won": won,
+            "team_name": landing_team.name,
+            "old_position": old_position if won else landing_team.current_position,
+            "new_position": landing_team.current_position,
+            "reward_forward": reward_forward if won else 0,
+            "message": result_message
+        }
+        
+    except Exception as e:
+        current_app.logger.error(f"Fehler beim Behandeln des Minigame-Ergebnisses: {e}")
+        return {"success": False, "message": f"Fehler beim Verarbeiten des Ergebnisses: {str(e)}"}
+
+
 def handle_special_field_action(team, all_teams, game_session, dice_info=None):
     """
     Hauptfunktion die nach einer Bewegung aufgerufen wird
@@ -707,8 +910,10 @@ def handle_special_field_action(team, all_teams, game_session, dice_info=None):
         return handle_player_swap(team, all_teams, game_session, dice_info)
     elif field_type == 'barrier':
         return handle_barrier_field(team, game_session)
+    elif field_type == 'minigame':
+        return handle_minigame_field(team, all_teams, game_session)
     else:
-        # Kein Sonderfeld oder andere Felder (Minispiel, normale Felder, etc.)
+        # Kein Sonderfeld oder andere Felder (normale Felder, etc.)
         return {"success": False, "action": "none"}
 
 

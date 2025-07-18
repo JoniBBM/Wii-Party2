@@ -1,0 +1,203 @@
+{% extends 'base.html' %}
+
+{% block title %}Runden-Backup & Wiederherstellung{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row justify-content-center">
+        <div class="col-12 col-lg-11">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1 class="h3">🗂️ Runden-Backup & Wiederherstellung</h1>
+                <a href="{{ url_for('admin.manage_rounds') }}" class="btn btn-secondary">
+                    <i class="fas fa-arrow-left"></i> Zurück zu Runden
+                </a>
+            </div>
+
+            <!-- Statistiken -->
+            <div class="row mb-4">
+                <div class="col-md-4">
+                    <div class="card bg-primary text-white">
+                        <div class="card-body">
+                            <h5 class="card-title">📊 Datenbank-Runden</h5>
+                            <h3 class="card-text">{{ stats.db_rounds_count }}</h3>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card bg-success text-white">
+                        <div class="card-body">
+                            <h5 class="card-title">💾 Gesicherte Runden</h5>
+                            <h3 class="card-text">{{ stats.saved_rounds_count }}</h3>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card bg-info text-white">
+                        <div class="card-body">
+                            <h5 class="card-title">📦 Speicherplatz</h5>
+                            <h3 class="card-text">{{ (stats.total_storage_used / 1024) | round(1) }} KB</h3>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Aktionen -->
+            <div class="row mb-4">
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5>🔄 Bulk-Aktionen</h5>
+                        </div>
+                        <div class="card-body">
+                            <form method="POST" style="display: inline-block;">
+                                <input type="hidden" name="action" value="backup_all">
+                                <button type="submit" class="btn btn-primary mb-2" onclick="return confirm('Alle Runden sichern?')">
+                                    <i class="fas fa-save"></i> Alle Runden sichern
+                                </button>
+                            </form>
+                            <br>
+                            <form method="POST" style="display: inline-block;">
+                                <input type="hidden" name="action" value="restore_all">
+                                <button type="submit" class="btn btn-success mb-2" onclick="return confirm('Alle gesicherten Runden wiederherstellen?')">
+                                    <i class="fas fa-upload"></i> Alle Runden wiederherstellen
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5>ℹ️ Hinweise</h5>
+                        </div>
+                        <div class="card-body">
+                            <ul class="list-unstyled">
+                                <li>✅ Kompletter Spielzustand wird gesichert</li>
+                                <li>📊 Teams, Positionen, Konfigurationen</li>
+                                <li>🎮 Minigame-Inhalte und Ordner</li>
+                                <li>🔄 Automatische Sicherung bei Änderungen</li>
+                                <li>💾 Übersteht Datenbank-Resets</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Datenbank-Runden -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5>📊 Runden in der Datenbank</h5>
+                </div>
+                <div class="card-body">
+                    {% if db_rounds %}
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Beschreibung</th>
+                                    <th>Status</th>
+                                    <th>Erstellt</th>
+                                    <th>Aktionen</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for round in db_rounds %}
+                                <tr>
+                                    <td>
+                                        <strong>{{ round.name }}</strong>
+                                        {% if round.is_active %}
+                                            <span class="badge bg-success ms-2">Aktiv</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ round.description or 'Keine Beschreibung' }}</td>
+                                    <td>
+                                        <span class="badge bg-{{ 'success' if round.is_active else 'secondary' }}">
+                                            {{ 'Aktiv' if round.is_active else 'Inaktiv' }}
+                                        </span>
+                                    </td>
+                                    <td>{{ round.created_at.strftime('%d.%m.%Y %H:%M') if round.created_at else 'Unbekannt' }}</td>
+                                    <td>
+                                        <form method="POST" style="display: inline-block;">
+                                            <input type="hidden" name="action" value="backup_single">
+                                            <input type="hidden" name="round_id" value="{{ round.id }}">
+                                            <button type="submit" class="btn btn-sm btn-primary" title="Einzelne Runde sichern">
+                                                <i class="fas fa-save"></i>
+                                            </button>
+                                        </form>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i> Keine Runden in der Datenbank gefunden.
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Gesicherte Runden -->
+            <div class="card">
+                <div class="card-header">
+                    <h5>💾 Gesicherte Runden (Dateisystem)</h5>
+                </div>
+                <div class="card-body">
+                    {% if saved_rounds %}
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Beschreibung</th>
+                                    <th>Ordner</th>
+                                    <th>Gesichert am</th>
+                                    <th>Teams</th>
+                                    <th>Aktionen</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for round in saved_rounds %}
+                                <tr>
+                                    <td><strong>{{ round.name }}</strong></td>
+                                    <td>{{ round.description or 'Keine Beschreibung' }}</td>
+                                    <td>
+                                        <code>{{ round.minigame_folder_name or 'Kein Ordner' }}</code>
+                                    </td>
+                                    <td>{{ round.saved_at[:19] if round.saved_at else 'Unbekannt' }}</td>
+                                    <td>
+                                        {% if round.teams %}
+                                            <span class="badge bg-info">{{ round.teams|length }} Teams</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">Keine Teams</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <form method="POST" style="display: inline-block;">
+                                            <input type="hidden" name="action" value="delete_backup">
+                                            <input type="hidden" name="round_name" value="{{ round.name }}">
+                                            <button type="submit" class="btn btn-sm btn-danger" 
+                                                    onclick="return confirm('Backup der Runde \'{{ round.name }}\' löschen?')"
+                                                    title="Backup löschen">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </form>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle"></i> Keine gesicherten Runden gefunden.
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

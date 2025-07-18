@@ -1,0 +1,33 @@
+{
+  "field_minigames": {
+    "enabled": true,
+    "default_mode": "random",
+    "modes": {
+      "team_vs_all": {
+        "name": "Ein Team gegen alle",
+        "description": "Das Team, das auf dem Feld gelandet ist, spielt gegen alle anderen Teams",
+        "reward_forward": 5,
+        "reward_backward": 0,
+        "enabled": true
+      },
+      "team_vs_team": {
+        "name": "Ein Team gegen ein anderes",
+        "description": "Das Team, das auf dem Feld gelandet ist, spielt gegen ein zufällig ausgewähltes anderes Team",
+        "reward_forward": 5,
+        "reward_backward": 0,
+        "enabled": true
+      }
+    },
+    "content_selection": {
+      "prefer_unused": true,
+      "fallback_to_used": true,
+      "reset_after_all_used": true
+    },
+    "game_flow": {
+      "show_announcement": true,
+      "announcement_duration": 3,
+      "show_team_selection": true,
+      "auto_start_timer": 5
+    }
+  }
+}

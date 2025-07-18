@@ -21,7 +21,9 @@ from .minigame_utils import (ensure_minigame_folders_exist, create_minigame_fold
                             get_random_minigame_from_folder, list_available_folders, update_folder_info,
                             get_questions_from_folder, add_question_to_folder, get_question_from_folder,
                             get_all_content_from_folder, get_random_content_from_folder, get_played_count_for_folder,
-                            get_available_content_from_folder, mark_content_as_played, reset_played_content_for_session)
+                            get_available_content_from_folder, mark_content_as_played, reset_played_content_for_session,
+                            save_round_to_filesystem, backup_all_rounds_before_db_reset, restore_rounds_to_database,
+                            load_rounds_from_filesystem, delete_round_from_filesystem)
 
 # NEU: FELD-MANAGEMENT IMPORTS
 from .field_config import (
@@ -1038,6 +1040,9 @@ def manage_fields():
         # Lade alle Feld-Konfigurationen
         field_configs = FieldConfiguration.query.order_by(FieldConfiguration.field_type).all()
         
+        # Aktive Runde für Kontext
+        active_round = GameRound.get_active_round()
+        
         # Feld-Statistiken
         field_stats = get_field_statistics()
         
@@ -1055,6 +1060,7 @@ def manage_fields():
         
         return render_template('admin/manage_fields.html',
                              field_configs=field_configs,
+                             active_round=active_round,
                              field_stats=field_stats,
                              color_mapping=color_mapping,
                              preview_data=preview_data,
@@ -2408,7 +2414,12 @@ def activate_round(round_id):
     
     try:
         round_obj = GameRound.query.get_or_404(round_id)
-        round_obj.activate()  # Verwendet die Model-Methode
+        
+        # Stelle sicher, dass die Runde rundenspezifische Konfigurationen hat
+        round_obj.ensure_round_configurations()
+        
+        # Aktiviere die Runde (lädt automatisch die Konfigurationen)
+        round_obj.activate()
         
         # Beim Wechseln der Runde: Gespielte Inhalte zurücksetzen
         active_session = GameSession.query.filter_by(is_active=True).first()
@@ -2418,17 +2429,98 @@ def activate_round(round_id):
             event = GameEvent(
                 game_session_id=active_session.id,
                 event_type="round_activated",
-                description=f"Spielrunde '{round_obj.name}' wurde aktiviert. Gespielte Inhalte wurden zurückgesetzt."
+                description=f"Spielrunde '{round_obj.name}' wurde aktiviert. Gespielte Inhalte und Konfigurationen wurden geladen."
             )
             db.session.add(event)
             db.session.commit()
         
-        flash(f"Spielrunde '{round_obj.name}' wurde aktiviert. Gespielte Inhalte wurden zurückgesetzt.", 'success')
+        flash(f"Spielrunde '{round_obj.name}' wurde aktiviert. Rundenspezifische Konfigurationen wurden geladen.", 'success')
     except Exception as e:
         current_app.logger.error(f"Fehler beim Aktivieren der Spielrunde: {e}", exc_info=True)
         flash('Ein Fehler ist beim Aktivieren der Spielrunde aufgetreten.', 'danger')
     
     return redirect(url_for('admin.manage_rounds'))
+
+@admin_bp.route('/backup_rounds', methods=['GET', 'POST'])
+@login_required
+def backup_rounds():
+    """Manuelle Sicherung und Wiederherstellung von Spielrunden"""
+    if not isinstance(current_user, Admin):
+        return redirect(url_for('main.index'))
+    
+    if request.method == 'POST':
+        action = request.form.get('action')
+        
+        if action == 'backup_all':
+            try:
+                backed_up_count = backup_all_rounds_before_db_reset()
+                if backed_up_count > 0:
+                    flash(f"✅ {backed_up_count} Runden erfolgreich gesichert!", 'success')
+                else:
+                    flash("ℹ️ Keine Runden zum Sichern gefunden.", 'info')
+            except Exception as e:
+                current_app.logger.error(f"Fehler beim Sichern aller Runden: {e}", exc_info=True)
+                flash("❌ Fehler beim Sichern der Runden.", 'danger')
+        
+        elif action == 'restore_all':
+            try:
+                restored_count = restore_rounds_to_database()
+                if restored_count > 0:
+                    flash(f"✅ {restored_count} Runden erfolgreich wiederhergestellt!", 'success')
+                else:
+                    flash("ℹ️ Keine Runden zum Wiederherstellen gefunden.", 'info')
+            except Exception as e:
+                current_app.logger.error(f"Fehler beim Wiederherstellen der Runden: {e}", exc_info=True)
+                flash("❌ Fehler beim Wiederherstellen der Runden.", 'danger')
+        
+        elif action == 'backup_single':
+            round_id = request.form.get('round_id')
+            try:
+                round_obj = GameRound.query.get_or_404(round_id)
+                if save_round_to_filesystem(round_obj):
+                    flash(f"✅ Runde '{round_obj.name}' erfolgreich gesichert!", 'success')
+                else:
+                    flash(f"❌ Fehler beim Sichern der Runde '{round_obj.name}'.", 'danger')
+            except Exception as e:
+                current_app.logger.error(f"Fehler beim Sichern der Runde: {e}", exc_info=True)
+                flash("❌ Fehler beim Sichern der Runde.", 'danger')
+        
+        elif action == 'delete_backup':
+            round_name = request.form.get('round_name')
+            try:
+                if delete_round_from_filesystem(round_name):
+                    flash(f"✅ Backup der Runde '{round_name}' erfolgreich gelöscht!", 'success')
+                else:
+                    flash(f"❌ Backup der Runde '{round_name}' nicht gefunden.", 'warning')
+            except Exception as e:
+                current_app.logger.error(f"Fehler beim Löschen des Backups: {e}", exc_info=True)
+                flash("❌ Fehler beim Löschen des Backups.", 'danger')
+        
+        return redirect(url_for('admin.backup_rounds'))
+    
+    # GET request - zeige die Backup-Seite
+    try:
+        # Aktuelle Runden in der Datenbank
+        db_rounds = GameRound.query.order_by(GameRound.name).all()
+        
+        # Gesicherte Runden im Dateisystem
+        saved_rounds = load_rounds_from_filesystem()
+        
+        # Statistiken
+        stats = {
+            'db_rounds_count': len(db_rounds),
+            'saved_rounds_count': len(saved_rounds),
+            'total_storage_used': sum(len(json.dumps(r, ensure_ascii=False)) for r in saved_rounds)
+        }
+        
+        return render_template('backup_rounds.html', 
+                             db_rounds=db_rounds, 
+                             saved_rounds=saved_rounds, 
+                             stats=stats)
+    except Exception as e:
+        current_app.logger.error(f"Fehler beim Laden der Backup-Seite: {e}", exc_info=True)
+        flash("❌ Fehler beim Laden der Backup-Informationen.", 'danger')
+        return redirect(url_for('admin.manage_rounds'))
 
 # WELCOME-SYSTEM ADMIN API-ENDPUNKTE
 
@@ -2741,3 +2833,195 @@ def reset_player_rotation():
             'success': False,
             'error': 'Fehler beim Zurücksetzen'
         }), 500
+
+
+# =============================================================================
+# FELD-MINIGAME API ENDPUNKTE
+# =============================================================================
+
+@admin_bp.route('/api/field_minigame_counts')
+@login_required
+def api_field_minigame_counts():
+    """API-Endpunkt für Feld-Minigame Anzahl"""
+    if not isinstance(current_user, Admin):
+        return jsonify({'error': 'Zugriff verweigert'}), 403
+    
+    try:
+        import os
+        
+        team_vs_all_path = os.path.join(current_app.static_folder, 'field_minigames', 'team_vs_all')
+        team_vs_team_path = os.path.join(current_app.static_folder, 'field_minigames', 'team_vs_team')
+        
+        team_vs_all_count = 0
+        team_vs_team_count = 0
+        
+        # Zähle JSON-Dateien in team_vs_all
+        if os.path.exists(team_vs_all_path):
+            team_vs_all_count = len([f for f in os.listdir(team_vs_all_path) if f.endswith('.json')])
+        
+        # Zähle JSON-Dateien in team_vs_team
+        if os.path.exists(team_vs_team_path):
+            team_vs_team_count = len([f for f in os.listdir(team_vs_team_path) if f.endswith('.json')])
+        
+        return jsonify({
+            'team_vs_all': team_vs_all_count,
+            'team_vs_team': team_vs_team_count
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"Fehler beim Laden der Minigame-Anzahl: {e}")
+        return jsonify({'error': 'Fehler beim Laden'}), 500
+
+
+@admin_bp.route('/api/field_minigame_config', methods=['GET', 'POST'])
+@login_required
+def api_field_minigame_config():
+    """API-Endpunkt für Feld-Minigame Konfiguration"""
+    if not isinstance(current_user, Admin):
+        return jsonify({'error': 'Zugriff verweigert'}), 403
+    
+    config_path = os.path.join(current_app.static_folder, 'field_minigames', 'config.json')
+    
+    if request.method == 'GET':
+        try:
+            if os.path.exists(config_path):
+                with open(config_path, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+                return jsonify(config)
+            else:
+                return jsonify({'field_minigames': {'enabled': True}})
+        except Exception as e:
+            current_app.logger.error(f"Fehler beim Laden der Konfiguration: {e}")
+            return jsonify({'error': 'Fehler beim Laden'}), 500
+    
+    elif request.method == 'POST':
+        try:
+            data = request.get_json()
+            key = data.get('key')
+            value = data.get('value')
+            
+            # Lade aktuelle Konfiguration
+            if os.path.exists(config_path):
+                with open(config_path, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+            else:
+                config = {'field_minigames': {'enabled': True, 'modes': {}}}
+            
+            # Aktualisiere Konfiguration basierend auf dem Key
+            field_config = config.get('field_minigames', {})
+            
+            if key == 'reward_forward':
+                # Aktualisiere Belohnung für beide Modi
+                modes = field_config.get('modes', {})
+                if 'team_vs_all' in modes:
+                    modes['team_vs_all']['reward_forward'] = int(value)
+                if 'team_vs_team' in modes:
+                    modes['team_vs_team']['reward_forward'] = int(value)
+                field_config['modes'] = modes
+            elif key == 'default_mode':
+                field_config['default_mode'] = value
+            elif key == 'auto_start_timer':
+                if 'game_flow' not in field_config:
+                    field_config['game_flow'] = {}
+                field_config['game_flow']['auto_start_timer'] = int(value)
+            
+            config['field_minigames'] = field_config
+            
+            # Speichere Konfiguration
+            with open(config_path, 'w', encoding='utf-8') as f:
+                json.dump(config, f, indent=2, ensure_ascii=False)
+            
+            return jsonify({'success': True, 'message': 'Konfiguration gespeichert'})
+            
+        except Exception as e:
+            current_app.logger.error(f"Fehler beim Speichern der Konfiguration: {e}")
+            return jsonify({'success': False, 'error': 'Fehler beim Speichern'}), 500
+
+
+@admin_bp.route('/api/field_minigames/<mode>', methods=['GET', 'POST'])
+@login_required
+def api_field_minigames(mode):
+    """API-Endpunkt für Feld-Minigame Verwaltung"""
+    if not isinstance(current_user, Admin):
+        return jsonify({'error': 'Zugriff verweigert'}), 403
+    
+    if mode not in ['team_vs_all', 'team_vs_team']:
+        return jsonify({'error': 'Ungültiger Modus'}), 400
+    
+    folder_path = os.path.join(current_app.static_folder, 'field_minigames', mode)
+    
+    if request.method == 'GET':
+        try:
+            minigames = []
+            
+            if os.path.exists(folder_path):
+                for filename in os.listdir(folder_path):
+                    if filename.endswith('.json'):
+                        file_path = os.path.join(folder_path, filename)
+                        with open(file_path, 'r', encoding='utf-8') as f:
+                            content = json.load(f)
+                            content['id'] = filename  # Verwende Dateiname als ID
+                            minigames.append(content)
+            
+            return jsonify({'minigames': minigames})
+            
+        except Exception as e:
+            current_app.logger.error(f"Fehler beim Laden der Minigames: {e}")
+            return jsonify({'error': 'Fehler beim Laden'}), 500
+    
+    elif request.method == 'POST':
+        try:
+            data = request.get_json()
+            
+            # Validierung - nur Spiele erlaubt
+            if not data.get('type') or data['type'] != 'game':
+                return jsonify({'success': False, 'error': 'Nur Spiele sind erlaubt'}), 400
+            
+            if not data.get('title') or not data.get('description') or not data.get('instructions'):
+                return jsonify({'success': False, 'error': 'Fehlende Pflichtfelder für Spiel'}), 400
+            
+            if not data.get('player_count') or not isinstance(data['player_count'], int) or data['player_count'] < 1:
+                return jsonify({'success': False, 'error': 'Ungültige Spieleranzahl'}), 400
+            
+            # Erstelle Ordner falls nicht vorhanden
+            os.makedirs(folder_path, exist_ok=True)
+            
+            # Generiere eindeutigen Dateinamen
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            filename = f"game_{timestamp}_{str(uuid.uuid4())[:8]}.json"
+            file_path = os.path.join(folder_path, filename)
+            
+            # Speichere Minigame
+            with open(file_path, 'w', encoding='utf-8') as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+            
+            return jsonify({'success': True, 'message': 'Minigame gespeichert', 'id': filename})
+            
+        except Exception as e:
+            current_app.logger.error(f"Fehler beim Speichern des Minigames: {e}")
+            return jsonify({'success': False, 'error': 'Fehler beim Speichern'}), 500
+
+
+@admin_bp.route('/api/field_minigames/<mode>/<minigame_id>', methods=['DELETE'])
+@login_required
+def api_delete_field_minigame(mode, minigame_id):
+    """API-Endpunkt zum Löschen von Feld-Minigames"""
+    if not isinstance(current_user, Admin):
+        return jsonify({'error': 'Zugriff verweigert'}), 403
+    
+    if mode not in ['team_vs_all', 'team_vs_team']:
+        return jsonify({'error': 'Ungültiger Modus'}), 400
+    
+    try:
+        folder_path = os.path.join(current_app.static_folder, 'field_minigames', mode)
+        file_path = os.path.join(folder_path, minigame_id)
+        
+        if os.path.exists(file_path) and file_path.endswith('.json'):
+            os.remove(file_path)
+            return jsonify({'success': True, 'message': 'Minigame gelöscht'})
+        else:
+            return jsonify({'success': False, 'error': 'Minigame nicht gefunden'}), 404
+            
+    except Exception as e:
+        current_app.logger.error(f"Fehler beim Löschen des Minigames: {e}")
+        return jsonify({'success': False, 'error': 'Fehler beim Löschen'}), 500

@@ -1,0 +1,10 @@
+{
+  "type": "game",
+  "title": "Test",
+  "description": "Lol",
+  "instructions": "lol",
+  "player_count": 1,
+  "difficulty": "medium",
+  "category": "Lol",
+  "materials": "Keine"
+}

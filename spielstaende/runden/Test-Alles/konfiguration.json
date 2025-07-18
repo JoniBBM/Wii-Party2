@@ -1,0 +1,98 @@
+[
+  {
+    "field_type": "barrier",
+    "display_name": "Sperren-Feld",
+    "description": "Blockiert Team bis bestimmte Zahl gewürfelt wird",
+    "is_enabled": true,
+    "frequency_type": "modulo",
+    "frequency_value": 19,
+    "color_hex": "#666666",
+    "emission_hex": "#333333",
+    "icon": "🚧",
+    "config_data": "{\"target_numbers\": [4, 5, 6]}"
+  },
+  {
+    "field_type": "catapult_backward",
+    "display_name": "Katapult Rückwärts",
+    "description": "Schleudert Teams 4-10 Felder nach hinten",
+    "is_enabled": true,
+    "frequency_type": "modulo",
+    "frequency_value": 13,
+    "color_hex": "#FF0000",
+    "emission_hex": "#CC0000",
+    "icon": "💥",
+    "config_data": "{\"min_distance\": 4, \"max_distance\": 10}"
+  },
+  {
+    "field_type": "catapult_forward",
+    "display_name": "Katapult Vorwärts",
+    "description": "Schleudert Teams 3-5 Felder nach vorne",
+    "is_enabled": true,
+    "frequency_type": "modulo",
+    "frequency_value": 15,
+    "color_hex": "#32CD32",
+    "emission_hex": "#228B22",
+    "icon": "🚀",
+    "config_data": "{\"min_distance\": 3, \"max_distance\": 5}"
+  },
+  {
+    "field_type": "goal",
+    "display_name": "Zielfeld",
+    "description": "Das Zielfeld - Hier gewinnt man!",
+    "is_enabled": true,
+    "frequency_type": "fixed_positions",
+    "frequency_value": 72,
+    "color_hex": "#FF6600",
+    "emission_hex": "#CC4400",
+    "icon": "🎯",
+    "config_data": "{}"
+  },
+  {
+    "field_type": "minigame",
+    "display_name": "Minispiel",
+    "description": "Startet ein Minispiel oder eine Frage",
+    "is_enabled": true,
+    "frequency_type": "modulo",
+    "frequency_value": 12,
+    "color_hex": "#8A2BE2",
+    "emission_hex": "#6A1B9A",
+    "icon": "🎮",
+    "config_data": "{}"
+  },
+  {
+    "field_type": "normal",
+    "display_name": "Normale Felder",
+    "description": "Standard-Spielfelder ohne besondere Effekte",
+    "is_enabled": true,
+    "frequency_type": "default",
+    "frequency_value": 0,
+    "color_hex": "#00FF00",
+    "emission_hex": "#00CC00",
+    "icon": "⬜",
+    "config_data": "{}"
+  },
+  {
+    "field_type": "player_swap",
+    "display_name": "Spieler-Tausch",
+    "description": "Tauscht Position mit zufälligem anderen Team",
+    "is_enabled": true,
+    "frequency_type": "modulo",
+    "frequency_value": 17,
+    "color_hex": "#0080FF",
+    "emission_hex": "#0066CC",
+    "icon": "🔄",
+    "config_data": "{\"min_distance\": 3}"
+  },
+  {
+    "field_type": "start",
+    "display_name": "Startfeld",
+    "description": "Das Startfeld, wo alle Teams beginnen",
+    "is_enabled": true,
+    "frequency_type": "fixed_positions",
+    "frequency_value": 0,
+    "color_hex": "#00BFFF",
+    "emission_hex": "#0066CC",
+    "icon": "🏁",
+    "config_data": "{}"
+  }
+]

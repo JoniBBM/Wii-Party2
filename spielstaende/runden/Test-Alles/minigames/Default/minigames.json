@@ -1,0 +1,83 @@
+{
+  "folder_info": {
+    "name": "Default",
+    "description": "Standard-Minispiele",
+    "created_at": "2025-06-03T17:48:22.127743"
+  },
+  "minigames": [
+    {
+      "name": "Hauptstadt von deutschland",
+      "description": "",
+      "type": "question",
+      "question_text": "Was ist die Hauptstadt von Deutschland",
+      "question_type": "text_input",
+      "points": 10,
+      "correct_text": "Berlin",
+      "id": "e1ff707b",
+      "created_at": "2025-06-06T06:42:26.537175"
+    },
+    {
+      "name": "Hauptstadt von BW",
+      "description": "",
+      "type": "question",
+      "question_text": "Was ist die Hauptstadt von BW",
+      "question_type": "text_input",
+      "points": 10,
+      "correct_text": "Stuttgart",
+      "id": "65c73405",
+      "created_at": "2025-06-06T07:07:40.758229"
+    },
+    {
+      "name": "Hauptstadt von Bayern",
+      "description": "",
+      "type": "question",
+      "question_text": "Was ist die Hauptstadt von Bayern",
+      "question_type": "text_input",
+      "points": 10,
+      "correct_text": "München",
+      "id": "c42c448d",
+      "created_at": "2025-06-06T07:14:34.826767"
+    },
+    {
+      "name": "Cooles",
+      "description": "",
+      "type": "question",
+      "question_text": "Wie Coll bin ich?",
+      "question_type": "multiple_choice",
+      "points": 10,
+      "options": [
+        "Sehr",
+        "Gar nicht",
+        "Mäh"
+      ],
+      "correct_option": 1,
+      "id": "ff0f2bf0",
+      "created_at": "2025-06-06T07:16:23.730996"
+    },
+    {
+      "id": "db7ae21f",
+      "name": "Spontane Frage",
+      "description": "",
+      "type": "question",
+      "question_text": "Wie gehts",
+      "question_type": "text_input",
+      "created_at": "2025-06-06T11:25:10.183252",
+      "correct_text": "Gut"
+    },
+    {
+      "id": "44827b9f",
+      "name": "Spontane Frage",
+      "description": "",
+      "type": "question",
+      "question_text": "Wer ist cooler?",
+      "question_type": "multiple_choice",
+      "created_at": "2025-06-06T12:24:09.740223",
+      "options": [
+        "Deniz Undav",
+        "Alexander Nübel",
+        "Ermedin Demirovic"
+      ],
+      "correct_option": 1
+    }
+  ]
+}

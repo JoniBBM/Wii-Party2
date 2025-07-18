@@ -238,6 +238,108 @@
                         </div>
                         {% endif %}
 
+                        <!-- Feld-Minigame Management (nur für minigame Felder) -->
+                        {% if field_type == 'minigame' %}
+                        <div class="form-section mb-4">
+                            <h5 class="section-title">
+                                <i class="fas fa-gamepad"></i> Feld-Minigame Management
+                            </h5>
+                            
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="card">
+                                        <div class="card-header bg-primary text-white">
+                                            <h6 class="mb-0">
+                                                <i class="fas fa-users"></i> Team vs Alle
+                                            </h6>
+                                        </div>
+                                        <div class="card-body">
+                                            <p class="text-muted small">Ein Team spielt gegen alle anderen Teams</p>
+                                            <div id="team-vs-all-content">
+                                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                                    <span>Verfügbare Minigames:</span>
+                                                    <span class="badge badge-info" id="team-vs-all-count">Lädt...</span>
+                                                </div>
+                                                <button type="button" class="btn btn-sm btn-outline-primary" 
+                                                        onclick="openMinigameEditor('team_vs_all')">
+                                                    <i class="fas fa-edit"></i> Verwalten
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="col-md-6">
+                                    <div class="card">
+                                        <div class="card-header bg-success text-white">
+                                            <h6 class="mb-0">
+                                                <i class="fas fa-user-friends"></i> Team vs Team
+                                            </h6>
+                                        </div>
+                                        <div class="card-body">
+                                            <p class="text-muted small">Ein Team spielt gegen ein anderes Team</p>
+                                            <div id="team-vs-team-content">
+                                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                                    <span>Verfügbare Minigames:</span>
+                                                    <span class="badge badge-info" id="team-vs-team-count">Lädt...</span>
+                                                </div>
+                                                <button type="button" class="btn btn-sm btn-outline-success" 
+                                                        onclick="openMinigameEditor('team_vs_team')">
+                                                    <i class="fas fa-edit"></i> Verwalten
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="row mt-3">
+                                <div class="col-12">
+                                    <div class="card">
+                                        <div class="card-header bg-warning text-dark">
+                                            <h6 class="mb-0">
+                                                <i class="fas fa-cog"></i> Feld-Minigame Einstellungen
+                                            </h6>
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="row">
+                                                <div class="col-md-4">
+                                                    <div class="form-group">
+                                                        <label for="reward_forward">Belohnung (Felder vorwärts)</label>
+                                                        <input type="number" class="form-control" id="reward_forward" 
+                                                               value="5" min="1" max="10" 
+                                                               onchange="updateFieldMinigameConfig('reward_forward', this.value)">
+                                                        <small class="text-muted">Anzahl Felder bei Sieg</small>
+                                                    </div>
+                                                </div>
+                                                <div class="col-md-4">
+                                                    <div class="form-group">
+                                                        <label for="default_mode">Standard-Modus</label>
+                                                        <select class="form-control" id="default_mode" 
+                                                                onchange="updateFieldMinigameConfig('default_mode', this.value)">
+                                                            <option value="random">Zufällig</option>
+                                                            <option value="team_vs_all">Team vs Alle</option>
+                                                            <option value="team_vs_team">Team vs Team</option>
+                                                        </select>
+                                                    </div>
+                                                </div>
+                                                <div class="col-md-4">
+                                                    <div class="form-group">
+                                                        <label for="auto_start_timer">Auto-Start Timer (Sekunden)</label>
+                                                        <input type="number" class="form-control" id="auto_start_timer" 
+                                                               value="5" min="0" max="30" 
+                                                               onchange="updateFieldMinigameConfig('auto_start_timer', this.value)">
+                                                        <small class="text-muted">0 = Deaktiviert</small>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
+
                         <!-- Formular-Aktionen -->
                         <div class="form-actions">
                             <div class="d-flex justify-content-between">
@@ -543,7 +645,330 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Initial calculations
     calculateFrequency();
+    
+    // Load field minigame data if this is a minigame field
+    if ('{{ field_type }}' === 'minigame') {
+        loadFieldMinigameData();
+        loadFieldMinigameConfig();
+    }
 });
+
+// Field Minigame Management Functions
+function loadFieldMinigameData() {
+    fetch('/admin/api/field_minigame_counts')
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('team-vs-all-count').textContent = data.team_vs_all || 0;
+            document.getElementById('team-vs-team-count').textContent = data.team_vs_team || 0;
+        })
+        .catch(error => {
+            console.error('Error loading field minigame data:', error);
+            document.getElementById('team-vs-all-count').textContent = 'Fehler';
+            document.getElementById('team-vs-team-count').textContent = 'Fehler';
+        });
+}
+
+function loadFieldMinigameConfig() {
+    fetch('/admin/api/field_minigame_config')
+        .then(response => response.json())
+        .then(config => {
+            const fieldConfig = config.field_minigames || {};
+            const modes = fieldConfig.modes || {};
+            
+            // Load reward settings
+            const teamVsAllReward = modes.team_vs_all?.reward_forward || 5;
+            const teamVsTeamReward = modes.team_vs_team?.reward_forward || 5;
+            
+            // Set form values
+            document.getElementById('reward_forward').value = teamVsAllReward;
+            document.getElementById('default_mode').value = fieldConfig.default_mode || 'random';
+            document.getElementById('auto_start_timer').value = fieldConfig.game_flow?.auto_start_timer || 5;
+        })
+        .catch(error => {
+            console.error('Error loading field minigame config:', error);
+        });
+}
+
+function updateFieldMinigameConfig(key, value) {
+    const data = {
+        key: key,
+        value: value
+    };
+    
+    fetch('/admin/api/field_minigame_config', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('input[name="csrf_token"]').value
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(result => {
+        if (result.success) {
+            // Show success message
+            showAlert('Einstellungen gespeichert', 'success');
+        } else {
+            showAlert('Fehler beim Speichern: ' + result.message, 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Error updating config:', error);
+        showAlert('Fehler beim Speichern der Einstellungen', 'danger');
+    });
+}
+
+function openMinigameEditor(mode) {
+    // Open modal for minigame management
+    const modal = document.createElement('div');
+    modal.className = 'modal fade';
+    modal.id = 'minigameEditorModal';
+    modal.innerHTML = `
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-gamepad"></i> 
+                        ${mode === 'team_vs_all' ? 'Team vs Alle' : 'Team vs Team'} Minigames
+                    </h5>
+                    <button type="button" class="close" data-dismiss="modal">
+                        <span>&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header bg-primary text-white">
+                                    <h6 class="mb-0">
+                                        <i class="fas fa-list"></i> Vorhandene Minigames
+                                    </h6>
+                                </div>
+                                <div class="card-body">
+                                    <div id="existing-minigames">
+                                        <div class="text-center">
+                                            <div class="spinner-border text-primary" role="status">
+                                                <span class="sr-only">Lädt...</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header bg-success text-white">
+                                    <h6 class="mb-0">
+                                        <i class="fas fa-plus"></i> Neues Minigame erstellen
+                                    </h6>
+                                </div>
+                                <div class="card-body">
+                                    <div id="minigame-form">
+                                        <div class="form-group">
+                                            <label for="game_title">Spiel-Titel</label>
+                                            <input type="text" class="form-control" id="game_title" placeholder="z.B. Schnellste Reaktion" required>
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="game_description">Beschreibung</label>
+                                            <textarea class="form-control" id="game_description" rows="2" placeholder="Kurze Beschreibung des Spiels" required></textarea>
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="game_instructions">Anleitung</label>
+                                            <textarea class="form-control" id="game_instructions" rows="3" placeholder="Detaillierte Anleitung für das Spiel" required></textarea>
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="player_count">Anzahl Spieler pro Team</label>
+                                            <input type="number" class="form-control" id="player_count" value="1" min="1" max="10" placeholder="z.B. 1, 2, 3">
+                                            <small class="text-muted">Anzahl der Spieler die pro Team ausgelost werden</small>
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="difficulty">Schwierigkeit</label>
+                                            <select class="form-control" id="difficulty">
+                                                <option value="easy">Leicht</option>
+                                                <option value="medium" selected>Mittel</option>
+                                                <option value="hard">Schwer</option>
+                                            </select>
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="category">Kategorie</label>
+                                            <input type="text" class="form-control" id="category" placeholder="z.B. Geschicklichkeit, Reaktion, Wissen">
+                                        </div>
+                                        <button type="button" class="btn btn-success" onclick="saveMinigame('${mode}')">
+                                            <i class="fas fa-save"></i> Minigame speichern
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Schließen</button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    $('#minigameEditorModal').modal('show');
+    
+    // Setup event handlers
+    setupMinigameEditor(mode);
+    loadExistingMinigames(mode);
+}
+
+function setupMinigameEditor(mode) {
+    // Cleanup modal when closed
+    $('#minigameEditorModal').on('hidden.bs.modal', function () {
+        document.body.removeChild(document.getElementById('minigameEditorModal'));
+    });
+}
+
+
+function loadExistingMinigames(mode) {
+    fetch(`/admin/api/field_minigames/${mode}`)
+        .then(response => response.json())
+        .then(data => {
+            const container = document.getElementById('existing-minigames');
+            if (data.minigames && data.minigames.length > 0) {
+                container.innerHTML = '';
+                data.minigames.forEach(minigame => {
+                    const card = document.createElement('div');
+                    card.className = 'card mb-2';
+                    card.innerHTML = `
+                        <div class="card-body py-2">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h6 class="mb-1">
+                                        <i class="fas fa-gamepad"></i>
+                                        ${minigame.title}
+                                    </h6>
+                                    <small class="text-muted">
+                                        ${minigame.description}
+                                    </small>
+                                </div>
+                                <div>
+                                    <button class="btn btn-sm btn-outline-primary" onclick="editMinigame('${mode}', '${minigame.id}')">
+                                        <i class="fas fa-edit"></i>
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-danger" onclick="deleteMinigame('${mode}', '${minigame.id}')">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    container.appendChild(card);
+                });
+            } else {
+                container.innerHTML = '<p class="text-muted text-center">Keine Minigames vorhanden</p>';
+            }
+        })
+        .catch(error => {
+            console.error('Error loading minigames:', error);
+            document.getElementById('existing-minigames').innerHTML = '<p class="text-danger">Fehler beim Laden</p>';
+        });
+}
+
+function saveMinigame(mode) {
+    let data = {
+        type: "game",
+        title: document.getElementById('game_title').value,
+        description: document.getElementById('game_description').value,
+        instructions: document.getElementById('game_instructions').value,
+        player_count: parseInt(document.getElementById('player_count').value),
+        difficulty: document.getElementById('difficulty').value,
+        category: document.getElementById('category').value,
+        materials: "Keine"
+    };
+    
+    // Validierung
+    if (!data.title || !data.description || !data.instructions) {
+        showAlert('Bitte alle Pflichtfelder ausfüllen', 'warning');
+        return;
+    }
+    
+    fetch(`/admin/api/field_minigames/${mode}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('input[name="csrf_token"]').value
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(result => {
+        if (result.success) {
+            showAlert('Minigame gespeichert', 'success');
+            loadExistingMinigames(mode);
+            loadFieldMinigameData(); // Update counts
+            clearForm();
+        } else {
+            showAlert('Fehler beim Speichern: ' + result.message, 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Error saving minigame:', error);
+        showAlert('Fehler beim Speichern', 'danger');
+    });
+}
+
+function editMinigame(mode, id) {
+    // Implementation for editing existing minigame
+    showAlert('Bearbeiten-Funktion wird implementiert', 'info');
+}
+
+function deleteMinigame(mode, id) {
+    if (confirm('Minigame wirklich löschen?')) {
+        fetch(`/admin/api/field_minigames/${mode}/${id}`, {
+            method: 'DELETE',
+            headers: {
+                'X-CSRFToken': document.querySelector('input[name="csrf_token"]').value
+            }
+        })
+        .then(response => response.json())
+        .then(result => {
+            if (result.success) {
+                showAlert('Minigame gelöscht', 'success');
+                loadExistingMinigames(mode);
+                loadFieldMinigameData(); // Update counts
+            } else {
+                showAlert('Fehler beim Löschen: ' + result.message, 'danger');
+            }
+        })
+        .catch(error => {
+            console.error('Error deleting minigame:', error);
+            showAlert('Fehler beim Löschen', 'danger');
+        });
+    }
+}
+
+function clearForm() {
+    document.getElementById('game_title').value = '';
+    document.getElementById('game_description').value = '';
+    document.getElementById('game_instructions').value = '';
+    document.getElementById('player_count').value = '1';
+    document.getElementById('difficulty').value = 'medium';
+    document.getElementById('category').value = '';
+}
+
+function showAlert(message, type) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="close" data-dismiss="alert">
+            <span>&times;</span>
+        </button>
+    `;
+    
+    const container = document.querySelector('.card-body');
+    container.insertBefore(alertDiv, container.firstChild);
+    
+    setTimeout(() => {
+        alertDiv.remove();
+    }, 5000);
+}
 
 function confirmDeleteField(fieldType) {
     if (confirm(`Möchten Sie den Feld-Typ "${fieldType}" wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.`)) {

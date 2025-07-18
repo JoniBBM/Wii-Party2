@@ -513,6 +513,59 @@ class FieldConfiguration(db.Model):
     def __repr__(self):
         return f'<FieldConfiguration {self.field_type}: {self.display_name}>'
 
+class RoundFieldConfiguration(db.Model):
+    """Rundenspezifische Konfiguration für Spielfeld-Typen"""
+    id = db.Column(db.Integer, primary_key=True)
+    game_round_id = db.Column(db.Integer, db.ForeignKey('game_round.id'), nullable=False)
+    field_type = db.Column(db.String(50), nullable=False)
+    display_name = db.Column(db.String(100), nullable=False)
+    description = db.Column(db.String(500), nullable=True)
+    
+    # Aktivierung
+    is_enabled = db.Column(db.Boolean, default=True, nullable=False)
+    
+    # Häufigkeits-Konfiguration
+    frequency_type = db.Column(db.String(20), default='modulo', nullable=False)
+    frequency_value = db.Column(db.Integer, default=10, nullable=False)
+    
+    # Farb-Konfiguration für Frontend
+    color_hex = db.Column(db.String(7), nullable=False)
+    emission_hex = db.Column(db.String(7), nullable=True)
+    
+    # Icon/Symbol
+    icon = db.Column(db.String(10), nullable=True)
+    
+    # Zusätzliche Konfiguration (JSON)
+    config_data = db.Column(db.Text, nullable=True)
+    
+    # Metadaten
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Unique constraint für game_round_id + field_type
+    __table_args__ = (db.UniqueConstraint('game_round_id', 'field_type', name='unique_round_field_config'),)
+
+    @property
+    def config_dict(self):
+        """Gibt config_data als Dictionary zurück"""
+        if self.config_data:
+            try:
+                return json.loads(self.config_data)
+            except (json.JSONDecodeError, TypeError):
+                return {}
+        return {}
+
+    @config_dict.setter
+    def config_dict(self, value):
+        """Setzt config_data aus Dictionary"""
+        if value is None:
+            self.config_data = None
+        else:
+            self.config_data = json.dumps(value)
+
+    def __repr__(self):
+        return f'<RoundFieldConfiguration {self.field_type} for Round {self.game_round_id}>'
+
 class MinigameFolder(db.Model):
     """Verwaltet persistente Minigame-Ordner im Static-Verzeichnis"""
     id = db.Column(db.Integer, primary_key=True)
@@ -545,11 +598,16 @@ class GameRound(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     game_sessions = db.relationship('GameSession', backref='game_round', lazy='dynamic')
+    round_field_configs = db.relationship('RoundFieldConfiguration', backref='game_round', lazy='dynamic', cascade="all, delete-orphan")
 
     def activate(self):
         """Aktiviert diese Runde und deaktiviert alle anderen"""
         GameRound.query.update({'is_active': False})
         self.is_active = True
+        
+        # Lade rundenspezifische Konfigurationen
+        self._load_round_configurations()
+        
         db.session.commit()
         
         # Automatisches Backup nach Aktivierung
@@ -559,6 +617,95 @@ class GameRound(db.Model):
         except Exception as backup_e:
             import logging
             logging.warning(f"Backup der aktivierten Runde '{self.name}' fehlgeschlagen: {backup_e}")
+
+    def _load_round_configurations(self):
+        """Lädt die rundenspezifischen Konfigurationen in die globale FieldConfiguration"""
+        # Sichere aktuelle Konfigurationen der vorherigen Runde
+        self._save_current_configurations()
+        
+        # Lade Konfigurationen für diese Runde
+        for round_config in self.round_field_configs:
+            global_config = FieldConfiguration.query.filter_by(field_type=round_config.field_type).first()
+            if global_config:
+                global_config.is_enabled = round_config.is_enabled
+                global_config.frequency_type = round_config.frequency_type
+                global_config.frequency_value = round_config.frequency_value
+                global_config.color_hex = round_config.color_hex
+                global_config.emission_hex = round_config.emission_hex
+                global_config.icon = round_config.icon
+                global_config.config_data = round_config.config_data
+    
+    def _save_current_configurations(self):
+        """Speichert die aktuellen globalen Konfigurationen für die vorherige Runde"""
+        previous_round = GameRound.query.filter_by(is_active=True).first()
+        if not previous_round or previous_round.id == self.id:
+            return
+        
+        # Aktualisiere die Konfigurationen der vorherigen Runde
+        global_configs = FieldConfiguration.query.all()
+        for global_config in global_configs:
+            round_config = RoundFieldConfiguration.query.filter_by(
+                game_round_id=previous_round.id,
+                field_type=global_config.field_type
+            ).first()
+            
+            if round_config:
+                # Aktualisiere existierende Konfiguration
+                round_config.is_enabled = global_config.is_enabled
+                round_config.frequency_type = global_config.frequency_type
+                round_config.frequency_value = global_config.frequency_value
+                round_config.color_hex = global_config.color_hex
+                round_config.emission_hex = global_config.emission_hex
+                round_config.icon = global_config.icon
+                round_config.config_data = global_config.config_data
+            else:
+                # Erstelle neue Konfiguration
+                round_config = RoundFieldConfiguration(
+                    game_round_id=previous_round.id,
+                    field_type=global_config.field_type,
+                    display_name=global_config.display_name,
+                    description=global_config.description,
+                    is_enabled=global_config.is_enabled,
+                    frequency_type=global_config.frequency_type,
+                    frequency_value=global_config.frequency_value,
+                    color_hex=global_config.color_hex,
+                    emission_hex=global_config.emission_hex,
+                    icon=global_config.icon,
+                    config_data=global_config.config_data
+                )
+                db.session.add(round_config)
+    
+    def get_field_configurations(self):
+        """Gibt die rundenspezifischen Konfigurationen zurück"""
+        return self.round_field_configs.all()
+    
+    def ensure_round_configurations(self):
+        """Stellt sicher, dass alle Feld-Konfigurationen für diese Runde existieren"""
+        global_configs = FieldConfiguration.query.all()
+        for global_config in global_configs:
+            round_config = RoundFieldConfiguration.query.filter_by(
+                game_round_id=self.id,
+                field_type=global_config.field_type
+            ).first()
+            
+            if not round_config:
+                # Erstelle rundenspezifische Konfiguration basierend auf globaler Konfiguration
+                round_config = RoundFieldConfiguration(
+                    game_round_id=self.id,
+                    field_type=global_config.field_type,
+                    display_name=global_config.display_name,
+                    description=global_config.description,
+                    is_enabled=global_config.is_enabled,
+                    frequency_type=global_config.frequency_type,
+                    frequency_value=global_config.frequency_value,
+                    color_hex=global_config.color_hex,
+                    emission_hex=global_config.emission_hex,
+                    icon=global_config.icon,
+                    config_data=global_config.config_data
+                )
+                db.session.add(round_config)
+        
+        db.session.commit()
 
     @classmethod
     def get_active_round(cls):
@@ -964,8 +1111,20 @@ class GameSession(db.Model):
     played_content_ids = db.Column(db.Text, nullable=True, default='')  # Komma-separierte Liste von gespielten IDs
     player_rotation_data = db.Column(db.Text, nullable=True)  # JSON mit Spieleinsatz-Tracking pro Team
 
+    # Feld-Minigame spezifische Felder
+    field_minigame_mode = db.Column(db.String(50), nullable=True)  # 'team_vs_all', 'team_vs_team'
+    field_minigame_landing_team_id = db.Column(db.Integer, db.ForeignKey('team.id'), nullable=True)
+    field_minigame_opponent_team_id = db.Column(db.Integer, db.ForeignKey('team.id'), nullable=True)
+    field_minigame_content_id = db.Column(db.String(100), nullable=True)  # ID des gespielten Inhalts
+    field_minigame_content_type = db.Column(db.String(20), nullable=True)  # 'question', 'game'
+    field_minigame_result = db.Column(db.String(20), nullable=True)  # 'won', 'lost'
+    
+    # Beziehungen für Feld-Minigames
+    field_minigame_landing_team = db.relationship('Team', foreign_keys=[field_minigame_landing_team_id])
+    field_minigame_opponent_team = db.relationship('Team', foreign_keys=[field_minigame_opponent_team_id])
+
     current_phase = db.Column(db.String(50), default='SETUP_MINIGAME') 
-    # Mögliche Phasen: SETUP_MINIGAME, MINIGAME_ANNOUNCED, QUESTION_ACTIVE, QUESTION_COMPLETED, DICE_ROLLING, ROUND_OVER, FIELD_ACTION
+    # Mögliche Phasen: SETUP_MINIGAME, MINIGAME_ANNOUNCED, QUESTION_ACTIVE, QUESTION_COMPLETED, DICE_ROLLING, ROUND_OVER, FIELD_ACTION, FIELD_MINIGAME_TRIGGERED, FIELD_MINIGAME_ACTIVE, FIELD_MINIGAME_COMPLETED
     
     dice_roll_order = db.Column(db.String(255), nullable=True)
     current_team_turn_id = db.Column(db.Integer, db.ForeignKey('team.id'), nullable=True)

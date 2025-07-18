@@ -7,12 +7,26 @@ sys.path.insert(0, PROJECT_ROOT)
 
 # Importiere create_app und db zuerst
 from app import create_app, db 
-from app.models import Admin, Team, Character, GameSession, GameEvent, MinigameFolder, GameRound, FieldConfiguration, WelcomeSession, PlayerRegistration
+from app.models import Admin, Team, Character, GameSession, GameEvent, MinigameFolder, GameRound, FieldConfiguration, RoundFieldConfiguration, WelcomeSession, PlayerRegistration
 
 app_instance = create_app()
 
 with app_instance.app_context():
     print("Datenbank-Tabellen werden gelöscht und neu erstellt...")
+    
+    # NEU: Sichere alle existierenden Runden vor dem Datenbank-Reset
+    print("\n--- Sichere existierende Runden vor Datenbank-Reset ---")
+    try:
+        from app.admin.minigame_utils import backup_all_rounds_before_db_reset
+        backed_up_count = backup_all_rounds_before_db_reset()
+        if backed_up_count > 0:
+            print(f"✅ {backed_up_count} Runden wurden vor dem Reset gesichert")
+        else:
+            print("ℹ️  Keine Runden zum Sichern gefunden (neue Installation)")
+    except Exception as backup_e:
+        print(f"⚠️  Fehler beim Sichern der Runden vor Reset: {backup_e}")
+        print("Fahre mit Datenbank-Reset fort...")
+    
     try:
         db.drop_all()
         print("Vorhandene Tabellen gelöscht.")
@@ -122,6 +136,23 @@ with app_instance.app_context():
         except Exception as restore_e:
             print(f"⚠️  Fehler beim Wiederherstellen der Runden: {restore_e}")
             print("Das System funktioniert trotzdem mit der Standard-Runde.")
+        
+        # NEU: Erstelle rundenspezifische Konfigurationen für alle Runden
+        print("\n--- Erstelle rundenspezifische Konfigurationen ---")
+        try:
+            all_rounds = GameRound.query.all()
+            for round_obj in all_rounds:
+                round_obj.ensure_round_configurations()
+                print(f"✅ Rundenspezifische Konfigurationen für '{round_obj.name}' erstellt")
+            
+            # Lade Konfigurationen für die aktive Runde
+            active_round = GameRound.get_active_round()
+            if active_round:
+                active_round._load_round_configurations()
+                print(f"✅ Konfigurationen für aktive Runde '{active_round.name}' geladen")
+            
+        except Exception as config_e:
+            print(f"⚠️  Fehler beim Erstellen rundenspezifischer Konfigurationen: {config_e}")
         
         # Automatisches Backup der Standard-Runde erstellen
         try:
