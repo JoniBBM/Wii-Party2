@@ -145,11 +145,11 @@
         <div class="dice-animation-container">
             <div class="dice-waiting" id="dice-waiting">
                 <div class="waiting-message">
-                    <i class="fas fa-clock mr-2"></i>
+                    <i class="fas fa-dice mr-2"></i>
                     Du bist dran!
                 </div>
                 <div class="waiting-submessage">
-                    Warte auf den Admin zum Würfeln...
+                    Klicke auf den Würfel-Button um zu würfeln
                 </div>
                 <div class="dice-rolling-continuous" id="animated-dice-continuous">
                     <div class="dice-face dice-face-1">⚀</div>
@@ -158,6 +158,11 @@
                     <div class="dice-face dice-face-4">⚃</div>
                     <div class="dice-face dice-face-5">⚄</div>
                     <div class="dice-face dice-face-6">⚅</div>
+                </div>
+                <div class="dice-button-container mt-4">
+                    <button id="team-roll-dice-btn" class="btn btn-success btn-lg">
+                        <i class="fas fa-dice"></i> Würfeln!
+                    </button>
                 </div>
             </div>
             <div class="dice-result-animation" id="dice-result-animation" style="display: none;">
@@ -971,6 +976,32 @@
     opacity: 0.7;
 }
 
+.dice-button-container {
+    text-align: center;
+}
+
+.dice-button-container .btn {
+    padding: 15px 30px;
+    font-size: 1.2rem;
+    font-weight: bold;
+    border-radius: 15px;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+    transition: all 0.3s ease;
+    border: none;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.dice-button-container .btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 7px 20px rgba(0, 0, 0, 0.4);
+}
+
+.dice-button-container .btn:active {
+    transform: translateY(0);
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3);
+}
+
 /* Banner */
 .announcement-banner {
     position: fixed;
@@ -1583,6 +1614,7 @@ let serverLastDiceResult = {{ last_dice_result | tojson if last_dice_result else
 let lastDiceResult = null;
 let lastQuestionData = null;
 let currentQuestionAnswered = {{ 'true' if question_answered else 'false' }};
+let isShowingQuestionFeedback = false;
 let diceResultTimer = null;
 
 // Track if user is currently interacting with question form
@@ -2136,8 +2168,9 @@ function updateQuestionInterface(gameData) {
             }
             
             // Only update content if user is not currently interacting or if interface wasn't initialized
-            if (!userInteractingWithQuestion || !questionInterfaceInitialized) {
-                updateQuestionContent(gameData.question_data, gameData.question_data.answered);
+            // Also don't update if we're currently showing question feedback
+            if ((!userInteractingWithQuestion || !questionInterfaceInitialized) && !isShowingQuestionFeedback) {
+                updateQuestionContent(gameData.question_data, gameData.question_data.answered, gameData.question_data.is_correct);
                 questionInterfaceInitialized = true;
             }
         }
@@ -2151,7 +2184,7 @@ function updateQuestionInterface(gameData) {
     }
 }
 
-function updateQuestionContent(questionData, isAnswered) {
+function updateQuestionContent(questionData, isAnswered, isCorrect) {
     const questionTitle = document.getElementById('question-title');
     const questionContent = document.getElementById('question-content');
     
@@ -2161,13 +2194,19 @@ function updateQuestionContent(questionData, isAnswered) {
     
     if (questionContent) {
         if (isAnswered) {
-            // Show "already answered" state
+            // Show "already answered" state with correct/incorrect styling
+            // Default to correct (green) if isCorrect is not provided (for backwards compatibility)
+            const isCorrectAnswer = isCorrect !== undefined ? isCorrect : true;
+            const iconClass = isCorrectAnswer ? 'fa-check-circle text-success' : 'fa-times-circle text-danger';
+            const textClass = isCorrectAnswer ? 'text-success' : 'text-danger';
+            const statusText = isCorrectAnswer ? 'Richtig beantwortet!' : 'Falsch beantwortet!';
+            
             questionContent.innerHTML = `
-                <div class="question-completed">
+                <div class="question-completed" style="background: linear-gradient(135deg, ${isCorrectAnswer ? '#d4edda' : '#f8d7da'} 0%, ${isCorrectAnswer ? '#c3e6cb' : '#f1b0b7'} 100%); border-color: ${isCorrectAnswer ? '#28a745' : '#dc3545'};">
                     <div class="question-completed-icon">
-                        <i class="fas fa-check-circle text-success"></i>
+                        <i class="fas ${iconClass}"></i>
                     </div>
-                    <h4 class="text-success mb-3">Frage beantwortet!</h4>
+                    <h4 class="${textClass} mb-3">${statusText}</h4>
                     <p class="text-muted mb-0">
                         Du hast die Frage bereits beantwortet. 
                         Warte, bis alle anderen Teams fertig sind.
@@ -2346,10 +2385,11 @@ function handleQuestionSubmit(e) {
         if (data.success) {
             currentQuestionAnswered = true;
             showQuestionResult(data);
-            // Update interface to show "answered" state
+            // Update interface to show "answered" state after 5 seconds
             setTimeout(() => {
-                updateQuestionContent(questionData, true);
-            }, 3000);
+                isShowingQuestionFeedback = false;
+                updateQuestionContent(questionData, true, data.is_correct);
+            }, 5000);
         } else {
             alert('Fehler: ' + (data.error || 'Unbekannter Fehler'));
             submitBtn.disabled = false;
@@ -2370,6 +2410,9 @@ function showQuestionResult(data) {
     // Show a quick feedback message
     const questionContent = document.getElementById('question-content');
     const questionSection = document.getElementById('question-interface-section');
+    
+    // Set flag to prevent banner from appearing immediately
+    isShowingQuestionFeedback = true;
     
     if (questionContent) {
         const isCorrect = data.is_correct;
@@ -2403,6 +2446,7 @@ function showQuestionResult(data) {
                 questionSection.style.display = 'none';
                 questionInterfaceInitialized = false;
                 userInteractingWithQuestion = false;
+                isShowingQuestionFeedback = false;
             }
         }, 10000);
     }
@@ -3262,6 +3306,132 @@ function getTeamNameById(teamId) {
     return null;
 }
 
+
+// Debug-Funktion für Team-Würfeln
+window.testTeamRoll = function() {
+    fetch('/teams/api/team_roll_dice_test', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('meta[name=csrf-token]').getAttribute('content')
+        },
+        body: JSON.stringify({})
+    })
+    .then(response => response.json())
+    .then(data => {
+        console.log('Test-Ergebnis:', data);
+        alert('Test-Ergebnis: ' + JSON.stringify(data));
+    })
+    .catch(error => {
+        console.error('Test-Fehler:', error);
+        alert('Test-Fehler: ' + error.message);
+    });
+};
+
+// Team-Würfel-Button Funktionalität
+document.addEventListener('DOMContentLoaded', function() {
+    const teamRollDiceBtn = document.getElementById('team-roll-dice-btn');
+    if (teamRollDiceBtn) {
+        teamRollDiceBtn.addEventListener('click', function() {
+            if (teamRollDiceBtn.disabled) return;
+            
+            // Deaktiviere Button und zeige Loading-Status
+            teamRollDiceBtn.disabled = true;
+            teamRollDiceBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Würfeln...';
+            
+            // Verstecke Dice-Button und zeige Würfel-Animation
+            document.getElementById('dice-waiting').style.display = 'none';
+            document.getElementById('animated-dice-continuous').style.display = 'block';
+            
+            // Debug-Information
+            console.log('Würfel-Button geklickt');
+            console.log('CSRF Token:', document.querySelector('meta[name=csrf-token]').getAttribute('content'));
+            
+            // Führe Würfelwurf aus
+            fetch('/teams/api/team_roll_dice', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('meta[name=csrf-token]').getAttribute('content')
+                },
+                body: JSON.stringify({})
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log('Würfel-Antwort erhalten:', data);
+                
+                if (data.success === true) {
+                    console.log('Würfeln erfolgreich!');
+                    // Zeige Würfelergebnis
+                    showDiceResult(data);
+                    
+                    // Aktualisiere Spiel-Status nach kurzer Verzögerung
+                    setTimeout(() => {
+                        fetchDashboardData();
+                    }, 1000);
+                } else {
+                    console.error('Würfelfehler:', data);
+                    console.log('data.success:', data.success);
+                    console.log('typeof data.success:', typeof data.success);
+                    const errorMessage = data.error || data.message || 'Unbekannter Fehler';
+                    alert('Fehler beim Würfeln: ' + errorMessage);
+                    resetDiceButton();
+                }
+            })
+            .catch(error => {
+                console.error('Netzwerkfehler:', error);
+                alert('Netzwerkfehler beim Würfeln: ' + error.message);
+                resetDiceButton();
+            });
+        });
+    }
+});
+
+function resetDiceButton() {
+    const teamRollDiceBtn = document.getElementById('team-roll-dice-btn');
+    if (teamRollDiceBtn) {
+        teamRollDiceBtn.disabled = false;
+        teamRollDiceBtn.innerHTML = '<i class="fas fa-dice"></i> Würfeln!';
+    }
+    
+    // Zeige Dice-Button wieder
+    document.getElementById('dice-waiting').style.display = 'block';
+    document.getElementById('animated-dice-continuous').style.display = 'block';
+}
+
+function showDiceResult(data) {
+    // Verstecke Würfel-Animation
+    document.getElementById('dice-waiting').style.display = 'none';
+    document.getElementById('animated-dice-continuous').style.display = 'none';
+    
+    // Fülle Ergebnis-Daten
+    document.getElementById('standard-roll').textContent = data.standard_roll;
+    document.getElementById('total-roll').textContent = data.total_roll;
+    document.getElementById('old-pos').textContent = data.old_position;
+    document.getElementById('new-pos').textContent = data.new_position;
+    
+    // Zeige Bonus-Wurf falls vorhanden
+    const bonusRow = document.getElementById('bonus-row');
+    if (data.bonus_roll > 0) {
+        document.getElementById('bonus-roll').textContent = data.bonus_roll;
+        bonusRow.style.display = 'block';
+    } else {
+        bonusRow.style.display = 'none';
+    }
+    
+    // Zeige Ergebnis-Animation
+    document.getElementById('dice-result-animation').style.display = 'block';
+    
+    // Verstecke Overlay nach 5 Sekunden
+    setTimeout(() => {
+        document.getElementById('dice-animation-overlay').style.display = 'none';
+    }, 5000);
+}
 
 // Clean up on page unload
 window.addEventListener('beforeunload', function() {

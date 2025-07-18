@@ -58,7 +58,7 @@ def _get_team_game_progress(team_user):
         related_team_id=team_user.id
     ).filter(
         GameEvent.event_type.in_([
-            'dice_roll', 'admin_dice_roll', 'admin_dice_roll_legacy',
+            'dice_roll', 'admin_dice_roll', 'admin_dice_roll_legacy', 'team_dice_roll',
             'special_field_catapult_forward', 'special_field_catapult_backward',
             'special_field_player_swap'
         ])
@@ -94,7 +94,7 @@ def _get_team_game_progress(team_user):
                 event_data = {}
         
         # Behandle verschiedene Event-Typen
-        if event.event_type in ['dice_roll', 'admin_dice_roll', 'admin_dice_roll_legacy']:
+        if event.event_type in ['dice_roll', 'admin_dice_roll', 'admin_dice_roll_legacy', 'team_dice_roll']:
             # Standard Würfel-Event
             move_number += 1
             old_position = event_data.get('old_position', 0)
@@ -166,7 +166,7 @@ def _get_last_dice_result(team_user, active_session):
         game_session_id=active_session.id,
         related_team_id=team_user.id
     ).filter(
-        GameEvent.event_type.in_(['dice_roll', 'admin_dice_roll', 'admin_dice_roll_legacy'])
+        GameEvent.event_type.in_(['dice_roll', 'admin_dice_roll', 'admin_dice_roll_legacy', 'team_dice_roll'])
     ).order_by(GameEvent.timestamp.desc()).first()
     
     if last_dice_event and last_dice_event.data_json:
@@ -292,7 +292,7 @@ def _get_dashboard_data(team_user):
         elif active_session.current_phase == 'DICE_ROLLING':
             if current_team_turn_name:
                 if current_team_turn_name == team_user.name:
-                    game_status = f"Du bist am Zug! Warte auf Admin's Würfelwurf"
+                    game_status = f"Du bist am Zug! Klicke auf 'Würfeln' um zu würfeln"
                     game_status_class = "success"
                 else:
                     game_status = f"{current_team_turn_name} ist am Zug"
@@ -661,6 +661,10 @@ def dashboard_status_api():
         # Fragen-Daten für JSON
         question_data = None
         if data['current_question_data']:
+            # Hole die Antwort des Teams für diese Frage
+            question_response = data.get('question_response')
+            is_correct = question_response.is_correct if question_response else None
+            
             question_data = {
                 'id': data['current_question_data']['id'],
                 'name': data['current_question_data']['name'],
@@ -668,7 +672,8 @@ def dashboard_status_api():
                 'question_text': data['current_question_data'].get('question_text', ''),
                 'question_type': data['current_question_data'].get('question_type', 'multiple_choice'),
                 'options': data['current_question_data'].get('options', []),
-                'answered': data['question_answered']
+                'answered': data['question_answered'],
+                'is_correct': is_correct
             }
         
         return {
@@ -1002,6 +1007,201 @@ def _get_recent_special_field_event(team, session):
     except Exception as e:
         print(f"Error getting special field event: {e}")
         return None
+
+@teams_bp.route('/api/team_roll_dice_test', methods=['POST'])
+@login_required
+def team_roll_dice_test():
+    """Test-Route für Team-Würfeln"""
+    if not isinstance(current_user, Team):
+        return jsonify({"success": False, "error": "Nur Teams können würfeln."}), 403
+    
+    try:
+        return jsonify({
+            "success": True,
+            "message": "Test erfolgreich",
+            "team_name": current_user.name,
+            "team_id": current_user.id,
+            "is_authenticated": True
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@teams_bp.route('/api/team_roll_dice', methods=['POST'])
+@login_required
+def team_roll_dice():
+    """Team würfelt für sich selbst, wenn es am Zug ist"""
+    if not isinstance(current_user, Team):
+        return jsonify({"success": False, "error": "Nur Teams können würfeln."}), 403
+    
+    try:
+        # Importiere die notwendigen Funktionen
+        import random
+        import json
+        from app.models import GameEvent
+        
+        current_app.logger.info(f"Team {current_user.name} (ID: {current_user.id}) versucht zu würfeln")
+        
+        # Prüfe Spielsitzung
+        active_session = GameSession.query.filter_by(is_active=True).first()
+        if not active_session:
+            return jsonify({"success": False, "error": "Keine aktive Spielsitzung."}), 404
+        
+        if active_session.current_phase != 'DICE_ROLLING':
+            return jsonify({"success": False, "error": "Es ist nicht die Würfelphase."}), 403
+        
+        # Prüfe ob das Team am Zug ist
+        if active_session.current_team_turn_id != current_user.id:
+            current_team = Team.query.get(active_session.current_team_turn_id) if active_session.current_team_turn_id else None
+            current_team_name = current_team.name if current_team else "Unbekannt"
+            return jsonify({"success": False, "error": f"Du bist nicht am Zug. Aktuell ist {current_team_name} am Zug."}), 403
+        
+        team = current_user
+        
+        # Würfeln
+        standard_dice_roll = random.randint(1, 6)
+        bonus_dice_roll = 0
+        
+        current_app.logger.info(f"Team {team.name} würfelt selbst - Bonus-Würfel-Seiten: {team.bonus_dice_sides}")
+        
+        if team.bonus_dice_sides and team.bonus_dice_sides > 0:
+            bonus_dice_roll = random.randint(1, team.bonus_dice_sides)
+            current_app.logger.info(f"Team {team.name} erhält Bonus-Würfel: {bonus_dice_roll} (von 1-{team.bonus_dice_sides})")
+        else:
+            current_app.logger.info(f"Team {team.name} erhält keinen Bonus-Würfel")
+        
+        total_roll = standard_dice_roll + bonus_dice_roll
+        old_position = team.current_position
+        
+        # Einfache Bewegung (ohne Sonderfelder erstmal)
+        max_field_index = current_app.config.get('MAX_BOARD_FIELDS', 72)
+        new_position = min(team.current_position + total_roll, max_field_index)
+        team.current_position = new_position
+        
+        # Sonderfeld-Behandlung (falls Module verfügbar)
+        special_field_result = None
+        barrier_check_result = None
+        
+        try:
+            from app.game_logic.special_fields import handle_special_field_action, check_barrier_release
+            
+            # SONDERFELD: Prüfe Sperren-Status
+            if team.is_blocked:
+                # Team ist blockiert - prüfe ob es freikommt
+                barrier_check_result = check_barrier_release(team, standard_dice_roll, active_session, bonus_dice_roll)
+                
+                if barrier_check_result['released']:
+                    # Team ist befreit und kann sich normal bewegen
+                    team.current_position = new_position
+                else:
+                    # Team bleibt blockiert, keine Bewegung
+                    new_position = old_position
+                    team.current_position = old_position
+            
+            # Prüfe Sonderfeld-Aktion nach Bewegung (nur wenn nicht blockiert)
+            if not team.is_blocked or (barrier_check_result and barrier_check_result.get('released', False)):
+                all_teams = Team.query.all()
+                dice_info = {
+                    "old_position": old_position,
+                    "new_position": new_position,
+                    "dice_roll": standard_dice_roll,
+                    "bonus_roll": bonus_dice_roll,
+                    "total_roll": total_roll
+                }
+                special_field_result = handle_special_field_action(team, all_teams, active_session, dice_info)
+        except ImportError as e:
+            current_app.logger.warning(f"Sonderfeld-Module nicht verfügbar: {e}")
+        except Exception as e:
+            current_app.logger.error(f"Fehler bei Sonderfeld-Behandlung: {e}")
+            # Fehler bei Sonderfeldern sollen das Würfeln nicht stoppen
+        
+        # Event für den Würfelwurf erstellen
+        event_description = f"Team {team.name} würfelte selbst: {standard_dice_roll}"
+        if bonus_dice_roll > 0:
+            event_description += f" (Bonus: {bonus_dice_roll}, Gesamt: {total_roll})"
+        
+        if team.is_blocked and (not barrier_check_result or not barrier_check_result.get('released', False)):
+            event_description += f" - BLOCKIERT: Konnte sich nicht befreien."
+        else:
+            event_description += f" und bewegte sich von Feld {old_position} zu Feld {new_position}."
+        
+        dice_event = GameEvent(
+            game_session_id=active_session.id,
+            event_type="team_dice_roll",
+            description=event_description,
+            related_team_id=team.id,
+            data_json=json.dumps({
+                "standard_roll": standard_dice_roll,
+                "bonus_roll": bonus_dice_roll,
+                "total_roll": total_roll,
+                "old_position": old_position,
+                "new_position": new_position,
+                "rolled_by": "team",
+                "was_blocked": team.is_blocked and (not barrier_check_result or not barrier_check_result.get('released', False)),
+                "barrier_released": barrier_check_result.get('released', False) if barrier_check_result else False
+            })
+        )
+        db.session.add(dice_event)
+        
+        # Setze Bonuswürfel zurück (wird nach jedem Wurf verbraucht)
+        team.bonus_dice_sides = 0
+        
+        # Suche das nächste Team in der Reihenfolge
+        next_team = None
+        if active_session.dice_roll_order:
+            try:
+                team_ids = [int(tid) for tid in active_session.dice_roll_order.split(',') if tid.strip().isdigit()]
+                current_index = team_ids.index(team.id)
+                next_index = (current_index + 1) % len(team_ids)
+                next_team = Team.query.get(team_ids[next_index])
+            except (ValueError, IndexError):
+                current_app.logger.warning(f"Fehler beim Ermitteln des nächsten Teams. Reihenfolge: {active_session.dice_roll_order}")
+        
+        # Wenn das nächste Team dasselbe wie das aktuelle ist, ist die Runde beendet
+        if next_team and next_team.id == team.id:
+            active_session.current_phase = 'ROUND_OVER'
+            active_session.current_team_turn_id = None
+            current_app.logger.info(f"Alle Teams haben gewürfelt. Runde beendet.")
+        elif next_team:
+            active_session.current_team_turn_id = next_team.id
+            current_app.logger.info(f"Nächstes Team am Zug: {next_team.name}")
+        else:
+            active_session.current_phase = 'ROUND_OVER'
+            active_session.current_team_turn_id = None
+            current_app.logger.info(f"Keine weiteren Teams. Runde beendet.")
+        
+        db.session.commit()
+        
+        # Bereite Response vor
+        response_data = {
+            "success": True,
+            "standard_roll": standard_dice_roll,
+            "bonus_roll": bonus_dice_roll,
+            "total_roll": total_roll,
+            "old_position": old_position,
+            "new_position": new_position,
+            "team_name": team.name,
+            "next_team_name": next_team.name if next_team else None,
+            "phase": active_session.current_phase,
+            "was_blocked": team.is_blocked and (not barrier_check_result or not barrier_check_result.get('released', False)),
+            "barrier_released": barrier_check_result.get('released', False) if barrier_check_result else False
+        }
+        
+        # Füge Sonderfeld-Informationen hinzu, aber überschreibe nicht success=True
+        if special_field_result:
+            # Entferne success aus special_field_result falls vorhanden
+            special_field_result_copy = special_field_result.copy()
+            special_field_result_copy.pop('success', None)
+            response_data.update(special_field_result_copy)
+        
+        # Stelle sicher, dass success=True gesetzt ist
+        response_data['success'] = True
+        
+        return jsonify(response_data)
+        
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Schwerer Fehler in team_roll_dice: {e}", exc_info=True)
+        return jsonify({"success": False, "error": f"Ein interner Serverfehler beim Würfeln ist aufgetreten: {str(e)}"}), 500
 
 @teams_bp.route('/api/active-fields')
 @login_required
