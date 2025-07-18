@@ -121,6 +121,16 @@
                 </h5>
                 <p class="mb-2" id="game-status-text"><strong>{{ game_status }}</strong></p>
                 
+                <!-- Aktuelles Team am Zug -->
+                {% if current_team_turn_name %}
+                    <div class="current-team-display mb-2" id="current-team-display">
+                        <i class="fas fa-user-clock mr-2"></i>
+                        <strong>Aktuell am Zug: 
+                            <span id="current-team-name" class="text-primary">{{ current_team_turn_name }}</span>
+                        </strong>
+                    </div>
+                {% endif %}
+                
                 {% if active_session and active_session.current_minigame_name %}
                     <hr>
                     <p class="mb-0" id="minigame-info">
@@ -367,6 +377,44 @@
                     </h3>
                     <p>Würfel</p>
                     <small>Bonus-Stufe</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Team-Charakter-Zuordnung -->
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header bg-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-gamepad mr-2 text-primary"></i>
+                        Team-Spielfiguren
+                        <button class="btn btn-sm btn-outline-primary float-right" id="cycle-team-btn">
+                            <i class="fas fa-arrow-right mr-1"></i>
+                            Nächstes Team
+                        </button>
+                    </h5>
+                    <small class="text-muted">Klicke auf "Nächstes Team" um zu sehen, wie die Spielfigur des Teams aussieht</small>
+                </div>
+                <div class="card-body">
+                    <div class="team-character-display" id="team-character-display">
+                        <div class="row align-items-center">
+                            <div class="col-md-6">
+                                <div class="team-info">
+                                    <h4 class="team-name" id="displayed-team-name">-</h4>
+                                    <p class="team-position" id="displayed-team-position">Position: -</p>
+                                </div>
+                            </div>
+                            <div class="col-md-6 text-center">
+                                <div class="character-visual" id="displayed-character-visual">
+                                    <div class="character-figure" id="character-figure">
+                                        <div class="character-avatar" id="character-avatar">👤</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -710,6 +758,99 @@
     float: right;
     font-size: 0.8rem;
     opacity: 0.8;
+}
+
+/* Team cycling display */
+.team-character-display {
+    min-height: 100px;
+    padding: 20px;
+    background-color: #f8f9fa;
+    border-radius: 10px;
+    transition: all 0.3s ease;
+}
+
+.team-character-display:hover {
+    background-color: #e9ecef;
+}
+
+.team-info .team-name {
+    font-weight: bold;
+    color: #495057;
+    margin-bottom: 5px;
+}
+
+.team-info .team-position {
+    color: #6c757d;
+    margin-bottom: 0;
+    font-weight: 500;
+}
+
+.character-visual {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.character-figure {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    transition: all 0.3s ease;
+    background-color: #e9ecef;
+    border: 3px solid #dee2e6;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.character-figure.has-character {
+    transform: scale(1.05);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+}
+
+.character-figure:hover {
+    transform: scale(1.1);
+    box-shadow: 0 6px 16px rgba(0,0,0,0.3);
+}
+
+.character-avatar {
+    font-size: 2.5rem;
+    transition: transform 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+}
+
+.character-avatar:hover {
+    transform: rotate(5deg) scale(1.05);
+}
+
+.character-avatar img {
+    transition: transform 0.3s ease;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+.character-avatar img:hover {
+    transform: scale(1.1);
+}
+
+.current-team-display {
+    background-color: rgba(0, 123, 255, 0.1);
+    border-radius: 5px;
+    padding: 8px 12px;
+    border-left: 4px solid #007bff;
+}
+
+#cycle-team-btn {
+    transition: all 0.3s ease;
+}
+
+#cycle-team-btn:hover {
+    transform: translateX(5px);
 }
 
 .live-indicator i {
@@ -3432,6 +3573,195 @@ function showDiceResult(data) {
         document.getElementById('dice-animation-overlay').style.display = 'none';
     }, 5000);
 }
+
+// Team cycling functionality
+let currentTeamIndex = 0;
+let allTeams = [
+    {% for team in all_teams %}
+    {
+        id: {{ team.id }},
+        name: "{{ team.name }}",
+        character: {% if team.character %}{
+            name: "{{ team.character.name }}",
+            color: "{{ team.character.color or '#4169E1' }}",
+            image_file: "{{ team.character.image_file or '' }}",
+            preview_image: "{{ team.character.preview_image or '' }}",
+            thumbnail: "{{ team.character.thumbnail or '' }}"
+        }{% else %}null{% endif %},
+        character_customization: {% if team.get_character_customization() %}{{ team.get_character_customization() | tojson }}{% else %}null{% endif %},
+        current_position: {{ team.current_position }}
+    }{% if not loop.last %},{% endif %}
+    {% endfor %}
+];
+
+function updateTeamDisplay() {
+    if (!allTeams || allTeams.length === 0) {
+        document.getElementById('displayed-team-name').textContent = 'Keine Teams verfügbar';
+        document.getElementById('displayed-team-position').textContent = 'Position: -';
+        document.getElementById('character-avatar').textContent = '❓';
+        return;
+    }
+    
+    const team = allTeams[currentTeamIndex];
+    
+    // Update team name
+    document.getElementById('displayed-team-name').textContent = team.name;
+    
+    // Update team position
+    document.getElementById('displayed-team-position').textContent = `Position: ${team.current_position}`;
+    
+    // Update character visual representation
+    const characterAvatar = document.getElementById('character-avatar');
+    const characterFigure = document.getElementById('character-figure');
+    
+    if (team.character) {
+        // Use character customization data if available
+        const customization = team.character_customization;
+        
+        // Use character's actual color or customization colors
+        let characterColor = team.character.color || '#4169E1';
+        let skinColor = '#FFDE97'; // Default skin color
+        let shirtColor = '#4169E1'; // Default shirt color
+        let hairColor = '#2C1810'; // Default hair color
+        
+        if (customization) {
+            skinColor = customization.skinColor || skinColor;
+            shirtColor = customization.shirtColor || characterColor;
+            hairColor = customization.hairColor || hairColor;
+        }
+        
+        // Check for character images first
+        if (team.character.thumbnail) {
+            // Use character thumbnail image
+            characterAvatar.innerHTML = `<img src="/static/${team.character.thumbnail}" alt="${team.character.name}" style="width: 60px; height: 60px; border-radius: 50%; object-fit: cover;">`;
+        } else if (team.character.preview_image) {
+            // Use character preview image
+            characterAvatar.innerHTML = `<img src="/static/${team.character.preview_image}" alt="${team.character.name}" style="width: 60px; height: 60px; border-radius: 50%; object-fit: cover;">`;
+        } else if (team.character.image_file) {
+            // Use character image file
+            characterAvatar.innerHTML = `<img src="/static/${team.character.image_file}" alt="${team.character.name}" style="width: 60px; height: 60px; border-radius: 50%; object-fit: cover;">`;
+        } else {
+            // Create a custom avatar using character colors and features
+            let avatar = createCustomAvatar(team.character, customization);
+            characterAvatar.innerHTML = avatar;
+        }
+        
+        // Set character figure styling
+        characterFigure.style.backgroundColor = shirtColor;
+        characterFigure.style.border = `3px solid ${characterColor}`;
+        characterFigure.classList.add('has-character');
+        
+        // Add character name tooltip
+        characterFigure.title = `${team.character.name}`;
+        
+    } else {
+        // No character assigned
+        characterAvatar.textContent = '👤';
+        characterFigure.style.backgroundColor = '#e9ecef';
+        characterFigure.style.border = '3px solid #dee2e6';
+        characterFigure.classList.remove('has-character');
+        characterFigure.title = 'Kein Charakter zugewiesen';
+    }
+}
+
+function createCustomAvatar(character, customization) {
+    // Create a simple text/emoji based avatar using character data
+    const skinColor = customization?.skinColor || '#FFDE97';
+    const hairColor = customization?.hairColor || '#2C1810';
+    const eyeColor = customization?.eyeColor || '#4169E1';
+    
+    // Simple face structure with colors
+    const faceStyle = `color: ${skinColor}; filter: sepia(100%) saturate(150%) hue-rotate(20deg);`;
+    
+    // Get face based on face shape or use default
+    let faceEmoji = '😊'; // Default happy face
+    
+    if (customization?.faceShape) {
+        switch (customization.faceShape) {
+            case 'round': faceEmoji = '🙂'; break;
+            case 'square': faceEmoji = '😐'; break;
+            case 'oval': faceEmoji = '😊'; break;
+            case 'heart': faceEmoji = '😍'; break;
+            default: faceEmoji = '😊';
+        }
+    }
+    
+    // Add hair style indicators
+    let hairIndicator = '';
+    if (customization?.hairStyle) {
+        switch (customization.hairStyle) {
+            case 'short': hairIndicator = '✂️'; break;
+            case 'long': hairIndicator = '💇'; break;
+            case 'curly': hairIndicator = '🌀'; break;
+            case 'bald': hairIndicator = ''; break;
+            default: hairIndicator = '';
+        }
+    }
+    
+    return `<div style="position: relative; font-size: 2rem;">
+                <span style="${faceStyle}">${faceEmoji}</span>
+                ${hairIndicator ? `<span style="position: absolute; top: -10px; left: 50%; transform: translateX(-50%); font-size: 0.8rem;">${hairIndicator}</span>` : ''}
+            </div>`;
+}
+
+function cycleToNextTeam() {
+    if (allTeams && allTeams.length > 0) {
+        currentTeamIndex = (currentTeamIndex + 1) % allTeams.length;
+        updateTeamDisplay();
+    }
+}
+
+// Update current team display in status
+function updateCurrentTeamDisplay(gameData) {
+    const currentTeamDisplay = document.getElementById('current-team-display');
+    const currentTeamName = document.getElementById('current-team-name');
+    
+    if (gameData && gameData.current_team_turn_name) {
+        if (currentTeamDisplay) {
+            currentTeamDisplay.style.display = 'block';
+        }
+        if (currentTeamName) {
+            currentTeamName.textContent = gameData.current_team_turn_name;
+        }
+    } else {
+        if (currentTeamDisplay) {
+            currentTeamDisplay.style.display = 'none';
+        }
+    }
+}
+
+// Initialize team display on page load
+document.addEventListener('DOMContentLoaded', function() {
+    // Set up cycle button
+    const cycleBtn = document.getElementById('cycle-team-btn');
+    if (cycleBtn) {
+        cycleBtn.addEventListener('click', cycleToNextTeam);
+    }
+    
+    // Initialize with first team
+    updateTeamDisplay();
+});
+
+// Update team data when dashboard updates
+const originalUpdateDashboard = updateDashboard;
+updateDashboard = function(data) {
+    originalUpdateDashboard(data);
+    
+    if (data && data.success && data.data) {
+        // Update current team display
+        updateCurrentTeamDisplay(data.data);
+        
+        // Update team list if it has changed
+        if (data.data.teams && data.data.teams.length > 0) {
+            allTeams = data.data.teams;
+            // Make sure current index is still valid
+            if (currentTeamIndex >= allTeams.length) {
+                currentTeamIndex = 0;
+            }
+            updateTeamDisplay();
+        }
+    }
+};
 
 // Clean up on page unload
 window.addEventListener('beforeunload', function() {
