@@ -637,7 +637,7 @@ def dashboard_status_api():
         # Konvertiere Teams zu JSON-freundlichem Format
         teams_data = []
         for team in data['all_teams']:
-            teams_data.append({
+            team_data = {
                 'id': team.id,
                 'name': team.name,
                 'position': team.current_position,
@@ -645,7 +645,29 @@ def dashboard_status_api():
                 'bonus_dice_sides': team.bonus_dice_sides,
                 'character_name': team.character.name if team.character else None,
                 'is_current_user': team.id == current_user.id
-            })
+            }
+            
+            # Füge vollständige Charakter-Daten hinzu wenn verfügbar
+            if team.character:
+                team_data['character'] = {
+                    'id': team.character.id,
+                    'name': team.character.name,
+                    'color': team.character.color,
+                    'js_file': team.character.js_file,
+                    'image_file': team.character.image_file,
+                    'preview_image': team.character.preview_image,
+                    'thumbnail': team.character.thumbnail
+                }
+            else:
+                team_data['character'] = None
+            
+            # Füge Charakter-Anpassungen hinzu wenn verfügbar
+            if hasattr(team, 'get_character_customization'):
+                team_data['character_customization'] = team.get_character_customization()
+            else:
+                team_data['character_customization'] = None
+                
+            teams_data.append(team_data)
         
         # Würfelreihenfolge für JSON
         dice_order_data = []

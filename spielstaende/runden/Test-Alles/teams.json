@@ -1,1 +1,42 @@
-[]
+[
+  {
+    "name": "Team 1",
+    "password_hash": "scrypt:32768:8:1$jo7cBEf2yTzCvsQg$57e2ce3320b743dbf4a766a7fc53c6ad02feeef0b8bd72a8cfad036b71aad8932fa6a77643c2f4d80a4742ff49586253e35164b118818cf4eab8a40dc4f6da55",
+    "welcome_password": "QCSVTQ",
+    "members": "Jonas",
+    "player_config": null,
+    "profile_images": null,
+    "character_name": "Standard-Charakter",
+    "character_id": 1,
+    "character_customization": "{\"shirtColor\": \"#98d8c8\", \"pantsColor\": \"#4ecdc4\", \"hairColor\": \"#4ecdc4\", \"shoeColor\": \"#bb8fce\", \"skinColor\": \"#ffde97\", \"eyeColor\": \"#4169e1\", \"faceShape\": \"oval\", \"bodyType\": \"chunky\", \"height\": \"normal\", \"hairStyle\": \"curly\", \"eyeShape\": \"sleepy\", \"beardStyle\": \"mustache\", \"shirtType\": \"polo\", \"pantsType\": \"shorts\", \"shoeType\": \"sneakers\", \"hat\": \"cap\", \"glasses\": \"normal\", \"jewelry\": \"rings\", \"backpack\": \"none\", \"animationStyle\": \"normal\", \"walkStyle\": \"bouncy\", \"idleStyle\": \"fidgety\", \"voiceType\": \"high\", \"voicePitch\": 1.0, \"defaultPose\": \"normal\", \"defaultExpression\": \"happy\", \"aura\": \"none\", \"trail\": \"none\"}",
+    "current_position": 14,
+    "minigame_placement": 1,
+    "bonus_dice_sides": 0,
+    "last_dice_result": null,
+    "is_blocked": false,
+    "blocked_target_number": null,
+    "blocked_config": null,
+    "blocked_turns_remaining": 0,
+    "extra_moves_remaining": 0
+  },
+  {
+    "name": "Team 2",
+    "password_hash": "scrypt:32768:8:1$0Rw5hju7Np2LLvtV$6cf76fe3b0e9a26e392dba6570962ccee5304a5c28b742557e745260475f4ec24e62c838f1686b6f178124b6967182df79bf4105f1600fddb88caeb474a7b29e",
+    "welcome_password": "0JOLWN",
+    "members": "Leonie",
+    "player_config": null,
+    "profile_images": null,
+    "character_name": null,
+    "character_id": null,
+    "character_customization": null,
+    "current_position": 14,
+    "minigame_placement": 2,
+    "bonus_dice_sides": 0,
+    "last_dice_result": null,
+    "is_blocked": false,
+    "blocked_target_number": null,
+    "blocked_config": null,
+    "blocked_turns_remaining": 0,
+    "extra_moves_remaining": 0
+  }
+]

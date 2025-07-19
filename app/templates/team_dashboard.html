@@ -3,6 +3,9 @@
 {% block title %}{{ title }} - Wii Party U Deluxe{% endblock %}
 
 {% block content %}
+<!-- Three.js für 3D-Charakteranzeige -->
+<script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"></script>
+
 <div class="container-fluid mt-4">
     <!-- Team-Header -->
     <div class="row mb-4">
@@ -382,35 +385,56 @@
         </div>
     </div>
 
-    <!-- Team-Charakter-Zuordnung -->
+    <!-- Team-Anzeige -->
     <div class="row mb-4">
         <div class="col-md-12">
             <div class="card">
                 <div class="card-header bg-white">
                     <h5 class="mb-0">
-                        <i class="fas fa-gamepad mr-2 text-primary"></i>
-                        Team-Spielfiguren
-                        <button class="btn btn-sm btn-outline-primary float-right" id="cycle-team-btn">
-                            <i class="fas fa-arrow-right mr-1"></i>
-                            Nächstes Team
-                        </button>
+                        <i class="fas fa-users mr-2 text-primary"></i>
+                        Team-Übersicht
                     </h5>
-                    <small class="text-muted">Klicke auf "Nächstes Team" um zu sehen, wie die Spielfigur des Teams aussieht</small>
+                    <small class="text-muted">Klicke auf die Pfeile um zwischen den Teams zu wechseln</small>
                 </div>
                 <div class="card-body">
-                    <div class="team-character-display" id="team-character-display">
+                    <div class="team-display" id="team-display">
                         <div class="row align-items-center">
-                            <div class="col-md-6">
+                            <div class="col-md-2 text-center">
+                                <button class="btn btn-outline-primary btn-sm" id="prev-team-btn">
+                                    <i class="fas fa-arrow-left"></i> Zurück
+                                </button>
+                            </div>
+                            <div class="col-md-8 text-center">
                                 <div class="team-info">
                                     <h4 class="team-name" id="displayed-team-name">-</h4>
-                                    <p class="team-position" id="displayed-team-position">Position: -</p>
+                                    <p class="team-position text-muted" id="displayed-team-position">Position: -</p>
                                 </div>
                             </div>
-                            <div class="col-md-6 text-center">
-                                <div class="character-visual" id="displayed-character-visual">
-                                    <div class="character-figure" id="character-figure">
-                                        <div class="character-avatar" id="character-avatar">👤</div>
+                            <div class="col-md-2 text-center">
+                                <button class="btn btn-outline-primary btn-sm" id="next-team-btn">
+                                    Vor <i class="fas fa-arrow-right"></i>
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- Erweiterbarer Mii-Anzeigebereich -->
+                        <div class="mii-display-container mt-3" id="mii-display-container" style="display: none;">
+                            <hr>
+                            <div class="row">
+                                <div class="col-md-12 text-center">
+                                    <h6 class="mb-3">
+                                        <i class="fas fa-user-astronaut mr-2"></i>
+                                        <span id="mii-character-name">Charakter</span>
+                                    </h6>
+                                    <div class="mii-viewer-wrapper">
+                                        <canvas id="mii-canvas" width="300" height="400" style="border: 2px solid #dee2e6; border-radius: 10px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);"></canvas>
+                                        <div class="mii-info mt-2">
+                                            <small class="text-muted" id="mii-details">Lade Charakter...</small>
+                                        </div>
                                     </div>
+                                    <button class="btn btn-outline-secondary btn-sm mt-2" id="hide-mii-btn">
+                                        <i class="fas fa-eye-slash mr-1"></i> Ausblenden
+                                    </button>
                                 </div>
                             </div>
                         </div>
@@ -3574,142 +3598,6 @@ function showDiceResult(data) {
     }, 5000);
 }
 
-// Team cycling functionality
-let currentTeamIndex = 0;
-let allTeams = [
-    {% for team in all_teams %}
-    {
-        id: {{ team.id }},
-        name: "{{ team.name }}",
-        character: {% if team.character %}{
-            name: "{{ team.character.name }}",
-            color: "{{ team.character.color or '#4169E1' }}",
-            image_file: "{{ team.character.image_file or '' }}",
-            preview_image: "{{ team.character.preview_image or '' }}",
-            thumbnail: "{{ team.character.thumbnail or '' }}"
-        }{% else %}null{% endif %},
-        character_customization: {% if team.get_character_customization() %}{{ team.get_character_customization() | tojson }}{% else %}null{% endif %},
-        current_position: {{ team.current_position }}
-    }{% if not loop.last %},{% endif %}
-    {% endfor %}
-];
-
-function updateTeamDisplay() {
-    if (!allTeams || allTeams.length === 0) {
-        document.getElementById('displayed-team-name').textContent = 'Keine Teams verfügbar';
-        document.getElementById('displayed-team-position').textContent = 'Position: -';
-        document.getElementById('character-avatar').textContent = '❓';
-        return;
-    }
-    
-    const team = allTeams[currentTeamIndex];
-    
-    // Update team name
-    document.getElementById('displayed-team-name').textContent = team.name;
-    
-    // Update team position
-    document.getElementById('displayed-team-position').textContent = `Position: ${team.current_position}`;
-    
-    // Update character visual representation
-    const characterAvatar = document.getElementById('character-avatar');
-    const characterFigure = document.getElementById('character-figure');
-    
-    if (team.character) {
-        // Use character customization data if available
-        const customization = team.character_customization;
-        
-        // Use character's actual color or customization colors
-        let characterColor = team.character.color || '#4169E1';
-        let skinColor = '#FFDE97'; // Default skin color
-        let shirtColor = '#4169E1'; // Default shirt color
-        let hairColor = '#2C1810'; // Default hair color
-        
-        if (customization) {
-            skinColor = customization.skinColor || skinColor;
-            shirtColor = customization.shirtColor || characterColor;
-            hairColor = customization.hairColor || hairColor;
-        }
-        
-        // Check for character images first
-        if (team.character.thumbnail) {
-            // Use character thumbnail image
-            characterAvatar.innerHTML = `<img src="/static/${team.character.thumbnail}" alt="${team.character.name}" style="width: 60px; height: 60px; border-radius: 50%; object-fit: cover;">`;
-        } else if (team.character.preview_image) {
-            // Use character preview image
-            characterAvatar.innerHTML = `<img src="/static/${team.character.preview_image}" alt="${team.character.name}" style="width: 60px; height: 60px; border-radius: 50%; object-fit: cover;">`;
-        } else if (team.character.image_file) {
-            // Use character image file
-            characterAvatar.innerHTML = `<img src="/static/${team.character.image_file}" alt="${team.character.name}" style="width: 60px; height: 60px; border-radius: 50%; object-fit: cover;">`;
-        } else {
-            // Create a custom avatar using character colors and features
-            let avatar = createCustomAvatar(team.character, customization);
-            characterAvatar.innerHTML = avatar;
-        }
-        
-        // Set character figure styling
-        characterFigure.style.backgroundColor = shirtColor;
-        characterFigure.style.border = `3px solid ${characterColor}`;
-        characterFigure.classList.add('has-character');
-        
-        // Add character name tooltip
-        characterFigure.title = `${team.character.name}`;
-        
-    } else {
-        // No character assigned
-        characterAvatar.textContent = '👤';
-        characterFigure.style.backgroundColor = '#e9ecef';
-        characterFigure.style.border = '3px solid #dee2e6';
-        characterFigure.classList.remove('has-character');
-        characterFigure.title = 'Kein Charakter zugewiesen';
-    }
-}
-
-function createCustomAvatar(character, customization) {
-    // Create a simple text/emoji based avatar using character data
-    const skinColor = customization?.skinColor || '#FFDE97';
-    const hairColor = customization?.hairColor || '#2C1810';
-    const eyeColor = customization?.eyeColor || '#4169E1';
-    
-    // Simple face structure with colors
-    const faceStyle = `color: ${skinColor}; filter: sepia(100%) saturate(150%) hue-rotate(20deg);`;
-    
-    // Get face based on face shape or use default
-    let faceEmoji = '😊'; // Default happy face
-    
-    if (customization?.faceShape) {
-        switch (customization.faceShape) {
-            case 'round': faceEmoji = '🙂'; break;
-            case 'square': faceEmoji = '😐'; break;
-            case 'oval': faceEmoji = '😊'; break;
-            case 'heart': faceEmoji = '😍'; break;
-            default: faceEmoji = '😊';
-        }
-    }
-    
-    // Add hair style indicators
-    let hairIndicator = '';
-    if (customization?.hairStyle) {
-        switch (customization.hairStyle) {
-            case 'short': hairIndicator = '✂️'; break;
-            case 'long': hairIndicator = '💇'; break;
-            case 'curly': hairIndicator = '🌀'; break;
-            case 'bald': hairIndicator = ''; break;
-            default: hairIndicator = '';
-        }
-    }
-    
-    return `<div style="position: relative; font-size: 2rem;">
-                <span style="${faceStyle}">${faceEmoji}</span>
-                ${hairIndicator ? `<span style="position: absolute; top: -10px; left: 50%; transform: translateX(-50%); font-size: 0.8rem;">${hairIndicator}</span>` : ''}
-            </div>`;
-}
-
-function cycleToNextTeam() {
-    if (allTeams && allTeams.length > 0) {
-        currentTeamIndex = (currentTeamIndex + 1) % allTeams.length;
-        updateTeamDisplay();
-    }
-}
 
 // Update current team display in status
 function updateCurrentTeamDisplay(gameData) {
@@ -3730,15 +3618,365 @@ function updateCurrentTeamDisplay(gameData) {
     }
 }
 
-// Initialize team display on page load
-document.addEventListener('DOMContentLoaded', function() {
-    // Set up cycle button
-    const cycleBtn = document.getElementById('cycle-team-btn');
-    if (cycleBtn) {
-        cycleBtn.addEventListener('click', cycleToNextTeam);
+// Team cycling functionality
+let currentTeamIndex = 0;
+let allTeams = [
+    {% for team in all_teams %}
+    {
+        id: {{ team.id }},
+        name: "{{ team.name }}",
+        current_position: {{ team.current_position }},
+        character: {% if team.character %}{
+            id: {{ team.character.id }},
+            name: "{{ team.character.name }}",
+            js_file: "{{ team.character.js_file or 'characters/defaultCharacter.js' }}",
+            color: "{{ team.character.color or '#4169E1' }}"
+        }{% else %}null{% endif %},
+        character_customization: {% if team.get_character_customization() %}{{ team.get_character_customization() | tojson }}{% else %}null{% endif %}
+    }{% if not loop.last %},{% endif %}
+    {% endfor %}
+];
+
+function updateTeamDisplay() {
+    if (!allTeams || allTeams.length === 0) {
+        const displayedTeamName = document.getElementById('displayed-team-name');
+        const displayedTeamPosition = document.getElementById('displayed-team-position');
+        
+        if (displayedTeamName) displayedTeamName.textContent = 'Keine Teams verfügbar';
+        if (displayedTeamPosition) displayedTeamPosition.textContent = 'Position: -';
+        return;
     }
     
-    // Initialize with first team
+    const team = allTeams[currentTeamIndex];
+    if (!team) {
+        console.error('Team at index', currentTeamIndex, 'not found in allTeams:', allTeams);
+        return;
+    }
+    
+    // Update team name
+    const displayedTeamName = document.getElementById('displayed-team-name');
+    if (displayedTeamName) {
+        displayedTeamName.textContent = team.name || 'Unbekanntes Team';
+    }
+    
+    // Update team position
+    const displayedTeamPosition = document.getElementById('displayed-team-position');
+    if (displayedTeamPosition) {
+        displayedTeamPosition.textContent = `Position: ${team.current_position || 0}`;
+    }
+    
+    // Update/Create Mii button dynamically
+    updateMiiButton(team);
+}
+
+function updateMiiButton(team) {
+    const teamInfoDiv = document.querySelector('.team-info');
+    if (!teamInfoDiv) return;
+    
+    // Remove existing Mii button
+    const existingBtn = document.getElementById('show-mii-btn');
+    if (existingBtn) {
+        existingBtn.remove();
+    }
+    
+    // Create new Mii button if team has character
+    if (team && team.character) {
+        const miiButton = document.createElement('button');
+        miiButton.className = 'btn btn-outline-info btn-sm mt-2';
+        miiButton.id = 'show-mii-btn';
+        miiButton.innerHTML = '<i class="fas fa-eye mr-1"></i> Mii anzeigen';
+        miiButton.addEventListener('click', showMiiDisplay);
+        
+        // Insert after the position text
+        const positionElement = document.getElementById('displayed-team-position');
+        if (positionElement) {
+            positionElement.parentNode.insertBefore(miiButton, positionElement.nextSibling);
+        } else {
+            teamInfoDiv.appendChild(miiButton);
+        }
+    }
+}
+
+function goToPreviousTeam() {
+    if (allTeams && allTeams.length > 0) {
+        currentTeamIndex--;
+        if (currentTeamIndex < 0) {
+            currentTeamIndex = allTeams.length - 1; // Loop to last team
+        }
+        updateTeamDisplay();
+        
+        // Update Mii display only on manual team switch
+        if (miiDisplayVisible) {
+            const currentTeam = allTeams[currentTeamIndex];
+            if (currentTeam) {
+                loadMiiCharacter(currentTeam);
+            }
+        }
+    }
+}
+
+function goToNextTeam() {
+    if (allTeams && allTeams.length > 0) {
+        currentTeamIndex++;
+        if (currentTeamIndex >= allTeams.length) {
+            currentTeamIndex = 0; // Loop to first team
+        }
+        updateTeamDisplay();
+        
+        // Update Mii display only on manual team switch
+        if (miiDisplayVisible) {
+            const currentTeam = allTeams[currentTeamIndex];
+            if (currentTeam) {
+                loadMiiCharacter(currentTeam);
+            }
+        }
+    }
+}
+
+// Mii display functionality
+let miiScene, miiCamera, miiRenderer, miiCharacter;
+let miiDisplayVisible = false;
+
+function showMiiDisplay() {
+    const container = document.getElementById('mii-display-container');
+    const currentTeam = allTeams[currentTeamIndex];
+    
+    if (!container || !currentTeam || !currentTeam.character) {
+        console.error('Cannot show Mii: missing container or character data');
+        return;
+    }
+    
+    // Show container first (so canvas is available)
+    container.style.display = 'block';
+    container.style.opacity = '0';
+    container.style.transform = 'translateY(-20px)';
+    
+    miiDisplayVisible = true;
+    
+    // Update character name
+    const characterNameEl = document.getElementById('mii-character-name');
+    if (characterNameEl) {
+        characterNameEl.textContent = currentTeam.character.name || 'Unbekannter Charakter';
+    }
+    
+    // Load and display the character (after container is visible)
+    loadMiiCharacter(currentTeam);
+    
+    // Animate container after character loading starts
+    setTimeout(() => {
+        container.style.transition = 'all 0.3s ease';
+        container.style.opacity = '1';
+        container.style.transform = 'translateY(0px)';
+    }, 10);
+}
+
+function hideMiiDisplay() {
+    const container = document.getElementById('mii-display-container');
+    if (!container) return;
+    
+    container.style.transition = 'all 0.3s ease';
+    container.style.opacity = '0';
+    container.style.transform = 'translateY(-20px)';
+    
+    setTimeout(() => {
+        container.style.display = 'none';
+        miiDisplayVisible = false;
+        
+        // Don't clean up 3D scene immediately - just hide container
+        // Clean up will happen when new character is loaded
+    }, 300);
+}
+
+function loadMiiCharacter(team) {
+    console.log('Debug: loadMiiCharacter called for team:', team);
+    
+    const canvas = document.getElementById('mii-canvas');
+    const detailsEl = document.getElementById('mii-details');
+    const container = document.getElementById('mii-display-container');
+    
+    console.log('Debug: Canvas element:', canvas);
+    console.log('Debug: Details element:', detailsEl);
+    console.log('Debug: Container element:', container);
+    console.log('Debug: Container display style:', container ? container.style.display : 'container not found');
+    
+    if (!canvas) {
+        console.error('Canvas not found');
+        // Try to wait a bit and try again
+        setTimeout(() => {
+            console.log('Debug: Retrying canvas search...');
+            const retryCanvas = document.getElementById('mii-canvas');
+            console.log('Debug: Retry canvas element:', retryCanvas);
+            if (retryCanvas) {
+                console.log('Debug: Found canvas on retry, continuing...');
+                loadMiiCharacterActual(team, retryCanvas, detailsEl);
+            } else {
+                console.error('Canvas still not found after retry');
+            }
+        }, 100);
+        return;
+    }
+    
+    loadMiiCharacterActual(team, canvas, detailsEl);
+}
+
+function loadMiiCharacterActual(team, canvas, detailsEl) {
+    console.log('Debug: loadMiiCharacterActual called with canvas:', canvas);
+    
+    try {
+        // Clean up existing scene if it exists
+        if (miiScene) {
+            while(miiScene.children.length > 0) {
+                miiScene.remove(miiScene.children[0]);
+            }
+        }
+        
+        // Initialize or reuse Three.js components
+        if (!miiScene) {
+            miiScene = new THREE.Scene();
+        }
+        if (!miiCamera) {
+            miiCamera = new THREE.PerspectiveCamera(75, canvas.width / canvas.height, 0.1, 1000);
+        }
+        if (!miiRenderer) {
+            miiRenderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true });
+            miiRenderer.setSize(canvas.width, canvas.height);
+            miiRenderer.setClearColor(0x000000, 0);
+        }
+        
+        // Add lighting
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        miiScene.add(ambientLight);
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        directionalLight.position.set(1, 1, 1);
+        miiScene.add(directionalLight);
+        
+        // Position camera for better view
+        miiCamera.position.z = 3;
+        
+        // Show loading message
+        if (detailsEl) {
+            detailsEl.textContent = 'Lade Charakter...';
+        }
+        
+        // Load character script dynamically
+        if (team.character.js_file) {
+            const script = document.createElement('script');
+            // Fix path: if it doesn't start with 'js/', prepend it
+            let scriptPath = team.character.js_file;
+            if (!scriptPath.startsWith('js/') && !scriptPath.startsWith('/')) {
+                scriptPath = 'js/' + scriptPath;
+            }
+            script.src = '/static/' + scriptPath;
+            script.onload = function() {
+                try {
+                    // Create character using the loaded script
+                    if (typeof createDefaultCharacter === 'function') {
+                        const characterColor = team.character.color || '#4169E1';
+                        const customization = team.character_customization || {};
+                        miiCharacter = createDefaultCharacter(characterColor, customization);
+                        // Make character 1.7x larger and center vertically
+                        miiCharacter.scale.set(1.7, 1.7, 1.7);
+                        miiCharacter.position.y = -0.5;
+                        miiScene.add(miiCharacter);
+                        
+                        // Start render loop
+                        function animate() {
+                            if (miiDisplayVisible && miiRenderer && miiScene && miiCamera) {
+                                requestAnimationFrame(animate);
+                                
+                                // Rotate character 2x faster
+                                if (miiCharacter) {
+                                    miiCharacter.rotation.y += 0.02;
+                                }
+                                
+                                miiRenderer.render(miiScene, miiCamera);
+                            }
+                        }
+                        animate();
+                        
+                        // Update details
+                        if (detailsEl) {
+                            const customization = team.character_customization;
+                            if (customization) {
+                                const details = [];
+                                if (customization.hairStyle) details.push(`Haare: ${customization.hairStyle}`);
+                                if (customization.bodyType) details.push(`Körper: ${customization.bodyType}`);
+                                if (customization.shirtColor) details.push(`Hemd: ${customization.shirtColor}`);
+                                detailsEl.textContent = details.join(' • ') || 'Standard-Charakter';
+                            } else {
+                                detailsEl.textContent = 'Standard-Charakter';
+                            }
+                        }
+                        
+                    } else {
+                        throw new Error('createDefaultCharacter function not found');
+                    }
+                } catch (error) {
+                    console.error('Error creating character:', error);
+                    if (detailsEl) {
+                        detailsEl.textContent = 'Fehler beim Laden des Charakters';
+                    }
+                }
+            };
+            script.onerror = function() {
+                console.error('Failed to load character script:', team.character.js_file);
+                if (detailsEl) {
+                    detailsEl.textContent = 'Charakterdatei nicht gefunden';
+                }
+            };
+            document.head.appendChild(script);
+        } else {
+            // No character script, show placeholder
+            const geometry = new THREE.BoxGeometry(1, 2, 0.5);
+            const material = new THREE.MeshLambertMaterial({ 
+                color: team.character.color || '#4169E1' 
+            });
+            miiCharacter = new THREE.Mesh(geometry, material);
+            // Make character 1.7x larger and center vertically
+            miiCharacter.scale.set(1.7, 1.7, 1.7);
+            miiCharacter.position.y = -0.5;
+            miiScene.add(miiCharacter);
+            
+            function animate() {
+                if (miiDisplayVisible && miiRenderer && miiScene && miiCamera) {
+                    requestAnimationFrame(animate);
+                    miiCharacter.rotation.y += 0.02;
+                    miiRenderer.render(miiScene, miiCamera);
+                }
+            }
+            animate();
+            
+            if (detailsEl) {
+                detailsEl.textContent = 'Einfacher Platzhalter-Charakter';
+            }
+        }
+        
+    } catch (error) {
+        console.error('Error initializing 3D scene:', error);
+        if (detailsEl) {
+            detailsEl.textContent = 'Fehler beim Initialisieren der 3D-Anzeige';
+        }
+    }
+}
+
+// Initialize team display on page load
+document.addEventListener('DOMContentLoaded', function() {
+    // Set up navigation buttons
+    const prevBtn = document.getElementById('prev-team-btn');
+    const nextBtn = document.getElementById('next-team-btn');
+    const hideMiiBtn = document.getElementById('hide-mii-btn');
+    
+    if (prevBtn) {
+        prevBtn.addEventListener('click', goToPreviousTeam);
+    }
+    if (nextBtn) {
+        nextBtn.addEventListener('click', goToNextTeam);
+    }
+    if (hideMiiBtn) {
+        hideMiiBtn.addEventListener('click', hideMiiDisplay);
+    }
+    
+    // Initialize with first team (this will create the Mii button if needed)
     updateTeamDisplay();
 });
 
@@ -3748,12 +3986,15 @@ updateDashboard = function(data) {
     originalUpdateDashboard(data);
     
     if (data && data.success && data.data) {
-        // Update current team display
-        updateCurrentTeamDisplay(data.data);
-        
         // Update team list if it has changed
         if (data.data.teams && data.data.teams.length > 0) {
-            allTeams = data.data.teams;
+            allTeams = data.data.teams.map(team => ({
+                id: team.id,
+                name: team.name,
+                current_position: team.position,
+                character: team.character,
+                character_customization: team.character_customization
+            }));
             // Make sure current index is still valid
             if (currentTeamIndex >= allTeams.length) {
                 currentTeamIndex = 0;
