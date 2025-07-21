@@ -430,6 +430,81 @@ def admin_roll_dice():
         current_app.logger.error(f"Schwerer Fehler in admin_roll_dice: {e}", exc_info=True)
         return jsonify({"success": False, "error": "Ein interner Serverfehler beim Würfeln ist aufgetreten.", "details": str(e)}), 500
 
+@admin_bp.route('/abort-minigame', methods=['POST'])
+@login_required
+def abort_current_minigame():
+    """Aktuelles Minigame/Frage abbrechen - zurück zur Admin-Auswahl"""
+    if not isinstance(current_user, Admin):
+        return jsonify({"success": False, "error": "Nur Admins können Minigames abbrechen."}), 403
+    
+    try:
+        # Aktive Sitzung finden
+        active_session = GameSession.query.filter_by(is_active=True).first()
+        if not active_session:
+            return jsonify({"success": False, "error": "Keine aktive Spielsitzung gefunden."}), 404
+        
+        current_app.logger.info(f"Admin {current_user.username} bricht aktuelles Minigame ab (Session ID: {active_session.id})")
+        
+        # Nur die aktuelle Phase zurücksetzen, NICHT die Spielerpositionen
+        old_phase = active_session.current_phase
+        
+        # Je nach aktueller Phase unterschiedlich reagieren
+        if active_session.current_phase in ['QUESTION_ACTIVE', 'MINIGAME_RESULTS']:
+            # Zurück zu SETUP_MINIGAME für Admin-Auswahl ("Inhalt festlegen")
+            active_session.current_phase = 'SETUP_MINIGAME'
+            # Team-Turn zurücksetzen damit Admin neues Minigame starten kann
+            active_session.current_team_turn_id = None
+            current_app.logger.info(f"Phase geändert von {old_phase} zu SETUP_MINIGAME - Admin kann neues Minigame auswählen")
+            
+        elif active_session.current_phase == 'DICE_ROLLING':
+            # Bereits in Würfelphase - nichts zu tun
+            current_app.logger.info("Bereits in DICE_ROLLING Phase - kein Minigame aktiv")
+            return jsonify({"success": False, "error": "Kein aktives Minigame zum Abbrechen gefunden."})
+            
+        else:
+            # Andere Phasen - zurück zu SETUP_MINIGAME
+            active_session.current_phase = 'SETUP_MINIGAME'
+            active_session.current_team_turn_id = None
+            current_app.logger.info(f"Phase geändert von {old_phase} zu SETUP_MINIGAME")
+            
+        # WICHTIG: Alle Fragen-Antworten für die aktuelle Session löschen
+        # damit das Board aufhört auf Antworten zu warten
+        QuestionResponse.query.filter_by(game_session_id=active_session.id).delete()
+        current_app.logger.info("Alle Fragen-Antworten für Session gelöscht - Board stoppt Minigame")
+        
+        # Aktuelles Minigame KOMPLETT aus der Session entfernen
+        active_session.current_minigame_content = None
+        active_session.current_minigame_type = None
+        active_session.current_minigame_name = None
+        active_session.current_minigame_description = None
+        active_session.current_question_id = None
+        active_session.selected_folder_minigame_id = None
+        current_app.logger.info("Aktuelles Minigame komplett aus Session entfernt")
+        
+        # Event für Minigame-Abbruch erstellen
+        abort_event = GameEvent(
+            game_session_id=active_session.id,
+            event_type="minigame_aborted",
+            description=f"Minigame/Frage wurde von Admin {current_user.username} abgebrochen (vorherige Phase: {old_phase})"
+        )
+        db.session.add(abort_event)
+        
+        # Änderungen speichern
+        db.session.commit()
+        
+        current_app.logger.info("Minigame erfolgreich abgebrochen - zurück zur Admin-Auswahl")
+        
+        return jsonify({
+            "success": True, 
+            "message": "Minigame wurde abgebrochen. Admin kann neues Minigame auswählen.",
+            "new_phase": active_session.current_phase
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Fehler beim Minigame-Abbruch: {e}", exc_info=True)
+        return jsonify({"success": False, "error": "Interner Serverfehler beim Minigame-Abbruch.", "details": str(e)}), 500
+
 @admin_bp.route('/set_minigame', methods=['POST'])
 @login_required
 def set_minigame():

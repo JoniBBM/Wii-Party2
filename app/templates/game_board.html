@@ -533,11 +533,13 @@ let BOARD_CONFIG = {
     spiralStartRadius: 28, // Vergrößert für besseren Start
     spiralLoops: 3.8, // Mehr Loops für bessere Verteilung
     pathDepth: 5.0,
-    cameraFollowOffset: new THREE.Vector3(0, 7, 12),
+    // GTA5-style camera settings
+    gtaCameraDistance: 8.0,                   // Abstand hinter dem Spieler
+    gtaCameraHeight: 4.0,                     // Höhe über dem Spieler
+    gtaCameraSmoothing: 0.15,                 // Smooth aber responsive
+    gtaCameraLookSmoothing: 0.2,              // Blickrichtung smoothing
+    // Legacy compatibility
     cameraFrontOffset: new THREE.Vector3(0, 15, -8),
-    // Enhanced camera settings - Ultra Smooth
-    cameraSmoothing: 0.08,                    // Niedriger für weniger Ruckeln
-    cameraLookAtSmoothing: 0.12,              // Moderater für smooth look-at
     cameraOrbitSpeed: 0.006,
     cameraOrbitHeight: 40,
     cameraOrbitRadius: 55,
@@ -3146,67 +3148,27 @@ class WiiPartyIsland {
         
         let cameraPosition, lookAtPosition;
         
-        if (GAME_STATE.cameraMode === 'front') {
-            const currentPositionIndex = currentTeam.position;
-            const offset = BOARD_CONFIG.cameraFrontOffset.clone();
-            
-            if (currentPositionIndex === 0) {
-                // Sehr nah an Startposition
-                cameraPosition = new THREE.Vector3(
-                    targetPosition.x - 1, 
-                    targetPosition.y + 10, 
-                    targetPosition.z - 1
-                );
-                lookAtPosition = targetPosition.clone();
-                lookAtPosition.y -= 1.0; // Schaue nach unten auf Charakter
-            } else {
-                // Standard Position hochüber Spieler
-                cameraPosition = targetPosition.clone();
-                cameraPosition.y += 15.0; // Hohe Vogelperspektive
-                cameraPosition.x += 2;
-                cameraPosition.z += 2;
-                
-                if (currentPositionIndex > 0 && this.boardFields[currentPositionIndex - 1]) {
-                    const prevFieldPos = this.boardFields[currentPositionIndex - 1].mesh.position;
-                    const currentFieldPos = targetPosition.clone();
-                    
-                    const direction = new THREE.Vector3().subVectors(currentFieldPos, prevFieldPos);
-                    direction.y = 0;
-                    direction.normalize();
-                    
-                    // Kamera immer hinten links vom Spieler (aus Spielersicht)
-                    const backDistance = 3.0;  // Weiter hinten für besseren Überblick
-                    const leftOffset = 2.0;    // Weiter links für schräge Perspektive
-                    
-                    // Hinten links positionieren
-                    cameraPosition = targetPosition.clone();
-                    cameraPosition.x -= direction.x * backDistance - direction.z * leftOffset;
-                    cameraPosition.z -= direction.z * backDistance + direction.x * leftOffset;
-                    cameraPosition.y = targetPosition.y + 10.0; // Mittlere Höhe für schräge Sicht
-                    
-                    lookAtPosition = targetPosition.clone();
-                    lookAtPosition.y -= 0.5; // Schaue leicht nach unten
-                }
-            }
-            
-        } else {
-            // Follow-Modus: Immer hinten links vom Spieler
-            const characterDirection = new THREE.Vector3();
-            character.getWorldDirection(characterDirection);
-            characterDirection.y = 0;
-            characterDirection.normalize();
-            
-            const backDistance = 3.0;  // Weiter hinten für besseren Überblick
-            const leftOffset = 2.0;    // Weiter links für schräge Perspektive
-            
-            // Hinten links positionieren
-            cameraPosition = targetPosition.clone();
-            cameraPosition.x -= characterDirection.x * backDistance - characterDirection.z * leftOffset;
-            cameraPosition.z -= characterDirection.z * backDistance + characterDirection.x * leftOffset;
-            cameraPosition.y = targetPosition.y + 10.0; // Mittlere Höhe für schräge Sicht
-            
-            lookAtPosition = targetPosition.clone();
-            lookAtPosition.y -= 0.5; // Schaue leicht nach unten
+        // Immer GTA5-style Position verwenden für konsistente Vogelperspektive
+        {
+        // GTA5-style Position: Direkt hinter dem Spieler in Vogelperspektive
+        this.ensureCharacterFacingForward(character);
+        
+        const characterDirection = new THREE.Vector3();
+        character.getWorldDirection(characterDirection);
+        characterDirection.y = 0;
+        characterDirection.normalize();
+        
+        // GTA5-style: Direkt hinter dem Spieler, konstanter Abstand und Höhe
+        cameraPosition = targetPosition.clone();
+        cameraPosition.x -= characterDirection.x * BOARD_CONFIG.gtaCameraDistance;
+        cameraPosition.z -= characterDirection.z * BOARD_CONFIG.gtaCameraDistance;
+        cameraPosition.y = targetPosition.y + BOARD_CONFIG.gtaCameraHeight;
+        
+        lookAtPosition = targetPosition.clone();
+        lookAtPosition.y += 1.0; // GTA5-style: Schaue leicht nach oben zur Figur
+        
+        // Setze Kamera-Modus für GTA5-Stil
+        GAME_STATE.cameraMode = 'gta_follow';
         }
 
         this.animateCameraToPosition(cameraPosition, lookAtPosition, immediate ? 0 : 800, callback);
@@ -3214,58 +3176,152 @@ class WiiPartyIsland {
 
     startCameraFollow(character) {
         if (GAME_STATE.freeCameraMode) return;
-        GAME_STATE.cameraMode = 'follow';
+        GAME_STATE.cameraMode = 'gta_follow';
         this.isFollowingCharacter = true;
         this.followTarget = character;
-        this.updateCameraFollow(true);
+        
+        // Stelle sicher dass Figur nach vorne schaut
+        this.ensureCharacterFacingForward(character);
+        
+        // Prüfe ob Kamera bereits in GTA5-Position ist
+        const targetPosition = character.position.clone();
+        const characterDirection = new THREE.Vector3();
+        character.getWorldDirection(characterDirection);
+        characterDirection.y = 0;
+        characterDirection.normalize();
+        
+        const expectedCameraPos = targetPosition.clone();
+        expectedCameraPos.x -= characterDirection.x * BOARD_CONFIG.gtaCameraDistance;
+        expectedCameraPos.z -= characterDirection.z * BOARD_CONFIG.gtaCameraDistance;
+        expectedCameraPos.y = targetPosition.y + BOARD_CONFIG.gtaCameraHeight;
+        
+        const currentDistance = this.camera.position.distanceTo(expectedCameraPos);
+        
+        // Wenn Kamera bereits nah genug ist (weniger als 2 Einheiten entfernt), keine Transition
+        if (currentDistance < 2.0) {
+            console.log('🎥 Kamera bereits in GTA5-Position, starte sofort Follow-Modus');
+            this.startGTAFollow();
+        } else {
+            console.log('🎥 Kamera nicht in Position, mache Transition');
+            this.transitionToGTAPosition(character, () => {
+                this.startGTAFollow();
+            });
+        }
     }
 
     stopCameraFollow() {
         this.isFollowingCharacter = false;
         this.followTarget = null;
+        this.gtaFollowActive = false;
+        GAME_STATE.cameraMode = 'auto';
     }
 
-    updateCameraFollow(immediate = false) {
-        if (!this.isFollowingCharacter || !this.followTarget || GAME_STATE.freeCameraMode || GAME_STATE.isAnimatingCamera) return;
+    getCharacterPathPosition(character) {
+        // Finde die Position des Charakters auf dem Pfad
+        for (let i = 0; i < this.boardFields.length; i++) {
+            const field = this.boardFields[i];
+            if (field && field.children) {
+                for (let child of field.children) {
+                    if (child === character) {
+                        return i;
+                    }
+                }
+            }
+        }
+        // Fallback: schaue nach Team-Zuordnung
+        const teams = this.boardTeams || [];
+        for (let team of teams) {
+            if (team.character === character) {
+                return team.position || 0;
+            }
+        }
+        return 0;
+    }
+
+    ensureCharacterFacingForward(character) {
+        // Berechne die Richtung basierend auf dem nächsten Feld
+        const currentPosition = this.getCharacterPathPosition(character);
+        const totalFields = this.boardFields ? this.boardFields.length : 73;
+        const nextPosition = (currentPosition + 1) % totalFields;
         
-        const character = this.followTarget;
+        // Verwende die tatsächlichen Feld-Positionen
+        if (!this.boardFields || !this.boardFields[currentPosition] || !this.boardFields[nextPosition]) {
+            return; // Sicherheitscheck
+        }
+        
+        const currentField = this.boardFields[currentPosition].mesh.position;
+        const nextField = this.boardFields[nextPosition].mesh.position;
+        
+        const direction = new THREE.Vector3(
+            nextField.x - currentField.x,
+            0,
+            nextField.z - currentField.z
+        ).normalize();
+        
+        // Setze die Figur-Rotation so dass sie nach vorne schaut
+        const angle = Math.atan2(direction.x, direction.z);
+        character.rotation.y = angle;
+    }
+
+    transitionToGTAPosition(character, callback) {
+        GAME_STATE.isAnimatingCamera = true;
+        
         const targetPosition = character.position.clone();
         
+        // GTA5-style Position: Direkt hinter dem Spieler, leicht erhöht
         const characterDirection = new THREE.Vector3();
         character.getWorldDirection(characterDirection);
         characterDirection.y = 0;
         characterDirection.normalize();
-
-        // Immer hinten links vom Spieler für beste Sicht
-        const backDistance = 3.0;  // Weiter hinten für besseren Überblick
-        const leftOffset = 2.0;    // Weiter links für schräge Perspektive
         
-        // Hinten links positionieren
-        let cameraPosition = targetPosition.clone();
-        cameraPosition.x -= characterDirection.x * backDistance - characterDirection.z * leftOffset;
-        cameraPosition.z -= characterDirection.z * backDistance + characterDirection.x * leftOffset;
-        cameraPosition.y = targetPosition.y + 10.0; // Mittlere Höhe für schräge Sicht
+        // Position berechnen
+        const cameraPosition = targetPosition.clone();
+        cameraPosition.x -= characterDirection.x * BOARD_CONFIG.gtaCameraDistance;
+        cameraPosition.z -= characterDirection.z * BOARD_CONFIG.gtaCameraDistance;
+        cameraPosition.y = targetPosition.y + BOARD_CONFIG.gtaCameraHeight;
         
         const lookAtPosition = targetPosition.clone();
-        lookAtPosition.y -= 0.5; // Schaue leicht nach unten
-
-        // Keine Hinderniserkennung für flüssige Verfolgung
-        let bestPosition = cameraPosition;
+        lookAtPosition.y += 1.0; // Schaue leicht nach oben zur Figur
         
-        if (immediate) {
-            this.camera.position.copy(bestPosition);
-            this.controls.target.copy(lookAtPosition);
-        } else {
-            // Simple consistent smoothing for stable following
-            const distance = this.camera.position.distanceTo(bestPosition);
-            
-            // Use very low smoothing for immediate response
-            const smoothing = 0.18;      // Höher für direktere Verfolgung
-            const lookAtSmoothing = 0.22; // Schnellere Blickanpassung
-            
-            this.camera.position.lerp(bestPosition, smoothing);
-            this.controls.target.lerp(lookAtPosition, lookAtSmoothing);
+        this.animateCameraToPositionSmooth(cameraPosition, lookAtPosition, 1000, () => {
+            GAME_STATE.isAnimatingCamera = false;
+            if (callback) callback();
+        });
+    }
+
+    startGTAFollow() {
+        // Starte kontinuierliche GTA-style Verfolgung
+        this.gtaFollowActive = true;
+        this.updateGTAFollow();
+    }
+
+    updateGTAFollow() {
+        if (!this.gtaFollowActive || !this.isFollowingCharacter || !this.followTarget || GAME_STATE.freeCameraMode || GAME_STATE.isAnimatingCamera) {
+            return;
         }
+        
+        const character = this.followTarget;
+        const targetPosition = character.position.clone();
+        
+        // Hole die aktuelle Blickrichtung der Figur
+        const characterDirection = new THREE.Vector3();
+        character.getWorldDirection(characterDirection);
+        characterDirection.y = 0;
+        characterDirection.normalize();
+        
+        // GTA5-style: Kamera direkt hinter dem Spieler
+        const cameraPosition = targetPosition.clone();
+        cameraPosition.x -= characterDirection.x * BOARD_CONFIG.gtaCameraDistance;
+        cameraPosition.z -= characterDirection.z * BOARD_CONFIG.gtaCameraDistance;
+        cameraPosition.y = targetPosition.y + BOARD_CONFIG.gtaCameraHeight;
+        
+        const lookAtPosition = targetPosition.clone();
+        lookAtPosition.y += 1.0;
+        
+        // Smooth lerping für flüssige Bewegung
+        this.camera.position.lerp(cameraPosition, BOARD_CONFIG.gtaCameraSmoothing);
+        this.controls.target.lerp(lookAtPosition, BOARD_CONFIG.gtaCameraLookSmoothing);
+        
         this.camera.lookAt(this.controls.target);
     }
 
@@ -3378,15 +3434,17 @@ class WiiPartyIsland {
                 console.log('🎯 Spieler ist aktiv - wechsle zu Player Focus...');
                 this.switchToPlayerFocus();
             } else {
-                // Debounced switch zu Auto-Orbit
-                console.log('🌌 Spieler inaktiv - warte kurz vor Auto-Orbit...');
-                this.pendingCameraSwitch = setTimeout(() => {
-                    if (!GAME_STATE.isPlayerActive && GAME_STATE.autoCameraEnabled && !GAME_STATE.cameraTransitioning) {
-                        console.log('🌌 Starte Auto-Orbit nach Wartezeit...');
-                        this.switchToAutoOrbit();
-                    }
-                    this.pendingCameraSwitch = null;
-                }, BOARD_CONFIG.cameraAutoOrbitDelay);
+                // Nur Auto-Orbit starten wenn nicht in ROUND_OVER Phase
+                if (GAME_STATE.currentGamePhase !== 'ROUND_OVER') {
+                    console.log('🌌 Spieler inaktiv - warte kurz vor Auto-Orbit...');
+                    this.pendingCameraSwitch = setTimeout(() => {
+                        if (!GAME_STATE.isPlayerActive && GAME_STATE.autoCameraEnabled && !GAME_STATE.cameraTransitioning) {
+                            console.log('🌌 Starte Auto-Orbit nach Wartezeit...');
+                            this.switchToAutoOrbit();
+                        }
+                        this.pendingCameraSwitch = null;
+                    }, BOARD_CONFIG.cameraAutoOrbitDelay);
+                }
             }
         }
     }
@@ -3406,6 +3464,14 @@ class WiiPartyIsland {
         if (currentTeam && this.miiCharacters[currentTeam.id]) {
             return this.miiCharacters[currentTeam.id];
         }
+        
+        // Fallback: Wenn keine Team ID da ist, zeige keine Warnings in ROUND_OVER Phase
+        if (GAME_STATE.currentGamePhase === 'ROUND_OVER') {
+            return null; // Normal in dieser Phase
+        }
+        
+        // Nur Warnings außerhalb von ROUND_OVER
+        console.warn("⚠️ getCurrentActivePlayer: No current team ID or no characters loaded", this.miiCharacters ? Object.keys(this.miiCharacters).length : 0);
         return null;
     }
 
@@ -3466,7 +3532,7 @@ class WiiPartyIsland {
         }, shorterTransitionDuration);
     }
 
-    // Verbesserte smooth focus transition von orbit zu spieler
+    // Verbesserte smooth focus transition von orbit zu spieler - immer in GTA5-Vogelperspektive
     focusOnCurrentPlayerSmoothImproved(currentCamPos, currentLookAt, callback) {
         const currentPlayer = this.getCurrentActivePlayer();
         if (!currentPlayer) {
@@ -3477,27 +3543,31 @@ class WiiPartyIsland {
 
         const playerPos = currentPlayer.position.clone();
         
-        // Intelligente Kamera-Position basierend auf aktueller Position
-        const directionToPlayer = new THREE.Vector3().subVectors(playerPos, currentCamPos).normalize();
+        // Stelle sicher, dass Charakter nach vorne schaut
+        this.ensureCharacterFacingForward(currentPlayer);
         
-        // Optimale Kamera-Position mit sanftem Übergang
-        const optimalDistance = BOARD_CONFIG.cameraPlayerFocusDistance * 0.8;
-        const optimalHeight = BOARD_CONFIG.cameraPlayerFocusHeight;
+        // GTA5-style Kamera-Position: Direkt hinter dem Spieler in Vogelperspektive
+        const characterDirection = new THREE.Vector3();
+        currentPlayer.getWorldDirection(characterDirection);
+        characterDirection.y = 0;
+        characterDirection.normalize();
         
-        // Berechne ideale Position unter Berücksichtigung der aktuellen Kamera-Position
-        const cameraPos = new THREE.Vector3(
-            playerPos.x - directionToPlayer.x * optimalDistance,
-            optimalHeight,
-            playerPos.z - directionToPlayer.z * optimalDistance
-        );
+        // GTA5-style: Direkt hinter dem Spieler, konstanter Abstand und Höhe
+        const cameraPos = playerPos.clone();
+        cameraPos.x -= characterDirection.x * BOARD_CONFIG.gtaCameraDistance;
+        cameraPos.z -= characterDirection.z * BOARD_CONFIG.gtaCameraDistance;
+        cameraPos.y = playerPos.y + BOARD_CONFIG.gtaCameraHeight;
         
         const lookAtPos = playerPos.clone();
-        lookAtPos.y += 1.2;
+        lookAtPos.y += 1.0; // GTA5-style: Schaue leicht nach oben zur Figur
+
+        // Setze Kamera-Modus für GTA5-Stil
+        GAME_STATE.cameraMode = 'gta_follow';
 
         // Verkürzte Transition-Zeit für weniger Ruckeln
         const transitionDuration = Math.min(800, BOARD_CONFIG.cameraTransitionDuration * 0.6);
         
-        console.log('🎥 Starte verbesserte Player-Focus-Transition...');
+        console.log('🎥 Starte GTA-style Player-Focus-Transition (Vogelperspektive)...');
         this.animateCameraToPositionSmooth(cameraPos, lookAtPos, transitionDuration, callback);
     }
     
@@ -3510,9 +3580,14 @@ class WiiPartyIsland {
 
     // Startet automatische Spieler-Verfolgung
     startAutomaticPlayerFollowing() {
-        GAME_STATE.cameraMode = 'follow';
+        GAME_STATE.cameraMode = 'gta_follow'; // Setze direkt auf GTA-Modus für konsistente Vogelperspektive
         this.isFollowingCharacter = true;
         this.followTarget = this.getCurrentActivePlayer();
+        
+        // Stelle sicher, dass die Kamera bereits in der GTA-Vogelperspektive positioniert ist
+        if (this.followTarget) {
+            this.ensureCharacterFacingForward(this.followTarget);
+        }
     }
 
     // Stoppt automatische Spieler-Verfolgung
@@ -4760,9 +4835,9 @@ class WiiPartyIsland {
         // Automatic camera management system - runs continuously
         this.updateAutomaticCamera();
 
-        // Camera following logic - nur einfache Version verwenden
-        if (!GAME_STATE.freeCameraMode && this.isFollowingCharacter && !GAME_STATE.isAnimatingCamera) {
-            this.updateCameraFollow();
+        // GTA5-style camera following logic
+        if (!GAME_STATE.freeCameraMode && this.isFollowingCharacter && !GAME_STATE.isAnimatingCamera && this.gtaFollowActive) {
+            this.updateGTAFollow();
         }
         
         if (GAME_STATE.freeCameraMode && !GAME_STATE.isAnimatingCamera && !GAME_STATE.cameraTransitioning) {

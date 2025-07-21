@@ -1845,7 +1845,8 @@ function updateDashboard(data) {
         !isCurrentlyMyTurn &&
         !isDiceAnimationShowing) {
         
-        showDiceWaitingAnimation();
+        // Aktiviere komplettes Würfel-Interface für dieses Team (ersetzt showDiceWaitingAnimation)
+        updateTeamDiceButtonState(gameData, true);
         isCurrentlyMyTurn = true;
     } else if (!currentUser.is_current_turn && isCurrentlyMyTurn) {
         // Team's turn is over, but show result longer
@@ -1918,7 +1919,13 @@ function updateDashboard(data) {
             }
         }
         isCurrentlyMyTurn = false;
+        
+        // Deaktiviere Würfel-Button da Team nicht mehr dran ist
+        updateTeamDiceButtonState(gameData, false);
     }
+    
+    // Generelle Button-State-Prüfung (wichtig für Page-Refresh)
+    updateTeamDiceButtonState(gameData, currentUser.is_current_turn);
     
     // Check for special field events (with duplicate prevention and delayed display)
     if (gameData.special_field_event) {
@@ -3497,6 +3504,20 @@ window.testTeamRoll = function() {
 document.addEventListener('DOMContentLoaded', function() {
     const teamRollDiceBtn = document.getElementById('team-roll-dice-btn');
     if (teamRollDiceBtn) {
+        // Initiale Button-State-Prüfung beim Laden
+        const initialPhase = "{{ active_session.current_phase if active_session else '' }}";
+        const initialIsMyTurn = {{ 'true' if current_team_turn_name == current_user.name else 'false' }};
+        
+        console.log('Team Dashboard geladen - Phase:', initialPhase, 'Mein Zug:', initialIsMyTurn);
+        
+        // Prüfe initialen Button-State
+        const initialGameData = {
+            current_phase: initialPhase,
+            current_team_turn_name: "{{ current_team_turn_name if current_team_turn_name else '' }}"
+        };
+        
+        updateTeamDiceButtonState(initialGameData, initialIsMyTurn);
+        
         teamRollDiceBtn.addEventListener('click', function() {
             if (teamRollDiceBtn.disabled) return;
             
@@ -3567,6 +3588,54 @@ function resetDiceButton() {
     // Zeige Dice-Button wieder
     document.getElementById('dice-waiting').style.display = 'block';
     document.getElementById('animated-dice-continuous').style.display = 'block';
+}
+
+// Robuste Würfel-Button-State-Prüfung für Team Dashboard
+function updateTeamDiceButtonState(gameData, isMyTurn) {
+    const diceOverlay = document.getElementById('dice-animation-overlay');
+    const diceWaiting = document.getElementById('dice-waiting');
+    const teamRollDiceBtn = document.getElementById('team-roll-dice-btn');
+    
+    if (!diceWaiting || !teamRollDiceBtn || !diceOverlay) return;
+    
+    // Button sollte nur sichtbar/aktiviert sein wenn:
+    // 1. Phase ist DICE_ROLLING
+    // 2. Es ist der Zug dieses Teams (isMyTurn)
+    // 3. Button ist nicht disabled durch laufende Aktion
+    const shouldShowButton = gameData && 
+                            gameData.current_phase === 'DICE_ROLLING' && 
+                            isMyTurn;
+    
+    if (shouldShowButton) {
+        // Zeige komplettes Würfel-Interface (wie showDiceWaitingAnimation)
+        diceOverlay.style.display = 'flex'; // Wichtig: das Hauptoverlay anzeigen!
+        diceWaiting.style.display = 'block';
+        
+        // Verstecke Ergebnis-Animation
+        const resultDiv = document.getElementById('dice-result-animation');
+        if (resultDiv) resultDiv.style.display = 'none';
+        
+        // Aktiviere Button
+        teamRollDiceBtn.disabled = false;
+        teamRollDiceBtn.innerHTML = '<i class="fas fa-dice"></i> Würfeln!';
+        teamRollDiceBtn.classList.remove('btn-secondary');
+        teamRollDiceBtn.classList.add('btn-success');
+        
+        // Zeige animierte Würfel
+        const animatedDice = document.getElementById('animated-dice-continuous');
+        if (animatedDice) animatedDice.style.display = 'block';
+        
+        // Setze Animation-Status
+        isDiceAnimationShowing = true;
+        
+        console.log('Team Würfel-Interface vollständig aktiviert - Team ist dran');
+    } else {
+        // Verstecke komplettes Würfel-Interface
+        diceOverlay.style.display = 'none';
+        isDiceAnimationShowing = false;
+        
+        console.log('Team Würfel-Interface versteckt - Team nicht dran oder falsche Phase');
+    }
 }
 
 function showDiceResult(data) {
