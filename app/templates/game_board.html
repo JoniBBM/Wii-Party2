@@ -2944,9 +2944,14 @@ class WiiPartyIsland {
         console.log("✅ Movement completed for", currentTeam.name, "at position", finalPositionIndex);
         console.log("🔄 [MOVEMENT COMPLETION] All movement states have been reset successfully");
         
-        // Stop camera following after movement
-        this.stopCameraFollow();
-        console.log("📹 [MOVEMENT COMPLETION] Camera following stopped");
+        // Keep GTA camera active if player turn is still in progress
+        // Only stop camera following if turn is completely finished
+        if (!GAME_STATE.playerTurnInProgress) {
+            this.stopCameraFollow();
+            console.log("📹 [MOVEMENT COMPLETION] Camera following stopped - turn finished");
+        } else {
+            console.log("📹 [MOVEMENT COMPLETION] Keeping GTA camera active - turn still in progress");
+        }
         
         // Charakter zum nächsten Feld ausrichten
         if (mii) {
@@ -3210,10 +3215,17 @@ class WiiPartyIsland {
     }
 
     stopCameraFollow() {
+        // Nicht stoppen wenn Charakter sich noch bewegt oder Spieler noch am Zug ist
+        if (GAME_STATE.isCharacterMoving || GAME_STATE.playerTurnInProgress) {
+            console.log("📹 [CAMERA] stopCameraFollow ignored - character moving or turn in progress");
+            return;
+        }
+        
         this.isFollowingCharacter = false;
         this.followTarget = null;
         this.gtaFollowActive = false;
         GAME_STATE.cameraMode = 'auto';
+        console.log("📹 [CAMERA] Camera follow stopped - switching to auto mode");
     }
 
     getCharacterPathPosition(character) {
@@ -3435,15 +3447,18 @@ class WiiPartyIsland {
                 this.switchToPlayerFocus();
             } else {
                 // Nur Auto-Orbit starten wenn nicht in ROUND_OVER Phase
+                // VERLÄNGERTE Wartezeit für stabilere GTA-Kamera
                 if (GAME_STATE.currentGamePhase !== 'ROUND_OVER') {
-                    console.log('🌌 Spieler inaktiv - warte kurz vor Auto-Orbit...');
+                    console.log('🌌 Spieler inaktiv - warte länger vor Auto-Orbit...');
+                    // Verdoppelte Wartezeit für weniger störende Kamera-Wechsel
+                    const extendedDelay = BOARD_CONFIG.cameraAutoOrbitDelay * 2;
                     this.pendingCameraSwitch = setTimeout(() => {
                         if (!GAME_STATE.isPlayerActive && GAME_STATE.autoCameraEnabled && !GAME_STATE.cameraTransitioning) {
-                            console.log('🌌 Starte Auto-Orbit nach Wartezeit...');
+                            console.log('🌌 Starte Auto-Orbit nach verlängerter Wartezeit...');
                             this.switchToAutoOrbit();
                         }
                         this.pendingCameraSwitch = null;
-                    }, BOARD_CONFIG.cameraAutoOrbitDelay);
+                    }, extendedDelay);
                 }
             }
         }
@@ -3451,11 +3466,20 @@ class WiiPartyIsland {
 
     // Prüft ob gerade ein Spieler aktiv ist
     checkIfPlayerIsActive() {
-        return GAME_STATE.playerTurnInProgress || 
-               GAME_STATE.isCharacterMoving || 
-               GAME_STATE.isDiceRolling || 
-               GAME_STATE.isAnimating ||
-               GAME_STATE.cinematicMode;
+        // Erweiterte Bedingungen für länger aktive GTA-Kamera
+        const isCurrentlyActive = GAME_STATE.playerTurnInProgress || 
+                                GAME_STATE.isCharacterMoving || 
+                                GAME_STATE.isDiceRolling || 
+                                GAME_STATE.isAnimating ||
+                                GAME_STATE.cinematicMode;
+        
+        // Zusätzliche Bedingung: Spieler gilt als "aktiv" wenn er gerade seinen Zug hat
+        // auch wenn er nicht aktiv läuft/würfelt (GTA-Kamera bleibt länger aktiv)
+        const currentTeam = this.getCurrentTeam();
+        const isCurrentPlayerTurn = currentTeam && GAME_STATE.currentServerTeamTurnId === currentTeam.id;
+        
+        // GTA-Kamera bleibt aktiv während des gesamten Spielerzugs
+        return isCurrentlyActive || isCurrentPlayerTurn;
     }
 
     // Holt den aktuell aktiven Spieler
