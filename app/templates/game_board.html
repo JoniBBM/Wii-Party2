@@ -1968,7 +1968,18 @@ class WiiPartyIsland {
             } else if (event.key.toLowerCase() === 'r' && isAdmin) {
                 if (!GAME_STATE.isAnimating && !GAME_STATE.isDiceRolling && !GAME_STATE.isCharacterMoving && !GAME_STATE.playerTurnInProgress) {
                     this.rollDice();
+                } else {
+                    console.log("⚠️ [DICE] Cannot roll dice - game state:", {
+                        isAnimating: GAME_STATE.isAnimating,
+                        isDiceRolling: GAME_STATE.isDiceRolling,
+                        isCharacterMoving: GAME_STATE.isCharacterMoving,
+                        playerTurnInProgress: GAME_STATE.playerTurnInProgress
+                    });
                 }
+            } else if (event.key.toLowerCase() === 'x' && isAdmin) {
+                // Emergency dice reset (X key for admins)
+                this.resetDiceState();
+                this.showStatusMessage('Würfelzustand zurückgesetzt', 2000, 'warning');
             } else if (event.key.toLowerCase() === 'o') {
                 // Elegante Kamera-Orbit (O key)
                 if (window.orbitAnimationRunning) {
@@ -2395,8 +2406,9 @@ class WiiPartyIsland {
                 this.miiCharacters[team.id].scale.setScalar(BOARD_CONFIG.characterSize);
             }
 
-            // Charakter zum nächsten Feld ausrichten
-            this.orientCharacterToNextField(this.miiCharacters[team.id], team.position);
+            // DEAKTIVIERT: Keine automatische Charakterausrichtung bei Initialisierung
+            // this.orientCharacterToNextField(this.miiCharacters[team.id], team.position);
+            console.log("👤 [INIT] Character orientation skipped for team", team.name);
             
             this.miiCharacters[team.id].castShadow = true;
             this.miiCharacters[team.id].receiveShadow = true;
@@ -2430,19 +2442,9 @@ class WiiPartyIsland {
     }
 
     orientCharacterToNextField(character, currentPosition) {
-        // Stelle sicher, dass der Charakter immer nach vorne (Zentrum der Insel) schaut
-        // Berechne Richtung zum Zentrum der Insel
-        const characterPos = character.position.clone();
-        const centerPos = new THREE.Vector3(0, characterPos.y, 0); // Zentrum der Insel
-        
-        const direction = new THREE.Vector3();
-        direction.subVectors(centerPos, characterPos);
-        direction.y = 0; // Nur horizontale Rotation
-        direction.normalize();
-        
-        // Berechne den Winkel zum Zentrum (geradeaus)
-        const angle = Math.atan2(direction.x, direction.z);
-        character.rotation.y = angle;
+        // DEAKTIVIERT: Charaktere sollen immer geradeaus schauen ohne Drehung
+        // Keine automatische Orientierung mehr
+        console.log("👤 [CHARACTER] Automatic character orientation disabled - keeping straight forward");
     }
 
     addBlockedTeamEffect(characterMesh) {
@@ -2953,10 +2955,11 @@ class WiiPartyIsland {
             console.log("📹 [MOVEMENT COMPLETION] Keeping GTA camera active - turn still in progress");
         }
         
-        // Charakter zum nächsten Feld ausrichten
-        if (mii) {
-            this.orientCharacterToNextField(mii, finalPositionIndex);
-        }
+        // DEAKTIVIERT: Keine automatische Charakterausrichtung mehr
+        // if (mii) {
+        //     this.orientCharacterToNextField(mii, finalPositionIndex);
+        // }
+        console.log("👤 [MOVEMENT COMPLETION] Character orientation skipped - keeping straight forward");
 
         // Spezielle Behandlung für Zielfeld
         if (finalPositionIndex === this.boardFields.length - 1) {
@@ -3251,28 +3254,9 @@ class WiiPartyIsland {
     }
 
     ensureCharacterFacingForward(character) {
-        // Berechne die Richtung basierend auf dem nächsten Feld
-        const currentPosition = this.getCharacterPathPosition(character);
-        const totalFields = this.boardFields ? this.boardFields.length : 73;
-        const nextPosition = (currentPosition + 1) % totalFields;
-        
-        // Verwende die tatsächlichen Feld-Positionen
-        if (!this.boardFields || !this.boardFields[currentPosition] || !this.boardFields[nextPosition]) {
-            return; // Sicherheitscheck
-        }
-        
-        const currentField = this.boardFields[currentPosition].mesh.position;
-        const nextField = this.boardFields[nextPosition].mesh.position;
-        
-        const direction = new THREE.Vector3(
-            nextField.x - currentField.x,
-            0,
-            nextField.z - currentField.z
-        ).normalize();
-        
-        // Setze die Figur-Rotation so dass sie nach vorne schaut
-        const angle = Math.atan2(direction.x, direction.z);
-        character.rotation.y = angle;
+        // DEAKTIVIERT: Charaktere sollen nicht automatisch gedreht werden
+        console.log("👤 [CHARACTER] ensureCharacterFacingForward disabled - keeping straight forward");
+        // Keine Rotation mehr
     }
 
     transitionToGTAPosition(character, callback) {
@@ -4015,48 +3999,43 @@ class WiiPartyIsland {
     }
 
     animateCharacterTurn(character, targetLookAtPosition, callback, duration = 500) {
-        GAME_STATE.isAnimating = true;
-        const startRotation = character.quaternion.clone();
+        // DEAKTIVIERT: Charaktere sollen nicht automatisch gedreht werden
+        console.log("👤 [CHARACTER] Character turn animation disabled - keeping straight forward");
         
-        const characterPos = character.position.clone();
-        const targetPos = targetLookAtPosition.clone();
-        targetPos.y = characterPos.y;
-        
-        const direction = new THREE.Vector3().subVectors(targetPos, characterPos);
-        direction.normalize();
-        
-        const endRotation = new THREE.Quaternion();
-        if (direction.lengthSq() > 0.0001) {
-            const angle = Math.atan2(direction.x, direction.z);
-            endRotation.setFromAxisAngle(new THREE.Vector3(0, 1, 0), angle);
-        } else {
-            endRotation.copy(startRotation);
+        // Callback sofort ausführen ohne Drehung
+        if (callback) {
+            callback();
         }
-
-        const startTime = Date.now();
-        const animateTurnFrame = () => {
-            const currentTime = Date.now();
-            const progress = Math.min(1, (currentTime - startTime) / duration);
-            const easeProgress = this.easeInOutCubic(progress);
-            
-            character.quaternion.slerpQuaternions(startRotation, endRotation, easeProgress);
-
-            if (progress < 1) {
-                requestAnimationFrame(animateTurnFrame);
-            } else {
-                character.quaternion.copy(endRotation);
-                GAME_STATE.isAnimating = false;
-                if (callback) callback();
-            }
-        };
-        animateTurnFrame();
     }
 
     rollDice() {
-        if (GAME_STATE.isAnimating || GAME_STATE.isDiceRolling || GAME_STATE.isCharacterMoving || !this.interactiveDice) return;
+        if (GAME_STATE.isAnimating || GAME_STATE.isDiceRolling || GAME_STATE.isCharacterMoving || !this.interactiveDice) {
+            console.log("⚠️ [DICE] rollDice blocked - states:", {
+                isAnimating: GAME_STATE.isAnimating,
+                isDiceRolling: GAME_STATE.isDiceRolling,
+                isCharacterMoving: GAME_STATE.isCharacterMoving,
+                hasInteractiveDice: !!this.interactiveDice
+            });
+            return;
+        }
         
+        console.log("🎲 [DICE] Starting dice roll...");
         GAME_STATE.isAnimating = true;
         GAME_STATE.isDiceRolling = true;
+        
+        // ROBUSTHEIT: Notfall-Reset falls Würfeln hängt
+        const diceEmergencyTimeout = setTimeout(() => {
+            if (GAME_STATE.isDiceRolling) {
+                console.error("⚠️ [DICE] Emergency reset - dice roll took too long!");
+                GAME_STATE.isAnimating = false;
+                GAME_STATE.isDiceRolling = false;
+                this.interactiveDice.visible = false;
+                this.showStatusMessage("Würfeln unterbrochen - versuche es erneut", 3000, "warning");
+            }
+        }, 10000); // 10 Sekunden Notfall-Reset
+        
+        // Speichere Timeout-ID für spätere Bereinigung
+        this.currentDiceTimeout = diceEmergencyTimeout;
 
         const currentTeam = this.getCurrentTeam();
         if (!currentTeam) { 
@@ -4100,57 +4079,80 @@ class WiiPartyIsland {
         
         // Kamera sanft zur Position bewegen
         this.animateCameraToPosition(cameraPosition, lookAtPosition, 800, () => {
-            // 2. Figur geradeaus (Richtung Zentrum) ausrichten lassen
-            const centerPos = new THREE.Vector3(0, mii.position.y, 0);
-            this.animateCharacterTurn(mii, centerPos, () => {
-                // 3. Würfel-Animation starten
-                this.interactiveDice.position.copy(mii.position).add(new THREE.Vector3(0, 1, 0));
-                this.interactiveDice.visible = true;
-                this.interactiveDice.rotation.set(
-                    Math.random() * Math.PI, 
-                    Math.random() * Math.PI, 
-                    Math.random() * Math.PI
-                );
+            // DEAKTIVIERT: Keine Charakterdrehung beim Würfeln
+            // const centerPos = new THREE.Vector3(0, mii.position.y, 0);
+            // this.animateCharacterTurn(mii, centerPos, () => {
+            // Direkter Aufruf ohne Drehung:
+            
+            // 3. Würfel-Animation starten
+            this.interactiveDice.position.copy(mii.position).add(new THREE.Vector3(0, 1, 0));
+            this.interactiveDice.visible = true;
+            this.interactiveDice.rotation.set(
+                Math.random() * Math.PI, 
+                Math.random() * Math.PI, 
+                Math.random() * Math.PI
+            );
 
-                this.animateInteractiveDiceRoll((diceResult) => {
-                    GAME_STATE.diceResult = diceResult;
-                    
-                    // Zeige Würfelergebnis direkt auf dem Spielfeld
-                    this.showDiceResultOnField(mii.position, diceResult, currentTeam.bonus_dice_sides, currentTeam.name);
-                    
-                    // Calculate dice result
-                    const bonusRoll = currentTeam.bonus_dice_sides > 0 ? Math.floor(Math.random() * currentTeam.bonus_dice_sides) + 1 : 0;
-                    const totalRoll = diceResult + bonusRoll;
-                    console.log("🎲 Dice result:", diceResult, "Bonus:", bonusRoll, "Total:", totalRoll, "Team:", currentTeam.name);
-                    
-                    // Warte kurz bevor die Bewegung startet
-                    setTimeout(() => {
-                        this.interactiveDice.visible = false;
-
-                        const currentPositionIndex = currentTeam.position;
-                        let nextFieldIndex = Math.min(currentPositionIndex + 1, this.boardFields.length - 1);
-                        if (currentPositionIndex === this.boardFields.length - 1) {
-                            nextFieldIndex = currentPositionIndex;
-                        }
+            this.animateInteractiveDiceRoll((diceResult) => {
+                // Bereinige Emergency-Timeout
+                if (this.currentDiceTimeout) {
+                    clearTimeout(this.currentDiceTimeout);
+                    this.currentDiceTimeout = null;
+                }
+                
+                GAME_STATE.diceResult = diceResult;
+                console.log("🎲 [DICE] Dice result received:", diceResult);
+                
+                // Zeige Würfelergebnis direkt auf dem Spielfeld
+                this.showDiceResultOnField(mii.position, diceResult, currentTeam.bonus_dice_sides, currentTeam.name);
+                
+                // Calculate dice result
+                const bonusRoll = currentTeam.bonus_dice_sides > 0 ? Math.floor(Math.random() * currentTeam.bonus_dice_sides) + 1 : 0;
+                const totalRoll = diceResult + bonusRoll;
+                console.log("🎲 Dice result:", diceResult, "Bonus:", bonusRoll, "Total:", totalRoll, "Team:", currentTeam.name);
+                
+                // WICHTIG: Sende Würfelergebnis an Backend und warte auf Bestätigung
+                this.sendDiceResultToServer(currentTeam.id, diceResult, bonusRoll, totalRoll)
+                    .then(() => {
+                        console.log("✅ [DICE] Server confirmed dice result, proceeding with movement");
                         
-                        const nextField = this.boardFields[nextFieldIndex];
-                        let lookAtTargetPos = mii.position.clone().add(new THREE.Vector3(0, 0, 1));
-                        if(nextField && nextField.mesh) {
-                            lookAtTargetPos = nextField.mesh.position.clone();
-                        }
+                        // Warte kurz bevor die Bewegung startet
+                        setTimeout(() => {
+                    this.interactiveDice.visible = false;
 
-                        // 4. Figur geradeaus (Richtung Zentrum) ausrichten und dann bewegen
-                        const centerPos = new THREE.Vector3(0, mii.position.y, 0);
-                        this.animateCharacterTurn(mii, centerPos, () => {
-                            GAME_STATE.isDiceRolling = false;
-                            if (!GAME_STATE.freeCameraMode) {
-                                this.startCameraFollow(mii);
-                            }
-                            this.actuallyMoveCharacter(currentTeam, mii, diceResult, currentPositionIndex);
-                        });
-                    }, 1000);
-                });
-            }, 600); // Zeit für Figur, sich zur Kamera zu drehen
+                    const currentPositionIndex = currentTeam.position;
+                    let nextFieldIndex = Math.min(currentPositionIndex + 1, this.boardFields.length - 1);
+                    if (currentPositionIndex === this.boardFields.length - 1) {
+                        nextFieldIndex = currentPositionIndex;
+                    }
+                    
+                    const nextField = this.boardFields[nextFieldIndex];
+                    let lookAtTargetPos = mii.position.clone().add(new THREE.Vector3(0, 0, 1));
+                    if(nextField && nextField.mesh) {
+                        lookAtTargetPos = nextField.mesh.position.clone();
+                    }
+
+                    // DEAKTIVIERT: Keine Charakterdrehung vor Bewegung
+                    // const centerPos = new THREE.Vector3(0, mii.position.y, 0);
+                    // this.animateCharacterTurn(mii, centerPos, () => {
+                    // Direkter Aufruf ohne Drehung:
+                    GAME_STATE.isDiceRolling = false;
+                    if (!GAME_STATE.freeCameraMode) {
+                        this.startCameraFollow(mii);
+                    }
+                            this.actuallyMoveCharacter(currentTeam, mii, totalRoll, currentPositionIndex);
+                            // }); // Ursprüngliche Klammer für animateCharacterTurn callback
+                        }, 1000);
+                    })
+                    .catch(error => {
+                        console.error("❌ [DICE] Failed to send dice result, proceeding anyway:", error);
+                        // Bei Fehlern trotzdem fortfahren
+                        setTimeout(() => {
+                            this.actuallyMoveCharacter(currentTeam, mii, totalRoll, currentPositionIndex);
+                        }, 1000);
+                    });
+            });
+            // }); // Ursprüngliche Klammer für animateCharacterTurn callback  
         });
     }
 
@@ -4408,7 +4410,10 @@ class WiiPartyIsland {
     animateInteractiveDiceRoll(callback) {
         const rollAnimationDuration = 1400;
         const settleDuration = 300;
+        const totalDuration = rollAnimationDuration + settleDuration;
         const startTime = Date.now();
+        
+        console.log("🎲 [DICE] Starting dice roll animation...");
         
         const diceStartPos = this.interactiveDice.position.clone();
         const jumpHeight = 0.25;
@@ -4442,10 +4447,48 @@ class WiiPartyIsland {
 
         let bounceCount = 0;
         let lastBounceTime = startTime;
+        let animationCompleted = false;
+        
+        // ROBUSTHEIT: Backup-Timeout falls Animation hängt
+        const emergencyTimeout = setTimeout(() => {
+            if (!animationCompleted) {
+                console.warn("⚠️ [DICE] Emergency timeout triggered - completing dice roll");
+                animationCompleted = true;
+                this.interactiveDice.quaternion.copy(finalQuaternion);
+                this.interactiveDice.position.y = diceStartPos.y;
+                if (callback) {
+                    callback(finalDiceResult);
+                }
+            }
+        }, totalDuration + 2000); // 2 Sekunden Puffer
+        
+        const finalizeDiceRoll = () => {
+            if (animationCompleted) return; // Verhindere doppelte Aufrufe
+            animationCompleted = true;
+            clearTimeout(emergencyTimeout);
+            
+            this.interactiveDice.quaternion.copy(finalQuaternion);
+            this.interactiveDice.position.y = diceStartPos.y;
+            
+            console.log("✅ [DICE] Dice roll completed with result:", finalDiceResult);
+            
+            if (callback) {
+                callback(finalDiceResult);
+            }
+        };
         
         const animateDiceFrame = () => {
+            if (animationCompleted) return; // Stop wenn bereits abgeschlossen
+            
             const currentTime = Date.now();
             const elapsedTime = currentTime - startTime;
+            
+            // ROBUSTHEIT: Maximale Laufzeit prüfen
+            if (elapsedTime > totalDuration + 1000) {
+                console.warn("⚠️ [DICE] Animation exceeded maximum duration - forcing completion");
+                finalizeDiceRoll();
+                return;
+            }
             
             if (elapsedTime < rollAnimationDuration) {
                 const rollProgress = elapsedTime / rollAnimationDuration;
@@ -4490,13 +4533,69 @@ class WiiPartyIsland {
                 if (settleProgress < 1) {
                     requestAnimationFrame(animateDiceFrame);
                 } else {
-                    this.interactiveDice.quaternion.copy(finalQuaternion);
-                    this.interactiveDice.position.y = diceStartPos.y;
-                    if (callback) callback(finalDiceResult);
+                    finalizeDiceRoll();
                 }
             }
         };
+        
         animateDiceFrame();
+    }
+
+    // ROBUSTHEIT: Notfall-Reset für Würfelzustände
+    resetDiceState() {
+        console.log("🔄 [DICE] Resetting dice state...");
+        
+        GAME_STATE.isDiceRolling = false;
+        GAME_STATE.isAnimating = false;
+        
+        if (this.currentDiceTimeout) {
+            clearTimeout(this.currentDiceTimeout);
+            this.currentDiceTimeout = null;
+        }
+        
+        if (this.interactiveDice) {
+            this.interactiveDice.visible = false;
+        }
+        
+        console.log("✅ [DICE] Dice state reset completed");
+    }
+
+    // Sende Würfelergebnis an Backend
+    async sendDiceResultToServer(teamId, standardRoll, bonusRoll, totalRoll) {
+        try {
+            console.log("📤 [DICE] Sending dice result to server:", {
+                teamId, 
+                standardRoll, 
+                bonusRoll, 
+                totalRoll
+            });
+            
+            const response = await fetch('/teams/api/team_roll_dice', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    team_id: teamId,
+                    standard_roll: standardRoll,
+                    bonus_roll: bonusRoll,
+                    total_roll: totalRoll,
+                    timestamp: new Date().toLocaleTimeString()
+                })
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                console.log("✅ [DICE] Dice result successfully sent to server:", result);
+            } else {
+                console.error("⚠️ [DICE] Server rejected dice result:", result);
+                this.showStatusMessage(`Würfelfehler: ${result.error || 'Unbekannter Fehler'}`, 4000, 'error');
+            }
+        } catch (error) {
+            console.error("❌ [DICE] Failed to send dice result to server:", error);
+            this.showStatusMessage(`Verbindungsfehler beim Würfeln: ${error.message}`, 4000, 'error');
+        }
     }
 
     actuallyMoveCharacter(currentTeam, mii, diceRoll, startPositionIndex) {

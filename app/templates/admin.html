@@ -1250,7 +1250,14 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(data => {
             if (data.success) {
                 showDiceResult(data);
-                setTimeout(updateGameStatus, 500);
+                // SOFORTIGE Updates für bessere Responsivität
+                console.log('✅ [ADMIN] Dice rolled successfully, triggering immediate updates');
+                
+                // Mehrfache Updates in kurzen Abständen für zuverlässigere Aktualisierung
+                setTimeout(updateGameStatus, 200);  // Sehr schnell
+                setTimeout(updateGameStatus, 500);  // Original
+                setTimeout(updateGameStatus, 1000); // Backup
+                setTimeout(updateGameStatus, 2000); // Final backup
             } else {
                 alert('Fehler: ' + (data.error || 'Unbekannter Fehler'));
                 resetDiceButton();
@@ -1284,6 +1291,13 @@ document.addEventListener('DOMContentLoaded', function() {
                        gameData.current_phase === 'DICE_ROLLING' && 
                        gameData.current_team_turn_id && 
                        !isRollingDice;
+        
+        console.log('📊 [ADMIN] Button state update:', {
+            phase: gameData?.current_phase,
+            teamId: gameData?.current_team_turn_id, 
+            isRolling: isRollingDice,
+            canRoll: canRoll
+        });
         
         if (canRoll) {
             rollDiceBtn.disabled = false;
@@ -1325,6 +1339,15 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (data.game_session) {
                     const newPhase = data.game_session.current_phase;
                     
+                    // WICHTIG: Reset rolling state wenn neues Team dran ist
+                    if (newPhase === 'DICE_ROLLING' && data.game_session.current_team_turn_id) {
+                        // Wenn neues Team am Zug ist, reset den rolling state
+                        if (isRollingDice) {
+                            console.log('🔄 [ADMIN] Resetting rolling state for new team turn');
+                            isRollingDice = false;
+                        }
+                    }
+                    
                     // Phase hat sich geändert - Update UI
                     if (newPhase !== currentPhase) {
                         currentPhase = newPhase;
@@ -1342,10 +1365,12 @@ document.addEventListener('DOMContentLoaded', function() {
                     // Würfel-spezifische Updates
                     if (newPhase === 'DICE_ROLLING') {
                         const newTeamId = data.game_session.current_team_turn_id;
+                        console.log('🎯 [ADMIN] DICE_ROLLING phase detected, team:', newTeamId);
                         updateCurrentTeamDisplay(data.teams, newTeamId);
                         // Verwende robuste Button-State-Prüfung statt nur reset
                         updateDiceButtonState(data.game_session);
                     } else {
+                        console.log('🚫 [ADMIN] Not in DICE_ROLLING phase:', newPhase);
                         // Wenn nicht DICE_ROLLING, deaktiviere Button
                         updateDiceButtonState(null);
                     }
@@ -1497,8 +1522,8 @@ document.addEventListener('DOMContentLoaded', function() {
         startQuestionResponsesPolling();
     }
     
-    // Auto-Update alle 3 Sekunden (häufiger für bessere Responsivität)
-    setInterval(updateGameStatus, 3000);
+    // Auto-Update alle 2 Sekunden für bessere Responsivität
+    setInterval(updateGameStatus, 2000);
 
     // Welcome-System initialisierung
     updateWelcomeStatus();
