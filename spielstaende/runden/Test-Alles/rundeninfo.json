@@ -2,8 +2,8 @@
   "name": "Test-Alles",
   "description": "",
   "minigame_folder_name": "Default",
-  "is_active": true,
+  "is_active": false,
   "created_at": "2025-07-17T18:56:14.299239",
-  "saved_at": "2025-07-21T05:38:09.542408",
+  "saved_at": "2025-07-22T11:58:01.834610",
   "version": "2.0"
 }

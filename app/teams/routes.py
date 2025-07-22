@@ -1071,6 +1071,40 @@ def team_roll_dice():
         if active_session.current_phase != 'DICE_ROLLING':
             return jsonify({"success": False, "error": "Es ist nicht die Würfelphase."}), 403
         
+        # EINFACHE ABER ROBUSTE LÖSUNG: Zähle aktuelle Würfel-Events in der Runde
+        if active_session.dice_roll_order:
+            try:
+                # Parse die Würfelreihenfolge
+                dice_order_team_ids = [int(tid) for tid in active_session.dice_roll_order.split(',') if tid.strip().isdigit()]
+                total_teams = len(dice_order_team_ids)
+                
+                # Zähle ALLE Würfel-Events in dieser Session
+                all_dice_events_in_session = GameEvent.query.filter_by(
+                    game_session_id=active_session.id
+                ).filter(
+                    GameEvent.event_type.in_(['team_dice_roll', 'admin_dice_roll'])
+                ).count()
+                
+                # Zähle Würfel-Events für dieses spezifische Team
+                team_dice_events = GameEvent.query.filter_by(
+                    game_session_id=active_session.id,
+                    related_team_id=current_user.id
+                ).filter(
+                    GameEvent.event_type.in_(['team_dice_roll', 'admin_dice_roll'])
+                ).count()
+                
+                # Ermittle welche "Runde" wir sind (wie oft jedes Team gewürfelt haben sollte)
+                expected_round = (all_dice_events_in_session // total_teams) + 1
+                
+                # Wenn das Team bereits in dieser Runde gewürfelt hat, verweigern
+                if team_dice_events >= expected_round:
+                    if current_user.id != active_session.current_team_turn_id:
+                        return jsonify({"success": False, "error": "Du hast bereits in dieser Runde gewürfelt."}), 403
+                        
+            except (ValueError, ZeroDivisionError) as e:
+                current_app.logger.warning(f"Fehler bei Würfel-Validierung: {e}")
+                pass  # Bei Fehlern in der Logik, erlaube Würfeln
+
         # Prüfe ob das Team am Zug ist
         if active_session.current_team_turn_id != current_user.id:
             current_team = Team.query.get(active_session.current_team_turn_id) if active_session.current_team_turn_id else None
@@ -1167,28 +1201,79 @@ def team_roll_dice():
         # Setze Bonuswürfel zurück (wird nach jedem Wurf verbraucht)
         team.bonus_dice_sides = 0
         
-        # Suche das nächste Team in der Reihenfolge
+        # FIX: Verbesserte Logik für Rundenerkennung - prüfe wieviele Teams bereits gewürfelt haben
         next_team = None
+        round_complete = False
+        
         if active_session.dice_roll_order:
             try:
                 team_ids = [int(tid) for tid in active_session.dice_roll_order.split(',') if tid.strip().isdigit()]
+                total_teams = len(team_ids)
+                
+                # Zähle ALLE Würfel-Events in dieser Session
+                all_dice_events_in_session = GameEvent.query.filter_by(
+                    game_session_id=active_session.id
+                ).filter(
+                    GameEvent.event_type.in_(['team_dice_roll', 'admin_dice_roll'])
+                ).count()
+                
+                # Nach diesem Wurf haben wir einen weiteren Event
+                total_events_after_this_roll = all_dice_events_in_session + 1
+                
+                current_app.logger.info(f"Würfel-Events: {total_events_after_this_roll}, Teams: {total_teams}")
+                
+                # FIX: Ermittle das nächste Team in der Reihenfolge  
                 current_index = team_ids.index(team.id)
                 next_index = (current_index + 1) % len(team_ids)
                 next_team = Team.query.get(team_ids[next_index])
-            except (ValueError, IndexError):
-                current_app.logger.warning(f"Fehler beim Ermitteln des nächsten Teams. Reihenfolge: {active_session.dice_roll_order}")
+                
+                # FIX: Runde ist beendet wenn wir beim letzten Team sind UND es gerade gewürfelt hat
+                # Das bedeutet: wir sind bei Team an letzter Position in dice_roll_order
+                is_last_team_in_order = current_index == (total_teams - 1)
+                
+                if is_last_team_in_order:
+                    # Letztes Team hat gewürfelt - Runde beenden
+                    round_complete = True
+                    current_app.logger.info(f"Letztes Team ({team.name}) hat gewürfelt - Runde beendet")
+                else:
+                    current_app.logger.info(f"Team {team.name} (Position {current_index + 1}/{total_teams}) hat gewürfelt. Nächstes Team: {next_team.name if next_team else 'None'}")
+                    
+            except (ValueError, IndexError) as e:
+                current_app.logger.warning(f"Fehler beim Ermitteln des nächsten Teams: {e}. Reihenfolge: {active_session.dice_roll_order}")
+                # Fallback: Runde beenden
+                round_complete = True
         
-        # Wenn das nächste Team dasselbe wie das aktuelle ist, ist die Runde beendet
-        if next_team and next_team.id == team.id:
+        # FIX: Verwende round_complete statt nächstes Team Vergleich
+        if round_complete:
             active_session.current_phase = 'ROUND_OVER'
             active_session.current_team_turn_id = None
+            
+            # WICHTIG: Erstelle Event für Rundenende
+            round_end_event = GameEvent(
+                game_session_id=active_session.id,
+                event_type="dice_round_ended",
+                description="Würfelrunde beendet - alle Teams haben gewürfelt"
+            )
+            db.session.add(round_end_event)
+            
             current_app.logger.info(f"Alle Teams haben gewürfelt. Runde beendet.")
         elif next_team:
+            # Runde geht weiter - nächstes Team ist dran
             active_session.current_team_turn_id = next_team.id
             current_app.logger.info(f"Nächstes Team am Zug: {next_team.name}")
         else:
+            # Fallback: Keine Teams gefunden oder Fehler - beende Runde
             active_session.current_phase = 'ROUND_OVER'
             active_session.current_team_turn_id = None
+            
+            # WICHTIG: Erstelle Event für Rundenende
+            round_end_event = GameEvent(
+                game_session_id=active_session.id,
+                event_type="dice_round_ended",
+                description="Würfelrunde beendet - keine weiteren Teams"
+            )
+            db.session.add(round_end_event)
+            
             current_app.logger.info(f"Keine weiteren Teams. Runde beendet.")
         
         db.session.commit()

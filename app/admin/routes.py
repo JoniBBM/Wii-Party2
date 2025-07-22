@@ -272,6 +272,40 @@ def admin_roll_dice():
         if not team:
             return jsonify({"success": False, "error": "Aktuelles Team nicht gefunden."}), 404
 
+        # EINFACHE ABER ROBUSTE LÖSUNG: Zähle aktuelle Würfel-Events in der Runde  
+        if active_session.dice_roll_order:
+            try:
+                # Parse die Würfelreihenfolge
+                dice_order_team_ids = [int(tid) for tid in active_session.dice_roll_order.split(',') if tid.strip().isdigit()]
+                total_teams = len(dice_order_team_ids)
+                
+                # Zähle ALLE Würfel-Events in dieser Session
+                all_dice_events_in_session = GameEvent.query.filter_by(
+                    game_session_id=active_session.id
+                ).filter(
+                    GameEvent.event_type.in_(['team_dice_roll', 'admin_dice_roll'])
+                ).count()
+                
+                # Zähle Würfel-Events für dieses spezifische Team
+                team_dice_events = GameEvent.query.filter_by(
+                    game_session_id=active_session.id,
+                    related_team_id=team.id
+                ).filter(
+                    GameEvent.event_type.in_(['team_dice_roll', 'admin_dice_roll'])
+                ).count()
+                
+                # Ermittle welche "Runde" wir sind (wie oft jedes Team gewürfelt haben sollte)
+                expected_round = (all_dice_events_in_session // total_teams) + 1
+                
+                # Wenn das Team bereits in dieser Runde gewürfelt hat, verweigern
+                if team_dice_events >= expected_round:
+                    if team.id != active_session.current_team_turn_id:
+                        return jsonify({"success": False, "error": f"Team {team.name} hat bereits in dieser Runde gewürfelt."}), 403
+                        
+            except (ValueError, ZeroDivisionError) as e:
+                current_app.logger.warning(f"Fehler bei Würfel-Validierung: {e}")
+                pass  # Bei Fehlern in der Logik, erlaube Würfeln
+
         # SONDERFELD: Prüfe ob Team blockiert ist (Sperren-Feld)
         standard_dice_roll = random.randint(1, 6)
         bonus_dice_roll = 0
@@ -384,6 +418,14 @@ def admin_roll_dice():
         else:
             active_session.current_phase = 'ROUND_OVER'
             active_session.current_team_turn_id = None 
+            
+            # WICHTIG: Erstelle Event für Rundenende
+            round_end_event = GameEvent(
+                game_session_id=active_session.id,
+                event_type="dice_round_ended",
+                description="Würfelrunde beendet (Admin) - alle Teams haben gewürfelt"
+            )
+            db.session.add(round_end_event)
             
             # VERBESSERT: Nur Bonus-Würfel zurücksetzen, Platzierungen beibehalten für Statistiken
             all_teams_in_db = Team.query.all()
@@ -825,6 +867,14 @@ def end_question():
         # Wechsle zur Würfelphase
         active_session.current_phase = 'DICE_ROLLING'
         
+        # WICHTIG: Markiere den Beginn einer neuen Würfelrunde
+        new_round_event = GameEvent(
+            game_session_id=active_session.id,
+            event_type="dice_round_started",
+            description="Neue Würfelrunde gestartet - alle Teams dürfen wieder würfeln"
+        )
+        db.session.add(new_round_event)
+        
         # Erstelle Würfelreihenfolge basierend auf Platzierungen
         teams_by_placement = Team.query.filter(Team.minigame_placement.isnot(None)).order_by(Team.minigame_placement).all()
         if teams_by_placement:
@@ -975,6 +1025,14 @@ def record_placements():
     active_session.dice_roll_order = ",".join(dice_roll_order_ids)
     active_session.current_team_turn_id = int(dice_roll_order_ids[0]) if dice_roll_order_ids else None
     active_session.current_phase = 'DICE_ROLLING'
+    
+    # WICHTIG: Markiere den Beginn einer neuen Würfelrunde
+    new_round_event = GameEvent(
+        game_session_id=active_session.id,
+        event_type="dice_round_started",
+        description="Neue Würfelrunde gestartet (manuelle Platzierungen) - alle Teams dürfen wieder würfeln"
+    )
+    db.session.add(new_round_event)
     
     active_session.current_question_id = None
     

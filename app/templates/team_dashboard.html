@@ -1805,6 +1805,9 @@ function updateDashboard(data) {
     const gameData = data.data;
     const currentUser = gameData.current_user;
     
+    // FIX: Prüfe ob eine neue Runde begonnen hat
+    checkIfNewRoundStarted(gameData);
+    
     // Fragen-Interface Management
     updateQuestionInterface(gameData);
     
@@ -3500,6 +3503,54 @@ window.testTeamRoll = function() {
     });
 };
 
+// FIX: Tracking für bereits gewürfelte Teams in dieser Runde
+let teamRolledThisRound = false;
+let lastRoundPhaseChange = 0;
+
+// FIX: Hilfsfunktion um zu prüfen ob eine erneute Runde begonnen hat
+function checkIfNewRoundStarted(gameData) {
+    if (!gameData) return false;
+    
+    // Wenn die Phase von ROUND_OVER zu DICE_ROLLING wechselt, ist eine neue Runde
+    if (gameData.current_phase === 'DICE_ROLLING' && Date.now() - lastRoundPhaseChange > 1000) {
+        const wasRoundOver = lastGameData && lastGameData.current_phase === 'ROUND_OVER';
+        if (wasRoundOver) {
+            console.log('Neue Würfelrunde erkannt - Reset der Roll-Tracking');
+            teamRolledThisRound = false;
+            lastRoundPhaseChange = Date.now();
+            return true;
+        }
+    }
+    return false;
+}
+
+// FIX: Verbesserte Validierung ob Team würfeln darf
+function canTeamRollDice(gameData) {
+    if (!gameData || !gameData.current_user) {
+        console.log('Würfeln nicht möglich: Keine Spieldaten');
+        return false;
+    }
+    
+    // Grundvoraussetzungen prüfen
+    if (gameData.current_phase !== 'DICE_ROLLING') {
+        console.log('Würfeln nicht möglich: Phase ist nicht DICE_ROLLING');
+        return false;
+    }
+    
+    if (!gameData.current_user.is_current_turn) {
+        console.log('Würfeln nicht möglich: Nicht am Zug');
+        return false;
+    }
+    
+    // FIX: Prüfe ob Team bereits in dieser Runde gewürfelt hat
+    if (teamRolledThisRound) {
+        console.log('Würfeln nicht möglich: Team hat bereits in dieser Runde gewürfelt');
+        return false;
+    }
+    
+    return true;
+}
+
 // Team-Würfel-Button Funktionalität
 document.addEventListener('DOMContentLoaded', function() {
     const teamRollDiceBtn = document.getElementById('team-roll-dice-btn');
@@ -3520,6 +3571,17 @@ document.addEventListener('DOMContentLoaded', function() {
         
         teamRollDiceBtn.addEventListener('click', function() {
             if (teamRollDiceBtn.disabled) return;
+            
+            // FIX: Zusätzliche Validierung vor dem Würfeln
+            if (!canTeamRollDice(lastGameData)) {
+                console.log('Würfelversuch abgebrochen - Validierung fehlgeschlagen');
+                alert('Du kannst jetzt nicht würfeln. Möglicherweise hast du bereits in dieser Runde gewürfelt.');
+                return;
+            }
+            
+            // Setze Tracking dass dieses Team gewürfelt hat
+            teamRolledThisRound = true;
+            console.log('Team würfelt jetzt - Tracking aktiviert');
             
             // Deaktiviere Button und zeige Loading-Status
             teamRollDiceBtn.disabled = true;
@@ -3598,13 +3660,8 @@ function updateTeamDiceButtonState(gameData, isMyTurn) {
     
     if (!diceWaiting || !teamRollDiceBtn || !diceOverlay) return;
     
-    // Button sollte nur sichtbar/aktiviert sein wenn:
-    // 1. Phase ist DICE_ROLLING
-    // 2. Es ist der Zug dieses Teams (isMyTurn)
-    // 3. Button ist nicht disabled durch laufende Aktion
-    const shouldShowButton = gameData && 
-                            gameData.current_phase === 'DICE_ROLLING' && 
-                            isMyTurn;
+    // FIX: Verwende die robuste canTeamRollDice Validierung
+    const shouldShowButton = gameData && canTeamRollDice(gameData) && isMyTurn;
     
     if (shouldShowButton) {
         // Zeige komplettes Würfel-Interface (wie showDiceWaitingAnimation)
