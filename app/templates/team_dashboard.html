@@ -2036,6 +2036,9 @@ function updateDashboard(data) {
         }
     }
     
+    // FIX: Check for new round start to reset dice tracking
+    checkIfNewRoundStarted(gameData);
+    
     // Update game status
     updateGameStatus(gameData);
     
@@ -3503,9 +3506,10 @@ window.testTeamRoll = function() {
     });
 };
 
-// FIX: Tracking für bereits gewürfelte Teams in dieser Runde
+// FIX: Tracking für bereits gewürfelte Teams in dieser Runde - PER TEAM BASIS
 let teamRolledThisRound = false;
 let lastRoundPhaseChange = 0;
+let currentTeamTurnId = null;
 
 // FIX: Hilfsfunktion um zu prüfen ob eine erneute Runde begonnen hat
 function checkIfNewRoundStarted(gameData) {
@@ -3518,9 +3522,21 @@ function checkIfNewRoundStarted(gameData) {
             console.log('Neue Würfelrunde erkannt - Reset der Roll-Tracking');
             teamRolledThisRound = false;
             lastRoundPhaseChange = Date.now();
+            currentTeamTurnId = null;
             return true;
         }
     }
+    
+    // Reset wenn anderes Team dran ist
+    if (gameData.current_user && gameData.current_user.is_current_turn) {
+        const newTeamTurnId = gameData.current_team_turn_id;
+        if (currentTeamTurnId !== newTeamTurnId) {
+            console.log('Neues Team am Zug - Reset der Roll-Tracking für dieses Team');
+            teamRolledThisRound = false;
+            currentTeamTurnId = newTeamTurnId;
+        }
+    }
+    
     return false;
 }
 

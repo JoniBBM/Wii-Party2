@@ -106,48 +106,48 @@ def board_status():
                 "volcano_active": active_session_query.volcano_active if hasattr(active_session_query, 'volcano_active') else False
             }
         
-        # Get last dice result for current team turn (only recent results from last 5 minutes)
+        # Get last dice result from any team (only recent results from last 5 minutes)
         last_dice_result = None
-        if current_team_id:
-            from datetime import datetime, timedelta
-            
-            # Only get dice results from the last 5 minutes to avoid old results
-            recent_time = datetime.utcnow() - timedelta(minutes=5)
-            
-            last_dice_event = GameEvent.query.filter_by(
-                game_session_id=active_session_query.id,
-                related_team_id=current_team_id
-            ).filter(
-                GameEvent.event_type.in_(['dice_roll', 'admin_dice_roll', 'admin_dice_roll_legacy']),
-                GameEvent.timestamp >= recent_time
-            ).order_by(GameEvent.timestamp.desc()).first()
-            
-            if last_dice_event and last_dice_event.data_json:
-                try:
-                    import json
-                    # Parse data_json
-                    if isinstance(last_dice_event.data_json, str):
-                        try:
-                            event_data = json.loads(last_dice_event.data_json)
-                        except json.JSONDecodeError:
-                            # Fallback to eval for legacy data
-                            event_data = eval(last_dice_event.data_json)
-                    else:
-                        event_data = last_dice_event.data_json
-                    
-                    last_dice_result = {
-                        'standard_roll': event_data.get('standard_roll', 0),
-                        'bonus_roll': event_data.get('bonus_roll', 0),
-                        'total_roll': event_data.get('total_roll', 0),
-                        'timestamp': last_dice_event.timestamp.strftime('%H:%M:%S'),
-                        'was_blocked': event_data.get('was_blocked', False),
-                        'barrier_released': event_data.get('barrier_released', False)
-                    }
-                    
-                    current_app.logger.info(f"Found recent dice result for team {current_team_id}: {last_dice_result}")
-                except Exception as e:
-                    current_app.logger.error(f"Error parsing dice result: {e}")
-                    last_dice_result = None
+        from datetime import datetime, timedelta
+        
+        # Only get dice results from the last 5 minutes to avoid old results  
+        recent_time = datetime.utcnow() - timedelta(minutes=5)
+        
+        # Find the most recent dice roll from any team (not just current team)
+        last_dice_event = GameEvent.query.filter_by(
+            game_session_id=active_session_query.id
+        ).filter(
+            GameEvent.event_type.in_(['dice_roll', 'admin_dice_roll', 'admin_dice_roll_legacy', 'team_dice_roll']),
+            GameEvent.timestamp >= recent_time
+        ).order_by(GameEvent.timestamp.desc()).first()
+        
+        if last_dice_event and last_dice_event.data_json:
+            try:
+                import json
+                # Parse data_json
+                if isinstance(last_dice_event.data_json, str):
+                    try:
+                        event_data = json.loads(last_dice_event.data_json)
+                    except json.JSONDecodeError:
+                        # Fallback to eval for legacy data
+                        event_data = eval(last_dice_event.data_json)
+                else:
+                    event_data = last_dice_event.data_json
+                
+                last_dice_result = {
+                    'standard_roll': event_data.get('standard_roll', 0),
+                    'bonus_roll': event_data.get('bonus_roll', 0),
+                    'total_roll': event_data.get('total_roll', 0),
+                    'timestamp': last_dice_event.timestamp.strftime('%H:%M:%S'),
+                    'team_id': last_dice_event.related_team_id,  # Include team_id for notifications
+                    'was_blocked': event_data.get('was_blocked', False),
+                    'barrier_released': event_data.get('barrier_released', False)
+                }
+                
+                current_app.logger.info(f"Found recent dice result for team {last_dice_event.related_team_id}: {last_dice_result}")
+            except Exception as e:
+                current_app.logger.error(f"Error parsing dice result: {e}")
+                last_dice_result = None
 
         return jsonify({
             "teams": team_data,

@@ -365,6 +365,253 @@ body:has(#game-canvas-container:-moz-full-screen) .game-status-banner .status-ba
     font-size: 1.2em !important;
 }
 
+/* macOS-style Notification System */
+.notification-container {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 999999;
+    max-width: 350px;
+    pointer-events: none;
+}
+
+.notification {
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 12px;
+    padding: 16px 20px;
+    margin-bottom: 10px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15), 
+                0 2px 8px rgba(0, 0, 0, 0.1);
+    opacity: 0;
+    transform: translateX(100%);
+    transition: all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    color: #333;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    font-size: 14px;
+    line-height: 1.4;
+    position: relative;
+    overflow: hidden;
+}
+
+.notification.show {
+    opacity: 1;
+    transform: translateX(0);
+}
+
+.notification.hide {
+    opacity: 0;
+    transform: translateX(100%);
+}
+
+.notification-dice {
+    border-left: 4px solid #007AFF;
+}
+
+.notification-dice::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, #007AFF 0%, #5AC8FA 100%);
+}
+
+/* Sonderfeld Notification Styles */
+.notification-catapult-forward {
+    border-left: 4px solid #4CAF50;
+}
+
+.notification-catapult-forward::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, #4CAF50 0%, #8BC34A 100%);
+}
+
+.notification-catapult-backward {
+    border-left: 4px solid #F44336;
+}
+
+.notification-catapult-backward::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, #F44336 0%, #E57373 100%);
+}
+
+.notification-player-swap {
+    border-left: 4px solid #2196F3;
+}
+
+.notification-player-swap::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, #2196F3 0%, #64B5F6 100%);
+}
+
+.notification-barrier-set {
+    border-left: 4px solid #FF9800;
+}
+
+.notification-barrier-set::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, #FF9800 0%, #FFB74D 100%);
+}
+
+.notification-barrier-released {
+    border-left: 4px solid #4CAF50;
+}
+
+.notification-barrier-released::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, #4CAF50 0%, #66BB6A 100%);
+}
+
+.notification-barrier-failed {
+    border-left: 4px solid #F44336;
+}
+
+.notification-barrier-failed::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, #F44336 0%, #EF5350 100%);
+}
+
+.notification-header {
+    display: flex;
+    align-items: center;
+    margin-bottom: 6px;
+}
+
+.notification-icon {
+    font-size: 18px;
+    margin-right: 10px;
+    opacity: 0.8;
+}
+
+.notification-title {
+    font-weight: 600;
+    font-size: 15px;
+    color: #1c1c1e;
+}
+
+.notification-message {
+    color: #48484a;
+    font-size: 13px;
+    line-height: 1.3;
+}
+
+.notification-dice-result {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 8px;
+    padding: 8px 12px;
+    background: rgba(0, 122, 255, 0.08);
+    border-radius: 8px;
+    border: 1px solid rgba(0, 122, 255, 0.15);
+}
+
+.dice-visual {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.dice-cube {
+    width: 24px;
+    height: 24px;
+    background: #fff;
+    border: 1px solid #007AFF;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    font-size: 12px;
+    color: #007AFF;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.dice-total {
+    font-weight: 600;
+    color: #007AFF;
+    font-size: 16px;
+}
+
+/* Dark theme support */
+@media (prefers-color-scheme: dark) {
+    .notification {
+        background: rgba(30, 30, 30, 0.95);
+        border-color: rgba(255, 255, 255, 0.1);
+        color: #f2f2f7;
+    }
+    
+    .notification-title {
+        color: #ffffff;
+    }
+    
+    .notification-message {
+        color: #98989d;
+    }
+    
+    .dice-cube {
+        background: #1c1c1e;
+        border-color: #007AFF;
+        color: #007AFF;
+    }
+}
+
+/* Animation for dice rolling */
+@keyframes diceRolling {
+    0%, 100% { transform: rotate(0deg); }
+    25% { transform: rotate(-5deg); }
+    75% { transform: rotate(5deg); }
+}
+
+.notification .dice-cube.rolling {
+    animation: diceRolling 0.15s ease-in-out infinite;
+}
+
+/* Progress bar for auto-hide */
+.notification-progress {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    height: 2px;
+    background: linear-gradient(90deg, #007AFF 0%, #5AC8FA 100%);
+    transform-origin: left;
+    transform: scaleX(1);
+    transition: transform linear;
+}
+
 /* Responsive Design */
 @media (max-width: 900px) {
     .game-board {
@@ -387,6 +634,17 @@ body:has(#game-canvas-container:-moz-full-screen) .game-status-banner .status-ba
     
     .status-banner-message {
         font-size: 1rem;
+    }
+    
+    .notification-container {
+        top: 10px;
+        right: 10px;
+        max-width: 300px;
+    }
+    
+    .notification {
+        padding: 12px 16px;
+        font-size: 13px;
     }
 }
 

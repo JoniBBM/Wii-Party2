@@ -501,6 +501,7 @@ body {
 <!-- Italian brainrot character scripts moved to backup folder -->
 <!-- tungTungTungSahur.js, ballerinaCappuccina.js, bombardinoCrocodilo.js, liriliLarila.js, tralaleroTralala.js, trippiTroppi.js -->
 <script src="{{ url_for('static', filename='js/characters/defaultCharacter.js') }}"></script>
+<script src="{{ url_for('static', filename='js/notifications.js') }}"></script>
 
 <script>
 // DYNAMISCHE SPIELBRETT-KONFIGURATION
@@ -2169,13 +2170,7 @@ class WiiPartyIsland {
 
         // ====== SIMPLIFIED GAME LOGIC (team_dashboard style) ======
         // Debug info for game logic
-        console.log("🔍 Game Debug:", {
-            currentPhase: currentGamePhase,
-            lastPhase: lastPhase,
-            hasShowMinigameResults: hasShowMinigameResults,
-            localTeamsLength: localTeams ? localTeams.length : 0,
-            teamsWithPlacements: localTeams ? localTeams.filter(team => team.minigame_placement).length : 0
-        });
+        // Debug info removed for cleaner console output
 
         // Check for minigame/question results using same logic as team_dashboard  
         if (currentGamePhase === 'DICE_ROLLING' && lastPhase !== 'DICE_ROLLING' && !hasShowMinigameResults && localTeams) {
@@ -2229,12 +2224,7 @@ class WiiPartyIsland {
                 })));
             }
         } else {
-            console.log("🔍 Minigame results check failed:", {
-                currentGamePhase,
-                expectedPhase: 'MINIGAME_RESULTS',
-                hasLocalTeams: !!localTeams,
-                localTeamsLength: localTeams ? localTeams.length : 0
-            });
+            // Debug output removed for cleaner console
         }
 
         // Check if all players finished their turns - show overview
@@ -2495,7 +2485,7 @@ class WiiPartyIsland {
                 return response.json();
             })
             .then(data => {
-                console.log("🔴 [DEBUG] Full board_status response:", JSON.stringify(data, null, 2));
+                // console.log("🔴 [DEBUG] Full board_status response:", JSON.stringify(data, null, 2));
                 if (data.error) {
                     console.error("Server-Fehler:", data.error);
                     this.showStatusMessage(`Serverproblem: ${data.error}`, 4000, 'error', true, 'Server-Fehler');
@@ -2559,11 +2549,37 @@ class WiiPartyIsland {
                                             currentTeamName: currentTeam.name,
                                             dataTimestamp: data.last_dice_result?.timestamp,
                                             pendingTimestamp: window.pendingDiceResult?.timestamp,
-                                            currentTime: new Date().toLocaleTimeString()
+                                            currentTime: new Date().toLocaleTimeString(),
+                                            diceResultStandardRoll: diceResult?.standard_roll
                                         });
                                         
                                         if (diceResult && diceResult.standard_roll !== undefined) {
                                             console.log("🎲 Processing dice result for team:", currentTeam.name);
+                                            
+                                            // Zeige Würfelergebnis-Notification hier - nur einmal
+                                            const notificationKey = `${currentTeam.id}_${diceResult.timestamp || Date.now()}`;
+                                            if (window.NotificationSystem && !window.shownDiceNotifications) {
+                                                window.shownDiceNotifications = new Set();
+                                            }
+                                            
+                                            if (window.NotificationSystem && !window.shownDiceNotifications.has(notificationKey)) {
+                                                const standardRoll = diceResult.standard_roll || 0;
+                                                const bonusRoll = diceResult.bonus_roll || 0;
+                                                const totalRoll = diceResult.total_roll || (standardRoll + bonusRoll);
+                                                
+                                                console.log(`🎲 Showing dice notification for ${currentTeam.name}: ${standardRoll} + ${bonusRoll} = ${totalRoll}`);
+                                                window.NotificationSystem.showDiceRoll(currentTeam.name, standardRoll, bonusRoll, totalRoll, 4000);
+                                                window.shownDiceNotifications.add(notificationKey);
+                                                
+                                                // Bereinige alte Einträge nach 30 Sekunden
+                                                setTimeout(() => {
+                                                    window.shownDiceNotifications.delete(notificationKey);
+                                                }, 30000);
+                                            } else if (!window.NotificationSystem) {
+                                                console.error("❌ NotificationSystem nicht verfügbar für Würfelergebnis!");
+                                            } else {
+                                                console.log(`⚠️ Notification bereits gezeigt für ${currentTeam.name} (${notificationKey})`);
+                                            }
                                             
                                             // Clear pending dice result to prevent showing again
                                             window.pendingDiceResult = null;
@@ -2632,6 +2648,9 @@ class WiiPartyIsland {
                                 if (localTeam.position !== serverTeam.position) {
                                     console.log(`🏃 Position change detected: Team ${serverTeam.id} (${localTeam.name}) from position ${localTeam.position} to ${serverTeam.position}`);
                                     console.log(`🏃 Movement conditions: isCharacterMoving=${GAME_STATE.isCharacterMoving}, activeMovementAnimation=${!!this.activeMovementAnimation}, characterExists=${!!this.miiCharacters[serverTeam.id]}`);
+                                    
+                                    // WICHTIG: Keine Notification hier - echte Würfelergebnisse kommen vom Server
+                                    // Positionsänderungen können durch Katapulte, Tausch etc. verfälscht sein
                                 }
                                 
                                 // SWAP-SCHUTZ: Blockiere normale Bewegung für Teams die beim Tausch beteiligt sind
@@ -2746,10 +2765,9 @@ class WiiPartyIsland {
                         handleBarrierCheckResponse(data);
                     }
 
-                    // Track last dice result to prevent loops
-                    if (data.last_dice_result && data.last_dice_result !== lastDiceResult) {
-                        console.log("🎲 Last dice result detected from admin:", data.last_dice_result);
-                        lastDiceResult = data.last_dice_result;
+                    // Process dice results with improved notification logic (once only)
+                    if (data.last_dice_result && JSON.stringify(data.last_dice_result) !== JSON.stringify(lastDiceResult)) {
+                        console.log("🎲 New dice result from server:", data.last_dice_result);
                         
                         // Store dice result with team information for use in minigame sequence
                         window.pendingDiceResult = data.last_dice_result;
@@ -2759,6 +2777,48 @@ class WiiPartyIsland {
                             console.log("🎯 Setting current team from dice result:", data.last_dice_result.team_id);
                             GAME_STATE.currentServerTeamTurnId = data.last_dice_result.team_id;
                         }
+                        
+                        // Show dice notification using timestamp-based deduplication (improved logic)
+                        const timestamp = data.last_dice_result.timestamp;
+                        const notificationKey = `dice_${timestamp}`;
+                        
+                        if (!window.shownDiceNotifications) {
+                            window.shownDiceNotifications = new Set();
+                        }
+                        
+                        // Always try to show notification if not already shown
+                        if (window.NotificationSystem && !window.shownDiceNotifications.has(notificationKey)) {
+                            // Find current team
+                            const currentTeamId = data.last_dice_result.team_id || GAME_STATE.currentServerTeamTurnId || data.game_session?.current_team_turn_id;
+                            const currentTeam = localTeams?.find(t => t.id === currentTeamId);
+                            
+                            if (currentTeam) {
+                                const standardRoll = data.last_dice_result.standard_roll || 0;
+                                const bonusRoll = data.last_dice_result.bonus_roll || 0;
+                                const totalRoll = data.last_dice_result.total_roll || (standardRoll + bonusRoll);
+                                
+                                console.log(`🎲 Showing dice notification for ${currentTeam.name}: ${standardRoll} + ${bonusRoll} = ${totalRoll}`);
+                                window.NotificationSystem.showDiceRoll(currentTeam.name, standardRoll, bonusRoll, totalRoll, 4000);
+                                window.shownDiceNotifications.add(notificationKey);
+                                
+                                // Clean up after 35 seconds (longer than backend timeout)
+                                setTimeout(() => {
+                                    window.shownDiceNotifications.delete(notificationKey);
+                                }, 35000);
+                            } else {
+                                console.warn("🎲 Could not find team for dice notification:", {
+                                    teamId: currentTeamId,
+                                    localTeams: localTeams?.map(t => ({id: t.id, name: t.name}))
+                                });
+                            }
+                        } else if (window.shownDiceNotifications.has(notificationKey)) {
+                            // Silent skip - no more logging spam
+                        } else if (!window.NotificationSystem) {
+                            console.error("❌ NotificationSystem not available for dice result!");
+                        }
+                        
+                        // Update lastDiceResult for comparison in next call
+                        lastDiceResult = data.last_dice_result;
                     }
 
                     this.updateTeamDisplay();
@@ -2766,7 +2826,17 @@ class WiiPartyIsland {
             })
             .catch(error => {
                 console.error("Fehler beim Board-Status:", error);
-                this.showStatusMessage(`Verbindungsproblem: ${error.message}`, 3000, "error", true, 'Verbindungsfehler');
+                
+                // Reduziere Logging-Frequenz bei NetworkErrors
+                if (error.name === 'TypeError' && error.message.includes('NetworkError')) {
+                    console.warn("⚠️ Network connection issue - retrying in 5 seconds");
+                    // Versuche nach 5 Sekunden erneut
+                    setTimeout(() => {
+                        this.updateBoardStatus();
+                    }, 5000);
+                } else {
+                    this.showStatusMessage(`Verbindungsproblem: ${error.message}`, 3000, "error", true, 'Verbindungsfehler');
+                }
             });
     }
 
@@ -3519,7 +3589,7 @@ class WiiPartyIsland {
         }
         
         // Nur Warnings außerhalb von ROUND_OVER
-        console.warn("⚠️ getCurrentActivePlayer: No current team ID or no characters loaded", this.miiCharacters ? Object.keys(this.miiCharacters).length : 0);
+        // console.warn("⚠️ getCurrentActivePlayer: No current team ID or no characters loaded", this.miiCharacters ? Object.keys(this.miiCharacters).length : 0);
         return null;
     }
 
@@ -3584,7 +3654,7 @@ class WiiPartyIsland {
     focusOnCurrentPlayerSmoothImproved(currentCamPos, currentLookAt, callback) {
         const currentPlayer = this.getCurrentActivePlayer();
         if (!currentPlayer) {
-            console.warn('⚠️ focusOnCurrentPlayerSmoothImproved: Kein aktiver Spieler gefunden');
+            // console.warn('⚠️ focusOnCurrentPlayerSmoothImproved: Kein aktiver Spieler gefunden');
             if (callback) callback();
             return;
         }
@@ -3843,7 +3913,7 @@ class WiiPartyIsland {
     // Hole aktuellen aktiven Spieler sicher
     getCurrentActivePlayer() {
         if (!GAME_STATE.currentServerTeamTurnId || !this.miiCharacters) {
-            console.warn('⚠️ getCurrentActivePlayer: No current team ID or no characters loaded');
+            // console.warn('⚠️ getCurrentActivePlayer: No current team ID or no characters loaded');
             return null;
         }
         
@@ -4289,6 +4359,9 @@ class WiiPartyIsland {
         } else {
             // Log dice result for normal dice rolls
             console.log("🎲 Normal dice result:", standardRoll, bonusRoll, totalRoll, teamName);
+            
+            // HINWEIS: Echte Würfelergebnis-Notifications werden jetzt über last_dice_result vom Server gehandhabt
+            // Diese Funktion wird hauptsächlich für 3D-Anzeige verwendet
         }
         
         // Also show the dice result overlay for better visibility
@@ -5392,6 +5465,12 @@ function handleSpecialFieldResponse(data) {
                 `${data.team_name} fliegt ${specialField.catapult_distance} Felder vorwärts!`,
                 5000
             );
+            
+            // Zeige macOS-style Notification
+            if (window.NotificationSystem) {
+                const distance = specialField.catapult_distance || '3-5';
+                window.NotificationSystem.showCatapultForward(data.team_name, distance);
+            }
             break;
         case 'catapult_backward':
             showSpecialFieldEffect(
@@ -5400,6 +5479,12 @@ function handleSpecialFieldResponse(data) {
                 `${data.team_name} wird ${specialField.catapult_distance} Felder zurück geschleudert!`,
                 5000
             );
+            
+            // Zeige macOS-style Notification
+            if (window.NotificationSystem) {
+                const distance = specialField.catapult_distance || '2-4';
+                window.NotificationSystem.showCatapultBackward(data.team_name, distance);
+            }
             break;
         case 'player_swap':
             console.log("🔴 [SWAP DEBUG] Player swap case triggered!", {
@@ -5416,6 +5501,11 @@ function handleSpecialFieldResponse(data) {
                 5000
             );
             
+            // Zeige macOS-style Notification
+            if (window.NotificationSystem) {
+                window.NotificationSystem.showPlayerSwap(data.team_name, specialField.swap_team_name);
+            }
+            
             // WICHTIG: Starte Tausch-Animation NACH Ankunft am Tauschfeld
             console.log("🔴 [SWAP DEBUG] Calling schedulePlayerSwapAnimation...");
             this.schedulePlayerSwapAnimation(data.team_name, specialField.swap_team_name, specialField);
@@ -5427,6 +5517,11 @@ function handleSpecialFieldResponse(data) {
                 `${data.team_name} muss eine ${specialField.target_number} oder höher würfeln!`,
                 6000
             );
+            
+            // Zeige macOS-style Notification
+            if (window.NotificationSystem) {
+                window.NotificationSystem.showBarrierSet(data.team_name, specialField.target_number);
+            }
             break;
     }
     
@@ -5467,6 +5562,16 @@ function handleBarrierCheckResponse(data) {
             releaseMessage,
             4000
         );
+        
+        // Zeige macOS-style Notification
+        if (window.NotificationSystem) {
+            window.NotificationSystem.showBarrierReleased(
+                data.team_name, 
+                barrierCheck.dice_roll, 
+                barrierCheck.bonus_roll || 0,
+                barrierCheck.release_method
+            );
+        }
     } else {
         // Get display text from barrier config
         let requiredText = barrierCheck.barrier_config?.display_text || `${barrierCheck.barrier_config?.min_number || 4}+ benötigt`;
@@ -5480,6 +5585,16 @@ function handleBarrierCheckResponse(data) {
                 'Blockiert'
             );
         }, 1500);
+        
+        // Zeige macOS-style Notification
+        if (window.NotificationSystem) {
+            window.NotificationSystem.showBarrierFailed(
+                data.team_name,
+                barrierCheck.dice_roll,
+                barrierCheck.bonus_roll || 0,
+                requiredText
+            );
+        }
     }
 }
 
@@ -5693,7 +5808,7 @@ function checkForFaceOverlay() {
     const currentPhase = currentGamePhase;
     
     // Debug: Prüfe ob Funktion aufgerufen wird
-    console.log('🔍 checkForFaceOverlay() ausgeführt - Phase:', currentPhase, 'lastKnownPhase:', lastKnownPhase);
+    // console.log('🔍 checkForFaceOverlay() ausgeführt - Phase:', currentPhase, 'lastKnownPhase:', lastKnownPhase);
     
     // Debug: Zeige immer die aktuelle Phase
     if (currentPhase !== lastKnownPhase) {
