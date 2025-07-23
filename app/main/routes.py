@@ -106,14 +106,15 @@ def board_status():
                 "volcano_active": active_session_query.volcano_active if hasattr(active_session_query, 'volcano_active') else False
             }
         
-        # Get last dice result from any team (only recent results from last 5 minutes)
+        # Get recent events (dice results and special field events)
         last_dice_result = None
+        last_special_field_event = None
         from datetime import datetime, timedelta
         
-        # Only get dice results from the last 5 minutes to avoid old results  
-        recent_time = datetime.utcnow() - timedelta(minutes=5)
+        # Only get events from the last 10 seconds to avoid old results (TEST MODE)
+        recent_time = datetime.utcnow() - timedelta(seconds=10)
         
-        # Find the most recent dice roll from any team (not just current team)
+        # Find the most recent dice roll from any team
         last_dice_event = GameEvent.query.filter_by(
             game_session_id=active_session_query.id
         ).filter(
@@ -121,6 +122,17 @@ def board_status():
             GameEvent.timestamp >= recent_time
         ).order_by(GameEvent.timestamp.desc()).first()
         
+        # Find the most recent special field event (catapult, barrier, swap)
+        last_special_event = GameEvent.query.filter_by(
+            game_session_id=active_session_query.id
+        ).filter(
+            GameEvent.event_type.in_(['special_field_catapult_forward', 'special_field_catapult_backward', 
+                                     'special_field_player_swap', 'special_field_barrier_set', 
+                                     'special_field_barrier_released']),
+            GameEvent.timestamp >= recent_time
+        ).order_by(GameEvent.timestamp.desc()).first()
+        
+        # Process dice result
         if last_dice_event and last_dice_event.data_json:
             try:
                 import json
@@ -139,7 +151,7 @@ def board_status():
                     'bonus_roll': event_data.get('bonus_roll', 0),
                     'total_roll': event_data.get('total_roll', 0),
                     'timestamp': last_dice_event.timestamp.strftime('%H:%M:%S'),
-                    'team_id': last_dice_event.related_team_id,  # Include team_id for notifications
+                    'team_id': last_dice_event.related_team_id,
                     'was_blocked': event_data.get('was_blocked', False),
                     'barrier_released': event_data.get('barrier_released', False)
                 }
@@ -149,10 +161,36 @@ def board_status():
                 current_app.logger.error(f"Error parsing dice result: {e}")
                 last_dice_result = None
 
+        # Process special field event
+        if last_special_event and last_special_event.data_json:
+            try:
+                import json
+                # Parse data_json
+                if isinstance(last_special_event.data_json, str):
+                    try:
+                        event_data = json.loads(last_special_event.data_json)
+                    except json.JSONDecodeError:
+                        event_data = eval(last_special_event.data_json)
+                else:
+                    event_data = last_special_event.data_json
+                
+                last_special_field_event = {
+                    'event_type': last_special_event.event_type,
+                    'timestamp': last_special_event.timestamp.strftime('%H:%M:%S'),
+                    'team_id': last_special_event.related_team_id,
+                    'data': event_data
+                }
+                
+                current_app.logger.info(f"Found recent special field event for team {last_special_event.related_team_id}: {last_special_event.event_type}")
+            except Exception as e:
+                current_app.logger.error(f"Error parsing special field event: {e}")
+                last_special_field_event = None
+
         return jsonify({
             "teams": team_data,
             "game_session": game_session_data,
-            "last_dice_result": last_dice_result
+            "last_dice_result": last_dice_result,
+            "last_special_field_event": last_special_field_event
             })
 
     except Exception as e:

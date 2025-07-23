@@ -2574,7 +2574,7 @@ class WiiPartyIsland {
                                                 // Bereinige alte Einträge nach 30 Sekunden
                                                 setTimeout(() => {
                                                     window.shownDiceNotifications.delete(notificationKey);
-                                                }, 30000);
+                                                }, 15000);
                                             } else if (!window.NotificationSystem) {
                                                 console.error("❌ NotificationSystem nicht verfügbar für Würfelergebnis!");
                                             } else {
@@ -2801,10 +2801,10 @@ class WiiPartyIsland {
                                 window.NotificationSystem.showDiceRoll(currentTeam.name, standardRoll, bonusRoll, totalRoll, 4000);
                                 window.shownDiceNotifications.add(notificationKey);
                                 
-                                // Clean up after 35 seconds (longer than backend timeout)
+                                // Clean up after 15 seconds (TEST MODE - longer than backend timeout)
                                 setTimeout(() => {
                                     window.shownDiceNotifications.delete(notificationKey);
-                                }, 35000);
+                                }, 15000);
                             } else {
                                 console.warn("🎲 Could not find team for dice notification:", {
                                     teamId: currentTeamId,
@@ -2819,6 +2819,81 @@ class WiiPartyIsland {
                         
                         // Update lastDiceResult for comparison in next call
                         lastDiceResult = data.last_dice_result;
+                    }
+
+                    // Process special field events (catapult, barrier, player swap)
+                    if (data.last_special_field_event && JSON.stringify(data.last_special_field_event) !== JSON.stringify(window.lastSpecialFieldEvent)) {
+                        console.log("🔥 New special field event from server:", data.last_special_field_event);
+                        
+                        const specialEvent = data.last_special_field_event;
+                        const timestamp = specialEvent.timestamp;
+                        const notificationKey = `special_${specialEvent.event_type}_${timestamp}`;
+                        
+                        if (!window.shownSpecialNotifications) {
+                            window.shownSpecialNotifications = new Set();
+                        }
+                        
+                        // Show notification if not already shown
+                        if (window.NotificationSystem && !window.shownSpecialNotifications.has(notificationKey)) {
+                            // Find team for the event
+                            const eventTeamId = specialEvent.team_id;
+                            const eventTeam = localTeams?.find(t => t.id === eventTeamId);
+                            
+                            if (eventTeam) {
+                                // Process different types of special field events
+                                if (specialEvent.event_type === 'special_field_catapult_forward') {
+                                    const distance = specialEvent.data.catapult_distance || 5;
+                                    console.log(`🚀 Showing catapult forward notification for ${eventTeam.name}: ${distance} fields`);
+                                    window.NotificationSystem.showCatapultForward(eventTeam.name, distance, 4000);
+                                    
+                                } else if (specialEvent.event_type === 'special_field_catapult_backward') {
+                                    const distance = specialEvent.data.catapult_distance || 5;
+                                    console.log(`💥 Showing catapult backward notification for ${eventTeam.name}: ${distance} fields`);
+                                    window.NotificationSystem.showCatapultBackward(eventTeam.name, distance, 4000);
+                                    
+                                } else if (specialEvent.event_type === 'special_field_player_swap') {
+                                    // For player swap, we need both team names
+                                    const otherTeamId = specialEvent.data.other_team_id;
+                                    const otherTeam = localTeams?.find(t => t.id === otherTeamId);
+                                    if (otherTeam) {
+                                        console.log(`🔄 Showing player swap notification: ${eventTeam.name} <-> ${otherTeam.name}`);
+                                        window.NotificationSystem.showPlayerSwap(eventTeam.name, otherTeam.name, 4000);
+                                    }
+                                    
+                                } else if (specialEvent.event_type === 'special_field_barrier_set') {
+                                    const requiredNumber = specialEvent.data.required_number || 4;
+                                    console.log(`🚧 Showing barrier set notification for ${eventTeam.name}: needs ${requiredNumber}+`);
+                                    window.NotificationSystem.showBarrierSet(eventTeam.name, requiredNumber, 4000);
+                                    
+                                } else if (specialEvent.event_type === 'special_field_barrier_released') {
+                                    const diceRoll = specialEvent.data.dice_roll || 0;
+                                    const bonusRoll = specialEvent.data.bonus_roll || 0;
+                                    const method = specialEvent.data.release_method || 'standard';
+                                    console.log(`🎉 Showing barrier released notification for ${eventTeam.name}`);
+                                    window.NotificationSystem.showBarrierReleased(eventTeam.name, diceRoll, bonusRoll, method, 4000);
+                                }
+                                
+                                window.shownSpecialNotifications.add(notificationKey);
+                                
+                                // Clean up after 15 seconds (TEST MODE - longer than backend timeout)
+                                setTimeout(() => {
+                                    window.shownSpecialNotifications.delete(notificationKey);
+                                }, 15000);
+                                
+                            } else {
+                                console.warn("🔥 Could not find team for special field notification:", {
+                                    teamId: eventTeamId,
+                                    localTeams: localTeams?.map(t => ({id: t.id, name: t.name}))
+                                });
+                            }
+                        } else if (window.shownSpecialNotifications.has(notificationKey)) {
+                            // Silent skip - no logging spam
+                        } else if (!window.NotificationSystem) {
+                            console.error("❌ NotificationSystem not available for special field event!");
+                        }
+                        
+                        // Update lastSpecialFieldEvent for comparison in next call
+                        window.lastSpecialFieldEvent = data.last_special_field_event;
                     }
 
                     this.updateTeamDisplay();
