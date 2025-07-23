@@ -2852,12 +2852,33 @@ class WiiPartyIsland {
                                     window.NotificationSystem.showCatapultBackward(eventTeam.name, distance, 4000);
                                     
                                 } else if (specialEvent.event_type === 'special_field_player_swap') {
-                                    // For player swap, we need both team names
-                                    const otherTeamId = specialEvent.data.other_team_id;
-                                    const otherTeam = localTeams?.find(t => t.id === otherTeamId);
-                                    if (otherTeam) {
-                                        console.log(`🔄 Showing player swap notification: ${eventTeam.name} <-> ${otherTeam.name}`);
-                                        window.NotificationSystem.showPlayerSwap(eventTeam.name, otherTeam.name, 4000);
+                                    // Get team names from event data
+                                    const currentTeamId = specialEvent.data.current_team_id;
+                                    const currentTeamName = specialEvent.data.current_team_name;
+                                    const swapTeamId = specialEvent.data.swap_team_id;
+                                    
+                                    // Find the swap team name from local teams
+                                    const swapTeam = localTeams?.find(t => t.id === swapTeamId);
+                                    const swapTeamName = swapTeam?.name || `Team ${swapTeamId}`;
+                                    
+                                    // Create unique notification key to prevent duplicates
+                                    const swapKey = `${currentTeamId}_${swapTeamId}_${timestamp}`;
+                                    
+                                    if (!window.shownPlayerSwapNotifications) {
+                                        window.shownPlayerSwapNotifications = new Set();
+                                    }
+                                    
+                                    if (!window.shownPlayerSwapNotifications.has(swapKey)) {
+                                        console.log(`🔄 Showing player swap notification: ${currentTeamName} <-> ${swapTeamName}`);
+                                        window.NotificationSystem.showPlayerSwap(currentTeamName, swapTeamName, 4000);
+                                        window.shownPlayerSwapNotifications.add(swapKey);
+                                        
+                                        // Remove from set after some time to allow future swaps
+                                        setTimeout(() => {
+                                            window.shownPlayerSwapNotifications.delete(swapKey);
+                                        }, 10000);
+                                    } else {
+                                        console.log(`🔄 [DEBUG] Player swap notification already shown for this pair`);
                                     }
                                     
                                 } else if (specialEvent.event_type === 'special_field_barrier_set') {
