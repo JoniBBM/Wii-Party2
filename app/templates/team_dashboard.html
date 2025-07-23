@@ -1845,7 +1845,6 @@ function updateDashboard(data) {
     // Check for dice animation with longer result display
     if (gameData.current_phase === 'DICE_ROLLING' && 
         currentUser.is_current_turn && 
-        !isCurrentlyMyTurn &&
         !isDiceAnimationShowing) {
         
         // Aktiviere komplettes Würfel-Interface für dieses Team (ersetzt showDiceWaitingAnimation)
