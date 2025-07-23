@@ -519,6 +519,26 @@ body {
     background: linear-gradient(135deg, #17a2b8 0%, #138496 100%);
 }
 
+.results-banner .banner-content {
+    background: linear-gradient(135deg, #ff6b6b 0%, #ee5a52 100%);
+}
+
+.banner-results {
+    margin-top: 1rem;
+    font-size: 1.2rem;
+    line-height: 1.6;
+}
+
+.result-item {
+    margin: 0.5rem 0;
+    padding: 0.8rem 1rem;
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 15px;
+    border-left: 4px solid rgba(255, 255, 255, 0.4);
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
 .banner-icon {
     font-size: 4rem;
     margin-bottom: 1rem;
@@ -599,6 +619,20 @@ body {
                     <div class="banner-description" id="banner-question-content">
                         <!-- Wird dynamisch gefüllt -->
                     </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Minigame Results Banner - Team Dashboard Style -->
+        <div id="minigame-results-banner" class="announcement-banner results-banner">
+            <div class="banner-content">
+                <div class="banner-icon">
+                    <i class="fas fa-trophy"></i>
+                </div>
+                <div class="banner-text">
+                    <div class="banner-title">Ergebnisse!</div>
+                    <div class="banner-subtitle">Platzierungen wurden eingetragen</div>
+                    <div class="banner-results" id="minigame-results-list"></div>
                 </div>
             </div>
         </div>
@@ -2664,6 +2698,8 @@ class WiiPartyIsland {
                             console.log("✅ Showing minigame results IMMEDIATELY before turn system");
                             hasShownTurnDiceSequence = true; // Prevent showing again
                             
+                            // Show minigame results banner
+                            this.showMinigameResults(serverTeams);
                             
                             // Process game logic without banners
                             setTimeout(() => {
@@ -3186,6 +3222,47 @@ class WiiPartyIsland {
             
             contentElement.innerHTML = html;
             console.log('✅ [QUESTION BANNER] Banner content updated successfully');
+        }
+    }
+
+    showMinigameResults(teams) {
+        const banner = document.getElementById('minigame-results-banner');
+        const resultsList = document.getElementById('minigame-results-list');
+        
+        console.log('🏆 [MINIGAME RESULTS] Showing results banner with teams:', teams);
+        
+        if (banner && resultsList) {
+            const teamsWithPlacements = teams
+                .filter(team => team.minigame_placement)
+                .sort((a, b) => a.minigame_placement - b.minigame_placement);
+            
+            console.log('🏆 [MINIGAME RESULTS] Teams with placements:', teamsWithPlacements);
+            
+            resultsList.innerHTML = '';
+            teamsWithPlacements.forEach(team => {
+                const resultItem = document.createElement('div');
+                resultItem.className = 'result-item';
+                
+                let medalIcon = '';
+                if (team.minigame_placement === 1) medalIcon = '🥇';
+                else if (team.minigame_placement === 2) medalIcon = '🥈';
+                else if (team.minigame_placement === 3) medalIcon = '🥉';
+                else medalIcon = `${team.minigame_placement}.`;
+                
+                resultItem.innerHTML = `${medalIcon} ${team.name}`;
+                resultsList.appendChild(resultItem);
+            });
+            
+            banner.classList.add('show');
+            console.log('🏆 [MINIGAME RESULTS] Banner shown');
+            
+            setTimeout(() => {
+                banner.classList.add('hide');
+                setTimeout(() => {
+                    banner.classList.remove('show', 'hide');
+                    console.log('🏆 [MINIGAME RESULTS] Banner hidden');
+                }, 500);
+            }, 5000);
         }
     }
 
