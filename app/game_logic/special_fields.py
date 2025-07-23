@@ -250,13 +250,15 @@ def handle_barrier_field(team, game_session):
         # Event erstellen
         event = GameEvent(
             game_session_id=game_session.id,
-            event_type="field_action",
+            event_type="special_field_barrier_set",
             description=f"Team {team.name} wurde auf Sperren-Feld blockiert",
             related_team_id=team.id,
             data_json=json.dumps({
                 'action': 'barrier',
+                'field_type': 'barrier',
                 'barrier_set': True,
                 'target_config': parsed_config,
+                'required_number': parsed_config['min_number'],
                 'display_text': parsed_config['display_text']
             })
         )
@@ -266,6 +268,8 @@ def handle_barrier_field(team, game_session):
             "success": True,
             "action": "barrier_set",
             "target_config": parsed_config,
+            "target_number": parsed_config['min_number'],
+            "display_text": parsed_config['display_text'],
             "message": f"🚧 Blockiert! {team.name} - {parsed_config['display_text']}"
         }
     
@@ -296,6 +300,10 @@ def check_barrier_release(team, dice_roll, game_session, bonus_roll=0):
     if not team.is_blocked:
         return {"released": False, "message": "Team ist nicht blockiert"}
     
+    # WICHTIG: Verwende Gesamtwürfelwurf (Standard + Bonus) für Barrier-Prüfung
+    total_roll = dice_roll + bonus_roll
+    current_app.logger.info(f"[BARRIER] Prüfe Team {team.name}: Standard={dice_roll}, Bonus={bonus_roll}, Gesamt={total_roll}")
+    
     # Get barrier configuration
     try:
         blocked_config_data = getattr(team, 'blocked_config', None)
@@ -323,21 +331,13 @@ def check_barrier_release(team, dice_roll, game_session, bonus_roll=0):
     total_roll = dice_roll + bonus_roll
     
     # Check if dice roll releases the team
-    # For barrier release, we check BOTH individual dice AND the total
-    # This gives the team the best chance to escape
+    # User requirement: "es soll immer das gesamtergebnis der beiden würfel verglichen werden"
+    # Only check the total roll (standard + bonus) for barrier release
     released = False
     release_method = None
     
-    # Check standard die
-    if _check_barrier_dice_roll(dice_roll, barrier_config):
-        released = True
-        release_method = "standard"
-    # Check bonus die if available
-    elif bonus_roll > 0 and _check_barrier_dice_roll(bonus_roll, barrier_config):
-        released = True
-        release_method = "bonus"
-    # Check total roll
-    elif _check_barrier_dice_roll(total_roll, barrier_config):
+    # Check total roll only (standard + bonus dice combined)
+    if _check_barrier_dice_roll(total_roll, barrier_config):
         released = True
         release_method = "total"
     
@@ -351,13 +351,20 @@ def check_barrier_release(team, dice_roll, game_session, bonus_roll=0):
     if released and release_method:
         event_description += f" - Befreit durch {release_method}!"
     
+    # Erstelle Event basierend auf Ergebnis
+    if released:
+        event_type = "special_field_barrier_released"
+    else:
+        event_type = "special_field_barrier_blocked"
+    
     event = GameEvent(
         game_session_id=game_session.id,
-        event_type='field_action',
+        event_type=event_type,
         description=event_description,
         related_team_id=team.id,
         data_json=json.dumps({
             'action': 'check_barrier_release',
+            'field_type': 'barrier',
             'dice_roll': dice_roll,
             'bonus_roll': bonus_roll,
             'total_roll': total_roll,

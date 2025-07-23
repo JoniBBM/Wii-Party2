@@ -1184,21 +1184,80 @@ def team_roll_dice():
         else:
             event_description += f" und bewegte sich von Feld {old_position} zu Feld {new_position}."
         
+        # Prepare dice event data
+        dice_event_data = {
+            "standard_roll": standard_dice_roll,
+            "bonus_roll": bonus_dice_roll,
+            "total_roll": total_roll,
+            "old_position": old_position,
+            "new_position": new_position,
+            "rolled_by": "team",
+            "was_blocked": team.is_blocked and (not barrier_check_result or not barrier_check_result.get('released', False)),
+            "barrier_released": barrier_check_result.get('released', False) if barrier_check_result else False
+        }
+        
+        # Add barrier config if team was blocked
+        if team.is_blocked:
+            barrier_config = None
+            display_text = 'Höhere Zahl benötigt'
+            
+            # Try to get config from barrier_check_result first
+            if barrier_check_result and barrier_check_result.get('barrier_config'):
+                barrier_config = barrier_check_result.get('barrier_config', {})
+                display_text = barrier_config.get('display_text', 'Höhere Zahl benötigt')
+                current_app.logger.info(f"[BARRIER DEBUG] Got barrier config from check result: {barrier_config}")
+            else:
+                # Fallback: Get config from team's stored blocked_config
+                try:
+                    if hasattr(team, 'blocked_config') and team.blocked_config:
+                        import json
+                        barrier_config = json.loads(team.blocked_config)
+                        display_text = barrier_config.get('display_text', 'Höhere Zahl benötigt')
+                        current_app.logger.info(f"[BARRIER DEBUG] Got barrier config from team storage: {barrier_config}")
+                    else:
+                        # Fallback 2: Get current barrier field configuration
+                        try:
+                            from app.models import FieldConfiguration
+                            barrier_field_config = FieldConfiguration.get_config_for_field('barrier')
+                            if barrier_field_config and barrier_field_config.is_enabled:
+                                config_data = barrier_field_config.config_dict
+                                target_numbers = config_data.get('target_numbers', [4, 5, 6])
+                                
+                                # Parse the target numbers using the same logic as handle_barrier_field
+                                from app.game_logic.special_fields import _parse_barrier_config
+                                barrier_config = _parse_barrier_config(target_numbers)
+                                display_text = barrier_config.get('display_text', 'Höhere Zahl benötigt')
+                                current_app.logger.info(f"[BARRIER DEBUG] Got barrier config from FieldConfiguration: {barrier_config}")
+                            else:
+                                raise Exception("No barrier field configuration found")
+                        except Exception as fe:
+                            current_app.logger.warning(f"[BARRIER DEBUG] Could not load barrier field config: {fe}")
+                            # Ultimate fallback: create basic config from blocked_target_number
+                            target_number = team.blocked_target_number or 4
+                            barrier_config = {
+                                'mode': 'minimum', 
+                                'min_number': target_number,
+                                'display_text': f'Würfle mindestens eine {target_number}!'
+                            }
+                            display_text = barrier_config['display_text']
+                            current_app.logger.info(f"[BARRIER DEBUG] Created ultimate fallback barrier config: {barrier_config}")
+                except Exception as e:
+                    current_app.logger.error(f"[BARRIER DEBUG] Error getting barrier config: {e}")
+                    barrier_config = {'mode': 'minimum', 'min_number': 4, 'display_text': 'Würfle mindestens eine 4!'}
+                    display_text = barrier_config['display_text']
+            
+            dice_event_data["barrier_config"] = barrier_config or {}
+            dice_event_data["barrier_display_text"] = display_text
+            current_app.logger.info(f"[BARRIER DEBUG] Final barrier data - config: {barrier_config}, text: {display_text}")
+        else:
+            current_app.logger.info(f"[BARRIER DEBUG] Team {team.name} is not blocked")
+        
         dice_event = GameEvent(
             game_session_id=active_session.id,
             event_type="team_dice_roll",
             description=event_description,
             related_team_id=team.id,
-            data_json=json.dumps({
-                "standard_roll": standard_dice_roll,
-                "bonus_roll": bonus_dice_roll,
-                "total_roll": total_roll,
-                "old_position": old_position,
-                "new_position": new_position,
-                "rolled_by": "team",
-                "was_blocked": team.is_blocked and (not barrier_check_result or not barrier_check_result.get('released', False)),
-                "barrier_released": barrier_check_result.get('released', False) if barrier_check_result else False
-            })
+            data_json=json.dumps(dice_event_data)
         )
         db.session.add(dice_event)
         
@@ -1296,6 +1355,10 @@ def team_roll_dice():
             "was_blocked": team.is_blocked and (not barrier_check_result or not barrier_check_result.get('released', False)),
             "barrier_released": barrier_check_result.get('released', False) if barrier_check_result else False
         }
+        
+        # Füge Barrier-Check-Informationen hinzu
+        if barrier_check_result:
+            response_data['barrier_check'] = barrier_check_result
         
         # Füge Sonderfeld-Informationen hinzu, aber überschreibe nicht success=True
         if special_field_result:

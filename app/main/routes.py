@@ -154,7 +154,9 @@ def board_status():
                     'timestamp': last_dice_event.timestamp.strftime('%H:%M:%S'),
                     'team_id': last_dice_event.related_team_id,
                     'was_blocked': event_data.get('was_blocked', False),
-                    'barrier_released': event_data.get('barrier_released', False)
+                    'barrier_released': event_data.get('barrier_released', False),
+                    'barrier_config': event_data.get('barrier_config', {}),
+                    'barrier_display_text': event_data.get('barrier_display_text', 'Höhere Zahl benötigt')
                 }
                 
                 current_app.logger.info(f"Found recent dice result for team {last_dice_event.related_team_id}: {last_dice_result}")

@@ -290,6 +290,8 @@ class NotificationSystem {
      * Zeigt fehlgeschlagene Befreiung an
      */
     showBarrierFailed(teamName, diceRoll, bonusRoll, requiredText, duration = 4000) {
+        console.log('📱 showBarrierFailed called with:', { teamName, diceRoll, bonusRoll, requiredText, duration });
+        
         let diceText = `${diceRoll}`;
         if (bonusRoll > 0) {
             diceText += ` + ${bonusRoll} = ${diceRoll + bonusRoll}`;
@@ -303,6 +305,7 @@ class NotificationSystem {
             duration
         });
 
+        console.log('📱 Created barrier failed notification:', notification);
         this.showNotification(notification);
     }
 

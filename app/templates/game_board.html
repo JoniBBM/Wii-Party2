@@ -2977,6 +2977,39 @@ class WiiPartyIsland {
                             GAME_STATE.currentServerTeamTurnId = data.last_dice_result.team_id;
                         }
                         
+                        // Handle barrier checks for blocked teams
+                        if (data.last_dice_result.was_blocked) {
+                            console.log("🚧 Team was blocked, checking barrier status...");
+                            const diceResult = data.last_dice_result;
+                            const teamName = localTeams?.find(t => t.id === diceResult.team_id)?.name || 'Unknown Team';
+                            
+                            if (diceResult.barrier_released) {
+                                // Team was freed - show release notification
+                                console.log("🎉 Team was released from barrier!");
+                                if (window.NotificationSystem) {
+                                    window.NotificationSystem.showBarrierReleased(
+                                        teamName, 
+                                        diceResult.standard_roll, 
+                                        diceResult.bonus_roll || 0,
+                                        'total'
+                                    );
+                                }
+                            } else {
+                                // Team is still blocked - show failed notification
+                                console.log("❌ Team is still blocked!");
+                                const barrierText = diceResult.barrier_display_text || "Höhere Zahl benötigt";
+                                if (window.NotificationSystem) {
+                                    console.log("📱 Calling showBarrierFailed with barrier text:", barrierText);
+                                    window.NotificationSystem.showBarrierFailed(
+                                        teamName,
+                                        diceResult.standard_roll,
+                                        diceResult.bonus_roll || 0,
+                                        barrierText
+                                    );
+                                }
+                            }
+                        }
+                        
                         // Show dice notification using timestamp-based deduplication (improved logic)
                         const timestamp = data.last_dice_result.timestamp;
                         const notificationKey = `dice_${timestamp}`;
@@ -3091,6 +3124,13 @@ class WiiPartyIsland {
                                     const method = specialEvent.data.release_method || 'standard';
                                     console.log(`🎉 Showing barrier released notification for ${eventTeam.name}`);
                                     window.NotificationSystem.showBarrierReleased(eventTeam.name, diceRoll, bonusRoll, method, 4000);
+                                    
+                                } else if (specialEvent.event_type === 'special_field_barrier_blocked') {
+                                    const diceRoll = specialEvent.data.dice_roll || 0;
+                                    const bonusRoll = specialEvent.data.bonus_roll || 0;
+                                    const requiredText = specialEvent.data.barrier_config?.display_text || "Höhere Zahl benötigt";
+                                    console.log(`🚧 Showing barrier blocked notification for ${eventTeam.name}`);
+                                    window.NotificationSystem.showBarrierFailed(eventTeam.name, diceRoll, bonusRoll, requiredText, 4000);
                                 }
                                 
                                 window.shownSpecialNotifications.add(notificationKey);
@@ -5996,16 +6036,18 @@ function handleSpecialFieldResponse(data) {
             this.schedulePlayerSwapAnimation(data.team_name, specialField.swap_team_name, specialField);
             break;
         case 'barrier_set':
+            // Verwende die korrekte display_text aus der Backend-Antwort
+            const displayText = specialField.display_text || `Würfle mindestens eine ${specialField.target_number}!`;
             showSpecialFieldEffect(
                 'barrier_set',
                 'Blockiert!',
-                `${data.team_name} muss eine ${specialField.target_number} oder höher würfeln!`,
+                `${data.team_name} - ${displayText}`,
                 6000
             );
             
             // Zeige macOS-style Notification
             if (window.NotificationSystem) {
-                window.NotificationSystem.showBarrierSet(data.team_name, specialField.target_number);
+                window.NotificationSystem.showBarrierSet(data.team_name, specialField.target_number || 4);
             }
             break;
     }
@@ -6073,12 +6115,20 @@ function handleBarrierCheckResponse(data) {
         
         // Zeige macOS-style Notification
         if (window.NotificationSystem) {
+            console.log('📱 Calling showBarrierFailed with:', {
+                teamName: data.team_name,
+                diceRoll: barrierCheck.dice_roll,
+                bonusRoll: barrierCheck.bonus_roll || 0,
+                requiredText: requiredText
+            });
             window.NotificationSystem.showBarrierFailed(
                 data.team_name,
                 barrierCheck.dice_roll,
                 barrierCheck.bonus_roll || 0,
                 requiredText
             );
+        } else {
+            console.error('❌ NotificationSystem not available for barrier failed!');
         }
     }
 }
@@ -6091,6 +6141,14 @@ document.addEventListener('DOMContentLoaded', async function() {
             
             // Erstelle Spielbrett-Instanz
             window.gameBoard = new WiiPartyIsland('game-canvas');
+            
+            // Initialisiere NotificationSystem
+            if (typeof NotificationSystem !== 'undefined') {
+                window.NotificationSystem = new NotificationSystem();
+                console.log('✅ macOS NotificationSystem initialisiert!');
+            } else {
+                console.error('❌ NotificationSystem Klasse nicht gefunden!');
+            }
             
             console.log('✅ Spielbrett mit dynamischen Feld-Konfigurationen geladen!');
             
