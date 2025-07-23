@@ -375,6 +375,16 @@ body:has(#game-canvas-container:-moz-full-screen) .game-status-banner .status-ba
     pointer-events: none;
 }
 
+/* Höchster z-index für Vollbildmodus */
+#game-canvas-container:fullscreen .notification-container,
+#game-canvas-container:-webkit-full-screen .notification-container,
+#game-canvas-container:-moz-full-screen .notification-container,
+body:has(#game-canvas-container:fullscreen) .notification-container,
+body:has(#game-canvas-container:-webkit-full-screen) .notification-container,
+body:has(#game-canvas-container:-moz-full-screen) .notification-container {
+    z-index: 2147483647 !important;
+}
+
 .notification {
     background: rgba(255, 255, 255, 0.95);
     backdrop-filter: blur(20px);

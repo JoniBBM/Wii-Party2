@@ -14,6 +14,40 @@ class NotificationSystem {
         this.container = document.createElement('div');
         this.container.className = 'notification-container';
         document.body.appendChild(this.container);
+        
+        // Überwache Vollbildmodus-Änderungen
+        this.setupFullscreenHandling();
+    }
+    
+    setupFullscreenHandling() {
+        const updateFullscreen = () => {
+            const isFullscreen = document.fullscreenElement || 
+                                document.webkitFullscreenElement || 
+                                document.mozFullScreenElement;
+            
+            if (isFullscreen) {
+                // Im Vollbildmodus: Container in das Vollbild-Element verschieben
+                const fullscreenContainer = document.querySelector('#game-canvas-container');
+                if (fullscreenContainer && !fullscreenContainer.contains(this.container)) {
+                    fullscreenContainer.appendChild(this.container);
+                }
+                this.container.style.zIndex = '2147483647';
+            } else {
+                // Außerhalb Vollbildmodus: Container zurück zum body
+                if (!document.body.contains(this.container)) {
+                    document.body.appendChild(this.container);
+                }
+                this.container.style.zIndex = '999999';
+            }
+        };
+        
+        // Event Listener für Vollbildmodus-Änderungen
+        document.addEventListener('fullscreenchange', updateFullscreen);
+        document.addEventListener('webkitfullscreenchange', updateFullscreen);
+        document.addEventListener('mozfullscreenchange', updateFullscreen);
+        
+        // Initial check
+        updateFullscreen();
     }
 
     /**
