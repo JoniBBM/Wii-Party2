@@ -456,6 +456,129 @@ body {
         padding: 20px;
     }
 }
+
+/* Question Banner Styles - Echter Team Dashboard Style */
+.announcement-banner {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.85);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+    backdrop-filter: blur(8px);
+}
+
+.announcement-banner.show {
+    display: flex;
+    animation: bannerFadeIn 0.5s ease-out;
+}
+
+.announcement-banner.hide {
+    animation: bannerFadeOut 0.5s ease-out forwards;
+}
+
+@keyframes bannerFadeIn {
+    from { opacity: 0; transform: scale(0.9); }
+    to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes bannerFadeOut {
+    from { opacity: 1; transform: scale(1); }
+    to { opacity: 0; transform: scale(0.9); }
+}
+
+.banner-content {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 20px;
+    padding: 3rem;
+    text-align: center;
+    color: white;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    max-width: 500px;
+    margin: 0 20px;
+    position: relative;
+    overflow: hidden;
+}
+
+.banner-content::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.1) 0%, transparent 70%);
+    pointer-events: none;
+}
+
+.question-banner .banner-content {
+    background: linear-gradient(135deg, #17a2b8 0%, #138496 100%);
+}
+
+.banner-icon {
+    font-size: 4rem;
+    margin-bottom: 1rem;
+    opacity: 0.9;
+    animation: bannerIconPulse 2s ease-in-out infinite;
+}
+
+@keyframes bannerIconPulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+}
+
+.banner-title {
+    font-size: 2.5rem;
+    font-weight: bold;
+    margin-bottom: 0.5rem;
+    position: relative;
+    z-index: 1;
+}
+
+.banner-subtitle {
+    font-size: 1.2rem;
+    opacity: 0.9;
+    margin-bottom: 1rem;
+    position: relative;
+    z-index: 1;
+}
+
+.banner-description {
+    font-size: 1.1rem;
+    opacity: 0.95;
+    position: relative;
+    z-index: 1;
+    line-height: 1.4;
+}
+
+/* Responsive */
+@media (max-width: 767.98px) {
+    .banner-content {
+        padding: 1.5rem;
+        margin: 0 10px;
+        max-width: calc(100vw - 20px);
+    }
+    
+    .banner-title {
+        font-size: 1.8rem;
+    }
+    
+    .banner-subtitle {
+        font-size: 1rem;
+    }
+    
+    .banner-icon {
+        font-size: 2.5rem;
+    }
+    
+    .banner-description {
+        font-size: 0.95rem;
+    }
+}
 </style>
 {% endblock %}
 
@@ -463,6 +586,22 @@ body {
 <div class="game-container">
     <div id="game-canvas-container">
         <canvas id="game-canvas"></canvas>
+        
+        <!-- Question Banner - Echter Team Dashboard Style -->
+        <div id="question-banner" class="announcement-banner question-banner">
+            <div class="banner-content">
+                <div class="banner-icon">
+                    <i class="fas fa-question-circle"></i>
+                </div>
+                <div class="banner-text">
+                    <div class="banner-title" id="banner-question-title">Aktuelle Frage</div>
+                    <div class="banner-subtitle" id="banner-question-timer">Läuft...</div>
+                    <div class="banner-description" id="banner-question-content">
+                        <!-- Wird dynamisch gefüllt -->
+                    </div>
+                </div>
+            </div>
+        </div>
         
         <!-- Face-Overlay System INNERHALB game-canvas-container für Vollbild-Sichtbarkeit -->
         <div id="face-overlay-container" class="face-overlay-container">
@@ -2485,7 +2624,12 @@ class WiiPartyIsland {
                 return response.json();
             })
             .then(data => {
-                // console.log("🔴 [DEBUG] Full board_status response:", JSON.stringify(data, null, 2));
+                // Debug: Log question data availability
+                console.log("🔔 [QUESTION BANNER DEBUG] Board status response question data:", {
+                    hasQuestionData: !!data.question_data,
+                    questionData: data.question_data
+                });
+                
                 if (data.error) {
                     console.error("Server-Fehler:", data.error);
                     this.showStatusMessage(`Serverproblem: ${data.error}`, 4000, 'error', true, 'Server-Fehler');
@@ -2624,6 +2768,8 @@ class WiiPartyIsland {
                     currentMinigameDescription = data.game_session.current_minigame_description;
                     currentGamePhase = data.game_session.current_phase;
                     
+                    // Question Banner Management
+                    this.updateQuestionBanner(data.game_session);
 
                     this.updateMinigameDisplay();
 
@@ -2934,6 +3080,113 @@ class WiiPartyIsland {
                     this.showStatusMessage(`Verbindungsproblem: ${error.message}`, 3000, "error", true, 'Verbindungsfehler');
                 }
             });
+    }
+
+    updateQuestionBanner(gameSession) {
+        const banner = document.getElementById('question-banner');
+        console.log('🔔 [QUESTION BANNER] updateQuestionBanner called:', {
+            bannerExists: !!banner,
+            currentPhase: gameSession.current_phase,
+            questionId: gameSession.current_question_id
+        });
+        
+        if (!banner) {
+            console.error('❌ [QUESTION BANNER] Banner element not found!');
+            return;
+        }
+        
+        // Show banner when question phase is active
+        if (gameSession.current_phase === 'QUESTION_ACTIVE' && gameSession.current_question_id) {
+            console.log('✅ [QUESTION BANNER] Question active - fetching data and showing banner');
+            this.fetchQuestionDataForBanner();
+            banner.classList.add('show');
+            
+            // Debug: Check banner visibility
+            const computedStyle = window.getComputedStyle(banner);
+            console.log('🔔 [QUESTION BANNER DEBUG] Banner visibility:', {
+                display: banner.style.display,
+                computedDisplay: computedStyle.display,
+                visibility: computedStyle.visibility,
+                opacity: computedStyle.opacity,
+                zIndex: computedStyle.zIndex,
+                position: computedStyle.position,
+                top: computedStyle.top,
+                left: computedStyle.left,
+                right: computedStyle.right,
+                width: computedStyle.width,
+                height: computedStyle.height,
+                offsetWidth: banner.offsetWidth,
+                offsetHeight: banner.offsetHeight,
+                clientWidth: banner.clientWidth,
+                clientHeight: banner.clientHeight
+            });
+        } else {
+            console.log('🔔 [QUESTION BANNER] Hiding banner - phase not active');
+            banner.classList.remove('show');
+        }
+    }
+
+    fetchQuestionDataForBanner() {
+        console.log('🔔 [QUESTION BANNER] Fetching question data from dedicated API');
+        fetch(`{{ url_for('main.question_status_for_gameboard') }}?t=${new Date().getTime()}`)
+            .then(response => {
+                console.log('🔔 [QUESTION BANNER] API response status:', response.status);
+                return response.json();
+            })
+            .then(data => {
+                console.log('🔔 [QUESTION BANNER] Question data received:', data);
+                console.log('🔔 [QUESTION BANNER] Raw debug data:', data.debug_raw_data);
+                if (data.question_active && data.question) {
+                    console.log('✅ [QUESTION BANNER] Updating banner with question data');
+                    this.updateBannerContent(data.question, data.answers);
+                } else {
+                    console.log('⚠️ [QUESTION BANNER] Question not active:', data.message);
+                }
+            })
+            .catch(error => {
+                console.error("❌ [QUESTION BANNER] Error fetching question data:", error);
+            });
+    }
+
+
+    updateBannerContent(question, answers) {
+        console.log('🔔 [QUESTION BANNER] updateBannerContent called:', { question, answers });
+        
+        const titleElement = document.getElementById('banner-question-title');
+        const timerElement = document.getElementById('banner-question-timer');
+        const contentElement = document.getElementById('banner-question-content');
+        
+        console.log('🔔 [QUESTION BANNER] Banner elements found:', {
+            title: !!titleElement,
+            timer: !!timerElement,
+            content: !!contentElement
+        });
+        
+        if (titleElement) titleElement.textContent = question.title || 'Aktuelle Frage';
+        if (timerElement) timerElement.textContent = 'Läuft...';
+        
+        if (contentElement) {
+            let html = `<div style="margin-bottom: 1.5rem; font-size: 1.8rem; font-weight: bold; line-height: 1.3;"><strong>${question.text || 'Keine Frage verfügbar'}</strong></div>`;
+            
+            console.log('🔔 [QUESTION BANNER] Question text:', question.text);
+            console.log('🔔 [QUESTION BANNER] Answers array:', answers);
+            console.log('🔔 [QUESTION BANNER] Answers length:', answers ? answers.length : 'null/undefined');
+            
+            if (answers && answers.length > 0) {
+                html += '<div style="margin-bottom: 1rem; font-size: 1.4rem; font-weight: bold;">Antwortmöglichkeiten:</div>';
+                html += '<div>';
+                answers.forEach((answer, index) => {
+                    console.log(`🔔 [QUESTION BANNER] Answer ${index}:`, answer);
+                    html += `<div style="margin: 0.5rem 0.3rem; padding: 0.8rem 1.2rem; background: rgba(255,255,255,0.25); border-radius: 20px; display: inline-block; font-size: 1.3rem; font-weight: 600; border: 2px solid rgba(255,255,255,0.3);">${String.fromCharCode(65 + index)}: ${answer}</div>`;
+                });
+                html += '</div>';
+            } else if (question.type === 'text_input') {
+                html += '<div style="font-style: italic; opacity: 0.9; font-size: 1.3rem; margin-top: 1rem;">💬 Freitext-Antwort erforderlich</div>';
+            }
+            
+            contentElement.innerHTML = html;
+            console.log('✅ [QUESTION BANNER] Banner content updated successfully');
+        }
     }
 
     updateAllTeamBadges() {}

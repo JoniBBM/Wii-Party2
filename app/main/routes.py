@@ -99,6 +99,7 @@ def board_status():
                 "current_minigame_description": active_session_query.current_minigame_description,
                 "current_phase": active_session_query.current_phase,
                 "current_team_turn_id": current_team_id,
+                "current_question_id": active_session_query.current_question_id,
                 "dice_roll_order": dice_order_ids,
                 "minigame_folder_name": minigame_folder_name,
                 # SONDERFELD: Vulkan-Status (für zukünftige Implementierung)
@@ -186,12 +187,66 @@ def board_status():
                 current_app.logger.error(f"Error parsing special field event: {e}")
                 last_special_field_event = None
 
-        return jsonify({
+        # Get question data if question is active
+        question_data = None
+        if (active_session_query and 
+            active_session_query.current_phase == 'QUESTION_ACTIVE' and 
+            active_session_query.current_question_id):
+            
+            current_app.logger.info(f"[QUESTION BANNER] Attempting to load question data for ID: {active_session_query.current_question_id}")
+            
+            try:
+                from app.models import GameRound
+                from app.admin.minigame_utils import get_question_from_folder
+                
+                active_round = GameRound.get_active_round()
+                current_app.logger.info(f"[QUESTION BANNER] Active round: {active_round}")
+                
+                if active_round and active_round.minigame_folder:
+                    current_app.logger.info(f"[QUESTION BANNER] Minigame folder: {active_round.minigame_folder.folder_path}")
+                    
+                    question_info = get_question_from_folder(
+                        active_round.minigame_folder.folder_path, 
+                        active_session_query.current_question_id
+                    )
+                    current_app.logger.info(f"[QUESTION BANNER] Question info loaded: {question_info}")
+                    
+                    if question_info:
+                        question_data = {
+                            'question_active': True,
+                            'question': {
+                                'id': active_session_query.current_question_id,
+                                'title': question_info.get('title', 'Aktuelle Frage'),
+                                'text': question_info.get('question', ''),
+                                'type': question_info.get('type', 'multiple_choice')
+                            },
+                            'answers': question_info.get('options', [])
+                        }
+                        current_app.logger.info(f"[QUESTION BANNER] Question data prepared: {question_data}")
+                    else:
+                        current_app.logger.warning(f"[QUESTION BANNER] No question info returned from get_question_from_folder")
+                else:
+                    current_app.logger.warning(f"[QUESTION BANNER] No active round or minigame folder")
+            except Exception as e:
+                current_app.logger.error(f"[QUESTION BANNER] Error loading question data: {e}")
+                import traceback
+                current_app.logger.error(f"[QUESTION BANNER] Traceback: {traceback.format_exc()}")
+                question_data = None
+        else:
+            current_app.logger.info(f"[QUESTION BANNER] Not loading question data - Phase: {active_session_query.current_phase if active_session_query else 'None'}, Question ID: {active_session_query.current_question_id if active_session_query else 'None'}")
+        
+        response_data = {
             "teams": team_data,
             "game_session": game_session_data,
             "last_dice_result": last_dice_result,
             "last_special_field_event": last_special_field_event
-            })
+        }
+        
+        # Add question data if available
+        if question_data:
+            response_data["question_data"] = question_data
+            
+        return jsonify(response_data)
 
     except Exception as e:
         current_app.logger.error(f"Schwerer Fehler in /api/board-status: {e}")
@@ -212,6 +267,66 @@ def minigame_status():
         "current_minigame_description": None,
         "current_phase": None
     }), 404
+
+@main_bp.route('/api/question-status')
+def question_status_for_gameboard():
+    """API für Fragen-Status für das Gameboard (ohne Login-Requirement)"""
+    try:
+        active_session = GameSession.query.filter_by(is_active=True).first()
+        if not active_session:
+            return jsonify({'question_active': False, 'message': 'Keine aktive Spielsitzung'})
+            
+        if active_session.current_phase != 'QUESTION_ACTIVE' or not active_session.current_question_id:
+            return jsonify({'question_active': False, 'message': 'Keine aktive Frage'})
+        
+        # Hole Fragen-Daten
+        from app.models import GameRound
+        from app.admin.minigame_utils import get_question_from_folder
+        
+        active_round = GameRound.get_active_round()
+        if not active_round or not active_round.minigame_folder:
+            return jsonify({'question_active': False, 'message': 'Keine aktive Spielrunde'})
+        
+        question_data = get_question_from_folder(active_round.minigame_folder.folder_path, active_session.current_question_id)
+        current_app.logger.info(f"[QUESTION BANNER] Raw question data: {question_data}")
+        
+        if not question_data:
+            return jsonify({'question_active': False, 'message': 'Frage nicht gefunden'})
+        
+        # Try different field names for question text
+        question_text = (question_data.get('question_text') or   # <-- Das war's!
+                        question_data.get('question') or 
+                        question_data.get('text') or 
+                        question_data.get('content') or 
+                        question_data.get('description') or '')
+        
+        # Get question title/name
+        question_title = (question_data.get('name') or           # <-- Und das!
+                         question_data.get('title') or
+                         'Aktuelle Frage')
+        
+        # Try different field names for answers
+        answers = (question_data.get('options') or 
+                  question_data.get('answers') or 
+                  question_data.get('choices') or [])
+        
+        current_app.logger.info(f"[QUESTION BANNER] Processed - text: '{question_text}', answers: {answers}")
+        
+        return jsonify({
+            'question_active': True,
+            'question': {
+                'id': active_session.current_question_id,
+                'title': question_title,
+                'text': question_text,
+                'type': question_data.get('question_type', 'multiple_choice')
+            },
+            'answers': answers,
+            'debug_raw_data': question_data  # Temporary debug field
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"Error in question_status_for_gameboard: {e}")
+        return jsonify({'question_active': False, 'error': str(e)}), 500
 
 @main_bp.route('/api/update-position', methods=['POST']) # Dieser Endpunkt wird aktuell nicht vom Client genutzt, da Position serverseitig gesetzt wird.
 def update_position():
