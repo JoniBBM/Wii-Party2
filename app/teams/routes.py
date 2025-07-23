@@ -634,6 +634,10 @@ def dashboard_status_api():
         # Hole aktuelle Daten
         data = _get_dashboard_data(current_user)
         
+        # DEBUG: Minigame-Daten aus Session prüfen
+        if data['active_session']:
+            current_app.logger.info(f"DEBUG dashboard_status_api: session.current_minigame_name='{data['active_session'].current_minigame_name}', session.current_minigame_description='{data['active_session'].current_minigame_description}', session.current_phase='{data['active_session'].current_phase}'")
+        
         # Konvertiere Teams zu JSON-freundlichem Format
         teams_data = []
         for team in data['all_teams']:

@@ -1823,12 +1823,27 @@ function updateDashboard(data) {
     }
     
     // Check for new minigame announcement (auch bei der ersten Runde)
-    if (gameData.current_minigame_name && 
-        gameData.current_minigame_name !== lastMinigameName && !gameData.question_data) {
-        // Zeige Banner auch bei der ersten Runde (lastMinigameName === "")
-        showMinigameAnnouncement(gameData.current_minigame_name, gameData.current_minigame_description);
+    console.log('DEBUG: Minigame check - current_minigame_name:', gameData.current_minigame_name, 'lastMinigameName:', lastMinigameName, 'phase:', gameData.current_phase, 'lastPhase:', lastPhase);
+    console.log('DEBUG: Full gameData minigame fields:', {
+        current_minigame_name: gameData.current_minigame_name,
+        current_minigame_description: gameData.current_minigame_description,
+        phase: gameData.current_phase
+    });
+    
+    // Reset lastMinigameName when current_minigame_name becomes null (between minigames)
+    if (!gameData.current_minigame_name && lastMinigameName) {
+        lastMinigameName = "";
+        console.log('DEBUG: Reset lastMinigameName due to null current_minigame_name');
     }
-    lastMinigameName = gameData.current_minigame_name || "";
+    
+    if (gameData.current_minigame_name && 
+        (gameData.current_minigame_name !== lastMinigameName || 
+         (gameData.current_phase === 'MINIGAME_ANNOUNCED' && lastPhase !== 'MINIGAME_ANNOUNCED'))) {
+        // Zeige Banner auch bei der ersten Runde (lastMinigameName === "") oder bei Phasenwechsel
+        console.log('DEBUG: Showing minigame announcement:', gameData.current_minigame_name, gameData.current_minigame_description);
+        showMinigameAnnouncement(gameData.current_minigame_name, gameData.current_minigame_description);
+        lastMinigameName = gameData.current_minigame_name;
+    }
     
     // Check for selected players announcement
     updateSelectedPlayersDisplay(gameData);
@@ -2650,14 +2665,22 @@ function showQuestionAnnouncement(name, description) {
 }
 
 function showMinigameAnnouncement(name, description) {
+    console.log('DEBUG: showMinigameAnnouncement called with:', name, description);
     const banner = document.getElementById('minigame-announcement-banner');
     const nameEl = document.getElementById('minigame-banner-name');
     const descEl = document.getElementById('minigame-banner-description');
+    
+    console.log('DEBUG: Elements found:', {
+        banner: !!banner,
+        nameEl: !!nameEl,
+        descEl: !!descEl
+    });
     
     if (banner && nameEl && descEl) {
         nameEl.textContent = name;
         descEl.textContent = description || '';
         
+        console.log('DEBUG: Adding show class to banner');
         banner.classList.add('show');
         
         setTimeout(() => {
@@ -2666,6 +2689,8 @@ function showMinigameAnnouncement(name, description) {
                 banner.classList.remove('show', 'hide');
             }, 500);
         }, 4000);
+    } else {
+        console.log('DEBUG: Missing elements for minigame announcement');
     }
 }
 
@@ -3675,10 +3700,11 @@ function updateTeamDiceButtonState(gameData, isMyTurn) {
     
     if (!diceWaiting || !teamRollDiceBtn || !diceOverlay) return;
     
-    // FIX: Verwende die robuste canTeamRollDice Validierung
-    const shouldShowButton = gameData && canTeamRollDice(gameData) && isMyTurn;
+    // FIX: Zeige Interface wenn Team am Zug ist, Button nur wenn würfeln möglich
+    const shouldShowInterface = gameData && isMyTurn;
+    const canRollDice = gameData && canTeamRollDice(gameData) && isMyTurn;
     
-    if (shouldShowButton) {
+    if (shouldShowInterface) {
         // Zeige komplettes Würfel-Interface (wie showDiceWaitingAnimation)
         diceOverlay.style.display = 'flex'; // Wichtig: das Hauptoverlay anzeigen!
         diceWaiting.style.display = 'block';
@@ -3687,11 +3713,20 @@ function updateTeamDiceButtonState(gameData, isMyTurn) {
         const resultDiv = document.getElementById('dice-result-animation');
         if (resultDiv) resultDiv.style.display = 'none';
         
-        // Aktiviere Button
-        teamRollDiceBtn.disabled = false;
-        teamRollDiceBtn.innerHTML = '<i class="fas fa-dice"></i> Würfeln!';
-        teamRollDiceBtn.classList.remove('btn-secondary');
-        teamRollDiceBtn.classList.add('btn-success');
+        // Button-Status abhängig davon, ob würfeln möglich ist
+        if (canRollDice) {
+            // Aktiviere Button
+            teamRollDiceBtn.disabled = false;
+            teamRollDiceBtn.innerHTML = '<i class="fas fa-dice"></i> Würfeln!';
+            teamRollDiceBtn.classList.remove('btn-secondary');
+            teamRollDiceBtn.classList.add('btn-success');
+        } else {
+            // Deaktiviere Button aber zeige Interface weiter
+            teamRollDiceBtn.disabled = true;
+            teamRollDiceBtn.innerHTML = '<i class="fas fa-hourglass-half"></i> Warten...';
+            teamRollDiceBtn.classList.remove('btn-success');
+            teamRollDiceBtn.classList.add('btn-secondary');
+        }
         
         // Zeige animierte Würfel
         const animatedDice = document.getElementById('animated-dice-continuous');

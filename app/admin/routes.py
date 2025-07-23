@@ -585,6 +585,7 @@ def set_minigame():
         return redirect(url_for('admin.admin_dashboard'))
 
     minigame_source = form.minigame_source.data
+    current_app.logger.info(f"DEBUG set_minigame: minigame_source='{minigame_source}'")
     minigame_set = False
 
     try:
@@ -595,8 +596,10 @@ def set_minigame():
             player_count = form.player_count.data or 'all'
             
             if manual_name and manual_description:
+                current_app.logger.info(f"DEBUG set_minigame: Setting minigame name='{manual_name}', description='{manual_description}'")
                 active_session.current_minigame_name = manual_name
                 active_session.current_minigame_description = manual_description
+                current_app.logger.info(f"DEBUG set_minigame: After setting - session.current_minigame_name='{active_session.current_minigame_name}'")
                 active_session.current_player_count = player_count
                 active_session.selected_folder_minigame_id = None
                 active_session.current_question_id = None
@@ -605,6 +608,8 @@ def set_minigame():
                 # Zufällige Spielerauswahl bei numerischen Werten oder "ganzes Team"
                 if player_count.isdigit() or player_count == "all":
                     # Stelle sicher, dass die Teams mit aktuellen Daten geladen werden
+                    # BUGFIX: Commit session changes before expire_all() to prevent data loss
+                    db.session.commit()
                     db.session.expire_all()
                     teams = Team.query.all()
                     selected_players = active_session.select_random_players(teams, player_count)
@@ -701,8 +706,10 @@ def set_minigame():
                     # Markiere als gespielt
                     mark_content_as_played(active_session, random_content['id'])
                     
+                    current_app.logger.info(f"DEBUG set_minigame folder_random: Setting minigame name='{random_content['name']}', description='{random_content.get('description', '')}'")
                     active_session.current_minigame_name = random_content['name']
                     active_session.current_minigame_description = random_content.get('description', '')
+                    current_app.logger.info(f"DEBUG set_minigame folder_random: After setting - session.current_minigame_name='{active_session.current_minigame_name}'")
                     active_session.selected_folder_minigame_id = random_content['id']
                     active_session.minigame_source = 'folder_random'
                     
@@ -739,6 +746,8 @@ def set_minigame():
                         # Spielerauswahl für Minispiele
                         if player_count.isdigit() or player_count == "all":
                             # Stelle sicher, dass die Teams mit aktuellen Daten geladen werden
+                            # BUGFIX: Commit session changes before expire_all() to prevent data loss
+                            db.session.commit()
                             db.session.expire_all()
                             teams = Team.query.all()
                             selected_players = active_session.select_random_players(teams, player_count)
@@ -770,8 +779,10 @@ def set_minigame():
                     # Markiere als gespielt
                     mark_content_as_played(active_session, selected_content['id'])
                     
+                    current_app.logger.info(f"DEBUG set_minigame folder_selected: Setting minigame name='{selected_content['name']}', description='{selected_content.get('description', '')}'")
                     active_session.current_minigame_name = selected_content['name']
                     active_session.current_minigame_description = selected_content.get('description', '')
+                    current_app.logger.info(f"DEBUG set_minigame folder_selected: After setting - session.current_minigame_name='{active_session.current_minigame_name}'")
                     active_session.selected_folder_minigame_id = selected_content['id']
                     active_session.minigame_source = 'folder_selected'
                     
@@ -799,6 +810,8 @@ def set_minigame():
                         
                         if player_count.isdigit() or player_count == "all":
                             # Stelle sicher, dass die Teams mit aktuellen Daten geladen werden
+                            # BUGFIX: Commit session changes before expire_all() to prevent data loss
+                            db.session.commit()
                             db.session.expire_all()
                             teams = Team.query.all()
                             selected_players = active_session.select_random_players(teams, player_count)
@@ -834,7 +847,9 @@ def set_minigame():
                 data_json=f'{{"name": "{active_session.current_minigame_name}", "description": "{active_session.current_minigame_description}", "source": "{minigame_source}", "is_question": {bool(active_session.current_question_id)}}}'
             )
             db.session.add(event)
+            current_app.logger.info(f"DEBUG set_minigame: Before commit - session.current_minigame_name='{active_session.current_minigame_name}'")
             db.session.commit()
+            current_app.logger.info(f"DEBUG set_minigame: After commit - session.current_minigame_name='{active_session.current_minigame_name}'")
 
     except Exception as e:
         db.session.rollback()
