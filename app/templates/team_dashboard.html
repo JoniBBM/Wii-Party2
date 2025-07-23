@@ -2930,6 +2930,9 @@ function showDiceResultAnimation(standardRoll, bonusRoll, totalRoll, oldPos, new
     const waitingDiv = document.getElementById('dice-waiting');
     const resultDiv = document.getElementById('dice-result-animation');
     
+    // Setze Animation-Status
+    isDiceAnimationShowing = true;
+    
     if (waitingDiv && resultDiv) {
         // Hide waiting animation and show result
         waitingDiv.style.display = 'none';
@@ -2980,7 +2983,7 @@ function showDiceResultAnimation(standardRoll, bonusRoll, totalRoll, oldPos, new
         
         diceResultTimer = setTimeout(() => {
             hideDiceAnimation();
-        }, 8000); // Longer display time
+        }, 5000); // 5 seconds display time
     }
 }
 
@@ -3531,7 +3534,7 @@ window.testTeamRoll = function() {
 };
 
 // FIX: Tracking für bereits gewürfelte Teams in dieser Runde - PER TEAM BASIS
-let teamRolledThisRound = false;
+let teamsRolledThisRound = {}; // Object mit teamId -> boolean
 let lastRoundPhaseChange = 0;
 let currentTeamTurnId = null;
 
@@ -3539,24 +3542,35 @@ let currentTeamTurnId = null;
 function checkIfNewRoundStarted(gameData) {
     if (!gameData) return false;
     
-    // Wenn die Phase von ROUND_OVER zu DICE_ROLLING wechselt, ist eine neue Runde
-    if (gameData.current_phase === 'DICE_ROLLING' && Date.now() - lastRoundPhaseChange > 1000) {
-        const wasRoundOver = lastGameData && lastGameData.current_phase === 'ROUND_OVER';
-        if (wasRoundOver) {
-            console.log('Neue Würfelrunde erkannt - Reset der Roll-Tracking');
-            teamRolledThisRound = false;
+    // Reset tracking wenn Phase zu DICE_ROLLING wechselt oder neue Runde beginnt
+    if (gameData.current_phase === 'DICE_ROLLING') {
+        // Prüfe ob vorherige Phase eine andere war (neue Runde)
+        const wasOtherPhase = lastGameData && lastGameData.current_phase !== 'DICE_ROLLING';
+        const isPhaseMigration = !lastGameData || wasOtherPhase;
+        const enoughTimePassed = Date.now() - lastRoundPhaseChange > 1000;
+        
+        // Reset bei Phasenwechsel zu DICE_ROLLING
+        if ((isPhaseMigration || wasOtherPhase) && enoughTimePassed) {
+            console.log('Neue Würfelrunde erkannt - Reset der Roll-Tracking (Phase:', lastGameData?.current_phase, '-> DICE_ROLLING)');
+            teamsRolledThisRound = {}; // Reset für alle Teams
             lastRoundPhaseChange = Date.now();
             currentTeamTurnId = null;
             return true;
         }
+        
+        // Zusätzlich: Reset wenn längere Zeit vergangen ist (Fallback)
+        if (Date.now() - lastRoundPhaseChange > 30000) { // 30 Sekunden Fallback
+            console.log('Fallback Reset - Lange Zeit seit letztem Reset');
+            teamsRolledThisRound = {};
+            lastRoundPhaseChange = Date.now();
+        }
     }
     
-    // Reset wenn anderes Team dran ist
+    // Update current team turn ID
     if (gameData.current_user && gameData.current_user.is_current_turn) {
         const newTeamTurnId = gameData.current_team_turn_id;
         if (currentTeamTurnId !== newTeamTurnId) {
-            console.log('Neues Team am Zug - Reset der Roll-Tracking für dieses Team');
-            teamRolledThisRound = false;
+            console.log('Neues Team am Zug - Team ID:', newTeamTurnId);
             currentTeamTurnId = newTeamTurnId;
         }
     }
@@ -3582,12 +3596,16 @@ function canTeamRollDice(gameData) {
         return false;
     }
     
-    // FIX: Prüfe ob Team bereits in dieser Runde gewürfelt hat
-    if (teamRolledThisRound) {
-        console.log('Würfeln nicht möglich: Team hat bereits in dieser Runde gewürfelt');
+    // FIX: Prüfe ob dieses spezifische Team bereits in dieser Runde gewürfelt hat
+    const teamId = gameData.current_user.id;
+    console.log('Debug - Team ID:', teamId, 'Roll-Status:', teamsRolledThisRound[teamId], 'All rolled teams:', Object.keys(teamsRolledThisRound));
+    
+    if (teamsRolledThisRound[teamId]) {
+        console.log('Würfeln nicht möglich: Team hat bereits in dieser Runde gewürfelt (Team ID:', teamId, ')');
         return false;
     }
     
+    console.log('Würfeln möglich - Team kann rollen');
     return true;
 }
 
@@ -3600,6 +3618,13 @@ document.addEventListener('DOMContentLoaded', function() {
         const initialIsMyTurn = {{ 'true' if current_team_turn_name == current_user.name else 'false' }};
         
         console.log('Team Dashboard geladen - Phase:', initialPhase, 'Mein Zug:', initialIsMyTurn);
+        
+        // WICHTIG: Bei Page Refresh in DICE_ROLLING Phase, reset tracking 
+        if (initialPhase === 'DICE_ROLLING') {
+            console.log('Page Refresh in DICE_ROLLING Phase erkannt - Reset Roll-Tracking');
+            teamsRolledThisRound = {};
+            lastRoundPhaseChange = Date.now();
+        }
         
         // Prüfe initialen Button-State
         const initialGameData = {
@@ -3620,8 +3645,9 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             
             // Setze Tracking dass dieses Team gewürfelt hat
-            teamRolledThisRound = true;
-            console.log('Team würfelt jetzt - Tracking aktiviert');
+            const teamId = lastGameData.current_user.id;
+            teamsRolledThisRound[teamId] = true;
+            console.log('Team würfelt jetzt - Tracking aktiviert für Team ID:', teamId);
             
             // Deaktiviere Button und zeige Loading-Status
             teamRollDiceBtn.disabled = true;
@@ -3709,9 +3735,11 @@ function updateTeamDiceButtonState(gameData, isMyTurn) {
         diceOverlay.style.display = 'flex'; // Wichtig: das Hauptoverlay anzeigen!
         diceWaiting.style.display = 'block';
         
-        // Verstecke Ergebnis-Animation
+        // Verstecke Ergebnis-Animation nur wenn sie nicht gerade angezeigt wird
         const resultDiv = document.getElementById('dice-result-animation');
-        if (resultDiv) resultDiv.style.display = 'none';
+        if (resultDiv && !isDiceAnimationShowing) {
+            resultDiv.style.display = 'none';
+        }
         
         // Button-Status abhängig davon, ob würfeln möglich ist
         if (canRollDice) {
@@ -3737,15 +3765,20 @@ function updateTeamDiceButtonState(gameData, isMyTurn) {
         
         console.log('Team Würfel-Interface vollständig aktiviert - Team ist dran');
     } else {
-        // Verstecke komplettes Würfel-Interface
-        diceOverlay.style.display = 'none';
-        isDiceAnimationShowing = false;
-        
-        console.log('Team Würfel-Interface versteckt - Team nicht dran oder falsche Phase');
+        // Verstecke komplettes Würfel-Interface nur wenn keine Würfel-Animation läuft
+        if (!isDiceAnimationShowing) {
+            diceOverlay.style.display = 'none';
+            console.log('Team Würfel-Interface versteckt - Team nicht dran oder falsche Phase');
+        } else {
+            console.log('Team Würfel-Interface bleibt sichtbar - Würfel-Animation läuft noch');
+        }
     }
 }
 
 function showDiceResult(data) {
+    // Setze Animation-Status
+    isDiceAnimationShowing = true;
+    
     // Verstecke Würfel-Animation
     document.getElementById('dice-waiting').style.display = 'none';
     document.getElementById('animated-dice-continuous').style.display = 'none';
@@ -3768,9 +3801,13 @@ function showDiceResult(data) {
     // Zeige Ergebnis-Animation
     document.getElementById('dice-result-animation').style.display = 'block';
     
-    // Verstecke Overlay nach 5 Sekunden
-    setTimeout(() => {
-        document.getElementById('dice-animation-overlay').style.display = 'none';
+    // Verstecke Overlay nach 5 Sekunden - aber nur wenn kein anderer Timer läuft
+    if (diceResultTimer) {
+        clearTimeout(diceResultTimer);
+    }
+    
+    diceResultTimer = setTimeout(() => {
+        hideDiceAnimation();
     }, 5000);
 }
 
