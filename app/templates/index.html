@@ -789,9 +789,11 @@
             <p class="hero-subtitle">Das ultimative Partyspiel-Erlebnis für Browser.<br>Spiele, lache und gewinne mit deinen Freunden!</p>
             
             <div class="hero-buttons">
+                {% if current_user.is_authenticated and user_type_in_context == 'admin' %}
                 <a href="{{ url_for('main.game_board') }}" class="btn btn-hero btn-hero-primary">
                     <i class="fas fa-gamepad mr-2"></i>Zum Spielbrett
                 </a>
+                {% endif %}
                 
                 {% if current_user.is_authenticated and user_type_in_context == 'admin' %}
                     <a href="{{ url_for('admin.admin_dashboard') }}" class="btn btn-hero btn-hero-secondary">
@@ -891,9 +893,11 @@
                 </a>
             {% endif %}
             
+            {% if current_user.is_authenticated and user_type_in_context == 'admin' %}
             <a href="{{ url_for('main.game_board') }}" class="btn btn-hero btn-hero-outline">
                 <i class="fas fa-eye mr-2"></i>Spielbrett ansehen
             </a>
+            {% endif %}
         </div>
     </div>
 </section>

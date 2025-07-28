@@ -21,9 +21,11 @@
                 <li class="nav-item">
                     <a class="nav-link" href="{{ url_for('main.index') }}">Startseite</a>
                 </li>
+                {% if current_user.is_authenticated and user_type_in_context == 'admin' %}
                 <li class="nav-item">
                     <a class="nav-link" href="{{ url_for('main.game_board') }}">Spielbrett</a>
                 </li>
+                {% endif %}
                 {% if current_user.is_authenticated and user_type_in_context == 'admin' %}
                 <li class="nav-item">
                     <a class="nav-link" href="{{ url_for('admin.admin_dashboard') }}">Admin Dashboard</a>

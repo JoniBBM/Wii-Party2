@@ -107,30 +107,6 @@
                 </div>
                 
                 <!-- Teammitglieder bearbeiten -->
-                <div class="card mb-3">
-                    <div class="card-header bg-info text-white">
-                        <h6 class="mb-0"><i class="fas fa-users"></i> Teammitglieder</h6>
-                    </div>
-                    <div class="card-body">
-                        <div class="form-group">
-                            {{ form.members.label(class="form-control-label") }}
-                            {% if form.members.errors %}
-                                {{ form.members(class="form-control is-invalid", rows="4") }}
-                                <div class="invalid-feedback">
-                                    {% for error in form.members.errors %}
-                                        <span>{{ error }}</span>
-                                    {% endfor %}
-                                </div>
-                            {% else %}
-                                {{ form.members(class="form-control", rows="4") }}
-                            {% endif %}
-                            <small class="form-text text-muted">
-                                <i class="fas fa-info-circle"></i> 
-                                Teammitglieder - einen pro Zeile oder kommagetrennt.
-                            </small>
-                        </div>
-                    </div>
-                </div>
                 
                 <div class="form-group">
                     {{ form.submit(class="btn btn-primary") }}
@@ -140,8 +116,11 @@
             
             <!-- Team-Spieler Management - außerhalb des Forms -->
             <div class="card mb-4">
-                <div class="card-header bg-secondary text-white">
+                <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center">
                     <h5 class="mb-0"><i class="fas fa-user-friends"></i> Team-Spieler</h5>
+                    <button type="button" class="btn btn-light btn-sm" onclick="openAddPlayerModal()">
+                        <i class="fas fa-user-plus"></i> Spieler hinzufügen
+                    </button>
                 </div>
                 <div class="card-body">
                     {% if team.player_registrations %}
@@ -197,6 +176,12 @@
                                                     {% endfor %}
                                                     <option value="0">Kein Team zuweisen</option>
                                                 </select>
+                                                <button class="btn btn-outline-danger btn-sm ml-2" 
+                                                        type="button"
+                                                        onclick="deletePlayer({{ player.id }})" 
+                                                        title="Spieler löschen">
+                                                    <i class="fas fa-trash"></i>
+                                                </button>
                                             </div>
                                         </td>
                                     </tr>
@@ -213,7 +198,7 @@
             </div>
             
             <!-- Erweiterte Spieler-Auslosungs-Verwaltung -->
-            {% if team.members %}
+            {% if team.player_registrations %}
             <div class="card mb-4">
                 <div class="card-header bg-warning text-dark">
                     <h5 class="mb-0"><i class="fas fa-dice"></i> Auslosungs-Einstellungen</h5>
@@ -235,33 +220,29 @@
                                 </tr>
                             </thead>
                             <tbody id="player-selection-table">
-                                {% set members_list = team.members.split(',') if team.members else [] %}
                                 {% set player_config = team.get_player_config() %}
-                                {% for member in members_list %}
-                                    {% set player_name = member.strip() %}
-                                    {% if player_name %}
-                                        {% set can_be_selected = player_config.get(player_name, {}).get('can_be_selected', True) %}
-                                        <tr id="player-row-{{ loop.index }}">
-                                            <td>
-                                                <i class="fas fa-user text-primary"></i>
-                                                <strong>{{ player_name }}</strong>
-                                            </td>
-                                            <td>
-                                                <span class="badge badge-{{ 'success' if can_be_selected else 'secondary' }}" 
-                                                      id="status-badge-{{ loop.index }}">
-                                                    {{ 'Ja' if can_be_selected else 'Nein' }}
-                                                </span>
-                                            </td>
-                                            <td>
-                                                <button class="btn btn-sm btn-{{ 'secondary' if can_be_selected else 'success' }}"
-                                                        onclick="togglePlayerSelection('{{ player_name }}', {{ team.id }}, {{ loop.index }}, {{ 'false' if can_be_selected else 'true' }})"
-                                                        id="toggle-btn-{{ loop.index }}">
-                                                    <i class="fas fa-{{ 'ban' if can_be_selected else 'check' }}"></i>
-                                                    {{ 'Deaktivieren' if can_be_selected else 'Aktivieren' }}
-                                                </button>
-                                            </td>
-                                        </tr>
-                                    {% endif %}
+                                {% for player in team.player_registrations %}
+                                    {% set can_be_selected = player_config.get(player.player_name, {}).get('can_be_selected', True) %}
+                                    <tr id="player-selection-row-{{ player.id }}">
+                                        <td>
+                                            <i class="fas fa-user text-primary"></i>
+                                            <strong>{{ player.player_name }}</strong>
+                                        </td>
+                                        <td>
+                                            <span class="badge badge-{{ 'success' if can_be_selected else 'secondary' }}" 
+                                                  id="status-badge-{{ player.id }}">
+                                                {{ 'Ja' if can_be_selected else 'Nein' }}
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <button class="btn btn-sm btn-{{ 'secondary' if can_be_selected else 'success' }}"
+                                                    onclick="togglePlayerSelection('{{ player.player_name }}', {{ team.id }}, {{ player.id }}, {{ 'false' if can_be_selected else 'true' }})"
+                                                    id="toggle-btn-{{ player.id }}">
+                                                <i class="fas fa-{{ 'ban' if can_be_selected else 'check' }}"></i>
+                                                {{ 'Deaktivieren' if can_be_selected else 'Aktivieren' }}
+                                            </button>
+                                        </td>
+                                    </tr>
                                 {% endfor %}
                             </tbody>
                         </table>
@@ -352,10 +333,6 @@ function cancelPlayerEdit(playerId) {
     document.getElementById('edit-btn-' + playerId).classList.remove('d-none');
     document.getElementById('save-btn-' + playerId).classList.add('d-none');
     document.getElementById('cancel-btn-' + playerId).classList.add('d-none');
-    
-    // Setze ursprünglichen Wert zurück
-    const originalName = document.getElementById('player-name-' + playerId).textContent;
-    document.getElementById('player-name-input-' + playerId).value = originalName;
 }
 
 function savePlayerName(playerId) {
@@ -383,7 +360,15 @@ function savePlayerName(playerId) {
         if (data.success) {
             // Update anzeigen
             document.getElementById('player-name-' + playerId).textContent = newName;
-            cancelPlayerEdit(playerId);
+            
+            // Verstecke Input-Feld und zeige Anzeige
+            document.getElementById('player-name-' + playerId).classList.remove('d-none');
+            document.getElementById('player-name-input-' + playerId).classList.add('d-none');
+            
+            // Verstecke Save/Cancel Buttons und zeige Edit Button
+            document.getElementById('edit-btn-' + playerId).classList.remove('d-none');
+            document.getElementById('save-btn-' + playerId).classList.add('d-none');
+            document.getElementById('cancel-btn-' + playerId).classList.add('d-none');
             
             // Success-Meldung
             showAlert('Spielername erfolgreich aktualisiert.', 'success');
@@ -570,5 +555,841 @@ function showNotification(message, type) {
         notification.remove();
     }, 3000);
 }
+
+// Neues Modal-System für Spieler hinzufügen
+function openAddPlayerModal() {
+    document.getElementById('add-player-modal').style.display = 'flex';
+    document.getElementById('add-player-name').focus();
+    
+    // Reset modal state
+    resetAddPlayerModal();
+}
+
+function closeAddPlayerModal() {
+    document.getElementById('add-player-modal').style.display = 'none';
+    resetAddPlayerModal();
+}
+
+function resetAddPlayerModal() {
+    // Reset zu Step 1
+    document.getElementById('add-player-step-1').style.display = 'block';
+    document.getElementById('add-player-step-2').style.display = 'none';
+    
+    // Reset step indicators
+    document.getElementById('add-player-step-dot-1').classList.add('active');
+    document.getElementById('add-player-step-dot-2').classList.remove('active');
+    
+    // Reset form
+    document.getElementById('add-player-name').value = '';
+    document.getElementById('add-player-status').style.display = 'none';
+    
+    // Reset camera
+    resetAddPlayerCamera();
+}
+
+function proceedToAddPlayerCamera() {
+    const playerName = document.getElementById('add-player-name').value.trim();
+    if (!playerName) {
+        showAddPlayerStatus('Bitte gib einen Namen ein!', 'error');
+        return;
+    }
+    
+    if (playerName.length < 2) {
+        showAddPlayerStatus('Name muss mindestens 2 Zeichen lang sein!', 'error');
+        return;
+    }
+    
+    // Switch to camera step
+    document.getElementById('add-player-step-1').style.display = 'none';
+    document.getElementById('add-player-step-2').style.display = 'block';
+    
+    // Update step indicator
+    document.getElementById('add-player-step-dot-1').classList.remove('active');
+    document.getElementById('add-player-step-dot-2').classList.add('active');
+    
+    // Clear status
+    document.getElementById('add-player-status').style.display = 'none';
+    
+    resetAddPlayerCamera();
+}
+
+function backToAddPlayerNameStep() {
+    // Stop camera if running
+    stopAddPlayerCamera();
+    
+    // Switch back to name step
+    document.getElementById('add-player-step-2').style.display = 'none';
+    document.getElementById('add-player-step-1').style.display = 'block';
+    
+    // Update step indicator
+    document.getElementById('add-player-step-dot-2').classList.remove('active');
+    document.getElementById('add-player-step-dot-1').classList.add('active');
+    
+    // Clear status
+    document.getElementById('add-player-status').style.display = 'none';
+}
+
+// Kamera-Funktionen für Spieler-Hinzufügen
+let addPlayerCameraStream = null;
+let addPlayerCapturedImageData = null;
+
+function resetAddPlayerCamera() {
+    stopAddPlayerCamera();
+    
+    document.getElementById('add-player-btn-start-camera').style.display = 'inline-block';
+    document.getElementById('add-player-btn-take-photo').style.display = 'none';
+    document.getElementById('add-player-btn-retake-photo').style.display = 'none';
+    document.getElementById('add-player-btn-save-and-add').style.display = 'none';
+    
+    document.getElementById('add-player-camera-video').style.display = 'block';
+    document.getElementById('add-player-camera-captured').style.display = 'none';
+    
+    document.getElementById('add-player-camera-status').textContent = 'Klicke auf "Kamera starten" um ein Foto aufzunehmen.';
+    
+    addPlayerCapturedImageData = null;
+}
+
+async function startAddPlayerCamera() {
+    try {
+        document.getElementById('add-player-camera-status').textContent = 'Kamera wird gestartet...';
+        
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            throw new Error('Kamera-API nicht verfügbar. HTTPS oder neuerer Browser erforderlich.');
+        }
+        
+        try {
+            addPlayerCameraStream = await navigator.mediaDevices.getUserMedia({ 
+                video: { 
+                    facingMode: 'user',
+                    width: { ideal: 640, max: 1280 },
+                    height: { ideal: 640, max: 1280 }
+                } 
+            });
+        } catch (basicError) {
+            addPlayerCameraStream = await navigator.mediaDevices.getUserMedia({ 
+                video: { facingMode: 'user' }
+            });
+        }
+        
+        const video = document.getElementById('add-player-camera-video');
+        video.srcObject = addPlayerCameraStream;
+        
+        video.onloadedmetadata = function() {
+            video.play();
+            document.getElementById('add-player-btn-start-camera').style.display = 'none';
+            document.getElementById('add-player-btn-take-photo').style.display = 'inline-block';
+            document.getElementById('add-player-camera-status').textContent = 'Kamera aktiv - Position dich gut und klicke auf "Foto aufnehmen".';
+        };
+        
+    } catch (error) {
+        console.error('Kamera-Fehler:', error);
+        document.getElementById('add-player-camera-status').innerHTML = `
+            <div style="color: #ff6b6b;">❌ Kamera konnte nicht gestartet werden: ${error.message}</div>
+            <div style="font-size: 0.8rem; margin-top: 0.5rem;">Du kannst trotzdem "Ohne Foto fortfahren" wählen.</div>
+        `;
+        
+        const skipButton = document.getElementById('add-player-btn-skip-photo');
+        if (skipButton) {
+            skipButton.style.background = 'linear-gradient(45deg, #4CAF50, #45A049)';
+            skipButton.innerHTML = '<i class="fas fa-forward"></i> Ohne Foto hinzufügen (empfohlen)';
+        }
+    }
+}
+
+function stopAddPlayerCamera() {
+    if (addPlayerCameraStream) {
+        addPlayerCameraStream.getTracks().forEach(track => track.stop());
+        addPlayerCameraStream = null;
+    }
+}
+
+function takeAddPlayerPhoto() {
+    const video = document.getElementById('add-player-camera-video');
+    const canvas = document.getElementById('add-player-camera-canvas');
+    const capturedImg = document.getElementById('add-player-camera-captured');
+    
+    canvas.width = 150;
+    canvas.height = 150;
+    
+    const ctx = canvas.getContext('2d');
+    
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.beginPath();
+    ctx.arc(75, 75, 75, 0, 2 * Math.PI);
+    ctx.clip();
+    
+    ctx.scale(-1, 1);
+    ctx.drawImage(video, -canvas.width, 0, canvas.width, canvas.height);
+    
+    addPlayerCapturedImageData = canvas.toDataURL('image/jpeg', 0.85);
+    
+    capturedImg.src = addPlayerCapturedImageData;
+    capturedImg.style.display = 'block';
+    video.style.display = 'none';
+    
+    document.getElementById('add-player-btn-take-photo').style.display = 'none';
+    document.getElementById('add-player-btn-retake-photo').style.display = 'inline-block';
+    document.getElementById('add-player-btn-save-and-add').style.display = 'inline-block';
+    
+    document.getElementById('add-player-camera-status').textContent = 'Foto aufgenommen! Gefällt es dir?';
+    
+    stopAddPlayerCamera();
+}
+
+function retakeAddPlayerPhoto() {
+    document.getElementById('add-player-camera-video').style.display = 'block';
+    document.getElementById('add-player-camera-captured').style.display = 'none';
+    
+    document.getElementById('add-player-btn-retake-photo').style.display = 'none';
+    document.getElementById('add-player-btn-save-and-add').style.display = 'none';
+    document.getElementById('add-player-btn-start-camera').style.display = 'inline-block';
+    
+    addPlayerCapturedImageData = null;
+    document.getElementById('add-player-camera-status').textContent = 'Klicke auf "Kamera starten" um es nochmal zu versuchen.';
+}
+
+async function savePhotoAndAddPlayer() {
+    const playerName = document.getElementById('add-player-name').value.trim();
+    
+    if (!playerName) {
+        showAddPlayerStatus('Spielername fehlt!', 'error');
+        return;
+    }
+    
+    const saveBtn = document.getElementById('add-player-btn-save-and-add');
+    if (saveBtn) {
+        saveBtn.disabled = true;
+        saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Wird hinzugefügt...';
+    }
+    
+    try {
+        // Erst Spieler hinzufügen
+        const playerAdded = await addPlayerToTeam(playerName);
+        
+        // Dann Foto hochladen falls erfolgreich und Foto vorhanden
+        if (playerAdded && addPlayerCapturedImageData) {
+            await uploadPlayerImage(playerName);
+        }
+    } finally {
+        if (saveBtn) {
+            saveBtn.disabled = false;
+            saveBtn.innerHTML = '<i class="fas fa-save"></i> Speichern & Hinzufügen';
+        }
+    }
+}
+
+async function skipPhotoAndAddPlayer() {
+    const playerName = document.getElementById('add-player-name').value.trim();
+    
+    if (!playerName) {
+        showAddPlayerStatus('Spielername fehlt!', 'error');
+        return;
+    }
+    
+    const skipBtn = document.getElementById('add-player-btn-skip-photo');
+    if (skipBtn) {
+        skipBtn.disabled = true;
+        skipBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Wird hinzugefügt...';
+    }
+    
+    try {
+        await addPlayerToTeam(playerName);
+    } finally {
+        if (skipBtn) {
+            skipBtn.disabled = false;
+            skipBtn.innerHTML = '<i class="fas fa-forward"></i> Ohne Foto hinzufügen';
+        }
+    }
+}
+
+async function addPlayerToTeam(playerName) {
+    try {
+        document.getElementById('add-player-camera-status').textContent = 'Spieler wird hinzugefügt...';
+        
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+        
+        const response = await fetch('/admin/add_player_to_team', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
+            body: JSON.stringify({ 
+                team_id: {{ team.id }},
+                player_name: playerName 
+            })
+        });
+        
+        // Response als Text holen und dann als JSON parsen
+        const responseText = await response.text();
+        console.log('Response text:', responseText);
+        
+        if (!response.ok) {
+            let errorMessage;
+            try {
+                const errorData = JSON.parse(responseText);
+                errorMessage = errorData.error || `HTTP error! status: ${response.status}`;
+            } catch (parseError) {
+                console.error('Response text:', responseText);
+                errorMessage = `HTTP error! status: ${response.status} - ${responseText.substring(0, 100)}`;
+            }
+            throw new Error(errorMessage);
+        }
+        
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+            console.error('Expected JSON, got:', responseText);
+            throw new Error('Server returned non-JSON response: ' + responseText.substring(0, 100));
+        }
+        
+        const data = JSON.parse(responseText);
+        
+        if (data.success) {
+            document.getElementById('add-player-camera-status').textContent = '✅ Spieler erfolgreich hinzugefügt!';
+            showAddPlayerStatus('Erfolgreich hinzugefügt! 🎉', 'success');
+            
+            // Aktualisiere das Team-Members Textfeld
+            updateTeamMembersField();
+            
+            setTimeout(() => {
+                closeAddPlayerModal();
+                // Reload page to show new player in the list
+                window.location.reload();
+            }, 2000);
+            return true;
+        } else {
+            showAddPlayerStatus(data.error || 'Fehler beim Hinzufügen', 'error');
+            document.getElementById('add-player-camera-status').innerHTML = `<div style="color: #ff6b6b;">❌ ${data.error || 'Fehler beim Hinzufügen'}</div>`;
+            return false;
+        }
+        
+    } catch (error) {
+        console.error('Add player error:', error);
+        const errorMessage = error.message || 'Ein Fehler ist aufgetreten. Versuche es nochmal!';
+        showAddPlayerStatus(errorMessage, 'error');
+        document.getElementById('add-player-camera-status').innerHTML = `<div style="color: #ff6b6b;">❌ ${errorMessage}</div>`;
+        return false;
+    }
+}
+
+async function uploadPlayerImage(playerName) {
+    try {
+        document.getElementById('add-player-camera-status').textContent = 'Profilbild wird gespeichert...';
+        
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+        
+        const response = await fetch('/admin/upload_team_player_image', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
+            body: JSON.stringify({
+                team_id: {{ team.id }},
+                player_name: playerName,
+                image_data: addPlayerCapturedImageData
+            })
+        });
+        
+        if (!response.ok) {
+            let errorMessage;
+            try {
+                // Erst response text holen, dann versuchen als JSON zu parsen
+                const responseText = await response.text();
+                console.error('Upload response text:', responseText);
+                
+                try {
+                    const errorData = JSON.parse(responseText);
+                    errorMessage = errorData.error || `HTTP error! status: ${response.status}`;
+                } catch (jsonError) {
+                    errorMessage = `HTTP error! status: ${response.status} - ${responseText.substring(0, 100)}`;
+                }
+            } catch (textError) {
+                errorMessage = `HTTP error! status: ${response.status}`;
+            }
+            throw new Error(errorMessage);
+        }
+        
+        // Response als Text holen und dann als JSON parsen
+        const responseText = await response.text();
+        
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+            console.error('Expected JSON, got:', responseText);
+            throw new Error('Server returned non-JSON response: ' + responseText.substring(0, 100));
+        }
+        
+        const result = JSON.parse(responseText);
+        
+        if (result.success) {
+            document.getElementById('add-player-camera-status').textContent = '✅ Profilbild gespeichert!';
+            showAddPlayerStatus('Erfolgreich hinzugefügt mit Profilbild! 🎉📸', 'success');
+        } else {
+            showAddPlayerStatus('Hinzugefügt, aber Profilbild-Fehler: ' + result.error, 'error');
+        }
+        
+    } catch (error) {
+        console.error('Upload error:', error);
+        showAddPlayerStatus('Hinzugefügt, aber Profilbild konnte nicht gespeichert werden.', 'error');
+    }
+}
+
+function updateTeamMembersField() {
+    // Diese Funktion aktualisiert das Members-Textfeld
+    // Da wir die Seite neu laden, ist das hier nicht nötig
+    // Aber für den Fall, dass wir es später brauchen
+}
+
+function showAddPlayerStatus(message, type) {
+    const statusDiv = document.getElementById('add-player-status');
+    const messageSpan = document.getElementById('add-player-status-message');
+    
+    statusDiv.className = `add-player-status status-${type}`;
+    messageSpan.textContent = message;
+    statusDiv.style.display = 'block';
+}
+
+// ESC-Taste zum Schließen des Modals
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && document.getElementById('add-player-modal').style.display === 'flex') {
+        closeAddPlayerModal();
+    }
+});
+
+// Cleanup bei Seitenverlassen
+window.addEventListener('beforeunload', function() {
+    stopAddPlayerCamera();
+});
+
+// Spieler löschen Funktion
+function deletePlayer(playerId) {
+    if (!confirm('Möchten Sie diesen Spieler wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.')) {
+        return;
+    }
+    
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+    
+    fetch('/admin/delete_player', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken
+        },
+        body: JSON.stringify({
+            player_id: playerId
+        })
+    })
+    .then(response => {
+        return response.text().then(text => ({
+            ok: response.ok,
+            status: response.status,
+            text: text
+        }));
+    })
+    .then(({ok, status, text}) => {
+        console.log('Delete response:', text);
+        
+        if (!ok) {
+            try {
+                const errorData = JSON.parse(text);
+                throw new Error(errorData.error || `HTTP error! status: ${status}`);
+            } catch (parseError) {
+                throw new Error(`HTTP error! status: ${status} - ${text.substring(0, 100)}`);
+            }
+        }
+        
+        const data = JSON.parse(text);
+        
+        if (data.success) {
+            // Entferne Spieler-Zeile aus der Tabelle
+            document.getElementById('player-row-' + playerId).remove();
+            alert('Spieler erfolgreich gelöscht!');
+        } else {
+            alert('Fehler beim Löschen: ' + (data.error || 'Unbekannter Fehler'));
+        }
+    })
+    .catch(error => {
+        console.error('Delete error:', error);
+        alert('Fehler beim Löschen des Spielers: ' + error.message);
+    });
+}
 </script>
+
+<!-- Modal für Spieler hinzufügen -->
+<div id="add-player-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-container">
+        <button class="modal-close" onclick="closeAddPlayerModal()">&times;</button>
+        
+        <!-- Step Indicator -->
+        <div class="step-indicator">
+            <div class="step-dot active" id="add-player-step-dot-1"></div>
+            <div class="step-dot" id="add-player-step-dot-2"></div>
+        </div>
+        
+        <!-- Step 1: Name eingeben -->
+        <div id="add-player-step-1" class="modal-step">
+            <div class="modal-header">
+                <h3 class="modal-title">👥 Spieler zu {{ team.name }} hinzufügen</h3>
+                <p class="modal-subtitle">Trage den Namen des neuen Spielers ein!</p>
+            </div>
+
+            <div class="modal-form">
+                <div class="form-group">
+                    <label for="add-player-name" class="form-label">Spielername:</label>
+                    <input type="text" id="add-player-name" class="form-input" placeholder="Gib den Namen ein..." maxlength="50" required>
+                </div>
+                
+                <div class="modal-buttons">
+                    <button type="button" class="btn-modal btn-modal-primary" onclick="proceedToAddPlayerCamera()">
+                        <i class="fas fa-camera"></i> Weiter zum Foto
+                    </button>
+                    <button type="button" class="btn-modal btn-modal-secondary" onclick="closeAddPlayerModal()">
+                        Abbrechen
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 2: Camera -->
+        <div id="add-player-step-2" class="modal-step camera-step" style="display: none;">
+            <div class="modal-header">
+                <h3 class="modal-title">📸 Profilbild aufnehmen</h3>
+                <p class="modal-subtitle">Nimm ein Foto für den Spieler auf!</p>
+            </div>
+
+            <div class="camera-preview">
+                <video id="add-player-camera-video" class="camera-video" autoplay muted></video>
+                <canvas id="add-player-camera-canvas" class="camera-canvas"></canvas>
+                <img id="add-player-camera-captured" class="camera-captured" style="display: none;">
+            </div>
+            
+            <div class="camera-controls">
+                <button id="add-player-btn-start-camera" class="btn-camera btn-camera-capture" onclick="startAddPlayerCamera()">
+                    <i class="fas fa-video"></i> Kamera starten
+                </button>
+                <button id="add-player-btn-take-photo" class="btn-camera btn-camera-capture" style="display: none;" onclick="takeAddPlayerPhoto()">
+                    <i class="fas fa-camera"></i> Foto aufnehmen
+                </button>
+                <button id="add-player-btn-retake-photo" class="btn-camera btn-camera-retake" style="display: none;" onclick="retakeAddPlayerPhoto()">
+                    <i class="fas fa-redo"></i> Nochmal
+                </button>
+                <button id="add-player-btn-save-and-add" class="btn-camera btn-camera-save" style="display: none;" onclick="savePhotoAndAddPlayer()">
+                    <i class="fas fa-save"></i> Speichern & Hinzufügen
+                </button>
+                <button id="add-player-btn-skip-photo" class="btn-camera btn-camera-skip" onclick="skipPhotoAndAddPlayer()">
+                    <i class="fas fa-forward"></i> Ohne Foto hinzufügen
+                </button>
+            </div>
+            
+            <div class="camera-status" id="add-player-camera-status">
+                Klicke auf "Kamera starten" um ein Foto aufzunehmen.
+            </div>
+            
+            <div class="modal-buttons">
+                <button type="button" class="btn-modal btn-modal-secondary" onclick="backToAddPlayerNameStep()">
+                    <i class="fas fa-arrow-left"></i> Zurück
+                </button>
+            </div>
+        </div>
+
+        <div id="add-player-status" class="add-player-status" style="display: none;">
+            <span id="add-player-status-message"></span>
+        </div>
+    </div>
+</div>
+
+<style>
+/* Modal Styles */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.8);
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal-container {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 20px;
+    padding: 2rem;
+    max-width: 450px;
+    width: 90%;
+    position: relative;
+    color: white;
+    box-shadow: 0 25px 50px rgba(0, 0, 0, 0.3);
+    animation: modalSlideIn 0.3s ease-out;
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+@keyframes modalSlideIn {
+    from {
+        opacity: 0;
+        transform: scale(0.8) translateY(-50px);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
+
+.modal-close {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    background: none;
+    border: none;
+    color: white;
+    font-size: 1.5rem;
+    cursor: pointer;
+    opacity: 0.7;
+    transition: opacity 0.3s ease;
+}
+
+.modal-close:hover {
+    opacity: 1;
+}
+
+.modal-header {
+    text-align: center;
+    margin-bottom: 1.5rem;
+}
+
+.modal-title {
+    font-size: 1.8rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+}
+
+.modal-subtitle {
+    opacity: 0.9;
+    font-size: 1rem;
+}
+
+.modal-form {
+    margin-bottom: 1rem;
+}
+
+.form-group {
+    margin-bottom: 1rem;
+}
+
+.form-label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 600;
+}
+
+.form-input {
+    width: 100%;
+    padding: 0.8rem;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+    font-size: 1rem;
+    backdrop-filter: blur(10px);
+}
+
+.form-input::placeholder {
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.form-input:focus {
+    outline: none;
+    border-color: #FFD700;
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.modal-buttons {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.btn-modal {
+    padding: 0.8rem 1.5rem;
+    border: none;
+    border-radius: 25px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-size: 1rem;
+}
+
+.btn-modal-primary {
+    background: #FFD700;
+    color: #333;
+}
+
+.btn-modal-primary:hover {
+    background: #FFC107;
+    transform: translateY(-2px);
+}
+
+.btn-modal-secondary {
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+}
+
+.btn-modal-secondary:hover {
+    background: rgba(255, 255, 255, 0.3);
+    transform: translateY(-2px);
+}
+
+/* Übernehme die Kamera-Styles aus index.html */
+.camera-preview {
+    position: relative;
+    width: 150px;
+    height: 150px;
+    margin: 1rem auto;
+    border-radius: 50%;
+    overflow: hidden;
+    border: 3px solid rgba(255, 255, 255, 0.5);
+    background: rgba(0, 0, 0, 0.2);
+}
+
+.camera-video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transform: scaleX(-1);
+}
+
+.camera-canvas {
+    display: none;
+}
+
+.camera-captured {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.camera-controls {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin: 1rem 0;
+}
+
+.btn-camera {
+    padding: 0.6rem 1rem;
+    border-radius: 20px;
+    border: none;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-size: 0.9rem;
+}
+
+.btn-camera-capture {
+    background: linear-gradient(45deg, #FF6B6B, #EE5A52);
+    color: white;
+    box-shadow: 0 4px 12px rgba(255, 107, 107, 0.4);
+}
+
+.btn-camera-capture:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(255, 107, 107, 0.5);
+}
+
+.btn-camera-retake {
+    background: linear-gradient(45deg, #FFA726, #FF9800);
+    color: white;
+    box-shadow: 0 4px 12px rgba(255, 167, 38, 0.4);
+}
+
+.btn-camera-retake:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(255, 167, 38, 0.5);
+}
+
+.btn-camera-save {
+    background: linear-gradient(45deg, #4CAF50, #45A049);
+    color: white;
+    box-shadow: 0 4px 12px rgba(76, 175, 80, 0.4);
+}
+
+.btn-camera-save:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(76, 175, 80, 0.5);
+}
+
+.btn-camera-skip {
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.btn-camera-skip:hover {
+    background: rgba(255, 255, 255, 0.3);
+    transform: translateY(-2px);
+}
+
+.camera-status {
+    margin: 0.5rem 0;
+    font-size: 0.9rem;
+    opacity: 0.9;
+    min-height: 20px;
+    text-align: center;
+}
+
+.step-indicator {
+    display: flex;
+    justify-content: center;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.step-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.3);
+    transition: all 0.3s ease;
+}
+
+.step-dot.active {
+    background: #FFD700;
+    transform: scale(1.2);
+}
+
+.add-player-status {
+    text-align: center;
+    margin-top: 1rem;
+    padding: 0.5rem;
+    border-radius: 10px;
+    display: none;
+}
+
+.status-success {
+    background: rgba(76, 175, 80, 0.3);
+    border: 1px solid rgba(76, 175, 80, 0.5);
+}
+
+.status-error {
+    background: rgba(244, 67, 54, 0.3);
+    border: 1px solid rgba(244, 67, 54, 0.5);
+}
+
+@media (max-width: 480px) {
+    .modal-container {
+        padding: 1.5rem;
+        margin: 1rem;
+    }
+    
+    .modal-buttons {
+        flex-direction: column;
+    }
+}
+</style>
 {% endblock %}

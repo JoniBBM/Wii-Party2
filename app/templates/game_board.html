@@ -494,11 +494,11 @@ body {
 .banner-content {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     border-radius: 20px;
-    padding: 3rem;
+    padding: 6rem;
     text-align: center;
     color: white;
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-    max-width: 500px;
+    max-width: 1000px;
     margin: 0 20px;
     position: relative;
     overflow: hidden;
@@ -524,24 +524,24 @@ body {
 }
 
 .banner-results {
-    margin-top: 1rem;
-    font-size: 1.2rem;
+    margin-top: 2rem;
+    font-size: 2.4rem;
     line-height: 1.6;
 }
 
 .result-item {
-    margin: 0.5rem 0;
-    padding: 0.8rem 1rem;
+    margin: 1rem 0;
+    padding: 1.6rem 2rem;
     background: rgba(255, 255, 255, 0.15);
     border-radius: 15px;
     border-left: 4px solid rgba(255, 255, 255, 0.4);
-    font-size: 1.1rem;
+    font-size: 2.2rem;
     font-weight: 600;
 }
 
 .banner-icon {
-    font-size: 4rem;
-    margin-bottom: 1rem;
+    font-size: 8rem;
+    margin-bottom: 2rem;
     opacity: 0.9;
     animation: bannerIconPulse 2s ease-in-out infinite;
 }
@@ -552,23 +552,23 @@ body {
 }
 
 .banner-title {
-    font-size: 2.5rem;
+    font-size: 5rem;
     font-weight: bold;
-    margin-bottom: 0.5rem;
-    position: relative;
-    z-index: 1;
-}
-
-.banner-subtitle {
-    font-size: 1.2rem;
-    opacity: 0.9;
     margin-bottom: 1rem;
     position: relative;
     z-index: 1;
 }
 
+.banner-subtitle {
+    font-size: 2.4rem;
+    opacity: 0.9;
+    margin-bottom: 2rem;
+    position: relative;
+    z-index: 1;
+}
+
 .banner-description {
-    font-size: 1.1rem;
+    font-size: 2.2rem;
     opacity: 0.95;
     position: relative;
     z-index: 1;
@@ -578,25 +578,25 @@ body {
 /* Responsive */
 @media (max-width: 767.98px) {
     .banner-content {
-        padding: 1.5rem;
+        padding: 3rem;
         margin: 0 10px;
         max-width: calc(100vw - 20px);
     }
     
     .banner-title {
-        font-size: 1.8rem;
+        font-size: 3.6rem;
     }
     
     .banner-subtitle {
-        font-size: 1rem;
+        font-size: 2rem;
     }
     
     .banner-icon {
-        font-size: 2.5rem;
+        font-size: 5rem;
     }
     
     .banner-description {
-        font-size: 0.95rem;
+        font-size: 1.9rem;
     }
 }
 </style>
@@ -868,7 +868,7 @@ async function reloadFieldConfigurations() {
     console.log('🔄 Feld-Konfigurationen neu geladen');
 }
 
-function showSpecialFieldEffect(actionType, title, description, duration = 4000) {
+function showSpecialFieldEffect(actionType, title, description, duration = 8000) {
     const display = document.getElementById('special-field-display');
     const icon = document.getElementById('special-field-icon');
     const titleEl = document.getElementById('special-field-title');
@@ -2680,7 +2680,7 @@ class WiiPartyIsland {
                 
                 if (data.error) {
                     console.error("Server-Fehler:", data.error);
-                    this.showStatusMessage(`Serverproblem: ${data.error}`, 4000, 'error', true, 'Server-Fehler');
+                    this.showStatusMessage(`Serverproblem: ${data.error}`, 8000, 'error', true, 'Server-Fehler');
                     return;
                 }
 
@@ -2762,7 +2762,7 @@ class WiiPartyIsland {
                                                 const totalRoll = diceResult.total_roll || (standardRoll + bonusRoll);
                                                 
                                                 console.log(`🎲 Showing dice notification for ${currentTeam.name}: ${standardRoll} + ${bonusRoll} = ${totalRoll}`);
-                                                window.NotificationSystem.showDiceRoll(currentTeam.name, standardRoll, bonusRoll, totalRoll, 4000);
+                                                window.NotificationSystem.showDiceRoll(currentTeam.name, standardRoll, bonusRoll, totalRoll, 8000);
                                                 window.shownDiceNotifications.add(notificationKey);
                                                 
                                                 // Bereinige alte Einträge nach 30 Sekunden
@@ -3030,7 +3030,7 @@ class WiiPartyIsland {
                                 const totalRoll = data.last_dice_result.total_roll || (standardRoll + bonusRoll);
                                 
                                 console.log(`🎲 Showing dice notification for ${currentTeam.name}: ${standardRoll} + ${bonusRoll} = ${totalRoll}`);
-                                window.NotificationSystem.showDiceRoll(currentTeam.name, standardRoll, bonusRoll, totalRoll, 4000);
+                                window.NotificationSystem.showDiceRoll(currentTeam.name, standardRoll, bonusRoll, totalRoll, 8000);
                                 window.shownDiceNotifications.add(notificationKey);
                                 
                                 // Clean up after 15 seconds (TEST MODE - longer than backend timeout)
@@ -3076,12 +3076,12 @@ class WiiPartyIsland {
                                 if (specialEvent.event_type === 'special_field_catapult_forward') {
                                     const distance = specialEvent.data.catapult_distance || 5;
                                     console.log(`🚀 Showing catapult forward notification for ${eventTeam.name}: ${distance} fields`);
-                                    window.NotificationSystem.showCatapultForward(eventTeam.name, distance, 4000);
+                                    window.NotificationSystem.showCatapultForward(eventTeam.name, distance, 8000);
                                     
                                 } else if (specialEvent.event_type === 'special_field_catapult_backward') {
                                     const distance = specialEvent.data.catapult_distance || 5;
                                     console.log(`💥 Showing catapult backward notification for ${eventTeam.name}: ${distance} fields`);
-                                    window.NotificationSystem.showCatapultBackward(eventTeam.name, distance, 4000);
+                                    window.NotificationSystem.showCatapultBackward(eventTeam.name, distance, 8000);
                                     
                                 } else if (specialEvent.event_type === 'special_field_player_swap') {
                                     // Get team names from event data
@@ -3102,7 +3102,7 @@ class WiiPartyIsland {
                                     
                                     if (!window.shownPlayerSwapNotifications.has(swapKey)) {
                                         console.log(`🔄 Showing player swap notification: ${currentTeamName} <-> ${swapTeamName}`);
-                                        window.NotificationSystem.showPlayerSwap(currentTeamName, swapTeamName, 4000);
+                                        window.NotificationSystem.showPlayerSwap(currentTeamName, swapTeamName, 8000);
                                         window.shownPlayerSwapNotifications.add(swapKey);
                                         
                                         // Remove from set after some time to allow future swaps
@@ -3116,21 +3116,21 @@ class WiiPartyIsland {
                                 } else if (specialEvent.event_type === 'special_field_barrier_set') {
                                     const requiredNumber = specialEvent.data.required_number || 4;
                                     console.log(`🚧 Showing barrier set notification for ${eventTeam.name}: needs ${requiredNumber}+`);
-                                    window.NotificationSystem.showBarrierSet(eventTeam.name, requiredNumber, 4000);
+                                    window.NotificationSystem.showBarrierSet(eventTeam.name, requiredNumber, 8000);
                                     
                                 } else if (specialEvent.event_type === 'special_field_barrier_released') {
                                     const diceRoll = specialEvent.data.dice_roll || 0;
                                     const bonusRoll = specialEvent.data.bonus_roll || 0;
                                     const method = specialEvent.data.release_method || 'standard';
                                     console.log(`🎉 Showing barrier released notification for ${eventTeam.name}`);
-                                    window.NotificationSystem.showBarrierReleased(eventTeam.name, diceRoll, bonusRoll, method, 4000);
+                                    window.NotificationSystem.showBarrierReleased(eventTeam.name, diceRoll, bonusRoll, method, 8000);
                                     
                                 } else if (specialEvent.event_type === 'special_field_barrier_blocked') {
                                     const diceRoll = specialEvent.data.dice_roll || 0;
                                     const bonusRoll = specialEvent.data.bonus_roll || 0;
                                     const requiredText = specialEvent.data.barrier_config?.display_text || "Höhere Zahl benötigt";
                                     console.log(`🚧 Showing barrier blocked notification for ${eventTeam.name}`);
-                                    window.NotificationSystem.showBarrierFailed(eventTeam.name, diceRoll, bonusRoll, requiredText, 4000);
+                                    window.NotificationSystem.showBarrierFailed(eventTeam.name, diceRoll, bonusRoll, requiredText, 8000);
                                 }
                                 
                                 window.shownSpecialNotifications.add(notificationKey);
@@ -3607,7 +3607,7 @@ class WiiPartyIsland {
         if (finalPositionIndex === this.boardFields.length - 2) {
             console.log("🎯 [SAFE ZONE] Team reached safe zone, needs 8+ to win");
             setTimeout(() => {
-                this.showStatusMessage(`${currentTeam.name} ist in der Safe Zone! Nächster Wurf muss mindestens 8 sein zum Gewinnen.`, 4000, 'info', true, 'Safe Zone erreicht');
+                this.showStatusMessage(`${currentTeam.name} ist in der Safe Zone! Nächster Wurf muss mindestens 8 sein zum Gewinnen.`, 8000, 'info', true, 'Safe Zone erreicht');
             }, 1000);
         }
 
@@ -4427,7 +4427,7 @@ class WiiPartyIsland {
                 
             case 'player_swap':
                 // Zeige beide Spieler für Tausch
-                this.showPlayerSwapView(duration || 4000);
+                this.showPlayerSwapView(duration || 8000);
                 break;
                 
             default:
@@ -5474,11 +5474,11 @@ class WiiPartyIsland {
                 console.log("✅ [DICE] Dice result successfully sent to server:", result);
             } else {
                 console.error("⚠️ [DICE] Server rejected dice result:", result);
-                this.showStatusMessage(`Würfelfehler: ${result.error || 'Unbekannter Fehler'}`, 4000, 'error');
+                this.showStatusMessage(`Würfelfehler: ${result.error || 'Unbekannter Fehler'}`, 8000, 'error');
             }
         } catch (error) {
             console.error("❌ [DICE] Failed to send dice result to server:", error);
-            this.showStatusMessage(`Verbindungsfehler beim Würfeln: ${error.message}`, 4000, 'error');
+            this.showStatusMessage(`Verbindungsfehler beim Würfeln: ${error.message}`, 8000, 'error');
         }
     }
 
@@ -5778,7 +5778,7 @@ class WiiPartyIsland {
                 container.requestFullscreen().then(() => {
                     setTimeout(() => this.updateCanvasSize(), 200);
                 }).catch(err => {
-                    this.showStatusMessage(`Fehler Vollbild: ${err.message}`, 4000, 'error');
+                    this.showStatusMessage(`Fehler Vollbild: ${err.message}`, 8000, 'error');
                 });
             } else if (container && container.webkitRequestFullscreen) {
                 container.webkitRequestFullscreen();
@@ -5787,7 +5787,7 @@ class WiiPartyIsland {
                 container.mozRequestFullScreen();
                 setTimeout(() => this.updateCanvasSize(), 200);
             } else {
-                this.showStatusMessage('Vollbild wird nicht unterstützt', 4000, 'error');
+                this.showStatusMessage('Vollbild wird nicht unterstützt', 8000, 'error');
             }
         } else {
             if (document.exitFullscreen) {
@@ -6087,7 +6087,7 @@ function handleBarrierCheckResponse(data) {
             'barrier_released',
             'Befreit!',
             releaseMessage,
-            4000
+            8000
         );
         
         // Zeige macOS-style Notification

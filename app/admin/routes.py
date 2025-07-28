@@ -1888,6 +1888,9 @@ def update_player_selection_status(team_id):
         team = Team.query.get_or_404(team_id)
         data = request.get_json()
         
+        if not data:
+            return jsonify({'success': False, 'message': 'Keine Daten erhalten'}), 400
+        
         player_name = data.get('player_name')
         can_be_selected = data.get('can_be_selected', True)
         
@@ -1962,6 +1965,9 @@ def update_player_name():
     
     try:
         data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': 'Keine Daten erhalten'})
+            
         player_id = data.get('player_id')
         new_name = data.get('new_name', '').strip()
         
@@ -1971,7 +1977,9 @@ def update_player_name():
         if len(new_name) < 2:
             return jsonify({'success': False, 'error': 'Spielername muss mindestens 2 Zeichen lang sein'})
         
-        player = PlayerRegistration.query.get_or_404(player_id)
+        player = PlayerRegistration.query.get(player_id)
+        if not player:
+            return jsonify({'success': False, 'error': 'Spieler nicht gefunden'})
         player.player_name = new_name
         db.session.commit()
         
@@ -1994,7 +2002,7 @@ def _update_team_members_from_registrations():
             assigned_players = PlayerRegistration.query.filter_by(assigned_team_id=team.id).all()
             
             # Erstelle neue Members-Liste
-            member_names = [player.name for player in assigned_players if player.name]
+            member_names = [player.player_name for player in assigned_players if player.player_name]
             
             # Aktualisiere das Team
             team.members = ', '.join(member_names) if member_names else None
@@ -2013,13 +2021,18 @@ def reassign_player():
     
     try:
         data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': 'Keine Daten erhalten'})
+            
         player_id = data.get('player_id')
         new_team_id = data.get('new_team_id')
         
         if not player_id:
             return jsonify({'success': False, 'error': 'Ungültige Spieler-ID'})
         
-        player = PlayerRegistration.query.get_or_404(player_id)
+        player = PlayerRegistration.query.get(player_id)
+        if not player:
+            return jsonify({'success': False, 'error': 'Spieler nicht gefunden'})
         
         # Validiere neues Team (falls angegeben)
         if new_team_id and new_team_id != 0:
@@ -2035,12 +2048,277 @@ def reassign_player():
         _update_team_members_from_registrations()
         
         db.session.commit()
-        return jsonify({'success': True})
+        return jsonify({'success': True, 'message': 'Spieler erfolgreich zugewiesen'})
     
     except Exception as e:
         db.session.rollback()
         current_app.logger.error(f"Fehler bei der Team-Zuweisung: {e}", exc_info=True)
         return jsonify({'success': False, 'error': 'Serverfehler bei der Team-Zuweisung'})
+
+@admin_bp.route('/add_player_to_team', methods=['POST'])
+@login_required
+def add_player_to_team():
+    """Fügt einen neuen Spieler zu einem bestehenden Team hinzu"""
+    current_app.logger.info("=== ADD PLAYER TO TEAM ROUTE REACHED ===")
+    
+    if not isinstance(current_user, Admin):
+        current_app.logger.error("Not authorized - not admin user")
+        return jsonify({'success': False, 'error': 'Nicht autorisiert'})
+    
+    try:
+        data = request.get_json()
+        current_app.logger.info(f"Request data: {data}")
+        
+        if not data:
+            current_app.logger.error("No JSON data received")
+            return jsonify({'success': False, 'error': 'Keine Daten erhalten'})
+        
+        team_id = data.get('team_id')
+        player_name = data.get('player_name', '').strip()
+        
+        current_app.logger.info(f"Adding player '{player_name}' to team {team_id}")
+        
+        if not team_id or not player_name:
+            return jsonify({'success': False, 'error': 'Team-ID und Spielername sind erforderlich'})
+        
+        if len(player_name) < 2:
+            return jsonify({'success': False, 'error': 'Spielername muss mindestens 2 Zeichen lang sein'})
+        
+        if len(player_name) > 50:
+            return jsonify({'success': False, 'error': 'Spielername ist zu lang (max. 50 Zeichen)'})
+        
+        # Team finden
+        team = Team.query.get(team_id)
+        if not team:
+            return jsonify({'success': False, 'error': 'Team nicht gefunden'})
+        
+        # Prüfe ob Name bereits in diesem Team existiert
+        if team.members:
+            existing_members = [m.strip() for m in team.members.split(',') if m.strip()]
+            if player_name in existing_members:
+                return jsonify({'success': False, 'error': 'Spieler ist bereits im Team'})
+        
+        # Prüfe ob Name bereits in PlayerRegistration existiert
+        existing_player = PlayerRegistration.query.filter_by(player_name=player_name).first()
+        if existing_player:
+            return jsonify({'success': False, 'error': 'Spielername ist bereits vergeben'})
+        
+        # Finde oder erstelle aktive WelcomeSession
+        welcome_session = WelcomeSession.get_active_session()
+        if not welcome_session:
+            # Erstelle neue WelcomeSession falls keine aktiv ist
+            # Erst alle anderen deaktivieren
+            WelcomeSession.query.update({'is_active': False})
+            # Dann neue Session erstellen
+            welcome_session = WelcomeSession(is_active=True)
+            db.session.add(welcome_session)
+            db.session.commit()  # Commit um ID zu bekommen
+            current_app.logger.info("Neue WelcomeSession erstellt für Spieler-Hinzufügung")
+        
+        # Erstelle neue PlayerRegistration
+        new_player = PlayerRegistration(
+            welcome_session_id=welcome_session.id,
+            player_name=player_name,
+            assigned_team_id=team_id,
+            registration_time=datetime.utcnow()
+        )
+        db.session.add(new_player)
+        
+        # Aktualisiere Team-Members-Liste
+        if team.members:
+            existing_members = [m.strip() for m in team.members.split(',') if m.strip()]
+        else:
+            existing_members = []
+        
+        existing_members.append(player_name)
+        team.members = ', '.join(existing_members)
+        
+        # Aktualisiere player_config für neuen Spieler (kann ausgelost werden)
+        player_config = team.get_player_config() or {}
+        player_config[player_name] = {'can_be_selected': True}
+        team.set_player_config(player_config)
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True, 
+            'message': f'Spieler {player_name} erfolgreich zum Team hinzugefügt',
+            'player_id': new_player.id,
+            'player_name': player_name
+        })
+    
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Fehler beim Hinzufügen des Spielers: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': f'Serverfehler: {str(e)}'})
+
+@admin_bp.route('/delete_player', methods=['POST'])
+@login_required
+def delete_player():
+    """Löscht einen Spieler aus der PlayerRegistration Tabelle"""
+    if not isinstance(current_user, Admin):
+        return jsonify({'success': False, 'error': 'Nicht autorisiert'})
+    
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': 'Keine Daten erhalten'})
+        
+        player_id = data.get('player_id')
+        if not player_id:
+            return jsonify({'success': False, 'error': 'Spieler-ID ist erforderlich'})
+        
+        # Spieler finden
+        player = PlayerRegistration.query.get(player_id)
+        if not player:
+            return jsonify({'success': False, 'error': 'Spieler nicht gefunden'})
+        
+        # Spieler aus Team-Members entfernen falls vorhanden
+        if player.assigned_team_id:
+            team = Team.query.get(player.assigned_team_id)
+            if team and team.members:
+                existing_members = [m.strip() for m in team.members.split(',') if m.strip()]
+                if player.player_name in existing_members:
+                    existing_members.remove(player.player_name)
+                    team.members = ', '.join(existing_members) if existing_members else None
+                    
+                    # Auch aus player_config entfernen
+                    player_config = team.get_player_config() or {}
+                    if player.player_name in player_config:
+                        del player_config[player.player_name]
+                        team.set_player_config(player_config)
+        
+        # Profilbild löschen falls vorhanden
+        if player.profile_image_path:
+            import os
+            image_path = os.path.join(current_app.root_path, 'static', player.profile_image_path.lstrip('/static/'))
+            if os.path.exists(image_path):
+                try:
+                    os.remove(image_path)
+                    current_app.logger.info(f"Profilbild gelöscht: {image_path}")
+                except Exception as e:
+                    current_app.logger.warning(f"Fehler beim Löschen des Profilbildes: {e}")
+        
+        # Spieler aus Datenbank löschen
+        db.session.delete(player)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True, 
+            'message': f'Spieler {player.player_name} erfolgreich gelöscht'
+        })
+    
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Fehler beim Löschen des Spielers: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': f'Serverfehler: {str(e)}'})
+
+@admin_bp.route('/upload_team_player_image', methods=['POST'])
+@login_required
+def upload_team_player_image():
+    """Upload eines Profilbildes für einen Team-Spieler"""
+    if not isinstance(current_user, Admin):
+        return jsonify({'success': False, 'error': 'Nicht autorisiert'})
+    
+    try:
+        import base64
+        import binascii
+        import os
+        from PIL import Image
+        import io
+        
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': 'Keine Daten erhalten'})
+        
+        team_id = data.get('team_id')
+        player_name = data.get('player_name', '').strip()
+        image_data = data.get('image_data', '')
+        
+        if not team_id or not player_name:
+            return jsonify({'success': False, 'error': 'Team-ID und Spielername sind erforderlich'})
+        
+        if not image_data:
+            return jsonify({'success': False, 'error': 'Bilddaten fehlen'})
+        
+        # Team finden
+        team = Team.query.get(team_id)
+        if not team:
+            return jsonify({'success': False, 'error': 'Team nicht gefunden'})
+        
+        # Spieler finden
+        player = PlayerRegistration.query.filter_by(
+            player_name=player_name,
+            assigned_team_id=team_id
+        ).first()
+        
+        if not player:
+            return jsonify({'success': False, 'error': 'Spieler nicht gefunden'})
+        
+        # Entferne data:image/...;base64, prefix falls vorhanden
+        if 'base64,' in image_data:
+            image_data = image_data.split('base64,')[1]
+        elif image_data.startswith('data:'):
+            parts = image_data.split(',', 1)
+            if len(parts) > 1:
+                image_data = parts[1]
+        
+        # Dekodiere Base64
+        try:
+            image_bytes = base64.b64decode(image_data)
+        except (binascii.Error, ValueError) as e:
+            current_app.logger.error(f"Base64 decode error: {e}")
+            return jsonify({'success': False, 'error': 'Ungültige Bilddaten'})
+        
+        # Erstelle PIL Image
+        try:
+            image = Image.open(io.BytesIO(image_bytes))
+            image = image.convert('RGB')  # Konvertiere zu RGB falls nötig
+        except Exception as e:
+            current_app.logger.error(f"Image processing error: {e}")
+            return jsonify({'success': False, 'error': 'Bild konnte nicht verarbeitet werden'})
+        
+        # Resize auf 150x150
+        image = image.resize((150, 150), Image.Resampling.LANCZOS)
+        
+        # Stelle sicher, dass das profile_images Verzeichnis existiert
+        profile_dir = os.path.join(current_app.static_folder, 'profile_images')
+        if not os.path.exists(profile_dir):
+            os.makedirs(profile_dir, exist_ok=True)
+        
+        # Erstelle Dateinamen
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        filename = f"{team_id}_{player_name}_{timestamp}.jpg"
+        filepath = os.path.join(profile_dir, filename)
+        
+        # Speichere Bild
+        try:
+            image.save(filepath, 'JPEG', quality=85, optimize=True)
+            current_app.logger.info(f"Profile image saved: {filepath}")
+        except Exception as e:
+            current_app.logger.error(f"Error saving image: {e}")
+            return jsonify({'success': False, 'error': 'Bild konnte nicht gespeichert werden'})
+        
+        # Aktualisiere PlayerRegistration
+        player.profile_image_path = f"profile_images/{filename}"
+        
+        # Aktualisiere auch Team profile_images
+        profile_images = team.profile_images or {}
+        profile_images[player_name] = f"profile_images/{filename}"
+        team.profile_images = profile_images
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Profilbild erfolgreich hochgeladen',
+            'image_path': f"profile_images/{filename}"
+        })
+    
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Fehler beim Upload des Profilbildes: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': 'Serverfehler beim Upload'})
 
 @admin_bp.route('/init_chars')
 @login_required

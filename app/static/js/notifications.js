@@ -56,9 +56,9 @@ class NotificationSystem {
      * @param {number} standardRoll - Standard-Würfelergebnis (1-6)
      * @param {number} bonusRoll - Bonus-Würfelergebnis (falls vorhanden)
      * @param {number} totalRoll - Gesamtergebnis
-     * @param {number} duration - Anzeigedauer in ms (default: 4000)
+     * @param {number} duration - Anzeigedauer in ms (default: 8000)
      */
-    showDiceRoll(teamName, standardRoll, bonusRoll = 0, totalRoll = null, duration = 4000) {
+    showDiceRoll(teamName, standardRoll, bonusRoll = 0, totalRoll = null, duration = 8000) {
         if (totalRoll === null) {
             totalRoll = standardRoll + bonusRoll;
         }
@@ -131,7 +131,7 @@ class NotificationSystem {
         let diceVisual = `<div class="dice-cube">${standardRoll}</div>`;
         
         if (bonusRoll > 0) {
-            diceVisual += `<span style="margin: 0 4px;">+</span><div class="dice-cube">${bonusRoll}</div>`;
+            diceVisual += `<span style="margin: 0 8px;">+</span><div class="dice-cube">${bonusRoll}</div>`;
         }
 
         return `
@@ -200,7 +200,7 @@ class NotificationSystem {
     /**
      * Zeigt Katapult Vorwärts Benachrichtigung an
      */
-    showCatapultForward(teamName, distance, duration = 4000) {
+    showCatapultForward(teamName, distance, duration = 8000) {
         const notification = this.createNotification({
             type: 'catapult-forward',
             icon: '🚀',
@@ -215,7 +215,7 @@ class NotificationSystem {
     /**
      * Zeigt Katapult Rückwärts Benachrichtigung an
      */
-    showCatapultBackward(teamName, distance, duration = 4000) {
+    showCatapultBackward(teamName, distance, duration = 8000) {
         const notification = this.createNotification({
             type: 'catapult-backward',
             icon: '💥',
@@ -230,7 +230,7 @@ class NotificationSystem {
     /**
      * Zeigt Spieler-Tausch Benachrichtigung an
      */
-    showPlayerSwap(team1Name, team2Name, duration = 4000) {
+    showPlayerSwap(team1Name, team2Name, duration = 8000) {
         const notification = this.createNotification({
             type: 'player-swap',
             icon: '🔄',
@@ -245,7 +245,7 @@ class NotificationSystem {
     /**
      * Zeigt Sperren-Feld Benachrichtigung an
      */
-    showBarrierSet(teamName, requiredNumber, duration = 4000) {
+    showBarrierSet(teamName, requiredNumber, duration = 8000) {
         const notification = this.createNotification({
             type: 'barrier-set',
             icon: '🚧',
@@ -260,7 +260,7 @@ class NotificationSystem {
     /**
      * Zeigt Befreiung vom Sperren-Feld an
      */
-    showBarrierReleased(teamName, diceRoll, bonusRoll, method, duration = 4000) {
+    showBarrierReleased(teamName, diceRoll, bonusRoll, method, duration = 8000) {
         let diceText = `${diceRoll}`;
         if (bonusRoll > 0) {
             diceText += ` + ${bonusRoll} = ${diceRoll + bonusRoll}`;
@@ -289,7 +289,7 @@ class NotificationSystem {
     /**
      * Zeigt fehlgeschlagene Befreiung an
      */
-    showBarrierFailed(teamName, diceRoll, bonusRoll, requiredText, duration = 4000) {
+    showBarrierFailed(teamName, diceRoll, bonusRoll, requiredText, duration = 8000) {
         console.log('📱 showBarrierFailed called with:', { teamName, diceRoll, bonusRoll, requiredText, duration });
         
         let diceText = `${diceRoll}`;
@@ -312,7 +312,7 @@ class NotificationSystem {
     /**
      * Zeigt eine einfache Benachrichtigung an
      */
-    show(title, message, type = 'info', duration = 3000) {
+    show(title, message, type = 'info', duration = 6000) {
         const icons = {
             info: 'ℹ️',
             success: '✅',
