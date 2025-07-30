@@ -8,12 +8,14 @@ from datetime import datetime
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session, current_app, g, jsonify, make_response
 from flask_login import login_user, logout_user, login_required, current_user
 from ..models import (Admin, Team, Character, GameSession, GameEvent, MinigameFolder, GameRound, 
-                     QuestionResponse, FieldConfiguration, WelcomeSession, PlayerRegistration, db)
+                     QuestionResponse, FieldConfiguration, WelcomeSession, PlayerRegistration, 
+                     MinigameSequence, db)
 from ..forms import (AdminLoginForm, CreateTeamForm, EditTeamForm, SetNextMinigameForm, 
                      AdminConfirmPasswordForm, CreateMinigameFolderForm, EditMinigameFolderForm,
                      CreateGameRoundForm, EditGameRoundForm, FolderMinigameForm, EditFolderMinigameForm,
                      DeleteConfirmationForm, CreateQuestionForm, EditQuestionForm,
-                     FieldConfigurationForm, FieldPreviewForm, FieldImportExportForm, FieldBulkEditForm)
+                     FieldConfigurationForm, FieldPreviewForm, FieldImportExportForm, FieldBulkEditForm,
+                     SequenceUpdateForm)
 from .init_characters import initialize_characters
 from .minigame_utils import (ensure_minigame_folders_exist, create_minigame_folder_if_not_exists,
                             delete_minigame_folder, get_minigames_from_folder, add_minigame_to_folder,
@@ -175,6 +177,13 @@ def admin_dashboard():
     
     confirm_reset_form = AdminConfirmPasswordForm()
 
+    # Sequenz-Info direkt aus DB laden (wegen Beziehungsproblem)
+    active_sequence = None
+    if active_round and active_round.minigame_folder:
+        active_sequence = MinigameSequence.query.filter_by(
+            minigame_folder_id=active_round.minigame_folder.id
+        ).first()
+
     # Zusätzliche Informationen für das Dashboard
     played_stats = None
     if active_round and active_round.minigame_folder:
@@ -199,6 +208,7 @@ def admin_dashboard():
         "set_minigame_form": set_minigame_form,
         "confirm_reset_form": confirm_reset_form,
         "played_stats": played_stats,
+        "active_sequence": active_sequence,
         # NEU: Feld-Management Daten
         "field_stats": field_stats,
         "field_color_mapping": field_color_mapping
@@ -826,6 +836,81 @@ def set_minigame():
                     flash('Ausgewählter Inhalt nicht im Ordner gefunden.', 'warning')
             else:
                 flash('Bitte einen Inhalt aus dem Ordner auswählen.', 'warning')
+
+        elif minigame_source == 'folder_planned':
+            # Geplanter Ablauf - aus aktiver Sequenz
+            if active_round and active_round.minigame_folder:
+                active_sequence = MinigameSequence.query.filter_by(
+                    minigame_folder_id=active_round.minigame_folder.id,
+                    is_active=True
+                ).first()
+                
+                if active_sequence:
+                    current_item = active_sequence.get_current_item()
+                    
+                    if current_item:
+                        # Lade vollständige Item-Daten aus dem Ordner
+                        full_item_data = get_minigame_from_folder(
+                            active_round.minigame_folder.folder_path, 
+                            current_item['id']
+                        )
+                        
+                        if full_item_data:
+                            # Verwende direkte Item-Daten (keine Custom-Namen im vereinfachten System)
+                            display_name = full_item_data['name']
+                            display_description = full_item_data.get('description', '')
+                            
+                            current_app.logger.info(f"DEBUG set_minigame folder_planned: Setting minigame name='{display_name}', description='{display_description}'")
+                            active_session.current_minigame_name = display_name
+                            active_session.current_minigame_description = display_description
+                            active_session.selected_folder_minigame_id = current_item['id']
+                            active_session.minigame_source = 'folder_planned'
+                            
+                            # Markiere als gespielt (optional für Tracking)
+                            mark_content_as_played(active_session, current_item['id'])
+                            
+                            # Setze Frage-ID falls es eine Frage ist
+                            if current_item.get('type') == 'question':
+                                active_session.current_question_id = current_item['id']
+                                active_session.current_player_count = None
+                                flash(f"Frage '{display_name}' aus Ablaufplan geladen (Position {active_sequence.current_position + 1}/{len(active_sequence.sequence_list)}).", 'info')
+                            else:
+                                active_session.current_question_id = None
+                                
+                                # Verwende Spieleranzahl aus Minigame-Konfiguration
+                                minigame_player_count = full_item_data.get('player_count')
+                                form_player_count = form.player_count.data
+                                
+                                valid_counts = ['1', '2', '3', '4', 'all']
+                                if minigame_player_count and minigame_player_count in valid_counts:
+                                    player_count = minigame_player_count
+                                elif form_player_count and form_player_count in valid_counts:
+                                    player_count = form_player_count
+                                else:
+                                    player_count = 'all'
+                                
+                                active_session.current_player_count = player_count
+                                
+                                selection_type = "Ganze Teams" if player_count == "all" else f"{player_count} Spieler pro Team"
+                                config_source = " (aus Minigame-Konfiguration)" if minigame_player_count else " (aus Formular)"
+                                flash(f"Minispiel '{display_name}' aus Ablaufplan geladen (Position {active_sequence.current_position + 1}/{len(active_sequence.sequence_list)}, {selection_type}{config_source}).", 'info')
+                            
+                            # Erweitere Sequenz zum nächsten Item
+                            if active_sequence.advance():
+                                current_app.logger.info(f"Sequenz für Ordner '{active_round.minigame_folder.name}' erweitert zu Position {active_sequence.current_position}")
+                            else:
+                                current_app.logger.info(f"Sequenz für Ordner '{active_round.minigame_folder.name}' am Ende angelangt")
+                                flash(f"Alle Items des Ablaufplans für '{active_round.minigame_folder.name}' wurden abgeschlossen!", 'success')
+                            
+                            minigame_set = True
+                        else:
+                            flash(f"Item '{current_item['id']}' aus Ablaufplan nicht im Ordner gefunden.", 'danger')
+                    else:
+                        flash(f"Ablaufplan für '{active_round.minigame_folder.name}' ist abgeschlossen.", 'warning')
+                else:
+                    flash(f"Kein aktiver Ablaufplan für Ordner '{active_round.minigame_folder.name}' gefunden.", 'warning')
+            else:
+                flash('Keine aktive Runde oder Minigame-Ordner zugewiesen.', 'warning')
 
         if minigame_set:
             # Setze Spielphase und reset Team-Platzierungen NUR bei Phasenwechsel
@@ -3451,3 +3536,177 @@ def api_delete_field_minigame(mode, minigame_id):
     except Exception as e:
         current_app.logger.error(f"Fehler beim Löschen des Minigames: {e}")
         return jsonify({'success': False, 'error': 'Fehler beim Löschen'}), 500
+
+# =============================================================================
+# SEQUENCE MANAGEMENT ROUTES (Vereinfacht)
+# =============================================================================
+
+@admin_bp.route('/manage_sequence/<int:folder_id>', methods=['GET'])
+@login_required
+def manage_sequence(folder_id):
+    """Verwaltet die Ablaufsequenz für einen Ordner"""
+    if not isinstance(current_user, Admin):
+        return redirect(url_for('main.index'))
+    
+    folder = MinigameFolder.query.get_or_404(folder_id)
+    
+    # Hole oder erstelle die Sequenz für diesen Ordner
+    sequence = MinigameSequence.query.filter_by(minigame_folder_id=folder.id).first()
+    
+    # Lade verfügbare Items
+    available_minigames = get_minigames_from_folder(folder.folder_path) or []
+    available_questions = [item for item in available_minigames if item.get('type') == 'question']
+    available_minigames = [item for item in available_minigames if item.get('type') != 'question']
+    
+    return render_template('admin/manage_sequence.html',
+                         folder=folder,
+                         sequence=sequence,
+                         available_minigames=available_minigames,
+                         available_questions=available_questions)
+
+@admin_bp.route('/update_sequence/<int:folder_id>', methods=['POST'])
+@login_required
+def update_sequence(folder_id):
+    """Aktualisiert die Sequenz per JSON (Drag & Drop)"""
+    if not isinstance(current_user, Admin):
+        return redirect(url_for('main.index'))
+    
+    folder = MinigameFolder.query.get_or_404(folder_id)
+    
+    try:
+        # Lade JSON-Daten aus dem Form
+        sequence_data = request.form.get('sequence_data')
+        if not sequence_data:
+            flash('Keine Sequenz-Daten erhalten.', 'danger')
+            return redirect(url_for('admin.manage_sequence', folder_id=folder.id))
+        
+        sequence_list = json.loads(sequence_data)
+        
+        # Hole oder erstelle Sequenz
+        sequence = MinigameSequence.query.filter_by(minigame_folder_id=folder.id).first()
+        
+        if not sequence:
+            sequence = MinigameSequence(
+                minigame_folder_id=folder.id,
+                sequence_data='[]',
+                current_position=0,
+                is_active=False
+            )
+            db.session.add(sequence)
+        
+        # Aktualisiere Sequenz
+        sequence.sequence_list = sequence_list
+        sequence.updated_at = datetime.utcnow()
+        
+        db.session.commit()
+        flash('Ablaufplan erfolgreich gespeichert.', 'success')
+        
+    except json.JSONDecodeError:
+        flash('Ungültige Sequenz-Daten.', 'danger')
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Fehler beim Speichern der Sequenz: {e}", exc_info=True)
+        flash('Ein Fehler ist beim Speichern aufgetreten.', 'danger')
+    
+    return redirect(url_for('admin.manage_sequence', folder_id=folder.id))
+
+@admin_bp.route('/activate_sequence/<int:folder_id>', methods=['POST'])
+@login_required  
+def activate_sequence(folder_id):
+    """Aktiviert die Sequenz für einen Ordner"""  
+    if not isinstance(current_user, Admin):
+        return redirect(url_for('main.index'))
+    
+    folder = MinigameFolder.query.get_or_404(folder_id)
+    
+    try:
+        sequence = MinigameSequence.query.filter_by(minigame_folder_id=folder.id).first()
+        
+        if sequence:
+            sequence.is_active = True
+            sequence.updated_at = datetime.utcnow()
+            db.session.commit()
+            flash('Ablaufplan wurde aktiviert.', 'success')
+        else:
+            flash('Kein Ablaufplan für diesen Ordner gefunden.', 'warning')
+        
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Fehler beim Aktivieren der Sequenz: {e}", exc_info=True)
+        flash('Ein Fehler ist beim Aktivieren aufgetreten.', 'danger')
+    
+    return redirect(url_for('admin.manage_sequence', folder_id=folder.id))
+
+@admin_bp.route('/deactivate_sequence/<int:folder_id>', methods=['POST'])
+@login_required
+def deactivate_sequence(folder_id):
+    """Deaktiviert die Sequenz für einen Ordner"""
+    if not isinstance(current_user, Admin):
+        return redirect(url_for('main.index'))
+    
+    folder = MinigameFolder.query.get_or_404(folder_id)
+    
+    try:
+        sequence = MinigameSequence.query.filter_by(minigame_folder_id=folder.id).first()
+        
+        if sequence:
+            sequence.is_active = False
+            sequence.updated_at = datetime.utcnow()
+            db.session.commit()
+            flash('Ablaufplan wurde deaktiviert.', 'success')
+        else:
+            flash('Kein Ablaufplan für diesen Ordner gefunden.', 'warning')
+        
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Fehler beim Deaktivieren der Sequenz: {e}", exc_info=True)
+        flash('Ein Fehler ist beim Deaktivieren aufgetreten.', 'danger')
+    
+    return redirect(url_for('admin.manage_sequence', folder_id=folder.id))
+
+@admin_bp.route('/api/sequence_status')
+@login_required
+def api_sequence_status():
+    """API-Route für Live-Updates der Sequence-Status im Admin Dashboard"""
+    if not isinstance(current_user, Admin):
+        return jsonify({'error': 'Unauthorized'}), 403
+    
+    try:
+        active_round = GameRound.get_active_round()
+        if not active_round or not active_round.minigame_folder:
+            return jsonify({'has_sequence': False})
+        
+        # Lade Sequenz direkt aus DB (gleiche Logik wie im admin_dashboard)
+        active_sequence = MinigameSequence.query.filter_by(
+            minigame_folder_id=active_round.minigame_folder.id
+        ).first()
+        
+        if not active_sequence:
+            return jsonify({'has_sequence': False})
+        
+        # Sequenz-Daten für Frontend aufbereiten
+        sequence_data = {
+            'has_sequence': True,
+            'is_active': active_sequence.is_active,
+            'has_items': len(active_sequence.sequence_list) > 0,
+            'folder_name': active_round.minigame_folder.name,
+            'current_position': active_sequence.current_position,
+            'total_items': len(active_sequence.sequence_list),
+            'progress_percentage': active_sequence.get_progress_percentage(),
+            'sequence_list': active_sequence.sequence_list
+        }
+        
+        # Aktuelles und nächstes Item
+        current_item = active_sequence.get_current_item()
+        if current_item:
+            sequence_data['current_item'] = current_item
+        
+        next_item = active_sequence.get_next_item()
+        if next_item:
+            sequence_data['next_item'] = next_item
+            
+        return jsonify(sequence_data)
+        
+    except Exception as e:
+        current_app.logger.error(f"Fehler bei API sequence_status: {e}", exc_info=True)
+        return jsonify({'error': 'Internal server error'}), 500

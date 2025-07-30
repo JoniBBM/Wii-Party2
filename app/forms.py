@@ -83,7 +83,8 @@ class SetNextMinigameForm(FlaskForm):
                                     ('manual', 'Manuell eingeben'),
                                     ('direct_question', 'Direkte Frage erstellen'),
                                     ('folder_random', 'Zufällig aus aktuellem Ordner'),
-                                    ('folder_selected', 'Aus aktuellem Ordner auswählen')
+                                    ('folder_selected', 'Aus aktuellem Ordner auswählen'),
+                                    ('folder_planned', 'Geplanter Ablauf verwenden')
                                 ], 
                                 default='manual',
                                 validators=[DataRequired()])
@@ -514,3 +515,8 @@ class FieldBulkEditForm(FlaskForm):
         field_configs = FieldConfiguration.query.all()
         self.selected_fields.choices = [(config.field_type, f"{config.display_name} ({config.field_type})") 
                                        for config in field_configs]
+
+class SequenceUpdateForm(FlaskForm):
+    """Form für das Aktualisieren der Sequenz-Reihenfolge via JSON"""
+    sequence_data = HiddenField('Sequenz-Daten')
+    submit = SubmitField('Reihenfolge speichern')

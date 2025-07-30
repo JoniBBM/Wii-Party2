@@ -588,6 +588,72 @@ class MinigameFolder(db.Model):
     def __repr__(self):
         return f'<MinigameFolder {self.name}>'
 
+class MinigameSequence(db.Model):
+    """Verwaltet geplante Ablaufsequenzen für Minigames und Fragen - eine pro Ordner"""
+    id = db.Column(db.Integer, primary_key=True)
+    minigame_folder_id = db.Column(db.Integer, db.ForeignKey('minigame_folder.id'), nullable=False, unique=True)
+    sequence_data = db.Column(db.Text, nullable=False)  # JSON mit geplanter Sequenz
+    current_position = db.Column(db.Integer, default=0)  # Aktueller Fortschritt in der Sequenz
+    is_active = db.Column(db.Boolean, default=False)  # Ob diese Sequenz gerade verwendet wird
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    minigame_folder = db.relationship('MinigameFolder', backref='sequence', uselist=False)
+    
+    @property
+    def sequence_list(self):
+        """Gibt sequence_data als Liste zurück"""
+        if self.sequence_data:
+            try:
+                return json.loads(self.sequence_data)
+            except (json.JSONDecodeError, TypeError):
+                return []
+        return []
+    
+    @sequence_list.setter
+    def sequence_list(self, value):
+        """Setzt sequence_data aus Liste"""
+        if value is None:
+            self.sequence_data = None
+        else:
+            self.sequence_data = json.dumps(value)
+    
+    def get_current_item(self):
+        """Gibt das aktuelle Element der Sequenz zurück"""
+        sequence = self.sequence_list
+        if sequence and self.current_position < len(sequence):
+            return sequence[self.current_position]
+        return None
+    
+    def get_next_item(self):
+        """Gibt das nächste Element der Sequenz zurück"""
+        sequence = self.sequence_list
+        if sequence and self.current_position + 1 < len(sequence):
+            return sequence[self.current_position + 1]
+        return None
+    
+    def advance(self):
+        """Geht zum nächsten Element in der Sequenz"""
+        sequence = self.sequence_list
+        if sequence and self.current_position < len(sequence) - 1:
+            self.current_position += 1
+            return True
+        return False
+    
+    def reset(self):
+        """Setzt die Sequenz zurück zum Anfang"""
+        self.current_position = 0
+    
+    def get_progress_percentage(self):
+        """Gibt den Fortschritt in Prozent zurück"""
+        sequence = self.sequence_list
+        if not sequence:
+            return 0
+        return min(100, int((self.current_position / len(sequence)) * 100))
+    
+    def __repr__(self):
+        return f'<MinigameSequence for Folder {self.minigame_folder_id}>'
+
 class GameRound(db.Model):
     """Verwaltet Spielrunden mit zugewiesenem Minigame-Ordner"""
     id = db.Column(db.Integer, primary_key=True)

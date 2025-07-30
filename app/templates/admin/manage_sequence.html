@@ -1,0 +1,437 @@
+{% extends "base.html" %}
+
+{% block title %}Ablaufplan bearbeiten - {{ folder.name }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="fas fa-list-ol text-info"></i> Ablaufplan für "{{ folder.name }}"</h2>
+        <div>
+            {% if sequence and sequence.is_active %}
+                <span class="badge badge-success mr-2">
+                    <i class="fas fa-play"></i> Aktiv
+                </span>
+            {% endif %}
+            <a href="{{ url_for('admin.manage_folders') }}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i> Zurück zu Ordnern
+            </a>
+        </div>
+    </div>
+
+    {% if sequence %}
+        <!-- Fortschrittsanzeige -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-8">
+                        <h6>Fortschritt</h6>
+                        <div class="progress mb-2">
+                            <div class="progress-bar bg-info" 
+                                 style="width: {{ sequence.get_progress_percentage() }}%">
+                                {{ sequence.get_progress_percentage() }}%
+                            </div>
+                        </div>
+                        <small class="text-muted">
+                            {{ sequence.current_position + 1 }} von {{ sequence.sequence_list|length }} abgeschlossen
+                        </small>
+                    </div>
+                    <div class="col-md-4 text-right">
+                        {% if not sequence.is_active %}
+                            <form method="post" action="{{ url_for('admin.activate_sequence', folder_id=folder.id) }}" class="d-inline">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                <button type="submit" class="btn btn-success">
+                                    <i class="fas fa-play"></i> Plan aktivieren
+                                </button>
+                            </form>
+                        {% else %}
+                            <form method="post" action="{{ url_for('admin.deactivate_sequence', folder_id=folder.id) }}" class="d-inline">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                <button type="submit" class="btn btn-outline-secondary">
+                                    <i class="fas fa-pause"></i> Plan deaktivieren
+                                </button>
+                            </form>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    {% endif %}
+
+    <!-- Drag & Drop Sequenz -->
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5><i class="fas fa-sort"></i> Ablaufplan - Per Drag & Drop sortieren</h5>
+                    <button id="save-sequence" class="btn btn-success" disabled>
+                        <i class="fas fa-save"></i> Reihenfolge speichern
+                    </button>
+                </div>
+                <div class="card-body">
+                    {% if sequence and sequence.sequence_list %}
+                        <div id="sequence-list" class="sortable-list">
+                            {% for item in sequence.sequence_list %}
+                            <div class="sequence-item" data-id="{{ item.id }}" data-type="{{ item.type }}">
+                                <div class="item-content 
+                                    {% if loop.index0 < sequence.current_position %}completed
+                                    {% elif loop.index0 == sequence.current_position %}current
+                                    {% endif %}">
+                                    <div class="drag-handle">
+                                        <i class="fas fa-grip-vertical"></i>
+                                    </div>
+                                    <div class="item-info">
+                                        <div class="item-header">
+                                            <span class="item-number">{{ loop.index }}</span>
+                                            {% if item.type == 'minigame' %}
+                                                <i class="fas fa-gamepad text-primary"></i>
+                                            {% else %}
+                                                <i class="fas fa-question-circle text-info"></i>
+                                            {% endif %}
+                                            <strong>{{ item.name }}</strong>
+                                            {% if loop.index0 < sequence.current_position %}
+                                                <span class="badge badge-success ml-2">Abgeschlossen</span>
+                                            {% elif loop.index0 == sequence.current_position %}
+                                                <span class="badge badge-warning ml-2">Aktuell</span>
+                                            {% endif %}
+                                        </div>
+                                        {% if item.description %}
+                                            <div class="item-description">{{ item.description }}</div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div id="sequence-list" class="sortable-list">
+                            <!-- Wird per JavaScript befüllt -->
+                        </div>
+                        <div class="text-center text-muted py-4">
+                            <i class="fas fa-arrow-right fa-2x mb-3"></i>
+                            <p>Ziehe Items aus der rechten Liste hierher, um einen Ablaufplan zu erstellen.</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <!-- Verfügbare Items -->
+            <div class="card">
+                <div class="card-header">
+                    <h6><i class="fas fa-list"></i> Verfügbare Items</h6>
+                </div>
+                <div class="card-body">
+                    <!-- Minispiele -->
+                    {% if available_minigames %}
+                        <h6 class="text-primary"><i class="fas fa-gamepad"></i> Minispiele</h6>
+                        <div class="available-items mb-3">
+                            {% for minigame in available_minigames %}
+                            <div class="available-item" data-id="{{ minigame.id }}" data-type="minigame" 
+                                 data-name="{{ minigame.name }}" data-description="{{ minigame.description or '' }}">
+                                <i class="fas fa-gamepad text-primary"></i>
+                                <span>{{ minigame.name }}</span>
+                                <button class="btn btn-sm btn-outline-success add-item-btn" type="button">
+                                    <i class="fas fa-plus"></i>
+                                </button>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+
+                    <!-- Fragen -->
+                    {% if available_questions %}
+                        <h6 class="text-info"><i class="fas fa-question-circle"></i> Fragen</h6>
+                        <div class="available-items">
+                            {% for question in available_questions %}
+                            <div class="available-item" data-id="{{ question.id }}" data-type="question"
+                                 data-name="{{ question.name }}" data-description="{{ question.question or question.description or '' }}">
+                                <i class="fas fa-question-circle text-info"></i>
+                                <span>{{ question.name }}</span>
+                                <button class="btn btn-sm btn-outline-success add-item-btn" type="button">
+                                    <i class="fas fa-plus"></i>
+                                </button>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+
+                    {% if not available_minigames and not available_questions %}
+                        <div class="text-center text-muted py-4">
+                            <i class="fas fa-inbox fa-2x mb-3"></i>
+                            <p>Keine Items in diesem Ordner gefunden.</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Hidden Form für Speicherung -->
+<form id="save-form" method="post" action="{{ url_for('admin.update_sequence', folder_id=folder.id) }}" style="display: none;">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+    <input type="hidden" id="sequence-data" name="sequence_data" value="">
+</form>
+
+<style>
+.sortable-list {
+    min-height: 100px;
+    padding: 10px;
+    border: 2px dashed #dee2e6;
+    border-radius: 5px;
+}
+
+.sortable-list.drag-over {
+    border-color: #007bff;
+    background-color: #f8f9fa;
+}
+
+.sequence-item {
+    margin-bottom: 10px;
+    cursor: move;
+}
+
+.item-content {
+    display: flex;
+    align-items: center;
+    padding: 15px;
+    border: 1px solid #dee2e6;
+    border-radius: 5px;
+    background: white;
+    transition: all 0.2s;
+}
+
+.item-content:hover {
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.item-content.completed {
+    background-color: #d4edda;
+    border-color: #c3e6cb;
+}
+
+.item-content.current {
+    background-color: #fff3cd;
+    border-color: #ffeeba;
+}
+
+.drag-handle {
+    color: #6c757d;
+    margin-right: 15px;
+    cursor: move;
+}
+
+.item-info {
+    flex-grow: 1;
+}
+
+.item-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.item-number {
+    display: inline-block;
+    min-width: 25px;
+    height: 25px;
+    line-height: 25px;
+    text-align: center;
+    background: #007bff;
+    color: white;
+    border-radius: 50%;
+    font-size: 12px;
+    font-weight: bold;
+}
+
+.item-description {
+    font-size: 0.9em;
+    color: #6c757d;
+    margin-top: 5px;
+}
+
+.available-items {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.available-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    margin-bottom: 5px;
+    border: 1px solid #e9ecef;
+    border-radius: 4px;
+    background: white;
+    transition: background-color 0.2s;
+}
+
+.available-item:hover {
+    background-color: #f8f9fa;
+}
+
+.available-item span {
+    flex-grow: 1;
+    margin-left: 8px;
+    font-size: 0.9em;
+}
+
+.add-item-btn {
+    opacity: 0.6;
+    transition: opacity 0.2s;
+}
+
+.available-item:hover .add-item-btn {
+    opacity: 1;
+}
+
+/* Sortable Styling */
+.sortable-ghost {
+    opacity: 0.4;
+}
+
+.sortable-chosen {
+    transform: scale(1.05);
+}
+</style>
+
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const sequenceList = document.getElementById('sequence-list');
+    const saveButton = document.getElementById('save-sequence');
+    const saveForm = document.getElementById('save-form');
+    const sequenceDataInput = document.getElementById('sequence-data');
+    
+    let hasChanges = false;
+    
+    // Sortable initialisieren
+    const sortable = new Sortable(sequenceList, {
+        animation: 150,
+        ghostClass: 'sortable-ghost',
+        chosenClass: 'sortable-chosen',
+        handle: '.drag-handle',
+        onEnd: function() {
+            updateSequence();
+            hasChanges = true;
+            saveButton.disabled = false;
+        }
+    });
+    
+    // Add Item Buttons
+    document.querySelectorAll('.add-item-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const item = this.closest('.available-item');
+            addItemToSequence(
+                item.dataset.id,
+                item.dataset.type,
+                item.dataset.name,
+                item.dataset.description
+            );
+        });
+    });
+    
+    // Save Button
+    saveButton.addEventListener('click', function() {
+        const sequenceData = getSequenceData();
+        sequenceDataInput.value = JSON.stringify(sequenceData);
+        
+        // Setze hasChanges zurück vor dem Speichern um beforeunload-Warning zu vermeiden
+        hasChanges = false;
+        
+        saveForm.submit();
+    });
+    
+    function addItemToSequence(id, type, name, description) {
+        // Prüfe ob Item bereits in Sequenz
+        const existing = sequenceList.querySelector(`[data-id="${id}"][data-type="${type}"]`);
+        if (existing) {
+            // Highlight existing item
+            existing.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            existing.style.transform = 'scale(1.1)';
+            setTimeout(() => existing.style.transform = '', 500);
+            return;
+        }
+        
+        const itemDiv = document.createElement('div');
+        itemDiv.className = 'sequence-item';
+        itemDiv.dataset.id = id;
+        itemDiv.dataset.type = type;
+        
+        const iconClass = type === 'minigame' ? 'fas fa-gamepad text-primary' : 'fas fa-question-circle text-info';
+        const nextNumber = sequenceList.children.length + 1;
+        
+        itemDiv.innerHTML = `
+            <div class="item-content">
+                <div class="drag-handle">
+                    <i class="fas fa-grip-vertical"></i>
+                </div>
+                <div class="item-info">
+                    <div class="item-header">
+                        <span class="item-number">${nextNumber}</span>
+                        <i class="${iconClass}"></i>
+                        <strong>${name}</strong>
+                        <button class="btn btn-sm btn-outline-danger ml-auto remove-item-btn" type="button">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    ${description ? `<div class="item-description">${description}</div>` : ''}
+                </div>
+            </div>
+        `;
+        
+        // Remove Button Event
+        itemDiv.querySelector('.remove-item-btn').addEventListener('click', function() {
+            itemDiv.remove();
+            updateSequence();
+            hasChanges = true;
+            saveButton.disabled = false;
+        });
+        
+        sequenceList.appendChild(itemDiv);
+        updateSequence();
+        hasChanges = true;
+        saveButton.disabled = false;
+        
+        // Scroll to new item
+        itemDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+    
+    function updateSequence() {
+        // Update Nummern
+        const items = sequenceList.querySelectorAll('.sequence-item');
+        items.forEach((item, index) => {
+            const numberSpan = item.querySelector('.item-number');
+            if (numberSpan) {
+                numberSpan.textContent = index + 1;
+            }
+        });
+    }
+    
+    function getSequenceData() {
+        const items = sequenceList.querySelectorAll('.sequence-item');
+        const sequence = [];
+        
+        items.forEach(item => {
+            const name = item.querySelector('strong').textContent;
+            const description = item.querySelector('.item-description')?.textContent || '';
+            
+            sequence.push({
+                id: item.dataset.id,
+                type: item.dataset.type,
+                name: name,
+                description: description
+            });
+        });
+        
+        return sequence;
+    }
+    
+    
+    // Initial sequence update
+    updateSequence();
+});
+</script>
+{% endblock %}

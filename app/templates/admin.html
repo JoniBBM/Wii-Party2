@@ -516,28 +516,43 @@
                         <div class="form-group">
                             <label class="form-control-label"><strong>Inhalts-Quelle auswählen:</strong></label>
                             <div class="row">
+                                
                                 {% for value, label in set_minigame_form.minigame_source.choices %}
-                                <div class="col-md-6 col-lg-3 mb-2">
-                                    <div class="custom-control custom-radio">
-                                        <input type="radio" class="custom-control-input" 
-                                               id="source_{{ value }}" name="minigame_source" value="{{ value }}"
-                                               {% if set_minigame_form.minigame_source.data == value %}checked{% endif %}>
-                                        <label class="custom-control-label" for="source_{{ value }}">
-                                            {% if value == 'manual' %}
-                                                <i class="fas fa-keyboard text-primary"></i> {{ label }}
-                                            {% elif value == 'direct_question' %}
-                                                <i class="fas fa-plus-circle text-success"></i> {{ label }}
-                                            {% elif value == 'folder_random' %}
-                                                <i class="fas fa-random text-warning"></i> {{ label }}
-                                                {% if played_stats and played_stats.remaining == 0 %}
-                                                    <small class="d-block text-muted">(Alle gespielt)</small>
+                                    {% if value == 'folder_planned' %}
+                                        {% if active_sequence %}
+                                            {% set has_active_plan = active_sequence.is_active and active_sequence.sequence_list|length > 0 %}
+                                        {% else %}
+                                            {% set has_active_plan = false %}
+                                        {% endif %}
+                                    {% else %}
+                                        {% set has_active_plan = true %}
+                                    {% endif %}
+                                    
+                                    {% if has_active_plan %}
+                                    <div class="col-md-6 col-lg-3 mb-2">
+                                        <div class="custom-control custom-radio">
+                                            <input type="radio" class="custom-control-input" 
+                                                   id="source_{{ value }}" name="minigame_source" value="{{ value }}"
+                                                   {% if set_minigame_form.minigame_source.data == value %}checked{% endif %}>
+                                            <label class="custom-control-label" for="source_{{ value }}">
+                                                {% if value == 'manual' %}
+                                                    <i class="fas fa-keyboard text-primary"></i> {{ label }}
+                                                {% elif value == 'direct_question' %}
+                                                    <i class="fas fa-plus-circle text-success"></i> {{ label }}
+                                                {% elif value == 'folder_random' %}
+                                                    <i class="fas fa-random text-warning"></i> {{ label }}
+                                                    {% if played_stats and played_stats.remaining == 0 %}
+                                                        <small class="d-block text-muted">(Alle gespielt)</small>
+                                                    {% endif %}
+                                                {% elif value == 'folder_selected' %}
+                                                    <i class="fas fa-hand-pointer text-info"></i> {{ label }}
+                                                {% elif value == 'folder_planned' %}
+                                                    <i class="fas fa-list-ol text-info"></i> {{ label }}
                                                 {% endif %}
-                                            {% elif value == 'folder_selected' %}
-                                                <i class="fas fa-hand-pointer text-info"></i> {{ label }}
-                                            {% endif %}
-                                        </label>
+                                            </label>
+                                        </div>
                                     </div>
-                                </div>
+                                    {% endif %}
                                 {% endfor %}
                             </div>
                         </div>
@@ -676,6 +691,127 @@
                                         <span class="text-muted">| "(bereits gespielt)" = wurde schon ausgewählt</span>
                                     </small>
                                 </div>
+                            {% else %}
+                                <div class="alert alert-warning">
+                                    <i class="fas fa-exclamation-triangle"></i> 
+                                    Keine aktive Runde oder Minigame-Ordner zugewiesen!
+                                </div>
+                            {% endif %}
+                        </div>
+                        
+                        <!-- Geplanter Ablauf -->
+                        <div id="folder_planned-section" class="minigame-section" style="display: none;">
+                            {% if active_round and active_round.minigame_folder %}
+                                {% if active_sequence and active_sequence.sequence_list|length > 0 %}
+                                    <div class="card">
+                                        <div class="card-header">
+                                            <h5 class="mb-0">
+                                                <i class="fas fa-list-ol text-info"></i> 
+                                                Ablaufplan für "{{ active_round.minigame_folder.name }}"
+                                                {% if active_sequence.is_active %}
+                                                    <span class="badge badge-success ml-2">Aktiv</span>
+                                                {% else %}
+                                                    <span class="badge badge-secondary ml-2">Inaktiv</span>
+                                                {% endif %}
+                                            </h5>
+                                        </div>
+                                        <div class="card-body">
+                                            <!-- Fortschrittsanzeige -->
+                                            <div class="mb-3">
+                                                <div class="d-flex justify-content-between">
+                                                    <small>Fortschritt:</small>
+                                                    <small>{{ active_sequence.current_position + 1 }} / {{ active_sequence.sequence_list|length }}</small>
+                                                </div>
+                                                <div class="progress">
+                                                    <div class="progress-bar bg-info" 
+                                                         style="width: {{ active_sequence.get_progress_percentage() }}%">
+                                                        {{ active_sequence.get_progress_percentage() }}%
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            
+                                            <!-- Aktuelles Item -->
+                                            {% set current_item = active_sequence.get_current_item() %}
+                                            {% if current_item %}
+                                                <div class="alert alert-warning">
+                                                    <h6><i class="fas fa-arrow-right"></i> Nächstes Item:</h6>
+                                                    <strong>
+                                                        {% if current_item.type == 'minigame' %}
+                                                            <i class="fas fa-gamepad text-primary"></i>
+                                                        {% else %}
+                                                            <i class="fas fa-question-circle text-info"></i>
+                                                        {% endif %}
+                                                        {{ current_item.name }}
+                                                    </strong>
+                                                    {% if current_item.description %}
+                                                        <p class="mb-0 mt-1">{{ current_item.description }}</p>
+                                                    {% endif %}
+                                                </div>
+                                            {% else %}
+                                                <div class="alert alert-success">
+                                                    <i class="fas fa-check-circle"></i> 
+                                                    Alle Items des Ablaufplans wurden abgeschlossen!
+                                                </div>
+                                            {% endif %}
+                                            
+                                            <!-- Nächstes Item Vorschau -->
+                                            {% set next_item = active_sequence.get_next_item() %}
+                                            {% if next_item %}
+                                                <div class="alert alert-light">
+                                                    <h6><i class="fas fa-clock"></i> Danach:</h6>
+                                                    <small>
+                                                        {% if next_item.type == 'minigame' %}
+                                                            <i class="fas fa-gamepad text-primary"></i>
+                                                        {% else %}
+                                                            <i class="fas fa-question-circle text-info"></i>
+                                                        {% endif %}
+                                                        {{ next_item.name }}
+                                                    </small>
+                                                </div>
+                                            {% endif %}
+                                            
+                                            <!-- Plan aktivieren/deaktivieren -->
+                                            {% if not active_sequence.is_active %}
+                                                <div class="alert alert-info">
+                                                    <i class="fas fa-info-circle"></i>
+                                                    <strong>Plan ist inaktiv.</strong> Aktivieren Sie ihn, um die "Geplanter Ablauf" Option zu nutzen.
+                                                    <form method="post" action="{{ url_for('admin.activate_sequence', folder_id=active_round.minigame_folder.id) }}" class="d-inline ml-2">
+                                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                                        <button type="submit" class="btn btn-success btn-sm">
+                                                            <i class="fas fa-play"></i> Plan aktivieren
+                                                        </button>
+                                                    </form>
+                                                </div>
+                                            {% endif %}
+                                            
+                                            <!-- Plan bearbeiten Link -->
+                                            <div class="text-center mt-3">
+                                                <a href="{{ url_for('admin.manage_sequence', folder_id=active_round.minigame_folder.id) }}" 
+                                                   class="btn btn-outline-info btn-sm" target="_blank">
+                                                    <i class="fas fa-edit"></i> Ablaufplan bearbeiten
+                                                </a>
+                                                <small class="d-block text-muted mt-1">
+                                                    Sie können den Plan auch während des Spiels noch anpassen
+                                                </small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                {% else %}
+                                    <div class="alert alert-warning">
+                                        <i class="fas fa-exclamation-triangle"></i>
+                                        <strong>Kein aktiver Ablaufplan!</strong><br>
+                                        <small>
+                                            Erstellen Sie einen Plan für den Ordner "{{ active_round.minigame_folder.name }}" 
+                                            oder aktivieren Sie einen bestehenden Plan.
+                                        </small>
+                                        <div class="mt-2">
+                                            <a href="{{ url_for('admin.manage_sequence', folder_id=active_round.minigame_folder.id) }}" 
+                                               class="btn btn-info btn-sm" target="_blank">
+                                                <i class="fas fa-plus"></i> Plan erstellen
+                                            </a>
+                                        </div>
+                                    </div>
+                                {% endif %}
                             {% else %}
                                 <div class="alert alert-warning">
                                     <i class="fas fa-exclamation-triangle"></i> 
@@ -1861,5 +1997,232 @@ function resetRotation() {
         });
     }
 }
+
+// Live-Updates für Sequence-Status
+let sequenceUpdateInterval;
+
+function updateSequenceStatus() {
+    // Zeige Live-Update Indikator
+    showLiveUpdateIndicator(true);
+    
+    fetch('/admin/api/sequence_status')
+        .then(response => response.json())
+        .then(data => {
+            updateSequenceUI(data);
+            showLiveUpdateIndicator(false);
+        })
+        .catch(error => {
+            console.error('Fehler beim Laden der Sequence-Daten:', error);
+            showLiveUpdateIndicator(false, true);
+        });
+}
+
+function showLiveUpdateIndicator(isLoading, hasError = false) {
+    let indicator = document.getElementById('live-update-indicator');
+    
+    // Erstelle Indikator falls nicht vorhanden
+    if (!indicator) {
+        indicator = document.createElement('div');
+        indicator.id = 'live-update-indicator';
+        indicator.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 8px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            z-index: 1050;
+            transition: all 0.3s ease;
+        `;
+        document.body.appendChild(indicator);
+    }
+    
+    if (isLoading) {
+        indicator.className = 'badge badge-info';
+        indicator.innerHTML = '<i class="fas fa-sync-alt fa-spin"></i> Live-Update...';
+        indicator.style.display = 'block';
+    } else if (hasError) {
+        indicator.className = 'badge badge-danger';
+        indicator.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Update-Fehler';
+        indicator.style.display = 'block';
+        setTimeout(() => indicator.style.display = 'none', 3000);
+    } else {
+        indicator.className = 'badge badge-success';
+        indicator.innerHTML = '<i class="fas fa-check"></i> Aktualisiert';
+        indicator.style.display = 'block';
+        setTimeout(() => indicator.style.display = 'none', 1000);
+    }
+}
+
+function updateSequenceUI(data) {
+    // Update der Radio Button Verfügbarkeit
+    const folderPlannedRadio = document.querySelector('input[value="folder_planned"]');
+    const folderPlannedContainer = folderPlannedRadio ? folderPlannedRadio.closest('.col-md-6, .col-lg-3') : null;
+    
+    if (folderPlannedContainer) {
+        const hasActivePlan = data.has_sequence && data.is_active && data.has_items;
+        
+        if (hasActivePlan) {
+            // Option verfügbar machen - Container anzeigen
+            folderPlannedContainer.style.display = 'block';
+            folderPlannedRadio.disabled = false;
+        } else {
+            // Option verstecken wenn kein aktiver Plan
+            folderPlannedContainer.style.display = 'none';
+            folderPlannedRadio.disabled = true;
+            
+            // Falls diese Option aktuell ausgewählt ist, wechsle zu einer anderen
+            if (folderPlannedRadio.checked) {
+                const firstEnabledRadio = document.querySelector('input[name="minigame_source"]:not([disabled]):not([value="folder_planned"])');
+                if (firstEnabledRadio) {
+                    firstEnabledRadio.checked = true;
+                    // Trigger change event um section zu wechseln
+                    firstEnabledRadio.dispatchEvent(new Event('change'));
+                }
+            }
+        }
+    }
+    
+    // Update der folder_planned Section falls sichtbar
+    const folderPlannedSection = document.getElementById('folder_planned-section');
+    if (folderPlannedSection) {
+        if (data.has_sequence && data.has_items) {
+            updateFolderPlannedSection(folderPlannedSection, data);
+        }
+    }
+}
+
+function updateFolderPlannedSection(section, data) {
+    // Status Badge aktualisieren (in der Card Header)
+    const statusBadge = section.querySelector('.card-header .badge');
+    if (statusBadge) {
+        if (data.is_active) {
+            statusBadge.className = 'badge badge-success ml-2';
+            statusBadge.textContent = 'Aktiv';
+        } else {
+            statusBadge.className = 'badge badge-secondary ml-2';
+            statusBadge.textContent = 'Inaktiv';
+        }
+    }
+    
+    // Progress Bar aktualisieren
+    const progressBar = section.querySelector('.progress-bar');
+    if (progressBar) {
+        progressBar.style.width = data.progress_percentage + '%';
+        progressBar.textContent = data.progress_percentage + '%';
+    }
+    
+    // Position Text aktualisieren (kleiner Text unter Progress Bar)  
+    const progressContainer = section.querySelector('.progress').parentElement;
+    const positionText = progressContainer ? progressContainer.querySelector('small') : null;
+    if (positionText) {
+        positionText.textContent = `${data.current_position + 1} / ${data.total_items} abgeschlossen`;
+    }
+    
+    // Aktuelles Item aktualisieren (alert-warning)
+    if (data.current_item) {
+        updateCurrentItemAlert(section, data.current_item);
+    } else {
+        // Alle Items abgeschlossen
+        updateCurrentItemAlert(section, null);
+    }
+    
+    // Nächstes Item aktualisieren (alert-light)
+    if (data.next_item) {
+        updateNextItemAlert(section, data.next_item);
+    } else {
+        // Kein nächstes Item, verstecke die Vorschau
+        const nextAlert = section.querySelector('.alert-light');
+        if (nextAlert) {
+            nextAlert.style.display = 'none';
+        }
+    }
+}
+
+function updateCurrentItemAlert(section, currentItem) {
+    const currentAlert = section.querySelector('.alert-warning');
+    
+    if (!currentItem) {
+        // Alle Items abgeschlossen - zeige success alert
+        if (currentAlert) {
+            currentAlert.className = 'alert alert-success';
+            currentAlert.innerHTML = `
+                <i class="fas fa-check-circle"></i> 
+                Alle Items des Ablaufplans wurden abgeschlossen!
+            `;
+        }
+        return;
+    }
+    
+    if (currentAlert) {
+        const icon = currentItem.type === 'minigame' ? 
+            '<i class="fas fa-gamepad text-primary"></i>' : 
+            '<i class="fas fa-question-circle text-info"></i>';
+        
+        let html = `
+            <h6><i class="fas fa-arrow-right"></i> Nächstes Item:</h6>
+            <strong>
+                ${icon}
+                ${currentItem.name}
+            </strong>
+        `;
+        
+        if (currentItem.description) {
+            html += `<p class="mb-0 mt-1">${currentItem.description}</p>`;
+        }
+        
+        currentAlert.innerHTML = html;
+        currentAlert.className = 'alert alert-warning';
+        currentAlert.style.display = 'block';
+    }
+}
+
+function updateNextItemAlert(section, nextItem) {
+    const nextAlert = section.querySelector('.alert-light');
+    
+    if (nextAlert && nextItem) {
+        const icon = nextItem.type === 'minigame' ? 
+            '<i class="fas fa-gamepad text-primary"></i>' : 
+            '<i class="fas fa-question-circle text-info"></i>';
+        
+        nextAlert.innerHTML = `
+            <h6><i class="fas fa-clock"></i> Danach:</h6>
+            <small>
+                ${icon}
+                ${nextItem.name}
+            </small>
+        `;
+        nextAlert.style.display = 'block';
+    }
+}
+
+// Live-Updates starten wenn Admin Dashboard geladen wird
+document.addEventListener('DOMContentLoaded', function() {
+    // Initiales Update
+    updateSequenceStatus();
+    
+    // Regelmäßige Updates alle 5 Sekunden
+    sequenceUpdateInterval = setInterval(updateSequenceStatus, 5000);
+    
+    // Stoppe Updates wenn Seite verlassen wird
+    window.addEventListener('beforeunload', function() {
+        if (sequenceUpdateInterval) {
+            clearInterval(sequenceUpdateInterval);
+        }
+    });
+    
+    // Pause Updates wenn Tab nicht aktiv ist (Performance)
+    document.addEventListener('visibilitychange', function() {
+        if (document.hidden) {
+            if (sequenceUpdateInterval) {
+                clearInterval(sequenceUpdateInterval);
+            }
+        } else {
+            // Resume updates wenn Tab wieder aktiv
+            updateSequenceStatus();
+            sequenceUpdateInterval = setInterval(updateSequenceStatus, 5000);
+        }
+    });
+});
 </script>
 {% endblock %}

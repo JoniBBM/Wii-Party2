@@ -49,6 +49,10 @@
                                class="btn btn-outline-primary btn-sm">
                                 <i class="fas fa-edit"></i> Bearbeiten
                             </a>
+                            <a href="{{ url_for('admin.manage_sequence', folder_id=folder.id) }}" 
+                               class="btn btn-outline-info btn-sm" title="Ablaufplan für diesen Ordner bearbeiten">
+                                <i class="fas fa-list-ol"></i> Plan bearbeiten
+                            </a>
                             {% set is_default = folder.name == config.get('DEFAULT_MINIGAME_FOLDER', 'Default') %}
                             {% if not is_default %}
                                 <a href="{{ url_for('admin.delete_folder', folder_id=folder.id) }}" 
