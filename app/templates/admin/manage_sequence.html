@@ -430,6 +430,122 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     
+    // Live-Updates für Sequence-Fortschritt
+    let sequenceProgressInterval;
+    
+    function updateSequenceProgress() {
+        fetch('/admin/api/sequence_status')
+            .then(response => response.json())
+            .then(data => {
+                if (data.has_sequence && data.sequence_list) {
+                    updateSequenceProgressUI(data);
+                }
+            })
+            .catch(error => {
+                console.error('Fehler beim Laden der Sequence-Fortschritt:', error);
+            });
+    }
+    
+    function updateSequenceProgressUI(data) {
+        // Progress Bar aktualisieren
+        const progressBar = document.querySelector('.progress-bar');
+        if (progressBar) {
+            progressBar.style.width = data.progress_percentage + '%';
+            progressBar.textContent = data.progress_percentage + '%';
+        }
+        
+        // Position Text aktualisieren
+        const progressContainer = document.querySelector('.progress').parentElement;
+        const positionText = progressContainer ? progressContainer.querySelector('small') : null;
+        if (positionText) {
+            positionText.textContent = `${data.current_position + 1} von ${data.total_items} abgeschlossen`;
+        }
+        
+        // Status Badge aktualisieren
+        const statusBadge = document.querySelector('.badge');
+        if (statusBadge) {
+            if (data.is_active) {
+                statusBadge.className = 'badge badge-success mr-2';
+                statusBadge.innerHTML = '<i class="fas fa-play"></i> Aktiv';
+            } else {
+                statusBadge.className = 'badge badge-secondary mr-2';
+                statusBadge.innerHTML = '<i class="fas fa-pause"></i> Inaktiv';
+            }
+        }
+        
+        // Sequenz-Items aktualisieren (completed/current Status)
+        const sequenceItems = document.querySelectorAll('.sequence-item');
+        sequenceItems.forEach((item, index) => {
+            const itemContent = item.querySelector('.item-content');
+            if (itemContent) {
+                // Entferne alle Status-Klassen
+                itemContent.classList.remove('completed', 'current');
+                
+                // Entferne alte Badges
+                const oldBadges = itemContent.querySelectorAll('.badge');
+                oldBadges.forEach(badge => badge.remove());
+                
+                // Setze neuen Status basierend auf current_position
+                if (index < data.current_position) {
+                    // Abgeschlossen
+                    itemContent.classList.add('completed');
+                    const itemHeader = itemContent.querySelector('.item-header');
+                    if (itemHeader) {
+                        const badge = document.createElement('span');
+                        badge.className = 'badge badge-success ml-2';
+                        badge.textContent = 'Abgeschlossen';
+                        itemHeader.appendChild(badge);
+                    }
+                } else if (index === data.current_position) {
+                    // Aktuell
+                    itemContent.classList.add('current');
+                    const itemHeader = itemContent.querySelector('.item-header');
+                    if (itemHeader) {
+                        const badge = document.createElement('span');
+                        badge.className = 'badge badge-warning ml-2';
+                        badge.textContent = 'Aktuell';
+                        itemHeader.appendChild(badge);
+                    }
+                }
+                // Items nach current_position bleiben ohne Badge (noch nicht erreicht)
+            }
+        });
+    }
+    
+    // Live-Updates starten
+    function startSequenceProgressUpdates() {
+        // Initiales Update
+        updateSequenceProgress();
+        
+        // Regelmäßige Updates alle 3 Sekunden
+        sequenceProgressInterval = setInterval(updateSequenceProgress, 3000);
+    }
+    
+    function stopSequenceProgressUpdates() {
+        if (sequenceProgressInterval) {
+            clearInterval(sequenceProgressInterval);
+            sequenceProgressInterval = null;
+        }
+    }
+    
+    // Starte Live-Updates
+    startSequenceProgressUpdates();
+    
+    // Stoppe Updates wenn Seite verlassen wird
+    window.addEventListener('beforeunload', function() {
+        stopSequenceProgressUpdates();
+    });
+    
+    // Pause Updates wenn Tab nicht aktiv ist (Performance)
+    document.addEventListener('visibilitychange', function() {
+        if (document.hidden) {
+            stopSequenceProgressUpdates();
+        } else {
+            // Resume updates wenn Tab wieder aktiv
+            startSequenceProgressUpdates();
+        }
+    });
+    
     // Initial sequence update
     updateSequence();
 });
