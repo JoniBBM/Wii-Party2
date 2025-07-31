@@ -3458,8 +3458,12 @@ function updateSelectedPlayersInfo(selectedPlayers) {
         }
         
         // Bestimme Icon und Titel basierend auf Typ
+        const fieldMinigamePhases = ['FIELD_MINIGAME_SELECTION_PENDING', 'FIELD_MINIGAME_TRIGGERED', 'FIELD_MINIGAME_ACTIVE', 'FIELD_MINIGAME_COMPLETED'];
+        
         if (lastGameData.question_data) {
             minigameTitleEl.innerHTML = '<i class="fas fa-question-circle mr-2"></i>Aktuelle Frage';
+        } else if (fieldMinigamePhases.includes(lastGameData.current_phase)) {
+            minigameTitleEl.innerHTML = '<i class="fas fa-map-marker-alt mr-2"></i>Feld-Minispiel';
         } else {
             minigameTitleEl.innerHTML = '<i class="fas fa-gamepad mr-2"></i>Aktuelles Minispiel';
         }

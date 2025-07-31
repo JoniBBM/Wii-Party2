@@ -7189,20 +7189,22 @@ function showFloatingBubbles(playerFaces) {
     
     console.log('🖼️ Gültige Spieler gefunden:', validPlayers.length, 'von', playerFaces.length);
     
+    // Debug-Info für ALLE Spieler anzeigen
+    console.log('🔍 Debug - Alle empfangenen Spielerdaten:');
+    playerFaces.forEach((player, i) => {
+        console.log(`Spieler ${i}:`, {
+            player_name: player?.player_name,
+            name: player?.name,
+            image_path: player?.image_path,
+            emoji: player?.emoji,
+            has_photo: player?.has_photo,
+            team_id: player?.team_id,
+            team_name: player?.team_name
+        });
+    });
+    
     if (validPlayers.length === 0) {
         console.log('⚠️ Keine gültigen Spieler gefunden');
-        // Zeige Debug-Info für alle Spieler
-        playerFaces.forEach((player, i) => {
-            console.log(`Spieler ${i}:`, {
-                player_name: player?.player_name,
-                name: player?.name,
-                image_path: player?.image_path,
-                emoji: player?.emoji,
-                has_photo: player?.has_photo,
-                team_id: player?.team_id,
-                team_name: player?.team_name
-            });
-        });
         return;
     }
     
@@ -7478,6 +7480,8 @@ function showFieldMinigameBanner(teamData) {
     const lastMinigameKey = lastShownMinigameData ? 
         `${lastShownMinigameData.landing_team}_${lastShownMinigameData.minigame_name}_${lastShownMinigameData.mode}_${lastShownMinigameData.opponent_team}` : null;
     
+    console.log('🔍 Minigame Keys:', { current: minigameKey, last: lastMinigameKey, shown: fieldMinigameBannerShown });
+    
     // Prevent repeated showing of the same minigame
     if (fieldMinigameBannerShown && minigameKey === lastMinigameKey) {
         console.log('🎯 Field Minigame Banner bereits angezeigt für dieses Minispiel - überspringe');
@@ -7503,14 +7507,46 @@ function showFieldMinigameBanner(teamData) {
     
     teamsElement.textContent = teamsText;
     
-    // Beschreibung setzen
-    let description = `Minispiel "${teamData.minigame_name}" wurde gestartet!`;
+    // Beschreibung setzen mit prominenter Hervorhebung
+    let description = `🎮 MINISPIEL: "${teamData.minigame_name.toUpperCase()}" wurde gestartet!`;
+    
     if (teamData.mode === 'team_vs_team') {
-        description += ` Zwei Teams kämpfen gegeneinander.`;
+        description += `\n🆚 Zwei Teams kämpfen gegeneinander.`;
     } else {
-        description += ` Ein Team gegen alle anderen.`;
+        description += `\n🆚 Ein Team gegen alle anderen.`;
     }
-    description += ` Der Gewinner bekommt 5 Felder Vorsprung!`;
+    description += `\n🏆 Der Gewinner bekommt 5 Felder Vorsprung!`;
+    
+    // Regeln/Anweisungen prominent anzeigen
+    if (teamData.minigame_instructions && teamData.minigame_instructions.trim()) {
+        description += `\n\n📋 REGELN:\n${teamData.minigame_instructions}`;
+    }
+    
+    // Material anzeigen
+    if (teamData.minigame_materials && teamData.minigame_materials.trim() && teamData.minigame_materials !== 'Keine') {
+        description += `\n\n🎯 MATERIAL: ${teamData.minigame_materials}`;
+    }
+    
+    // Ausgeloste Spieler anzeigen
+    if (teamData.selected_players && Object.keys(teamData.selected_players).length > 0) {
+        description += `\n\n👥 TEILNEHMER:`;
+        for (const [teamName, players] of Object.entries(teamData.selected_players)) {
+            if (players && players.length > 0) {
+                // Unterstütze sowohl neues Format mit Profilbildern als auch altes Format
+                const playerNames = players.map(p => {
+                    if (typeof p === 'object' && p.name) {
+                        return p.name; // Neues Format: {name: "...", profile_image: "..."}
+                    } else if (typeof p === 'string') {
+                        return p; // Altes Format: nur String
+                    } else if (typeof p === 'object' && p.name) {
+                        return p.name; // Fallback
+                    }
+                    return String(p); // Sicherheits-Fallback
+                }).join(', ');
+                description += `\n• ${teamName}: ${playerNames}`;
+            }
+        }
+    }
     
     descriptionElement.textContent = description;
     
@@ -7519,7 +7555,84 @@ function showFieldMinigameBanner(teamData) {
     fieldMinigameBannerShown = true; // Mark as shown
     lastShownMinigameData = teamData; // Store current minigame data
     
+    // Zeige Spielergesichter nach kurzer Verzögerung wie bei normalen Minigames
+    setTimeout(() => {
+        showFieldMinigamePlayerFaces(teamData.selected_players);
+    }, 2000);
+    
     // Banner bleibt bis Field-Minispiel beendet ist (kein 8s Timeout mehr)
+}
+
+// Emoji-Generierung für Spieler (identisch zur edit_team.html Logik)
+function getPlayerEmojiForBoard(playerName) {
+    const emojis = [
+        "😀", "😃", "😄", "😁", "😆", "😅", "🤣", "😂", "🙂", "🙃", 
+        "😉", "😊", "😇", "🥰", "😍", "🤩", "😘", "😗", "😚", "😙",
+        "😋", "😛", "😜", "🤪", "😝", "🤑", "🤗", "🤭", "🤫", "🤔",
+        "🤓", "😎", "🤡", "🥳", "😏", "😒", "😞", "😔", "😟", "😕",
+        "🙁", "☹️", "😣", "😖", "😫", "😩", "🥺", "😢", "😭", "😤",
+        "😠", "😡", "🤬", "🤯", "😳", "🥵", "🥶", "😱", "😨", "😰"
+    ];
+    
+    // Einfacher Hash für deterministische Emoji-Zuweisung
+    let hash = 0;
+    for (let i = 0; i < playerName.length; i++) {
+        const char = playerName.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash = hash & hash; // Convert to 32bit integer
+    }
+    return emojis[Math.abs(hash) % emojis.length];
+}
+
+// Konvertiere Feld-Minigame Spielerdaten in das korrekte Format für showFloatingBubbles
+function showFieldMinigamePlayerFaces(selectedPlayers) {
+    if (!selectedPlayers || Object.keys(selectedPlayers).length === 0) {
+        console.log('❌ Keine Spielerdaten für Face-Overlay:', selectedPlayers);
+        return;
+    }
+    
+    console.log('🎭 Konvertiere Feld-Minigame Spieler für Face-Overlay:', selectedPlayers);
+    
+    // Konvertiere in das erwartete Format für showFloatingBubbles
+    const playerFaces = [];
+    
+    for (const [teamName, players] of Object.entries(selectedPlayers)) {
+        // Hole Team-Informationen für Farbe und ID
+        const teamElement = document.querySelector(`[data-team-name="${teamName}"]`);
+        const teamColor = teamElement ? getComputedStyle(teamElement).color : '#666';
+        
+        // Finde Team-ID (vereinfacht - verwende Team-Index)
+        const allTeamNames = Object.keys(selectedPlayers);
+        const teamId = allTeamNames.indexOf(teamName) + 1;
+        
+        for (const player of players) {
+            const playerName = typeof player === 'object' ? player.name : player;
+            const profileImage = typeof player === 'object' ? player.profile_image : null;
+            const hasPhoto = typeof player === 'object' ? player.has_photo : false;
+            const emoji = typeof player === 'object' ? player.emoji : null;
+            
+            // Fallback: generiere Emoji deterministisch vom Namen falls keins vorhanden
+            const finalEmoji = emoji || getPlayerEmojiForBoard(playerName);
+            
+            console.log(`🎭 Spieler "${playerName}": Emoji von Backend: ${emoji}, Finales Emoji: ${finalEmoji}`);
+            
+            playerFaces.push({
+                player_name: playerName,
+                name: playerName, // Alias für Kompatibilität mit showFloatingBubbles
+                team_name: teamName,
+                team_id: teamId,
+                team_color: teamColor,
+                image_path: profileImage || null,
+                has_photo: hasPhoto,
+                emoji: finalEmoji
+            });
+        }
+    }
+    
+    console.log('✅ Konvertierte Spielerdaten für showFloatingBubbles:', playerFaces);
+    
+    // Verwende die bestehende showFloatingBubbles Funktion
+    showFloatingBubbles(playerFaces);
 }
 
 function hideFieldMinigameBanner() {

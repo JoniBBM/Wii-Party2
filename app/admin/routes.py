@@ -4222,7 +4222,7 @@ def start_field_minigame():
             # Wähle zufälliges anderes Team als Gegner
             from app.models import Team
             landing_team_id = active_session.field_minigame_landing_team_id
-            other_teams = Team.query.filter(Team.id != landing_team_id, Team.is_active == True).all()
+            other_teams = Team.query.filter(Team.id != landing_team_id).all()
             
             if other_teams:
                 import random

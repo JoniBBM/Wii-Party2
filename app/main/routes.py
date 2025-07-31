@@ -1879,7 +1879,7 @@ def field_minigame_status():
             return jsonify({"show_banner": False})
         
         # Prüfe ob ein Field Minigame gerade gestartet wurde oder gerade beendet wurde
-        if active_session.current_phase in ['FIELD_MINIGAME_SELECTION_PENDING', 'FIELD_MINIGAME_TRIGGERED']:
+        if active_session.current_phase == 'FIELD_MINIGAME_TRIGGERED':
             # Phase 1: Minigame läuft - zeige Start-Banner
             # Hole Team-Informationen
             landing_team = None
@@ -1893,18 +1893,81 @@ def field_minigame_status():
             
             # Hole Minispiel-Informationen
             minigame_name = "Unbekanntes Minispiel"
+            minigame_instructions = ""
+            minigame_materials = ""
             if active_session.field_minigame_content_id:
-                from app.admin.minigame_utils import get_minigame_from_folder
-                from app.models import GameRound
-                
-                active_round = GameRound.get_active_round()
-                if active_round and active_round.minigame_folder:
-                    minigame = get_minigame_from_folder(
-                        active_round.minigame_folder.folder_path,
-                        active_session.field_minigame_content_id
-                    )
-                    if minigame:
-                        minigame_name = minigame.get('name', 'Unbekanntes Minispiel')
+                try:
+                    import os
+                    import json
+                    
+                    # Feld-Minispiele sind im field_minigames Ordner gespeichert
+                    # Versuche zuerst den gespeicherten Mode, dann beide Ordner
+                    possible_modes = [active_session.field_minigame_mode, 'team_vs_all', 'team_vs_team']
+                    field_minigame_path = None
+                    
+                    for mode in possible_modes:
+                        if mode:
+                            test_path = os.path.join(
+                                current_app.static_folder, 
+                                'field_minigames', 
+                                mode,
+                                f"{active_session.field_minigame_content_id}.json"
+                            )
+                            if os.path.exists(test_path):
+                                field_minigame_path = test_path
+                                break
+                    
+                    if field_minigame_path:
+                        with open(field_minigame_path, 'r', encoding='utf-8') as f:
+                            minigame_data = json.load(f)
+                        minigame_name = minigame_data.get('title', active_session.field_minigame_content_id)
+                        minigame_instructions = minigame_data.get('instructions', '')
+                        minigame_materials = minigame_data.get('materials', '')
+                except Exception as e:
+                    current_app.logger.warning(f"Fehler beim Laden der Feld-Minispiel-Daten: {e}")
+                    minigame_name = "Unbekanntes Minispiel"
+            
+            # Hole ausgeloste Spieler mit Profilbildern
+            selected_players = {}
+            selected_players_with_images = {}
+            if active_session.field_minigame_selected_players:
+                try:
+                    selected_players = json.loads(active_session.field_minigame_selected_players)
+                    # Erweitere um Profilbilder
+                    for team_name, players in selected_players.items():
+                        team = Team.query.filter_by(name=team_name).first()
+                        if team:
+                            players_with_images = []
+                            for player_data in players:
+                                player_name = player_data.get('name', '')
+                                # Verwende die neue get_player_by_name Methode um vollständige Daten zu bekommen
+                                player_info = team.get_player_by_name(player_name)
+                                if player_info:
+                                    players_with_images.append({
+                                        'name': player_name,
+                                        'profile_image': player_info.get('profile_image'),
+                                        'has_photo': player_info.get('has_photo', False),
+                                        'emoji': player_info.get('emoji')
+                                    })
+                                else:
+                                    # Fallback wenn get_player_by_name fehlschlägt
+                                    profile_image = team.get_profile_image(player_name)
+                                    # Versuche Emoji aus player_config zu holen
+                                    player_config = team.get_player_config()
+                                    emoji = None
+                                    if player_name in player_config:
+                                        emoji = player_config[player_name].get('emoji')
+                                    
+                                    players_with_images.append({
+                                        'name': player_name,
+                                        'profile_image': profile_image,
+                                        'has_photo': profile_image is not None,
+                                        'emoji': emoji
+                                    })
+                            selected_players_with_images[team_name] = players_with_images
+                except Exception as e:
+                    current_app.logger.warning(f"Fehler beim Laden der Spielerbilder: {e}")
+                    selected_players = {}
             
             return jsonify({
                 "show_banner": True,
@@ -1913,7 +1976,10 @@ def field_minigame_status():
                     "mode": active_session.field_minigame_mode,
                     "landing_team": landing_team.name if landing_team else "Unbekannt",
                     "opponent_team": opponent_team.name if opponent_team else "alle anderen Teams",
-                    "minigame_name": minigame_name
+                    "minigame_name": minigame_name,
+                    "minigame_instructions": minigame_instructions,
+                    "minigame_materials": minigame_materials,
+                    "selected_players": selected_players_with_images or selected_players
                 }
             })
         

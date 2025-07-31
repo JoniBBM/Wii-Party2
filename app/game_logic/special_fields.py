@@ -838,6 +838,102 @@ def start_selected_field_minigame(game_session, selected_minigame_id, selected_m
         game_session.field_minigame_content_type = selected_minigame.get('type', 'game')
         game_session.current_phase = 'FIELD_MINIGAME_TRIGGERED'
         
+        # Spieler auslosen basierend auf player_count
+        selected_players_data = {}
+        player_count = selected_minigame.get('player_count', 1)
+        
+        # Hole die beteiligten Teams
+        from app.models import Team
+        
+        if game_session.field_minigame_landing_team_id:
+            landing_team = Team.query.get(game_session.field_minigame_landing_team_id)
+            if landing_team:
+                # Hole verfügbare Spieler für Auslosung
+                selectable_players = landing_team.get_selectable_players()
+                if selectable_players:
+                    if len(selectable_players) >= player_count:
+                        selected_players = random.sample(selectable_players, player_count)
+                    else:
+                        selected_players = selectable_players  # Alle Spieler wenn weniger als benötigt
+                    
+                    # Erweitere Spielerdaten um alle nötigen Informationen für die Anzeige
+                    current_app.logger.info(f"[DEBUG] Processing {len(selected_players)} players for team {landing_team.name}")
+                    player_data_list = []
+                    for player_name in selected_players:
+                        player_info = {"name": player_name}
+                        # Prüfe ob Spieler ein Foto hat
+                        player_obj = landing_team.get_player_by_name(player_name)
+                        current_app.logger.info(f"[DEBUG] get_player_by_name('{player_name}') returned: {player_obj}")
+                        if player_obj:
+                            player_info["has_photo"] = player_obj.get("has_photo", False) 
+                            player_info["profile_image"] = player_obj.get("profile_image")
+                            player_info["emoji"] = player_obj.get("emoji")
+                            current_app.logger.info(f"[DEBUG] Final player_info for '{player_name}': {player_info}")
+                        else:
+                            current_app.logger.warning(f"[DEBUG] get_player_by_name('{player_name}') returned None!")
+                        player_data_list.append(player_info)
+                    
+                    selected_players_data[landing_team.name] = player_data_list
+        
+        # Für team_vs_team Mode auch Gegner-Team
+        if (game_session.field_minigame_mode == 'team_vs_team' and 
+            game_session.field_minigame_opponent_team_id):
+            opponent_team = Team.query.get(game_session.field_minigame_opponent_team_id)
+            if opponent_team:
+                selectable_players = opponent_team.get_selectable_players()
+                if selectable_players:
+                    if len(selectable_players) >= player_count:
+                        selected_players = random.sample(selectable_players, player_count)
+                    else:
+                        selected_players = selectable_players
+                    
+                    # Erweitere Spielerdaten um alle nötigen Informationen für die Anzeige
+                    player_data_list = []
+                    for player_name in selected_players:
+                        player_info = {"name": player_name}
+                        # Prüfe ob Spieler ein Foto hat
+                        player_obj = opponent_team.get_player_by_name(player_name)
+                        if player_obj:
+                            player_info["has_photo"] = player_obj.get("has_photo", False) 
+                            player_info["profile_image"] = player_obj.get("profile_image")
+                            player_info["emoji"] = player_obj.get("emoji")
+                        player_data_list.append(player_info)
+                    
+                    selected_players_data[opponent_team.name] = player_data_list
+        
+        # Für team_vs_all Mode: Lose von ALLEN anderen Teams Spieler aus
+        elif game_session.field_minigame_mode == 'team_vs_all':
+            # Hole alle Teams außer dem landenden Team
+            from app.models import GameSession
+            all_teams = Team.query.filter(
+                Team.id != game_session.field_minigame_landing_team_id
+            ).all()
+            
+            for team in all_teams:
+                selectable_players = team.get_selectable_players()
+                if selectable_players:
+                    if len(selectable_players) >= player_count:
+                        selected_players = random.sample(selectable_players, player_count)
+                    else:
+                        selected_players = selectable_players
+                    
+                    # Erweitere Spielerdaten um alle nötigen Informationen für die Anzeige
+                    player_data_list = []
+                    for player_name in selected_players:
+                        player_info = {"name": player_name}
+                        # Prüfe ob Spieler ein Foto hat
+                        player_obj = team.get_player_by_name(player_name)
+                        if player_obj:
+                            player_info["has_photo"] = player_obj.get("has_photo", False) 
+                            player_info["profile_image"] = player_obj.get("profile_image")
+                            player_info["emoji"] = player_obj.get("emoji")
+                        player_data_list.append(player_info)
+                    
+                    selected_players_data[team.name] = player_data_list
+        
+        # Speichere die ausgelosten Spieler in der Session als JSON
+        game_session.field_minigame_selected_players = json.dumps(selected_players_data)
+        
         # Event erstellen  
         event = GameEvent(
             game_session_id=game_session.id,

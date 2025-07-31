@@ -316,6 +316,37 @@ class Team(UserMixin, db.Model):
             del images[player_name]
             self.profile_images = json.dumps(images)
 
+    def get_player_by_name(self, player_name):
+        """Gibt vollständige Spielerinformationen für einen Spieler zurück"""
+        if not player_name:
+            return None
+            
+        # Hole Spieler-Konfiguration und Profilbilder
+        player_config = self.get_player_config()
+        profile_images = self.get_profile_images()
+        
+        # Prüfe ob Spieler existiert
+        if not self.members:
+            return None
+            
+        all_players = [m.strip() for m in self.members.split(',') if m.strip()]
+        if player_name not in all_players:
+            return None
+            
+        # Baue Spieler-Info zusammen
+        player_info = {
+            'name': player_name,
+            'has_photo': player_name in profile_images,
+            'profile_image': profile_images.get(player_name),
+            'emoji': None
+        }
+        
+        # Hole Emoji aus player_config falls vorhanden
+        if player_name in player_config:
+            player_info['emoji'] = player_config[player_name].get('emoji')
+        
+        return player_info
+
     def __repr__(self):
         return f'<Team {self.name}>'
 
@@ -1184,6 +1215,7 @@ class GameSession(db.Model):
     field_minigame_content_id = db.Column(db.String(100), nullable=True)  # ID des gespielten Inhalts
     field_minigame_content_type = db.Column(db.String(20), nullable=True)  # 'question', 'game'
     field_minigame_result = db.Column(db.String(20), nullable=True)  # 'won', 'lost'
+    field_minigame_selected_players = db.Column(db.Text, nullable=True)  # JSON mit ausgelosten Spielern
     
     # Beziehungen für Feld-Minigames
     field_minigame_landing_team = db.relationship('Team', foreign_keys=[field_minigame_landing_team_id])
@@ -1226,6 +1258,23 @@ class GameSession(db.Model):
 
     def get_selected_players(self):
         """Gibt die ausgewählten Spieler als Dictionary zurück"""
+        # Bei Feld-Minigames verwende field_minigame_selected_players
+        if (self.current_phase in ['FIELD_MINIGAME_SELECTION_PENDING', 'FIELD_MINIGAME_TRIGGERED', 'FIELD_MINIGAME_ACTIVE', 'FIELD_MINIGAME_COMPLETED'] 
+            and self.field_minigame_selected_players):
+            try:
+                field_players = json.loads(self.field_minigame_selected_players)
+                # Konvertiere Format von {"Team1": [{"name": "Player1"}]} zu {"team_id": ["Player1"]}
+                converted = {}
+                for team_name, players in field_players.items():
+                    # Finde Team ID basierend auf Name (Teams sind global, nicht rundespezifisch)
+                    team = Team.query.filter_by(name=team_name).first()
+                    if team:
+                        converted[str(team.id)] = [p.get('name', '') for p in players if isinstance(p, dict)]
+                return converted
+            except (json.JSONDecodeError, TypeError):
+                pass
+        
+        # Standard-Verhalten für normale Minigames
         if not self.selected_players:
             return {}
         try:
