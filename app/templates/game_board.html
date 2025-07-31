@@ -3185,6 +3185,17 @@ class WiiPartyIsland {
                                     const requiredText = specialEvent.data.barrier_config?.display_text || "Höhere Zahl benötigt";
                                     console.log(`🚧 Showing barrier blocked notification for ${eventTeam.name}`);
                                     window.NotificationSystem.showBarrierFailed(eventTeam.name, diceRoll, bonusRoll, requiredText, 8000);
+                                    
+                                } else if (specialEvent.event_type === 'field_minigame_completed') {
+                                    const result = specialEvent.data.result;
+                                    if (result === 'won') {
+                                        const forwardFields = specialEvent.data.reward_forward || 5;
+                                        console.log(`🏆 Showing field minigame win notification for ${eventTeam.name}`);
+                                        window.NotificationSystem.showFieldMinigameWin(eventTeam.name, forwardFields, 8000);
+                                    } else if (result === 'lost') {
+                                        console.log(`💔 Showing field minigame loss notification for ${eventTeam.name}`);
+                                        window.NotificationSystem.showFieldMinigameLoss(eventTeam.name, 8000);
+                                    }
                                 }
                                 
                                 window.shownSpecialNotifications.add(notificationKey);

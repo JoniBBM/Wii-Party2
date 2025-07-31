@@ -836,6 +836,8 @@ def start_selected_field_minigame(game_session, selected_minigame_id, selected_m
         # Setze die Auswahl in der Session
         game_session.field_minigame_content_id = selected_minigame_id
         game_session.field_minigame_content_type = selected_minigame.get('type', 'game')
+        game_session.current_minigame_name = selected_minigame.get('title', selected_minigame_id)
+        game_session.current_minigame_description = selected_minigame.get('instructions', '')
         game_session.current_phase = 'FIELD_MINIGAME_TRIGGERED'
         
         # Spieler auslosen basierend auf player_count

@@ -310,6 +310,42 @@ class NotificationSystem {
     }
 
     /**
+     * Zeigt Benachrichtigung für Feld-Minigame Sieg an
+     */
+    showFieldMinigameWin(teamName, forwardFields, duration = 8000) {
+        console.log('📱 showFieldMinigameWin called with:', { teamName, forwardFields, duration });
+        
+        const notification = this.createNotification({
+            type: 'field-minigame-win',
+            icon: '🏆',
+            title: `${teamName} - Minigame gewonnen!`,
+            message: `Belohnung: ${forwardFields} Felder vorwärts`,
+            duration
+        });
+
+        console.log('📱 Created field minigame win notification:', notification);
+        this.showNotification(notification);
+    }
+
+    /**
+     * Zeigt Benachrichtigung für Feld-Minigame Niederlage an
+     */
+    showFieldMinigameLoss(teamName, duration = 8000) {
+        console.log('📱 showFieldMinigameLoss called with:', { teamName, duration });
+        
+        const notification = this.createNotification({
+            type: 'field-minigame-loss',
+            icon: '💔',
+            title: `${teamName} - Minigame verloren`,
+            message: `Keine Belohnung - weiter geht's!`,
+            duration
+        });
+
+        console.log('📱 Created field minigame loss notification:', notification);
+        this.showNotification(notification);
+    }
+
+    /**
      * Zeigt eine einfache Benachrichtigung an
      */
     show(title, message, type = 'info', duration = 6000) {
@@ -382,4 +418,13 @@ window.showBarrierReleasedNotification = (teamName, diceRoll, bonusRoll, method,
 
 window.showBarrierFailedNotification = (teamName, diceRoll, bonusRoll, requiredText, duration) => {
     window.NotificationSystem.showBarrierFailed(teamName, diceRoll, bonusRoll, requiredText, duration);
+};
+
+// Hilfsfunktionen für Feld-Minigames
+window.showFieldMinigameWinNotification = (teamName, forwardFields, duration) => {
+    window.NotificationSystem.showFieldMinigameWin(teamName, forwardFields, duration);
+};
+
+window.showFieldMinigameLossNotification = (teamName, duration) => {
+    window.NotificationSystem.showFieldMinigameLoss(teamName, duration);
 };

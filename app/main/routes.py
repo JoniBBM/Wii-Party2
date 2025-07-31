@@ -149,13 +149,14 @@ def board_status():
             GameEvent.timestamp >= recent_time
         ).order_by(GameEvent.timestamp.desc()).first()
         
-        # Find the most recent special field event (catapult, barrier, swap)
+        # Find the most recent special field event (catapult, barrier, swap, field minigames)
         last_special_event = GameEvent.query.filter_by(
             game_session_id=active_session_query.id
         ).filter(
             GameEvent.event_type.in_(['special_field_catapult_forward', 'special_field_catapult_backward', 
                                      'special_field_player_swap', 'special_field_barrier_set', 
-                                     'special_field_barrier_released']),
+                                     'special_field_barrier_released', 'special_field_barrier_blocked',
+                                     'field_minigame_completed']),
             GameEvent.timestamp >= recent_time
         ).order_by(GameEvent.timestamp.desc()).first()
         
@@ -1822,6 +1823,10 @@ def advance_field_minigame_phase():
         # Prüfe ob Session in FIELD_MINIGAME_COMPLETED Phase ist
         if active_session.current_phase != 'FIELD_MINIGAME_COMPLETED':
             return jsonify({'success': False, 'message': f'Session nicht in FIELD_MINIGAME_COMPLETED Phase (aktuell: {active_session.current_phase})'}), 400
+        
+        # Bereinige Feld-Minigame Daten
+        active_session.current_minigame_name = None
+        active_session.current_minigame_description = None
         
         # Bestimme nächste Phase basierend auf Würfelreihenfolge
         if active_session.dice_roll_order and active_session.current_team_turn_id:

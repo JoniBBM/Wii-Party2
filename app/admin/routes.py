@@ -507,30 +507,37 @@ def admin_roll_dice():
             next_team = Team.query.get(active_session.current_team_turn_id)
             next_team_name = next_team.name if next_team else "Unbekannt"
         else:
-            active_session.current_phase = 'ROUND_OVER'
-            active_session.current_team_turn_id = None 
-            
-            # WICHTIG: Erstelle Event für Rundenende
-            round_end_event = GameEvent(
-                game_session_id=active_session.id,
-                event_type="dice_round_ended",
-                description="Würfelrunde beendet (Admin) - alle Teams haben gewürfelt"
-            )
-            db.session.add(round_end_event)
-            
-            # VERBESSERT: Nur Bonus-Würfel zurücksetzen, Platzierungen beibehalten für Statistiken
-            all_teams_in_db = Team.query.all()
-            for t_obj in all_teams_in_db:
-                current_app.logger.info(f"Runde beendet - Bonus-Würfel für Team {t_obj.name} zurückgesetzt (war: {t_obj.bonus_dice_sides})")
-                t_obj.bonus_dice_sides = 0
-                # Platzierungen NICHT zurücksetzen - die bleiben für Statistiken
-            
-            round_over_event = GameEvent(
-                game_session_id=active_session.id,
-                event_type="dice_round_finished",
-                description="Admin beendete die Würfelrunde. Alle Teams haben gewürfelt."
-            )
-            db.session.add(round_over_event)
+            # Prüfe ob ein Feld-Minigame gestartet wurde (Phase geändert von special_field_action)
+            if active_session.current_phase == 'FIELD_MINIGAME_SELECTION_PENDING':
+                # Feld-Minigame wurde ausgelöst - nicht ROUND_OVER setzen
+                current_app.logger.info(f"Letztes Team {team.name} landete auf Minigame-Feld - Runde wartet auf Feld-Minigame")
+                active_session.current_team_turn_id = None  # Kein nächstes Team, aber Phase bleibt
+            else:
+                # Kein Feld-Minigame - normale Rundenvervollständigung
+                active_session.current_phase = 'ROUND_OVER'
+                active_session.current_team_turn_id = None 
+                
+                # WICHTIG: Erstelle Event für Rundenende nur wenn Runde wirklich beendet
+                round_end_event = GameEvent(
+                    game_session_id=active_session.id,
+                    event_type="dice_round_ended",
+                    description="Würfelrunde beendet (Admin) - alle Teams haben gewürfelt"
+                )
+                db.session.add(round_end_event)
+                
+                # VERBESSERT: Nur Bonus-Würfel zurücksetzen, Platzierungen beibehalten für Statistiken
+                all_teams_in_db = Team.query.all()
+                for t_obj in all_teams_in_db:
+                    current_app.logger.info(f"Runde beendet - Bonus-Würfel für Team {t_obj.name} zurückgesetzt (war: {t_obj.bonus_dice_sides})")
+                    t_obj.bonus_dice_sides = 0
+                    # Platzierungen NICHT zurücksetzen - die bleiben für Statistiken
+                
+                round_over_event = GameEvent(
+                    game_session_id=active_session.id,
+                    event_type="dice_round_finished",
+                    description="Admin beendete die Würfelrunde. Alle Teams haben gewürfelt."
+                )
+                db.session.add(round_over_event)
 
         db.session.commit()
 

@@ -1308,36 +1308,49 @@ def team_roll_dice():
         
         # FIX: Verwende round_complete statt nächstes Team Vergleich
         if round_complete:
-            active_session.current_phase = 'ROUND_OVER'
-            active_session.current_team_turn_id = None
-            
-            # WICHTIG: Erstelle Event für Rundenende
-            round_end_event = GameEvent(
-                game_session_id=active_session.id,
-                event_type="dice_round_ended",
-                description="Würfelrunde beendet - alle Teams haben gewürfelt"
-            )
-            db.session.add(round_end_event)
-            
-            current_app.logger.info(f"Alle Teams haben gewürfelt. Runde beendet.")
+            # Prüfe ob ein Feld-Minigame gestartet wurde (Phase geändert von special_field_action)
+            if active_session.current_phase == 'FIELD_MINIGAME_SELECTION_PENDING':
+                # Feld-Minigame wurde ausgelöst - nicht ROUND_OVER setzen
+                current_app.logger.info(f"Team {team.name} landete auf Minigame-Feld - Runde wartet auf Feld-Minigame")
+                active_session.current_team_turn_id = None  # Kein nächstes Team, aber Phase bleibt
+            else:
+                # Kein Feld-Minigame - normale Rundenvervollständigung
+                active_session.current_phase = 'ROUND_OVER'
+                active_session.current_team_turn_id = None
+                
+                # WICHTIG: Erstelle Event für Rundenende
+                round_end_event = GameEvent(
+                    game_session_id=active_session.id,
+                    event_type="dice_round_ended",
+                    description="Würfelrunde beendet - alle Teams haben gewürfelt"
+                )
+                db.session.add(round_end_event)
+                
+                current_app.logger.info(f"Alle Teams haben gewürfelt. Runde beendet.")
         elif next_team:
             # Runde geht weiter - nächstes Team ist dran
             active_session.current_team_turn_id = next_team.id
             current_app.logger.info(f"Nächstes Team am Zug: {next_team.name}")
         else:
-            # Fallback: Keine Teams gefunden oder Fehler - beende Runde
-            active_session.current_phase = 'ROUND_OVER'
-            active_session.current_team_turn_id = None
-            
-            # WICHTIG: Erstelle Event für Rundenende
-            round_end_event = GameEvent(
-                game_session_id=active_session.id,
-                event_type="dice_round_ended",
-                description="Würfelrunde beendet - keine weiteren Teams"
-            )
-            db.session.add(round_end_event)
-            
-            current_app.logger.info(f"Keine weiteren Teams. Runde beendet.")
+            # Fallback: Keine Teams gefunden oder Fehler - prüfe ob Feld-Minigame läuft
+            if active_session.current_phase == 'FIELD_MINIGAME_SELECTION_PENDING':
+                # Feld-Minigame wurde ausgelöst - nicht ROUND_OVER setzen
+                current_app.logger.info(f"Team {team.name} landete auf Minigame-Feld - Runde wartet auf Feld-Minigame (Fallback)")
+                active_session.current_team_turn_id = None  # Kein nächstes Team, aber Phase bleibt
+            else:
+                # Kein Feld-Minigame - beende Runde
+                active_session.current_phase = 'ROUND_OVER'
+                active_session.current_team_turn_id = None
+                
+                # WICHTIG: Erstelle Event für Rundenende
+                round_end_event = GameEvent(
+                    game_session_id=active_session.id,
+                    event_type="dice_round_ended",
+                    description="Würfelrunde beendet - keine weiteren Teams"
+                )
+                db.session.add(round_end_event)
+                
+                current_app.logger.info(f"Keine weiteren Teams. Runde beendet.")
         
         db.session.commit()
         
