@@ -7164,8 +7164,8 @@ function showFloatingBubbles(playerFaces) {
         return;
     }
     
-    // Filter nur Spieler mit echten Bildern (haben image_path)
-    const playersWithImages = playerFaces.filter(player => {
+    // Filter alle gültigen Spieler (mit Bildern ODER Emojis)
+    const validPlayers = playerFaces.filter(player => {
         if (!player || typeof player !== 'object') {
             console.log('⚠️ Ungültiger Spieler:', player);
             return false;
@@ -7176,23 +7176,29 @@ function showFloatingBubbles(playerFaces) {
                !player.image_path.includes('default') &&
                player.image_path.includes('profile_images');
                
+        const hasEmoji = player.emoji && player.emoji.trim() !== '';
+        
         if (hasValidImage) {
             console.log('✅ Gültiger Spieler mit Bild gefunden:', player.player_name || player.name, player.image_path);
+        } else if (hasEmoji) {
+            console.log('😀 Gültiger Spieler mit Emoji gefunden:', player.player_name || player.name, player.emoji);
         }
         
-        return hasValidImage;
+        return hasValidImage || hasEmoji;
     });
     
-    console.log('🖼️ Spieler mit echten Bildern gefunden:', playersWithImages.length, 'von', playerFaces.length);
+    console.log('🖼️ Gültige Spieler gefunden:', validPlayers.length, 'von', playerFaces.length);
     
-    if (playersWithImages.length === 0) {
-        console.log('⚠️ Keine Spieler mit echten Bildern gefunden');
+    if (validPlayers.length === 0) {
+        console.log('⚠️ Keine gültigen Spieler gefunden');
         // Zeige Debug-Info für alle Spieler
         playerFaces.forEach((player, i) => {
             console.log(`Spieler ${i}:`, {
                 player_name: player?.player_name,
                 name: player?.name,
                 image_path: player?.image_path,
+                emoji: player?.emoji,
+                has_photo: player?.has_photo,
                 team_id: player?.team_id,
                 team_name: player?.team_name
             });
@@ -7202,7 +7208,7 @@ function showFloatingBubbles(playerFaces) {
     
     // Erstelle Bubbles auch wenn Spielbrett noch nicht vollständig geladen ist
     try {
-        playersWithImages.forEach((player, index) => {
+        validPlayers.forEach((player, index) => {
             createFloatingBubble(player, index);
         });
     } catch (error) {
@@ -7243,16 +7249,78 @@ function createFloatingBubble(player, index) {
         text-align: center !important;
     `;
     
-    const img = document.createElement('img');
-    img.src = `/static/${player.image_path}`;
-    img.style.cssText = `
-        width: 200px !important;
-        height: 200px !important;
-        border-radius: 50% !important;
-        border: 6px solid ${player.team_color} !important;
-        object-fit: cover !important;
-        box-shadow: 0 8px 30px rgba(0,0,0,0.3) !important;
-    `;
+    // Erstelle Bild oder Emoji basierend auf verfügbaren Daten
+    let imageElement;
+    const hasValidImage = player.image_path && 
+           player.image_path.trim() !== '' && 
+           !player.image_path.includes('default') &&
+           player.image_path.includes('profile_images');
+    
+    if (hasValidImage) {
+        // Verwende Profilbild
+        imageElement = document.createElement('img');
+        imageElement.src = `/static/${player.image_path}`;
+        imageElement.style.cssText = `
+            width: 200px !important;
+            height: 200px !important;
+            border-radius: 50% !important;
+            border: 6px solid ${player.team_color} !important;
+            object-fit: cover !important;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.3) !important;
+        `;
+        
+        // Fallback für Bildfehler
+        imageElement.onerror = function() {
+            // Erstelle Emoji-Element als Fallback
+            const emojiElement = document.createElement('div');
+            emojiElement.textContent = player.emoji || '👤';
+            emojiElement.style.cssText = `
+                width: 200px !important;
+                height: 200px !important;
+                border-radius: 50% !important;
+                border: 6px solid ${player.team_color} !important;
+                background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%) !important;
+                display: flex !important;
+                align-items: center !important;
+                justify-content: center !important;
+                font-size: 80px !important;
+                box-shadow: 0 8px 30px rgba(0,0,0,0.3) !important;
+            `;
+            this.parentNode.replaceChild(emojiElement, this);
+        };
+    } else if (player.emoji) {
+        // Verwende Emoji
+        imageElement = document.createElement('div');
+        imageElement.textContent = player.emoji;
+        imageElement.style.cssText = `
+            width: 200px !important;
+            height: 200px !important;
+            border-radius: 50% !important;
+            border: 6px solid ${player.team_color} !important;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%) !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            font-size: 80px !important;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.3) !important;
+        `;
+    } else {
+        // Fallback: Default Avatar
+        imageElement = document.createElement('div');
+        imageElement.textContent = '👤';
+        imageElement.style.cssText = `
+            width: 200px !important;
+            height: 200px !important;
+            border-radius: 50% !important;
+            border: 6px solid ${player.team_color} !important;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%) !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            font-size: 80px !important;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.3) !important;
+        `;
+    }
     
     const name = document.createElement('div');
     name.textContent = player.player_name || player.name;
@@ -7267,7 +7335,7 @@ function createFloatingBubble(player, index) {
         border-radius: 20px !important;
     `;
     
-    bubble.appendChild(img);
+    bubble.appendChild(imageElement);
     bubble.appendChild(name);
     container.appendChild(bubble);
     

@@ -123,50 +123,123 @@
                     </button>
                 </div>
                 <div class="card-body">
-                    {% if team.player_registrations %}
+                    {% set all_team_players = [] %}
+                    
+                    {# Sammle alle Spieler aus player_registrations #}
+                    {% for player in team.player_registrations %}
+                        {% set _ = all_team_players.append({
+                            'id': player.id,
+                            'name': player.player_name,
+                            'registration_time': player.registration_time,
+                            'type': 'registration',
+                            'profile_image_path': player.profile_image_path,
+                            'has_profile_image': player.profile_image_path is not none
+                        }) %}
+                    {% endfor %}
+                    
+                    {# Sammle zusätzliche Spieler aus team.members (die nicht in registrations sind) #}
+                    {% if team.members %}
+                        {% set registered_names = team.player_registrations|map(attribute='player_name')|list %}
+                        {% set team_profile_images = team.get_profile_images() or {} %}
+                        {% for member_name in team.members.split(',') %}
+                            {% set clean_name = member_name.strip() %}
+                            {% if clean_name and clean_name not in registered_names %}
+                                {% set _ = all_team_players.append({
+                                    'id': 'member_' + loop.index0|string,
+                                    'name': clean_name,
+                                    'registration_time': none,
+                                    'type': 'member',
+                                    'profile_image': team_profile_images.get(clean_name),
+                                    'has_profile_image': team_profile_images.get(clean_name) is not none
+                                }) %}
+                            {% endif %}
+                        {% endfor %}
+                    {% endif %}
+                    
+                    {% if all_team_players %}
                         <div class="table-responsive">
                             <table class="table table-sm">
                                 <thead>
                                     <tr>
+                                        <th>Profilbild</th>
                                         <th>Spielername</th>
                                         <th>Registriert am</th>
+                                        <th>Typ</th>
                                         <th>Aktionen</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {% for player in team.player_registrations %}
+                                    {% for player in all_team_players %}
                                     <tr id="player-row-{{ player.id }}">
+                                        <td class="text-center">
+                                            <div class="profile-image-container" style="position: relative; display: inline-block;">
+                                                {% set has_image = (player.type == 'registration' and player.profile_image_path) or (player.type == 'member' and player.profile_image) %}
+                                                
+                                                {% if has_image %}
+                                                    {# Zeige nur Profilbild #}
+                                                    <img src="/static/{% if player.type == 'registration' %}{{ player.profile_image_path }}{% else %}{{ player.profile_image }}{% endif %}" 
+                                                         class="player-profile-img" 
+                                                         style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover; border: 2px solid {% if player.type == 'registration' %}#007bff{% else %}#6c757d{% endif %};"
+                                                         alt="{{ player.name }}"
+                                                         onerror="this.src=''; this.style.display='none'; showEmojiForPlayer('{{ player.name }}', '{{ player.id }}', '{% if player.type == 'registration' %}#007bff{% else %}#6c757d{% endif %}');">
+                                                {% else %}
+                                                    {# Zeige nur Emoji (kein Bild vorhanden) #}
+                                                    <div class="emoji-display" style="width: 40px; height: 40px; border-radius: 50%; background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%); border: 2px solid {% if player.type == 'registration' %}#007bff{% else %}#6c757d{% endif %}; display: flex; align-items: center; justify-content: center; font-size: 20px;">
+                                                        <span id="player-emoji-{{ player.id }}" class="player-emoji" data-name="{{ player.name }}">👤</span>
+                                                    </div>
+                                                {% endif %}
+                                                <button class="btn btn-sm btn-outline-secondary" 
+                                                        style="position: absolute; bottom: -5px; right: -5px; width: 20px; height: 20px; border-radius: 50%; padding: 0; font-size: 10px;"
+                                                        onclick="openImageEditModal('{{ player.name }}', '{{ player.id }}', '{{ player.type }}')"
+                                                        title="Profilbild bearbeiten">
+                                                    <i class="fas fa-camera"></i>
+                                                </button>
+                                            </div>
+                                        </td>
                                         <td>
-                                            <span id="player-name-{{ player.id }}">{{ player.player_name }}</span>
+                                            <span id="player-name-{{ player.id }}">{{ player.name }}</span>
                                             <input type="text" class="form-control form-control-sm d-none" 
                                                    id="player-name-input-{{ player.id }}" 
-                                                   value="{{ player.player_name }}" 
+                                                   value="{{ player.name }}" 
                                                    maxlength="100">
                                         </td>
-                                        <td>{{ player.registration_time.strftime('%d.%m.%Y %H:%M') if player.registration_time else 'Unbekannt' }}</td>
+                                        <td>
+                                            {% if player.registration_time %}
+                                                {{ player.registration_time.strftime('%d.%m.%Y %H:%M') }}
+                                            {% else %}
+                                                <small class="text-muted">Nachträglich hinzugefügt</small>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if player.type == 'registration' %}
+                                                <span class="badge badge-primary">Registriert</span>
+                                            {% else %}
+                                                <span class="badge badge-secondary">Team-Mitglied</span>
+                                            {% endif %}
+                                        </td>
                                         <td>
                                             <div class="btn-group btn-group-sm">
                                                 <button class="btn btn-outline-primary btn-sm" 
                                                         type="button"
-                                                        onclick="editPlayerName({{ player.id }})" 
+                                                        onclick="{% if player.type == 'registration' %}editPlayerName({{ player.id }}){% else %}editMemberName('{{ player.name }}', '{{ player.id }}'){% endif %}" 
                                                         id="edit-btn-{{ player.id }}">
                                                     <i class="fas fa-edit"></i> Bearbeiten
                                                 </button>
                                                 <button class="btn btn-outline-success btn-sm d-none" 
                                                         type="button"
-                                                        onclick="savePlayerName({{ player.id }})" 
+                                                        onclick="{% if player.type == 'registration' %}savePlayerName({{ player.id }}){% else %}saveMemberName('{{ player.name }}', '{{ player.id }}'){% endif %}" 
                                                         id="save-btn-{{ player.id }}">
                                                     <i class="fas fa-save"></i> Speichern
                                                 </button>
                                                 <button class="btn btn-outline-secondary btn-sm d-none" 
                                                         type="button"
-                                                        onclick="cancelPlayerEdit({{ player.id }})" 
+                                                        onclick="{% if player.type == 'registration' %}cancelPlayerEdit({{ player.id }}){% else %}cancelMemberEdit('{{ player.id }}'){% endif %}" 
                                                         id="cancel-btn-{{ player.id }}">
                                                     <i class="fas fa-times"></i> Abbrechen
                                                 </button>
                                                 <select class="form-control form-control-sm" 
                                                         style="width: auto; display: inline-block;"
-                                                        onchange="handleTeamChange(this, {{ player.id }})"
+                                                        onchange="{% if player.type == 'registration' %}handleTeamChange(this, {{ player.id }}){% else %}handleMemberTeamChange(this, '{{ player.name }}'){% endif %}"
                                                         id="team-select-{{ player.id }}">
                                                     <option value="">-- Team ändern --</option>
                                                     {% for other_team in all_teams %}
@@ -178,7 +251,7 @@
                                                 </select>
                                                 <button class="btn btn-outline-danger btn-sm ml-2" 
                                                         type="button"
-                                                        onclick="deletePlayer({{ player.id }})" 
+                                                        onclick="{% if player.type == 'registration' %}deletePlayer({{ player.id }}){% else %}removeFromTeamMembers('{{ player.name }}'){% endif %}" 
                                                         title="Spieler löschen">
                                                     <i class="fas fa-trash"></i>
                                                 </button>
@@ -198,7 +271,7 @@
             </div>
             
             <!-- Erweiterte Spieler-Auslosungs-Verwaltung -->
-            {% if team.player_registrations %}
+            {% if all_team_players %}
             <div class="card mb-4">
                 <div class="card-header bg-warning text-dark">
                     <h5 class="mb-0"><i class="fas fa-dice"></i> Auslosungs-Einstellungen</h5>
@@ -215,18 +288,26 @@
                             <thead>
                                 <tr>
                                     <th>Spielername</th>
+                                    <th>Typ</th>
                                     <th>Kann ausgelost werden</th>
                                     <th>Aktion</th>
                                 </tr>
                             </thead>
                             <tbody id="player-selection-table">
                                 {% set player_config = team.get_player_config() %}
-                                {% for player in team.player_registrations %}
-                                    {% set can_be_selected = player_config.get(player.player_name, {}).get('can_be_selected', True) %}
+                                {% for player in all_team_players %}
+                                    {% set can_be_selected = player_config.get(player.name, {}).get('can_be_selected', True) %}
                                     <tr id="player-selection-row-{{ player.id }}">
                                         <td>
-                                            <i class="fas fa-user text-primary"></i>
-                                            <strong>{{ player.player_name }}</strong>
+                                            <i class="fas fa-user text-{{ 'primary' if player.type == 'registration' else 'secondary' }}"></i>
+                                            <strong>{{ player.name }}</strong>
+                                        </td>
+                                        <td>
+                                            {% if player.type == 'registration' %}
+                                                <span class="badge badge-primary">Registriert</span>
+                                            {% else %}
+                                                <span class="badge badge-secondary">Team-Mitglied</span>
+                                            {% endif %}
                                         </td>
                                         <td>
                                             <span class="badge badge-{{ 'success' if can_be_selected else 'secondary' }}" 
@@ -236,7 +317,7 @@
                                         </td>
                                         <td>
                                             <button class="btn btn-sm btn-{{ 'secondary' if can_be_selected else 'success' }}"
-                                                    onclick="togglePlayerSelection('{{ player.player_name }}', {{ team.id }}, {{ player.id }}, {{ 'false' if can_be_selected else 'true' }})"
+                                                    onclick="togglePlayerSelection('{{ player.name }}', {{ team.id }}, '{{ player.id }}', {{ 'false' if can_be_selected else 'true' }})"
                                                     id="toggle-btn-{{ player.id }}">
                                                 <i class="fas fa-{{ 'ban' if can_be_selected else 'check' }}"></i>
                                                 {{ 'Deaktivieren' if can_be_selected else 'Aktivieren' }}
@@ -514,13 +595,13 @@ function togglePlayerSelection(playerName, teamId, rowIndex, newStatus) {
                 statusBadge.className = 'badge badge-success';
                 toggleBtn.innerHTML = '<i class="fas fa-ban"></i> Deaktivieren';
                 toggleBtn.className = 'btn btn-sm btn-secondary';
-                toggleBtn.setAttribute('onclick', `togglePlayerSelection('${playerName}', ${teamId}, ${rowIndex}, 'false')`);
+                toggleBtn.setAttribute('onclick', `togglePlayerSelection('${playerName}', ${teamId}, '${rowIndex}', 'false')`);
             } else {
                 statusBadge.textContent = 'Nein';
                 statusBadge.className = 'badge badge-secondary';
                 toggleBtn.innerHTML = '<i class="fas fa-check"></i> Aktivieren';
                 toggleBtn.className = 'btn btn-sm btn-success';
-                toggleBtn.setAttribute('onclick', `togglePlayerSelection('${playerName}', ${teamId}, ${rowIndex}, 'true')`);
+                toggleBtn.setAttribute('onclick', `togglePlayerSelection('${playerName}', ${teamId}, '${rowIndex}', 'true')`);
             }
             
             // Erfolgs-Toast oder Notification
@@ -1012,6 +1093,280 @@ function deletePlayer(playerId) {
         console.error('Delete error:', error);
         alert('Fehler beim Löschen des Spielers: ' + error.message);
     });
+}
+
+// Funktion zum Entfernen von Spielern aus team.members (nachträglich hinzugefügten Spielern)
+function removeFromTeamMembers(playerName) {
+    if (!confirm(`Möchten Sie "${playerName}" aus dem Team entfernen? Diese Aktion kann nicht rückgängig gemacht werden.`)) {
+        return;
+    }
+    
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+    
+    fetch('/admin/remove_team_member', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken
+        },
+        body: JSON.stringify({
+            team_id: {{ team.id }},
+            player_name: playerName
+        })
+    })
+    .then(response => {
+        return response.text().then(text => ({
+            ok: response.ok,
+            status: response.status,
+            text: text
+        }));
+    })
+    .then(({ok, status, text}) => {
+        console.log('Remove member response:', text);
+        
+        if (!ok) {
+            try {
+                const errorData = JSON.parse(text);
+                throw new Error(errorData.error || `HTTP error! status: ${status}`);
+            } catch (parseError) {
+                throw new Error(`Server error ${status}: ${text}`);
+            }
+        }
+        
+        const data = JSON.parse(text);
+        if (data.success) {
+            showAlert('Spieler erfolgreich aus Team entfernt.', 'success');
+            // Reload page to update the display
+            setTimeout(() => {
+                window.location.reload();
+            }, 1000);
+        } else {
+            throw new Error(data.error || 'Unbekannter Fehler');
+        }
+    })
+    .catch(error => {
+        console.error('Remove member error:', error);
+        alert('Fehler beim Entfernen des Spielers: ' + error.message);
+    });
+}
+
+// Emoji-Zuordnung für Spieler ohne Profilbild
+function getPlayerEmoji(playerName) {
+    const emojis = [
+        "😀", "😃", "😄", "😁", "😆", "😅", "🤣", "😂", "🙂", "🙃", 
+        "😉", "😊", "😇", "🥰", "😍", "🤩", "😘", "😗", "😚", "😙",
+        "😋", "😛", "😜", "🤪", "😝", "🤑", "🤗", "🤭", "🤫", "🤔",
+        "🤓", "😎", "🤡", "🥳", "😏", "😒", "😞", "😔", "😟", "😕",
+        "🙁", "☹️", "😣", "😖", "😫", "😩", "🥺", "😢", "😭", "😤",
+        "😠", "😡", "🤬", "🤯", "😳", "🥵", "🥶", "😱", "😨", "😰"
+    ];
+    
+    // Einfacher Hash für deterministische Emoji-Zuweisung
+    let hash = 0;
+    for (let i = 0; i < playerName.length; i++) {
+        const char = playerName.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash = hash & hash; // Convert to 32bit integer
+    }
+    return emojis[Math.abs(hash) % emojis.length];
+}
+
+// Initialisiere Emojis beim Laden der Seite - nur für sichtbare Emoji-Displays
+document.addEventListener('DOMContentLoaded', function() {
+    // Nur Emojis in sichtbaren .emoji-display Bereichen initialisieren
+    // NICHT in versteckten .emoji-fallback Bereichen
+    document.querySelectorAll('.emoji-display .player-emoji').forEach(function(element) {
+        const playerName = element.getAttribute('data-name');
+        if (playerName) {
+            element.textContent = getPlayerEmoji(playerName);
+        }
+    });
+});
+
+// Fallback-Funktion: Zeige Emoji wenn Profilbild nicht geladen werden kann
+function showEmojiForPlayer(playerName, playerId, borderColor) {
+    // Erstelle Emoji-Container dynamisch
+    const container = document.querySelector(`#player-row-${playerId} .profile-image-container`);
+    if (container) {
+        const emojiDiv = document.createElement('div');
+        emojiDiv.className = 'emoji-fallback-dynamic';
+        emojiDiv.style.cssText = `
+            width: 40px !important;
+            height: 40px !important;
+            border-radius: 50% !important;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%) !important;
+            border: 2px solid ${borderColor} !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            font-size: 20px !important;
+        `;
+        
+        const emojiSpan = document.createElement('span');
+        emojiSpan.textContent = getPlayerEmoji(playerName);
+        emojiDiv.appendChild(emojiSpan);
+        
+        container.appendChild(emojiDiv);
+    }
+}
+
+// Team-Wechsel für nachträglich hinzugefügte Mitglieder
+function handleMemberTeamChange(selectElement, playerName) {
+    const newTeamId = parseInt(selectElement.value);
+    if (!newTeamId && newTeamId !== 0) {
+        return; // Keine Auswahl getroffen
+    }
+    
+    const newTeamName = selectElement.options[selectElement.selectedIndex].text;
+    
+    // Reset select nach Bestätigung/Abbruch
+    const resetSelect = () => {
+        selectElement.selectedIndex = 0;
+    };
+    
+    const confirmMsg = newTeamId === 0 
+        ? `Möchten Sie "${playerName}" wirklich keinem Team zuweisen?` 
+        : `Möchten Sie "${playerName}" wirklich dem Team "${newTeamName}" zuweisen?`;
+    
+    if (!confirm(confirmMsg)) {
+        resetSelect();
+        return;
+    }
+    
+    moveMemberToTeam(playerName, newTeamId, newTeamName, resetSelect);
+}
+
+// Verschiebe Team-Mitglied zu anderem Team
+function moveMemberToTeam(playerName, newTeamId, newTeamName, callback = null) {
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+    
+    fetch('/admin/move_team_member', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken
+        },
+        body: JSON.stringify({
+            current_team_id: {{ team.id }},
+            player_name: playerName,
+            new_team_id: newTeamId
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            if (newTeamId === 0) {
+                showAlert(`"${playerName}" erfolgreich aus allen Teams entfernt.`, 'info');
+            } else {
+                showAlert(`"${playerName}" erfolgreich dem Team "${newTeamName}" zugewiesen.`, 'success');
+            }
+            
+            // Reload page to update display
+            setTimeout(() => {
+                window.location.reload();
+            }, 1000);
+        } else {
+            alert('Fehler beim Team-Wechsel: ' + (data.error || 'Unbekannter Fehler'));
+            if (callback) callback(); // Reset select bei Fehler
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Fehler beim Team-Wechsel.');
+        if (callback) callback(); // Reset select bei Fehler
+    });
+}
+
+// Profilbild-Bearbeitung Modal öffnen
+function openImageEditModal(playerName, playerId, playerType) {
+    // Hier würde ein Modal für die Profilbild-Bearbeitung geöffnet werden
+    // Für jetzt zeigen wir eine einfache Bestätigung
+    if (confirm(`Profilbild für "${playerName}" bearbeiten?\n\nDiese Funktion wird in einer zukünftigen Version implementiert.`)) {
+        console.log('Image edit requested for:', {playerName, playerId, playerType});
+        // TODO: Implementiere Image-Edit Modal
+    }
+}
+
+// Bearbeitung für nachträglich hinzugefügte Team-Mitglieder
+function editMemberName(playerName, playerId) {
+    console.log('editMemberName called:', {playerName, playerId});
+    try {
+        // Zeige Input-Feld und verstecke Anzeige
+        document.getElementById('player-name-' + playerId).classList.add('d-none');
+        document.getElementById('player-name-input-' + playerId).classList.remove('d-none');
+        
+        // Zeige Save/Cancel Buttons und verstecke Edit Button
+        document.getElementById('edit-btn-' + playerId).classList.add('d-none');
+        document.getElementById('save-btn-' + playerId).classList.remove('d-none');
+        document.getElementById('cancel-btn-' + playerId).classList.remove('d-none');
+        
+    } catch (error) {
+        console.error('Error in editMemberName:', error);
+    }
+}
+
+function saveMemberName(oldPlayerName, playerId) {
+    const newName = document.getElementById('player-name-input-' + playerId).value.trim();
+    
+    if (newName.length < 2) {
+        alert('Spielername muss mindestens 2 Zeichen lang sein.');
+        return;
+    }
+    
+    // AJAX Request zum Speichern (Team-Member Name ändern)
+    fetch('/admin/update_team_member_name', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('[name=csrf_token]').value
+        },
+        body: JSON.stringify({
+            team_id: {{ team.id }},
+            old_player_name: oldPlayerName,
+            new_player_name: newName
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Aktualisiere Anzeige
+            document.getElementById('player-name-' + playerId).textContent = newName;
+            
+            // Verstecke Input-Feld und zeige Anzeige
+            document.getElementById('player-name-' + playerId).classList.remove('d-none');
+            document.getElementById('player-name-input-' + playerId).classList.add('d-none');
+            
+            // Verstecke Save/Cancel Buttons und zeige Edit Button
+            document.getElementById('edit-btn-' + playerId).classList.remove('d-none');
+            document.getElementById('save-btn-' + playerId).classList.add('d-none');
+            document.getElementById('cancel-btn-' + playerId).classList.add('d-none');
+            
+            // Success-Meldung
+            showAlert('Spielername erfolgreich aktualisiert.', 'success');
+        } else {
+            alert('Fehler beim Speichern: ' + (data.error || 'Unbekannter Fehler'));
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Fehler beim Speichern des Spielernamens.');
+    });
+}
+
+function cancelMemberEdit(playerId) {
+    try {
+        // Verstecke Input-Feld und zeige Anzeige
+        document.getElementById('player-name-' + playerId).classList.remove('d-none');
+        document.getElementById('player-name-input-' + playerId).classList.add('d-none');
+        
+        // Verstecke Save/Cancel Buttons und zeige Edit Button
+        document.getElementById('edit-btn-' + playerId).classList.remove('d-none');  
+        document.getElementById('save-btn-' + playerId).classList.add('d-none');
+        document.getElementById('cancel-btn-' + playerId).classList.add('d-none');
+        
+    } catch (error) {
+        console.error('Error in cancelMemberEdit:', error);
+    }
 }
 </script>
 

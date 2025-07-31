@@ -2300,10 +2300,13 @@ def add_player_to_team():
         if existing_player:
             return jsonify({'success': False, 'error': 'Spielername ist bereits vergeben'})
         
-        # Finde oder erstelle aktive WelcomeSession
+        # Prüfe ob bereits ein aktives Spiel läuft
+        active_game_session = GameSession.query.filter_by(is_active=True).first()
+        
+        # Finde oder erstelle aktive WelcomeSession NUR wenn kein aktives Spiel läuft
         welcome_session = WelcomeSession.get_active_session()
-        if not welcome_session:
-            # Erstelle neue WelcomeSession falls keine aktiv ist
+        if not welcome_session and not active_game_session:
+            # Erstelle neue WelcomeSession nur falls keine aktiv ist UND kein Spiel läuft
             # Erst alle anderen deaktivieren
             WelcomeSession.query.update({'is_active': False})
             # Dann neue Session erstellen
@@ -2311,15 +2314,20 @@ def add_player_to_team():
             db.session.add(welcome_session)
             db.session.commit()  # Commit um ID zu bekommen
             current_app.logger.info("Neue WelcomeSession erstellt für Spieler-Hinzufügung")
+        elif active_game_session:
+            # Spiel läuft bereits - keine WelcomeSession erstellen/aktivieren
+            current_app.logger.info("Aktives Spiel erkannt - keine WelcomeSession für Spieler-Hinzufügung erstellt")
         
-        # Erstelle neue PlayerRegistration
-        new_player = PlayerRegistration(
-            welcome_session_id=welcome_session.id,
-            player_name=player_name,
-            assigned_team_id=team_id,
-            registration_time=datetime.utcnow()
-        )
-        db.session.add(new_player)
+        # Erstelle neue PlayerRegistration nur wenn WelcomeSession existiert
+        new_player = None  # Initialisiere Variable
+        if welcome_session:
+            new_player = PlayerRegistration(
+                welcome_session_id=welcome_session.id,
+                player_name=player_name,
+                assigned_team_id=team_id,
+                registration_time=datetime.utcnow()
+            )
+            db.session.add(new_player)
         
         # Aktualisiere Team-Members-Liste
         if team.members:
@@ -2337,16 +2345,236 @@ def add_player_to_team():
         
         db.session.commit()
         
-        return jsonify({
+        response_data = {
             'success': True, 
             'message': f'Spieler {player_name} erfolgreich zum Team hinzugefügt',
-            'player_id': new_player.id,
             'player_name': player_name
-        })
+        }
+        
+        # Füge player_id nur hinzu wenn PlayerRegistration erstellt wurde
+        if new_player:
+            response_data['player_id'] = new_player.id
+        
+        return jsonify(response_data)
     
     except Exception as e:
         db.session.rollback()
         current_app.logger.error(f"Fehler beim Hinzufügen des Spielers: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': f'Serverfehler: {str(e)}'})
+
+@admin_bp.route('/remove_team_member', methods=['POST'])
+@login_required
+def remove_team_member():
+    """Entfernt einen Spieler aus der team.members Liste (für nachträglich hinzugefügte Spieler)"""
+    if not isinstance(current_user, Admin):
+        return jsonify({'success': False, 'error': 'Nicht autorisiert'})
+    
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': 'Keine Daten erhalten'})
+        
+        team_id = data.get('team_id')
+        player_name = data.get('player_name', '').strip()
+        
+        if not team_id or not player_name:
+            return jsonify({'success': False, 'error': 'Team-ID und Spielername sind erforderlich'})
+        
+        # Team finden
+        team = Team.query.get(team_id)
+        if not team:
+            return jsonify({'success': False, 'error': 'Team nicht gefunden'})
+        
+        # Entferne Spieler aus team.members
+        if not team.members:
+            return jsonify({'success': False, 'error': 'Keine Team-Mitglieder vorhanden'})
+        
+        current_members = [m.strip() for m in team.members.split(',') if m.strip()]
+        if player_name not in current_members:
+            return jsonify({'success': False, 'error': 'Spieler ist nicht in der Team-Mitgliederliste'})
+        
+        # Entferne Spieler aus der Liste
+        current_members.remove(player_name)
+        team.members = ', '.join(current_members) if current_members else None
+        
+        # Entferne auch aus player_config falls vorhanden
+        player_config = team.get_player_config() or {}
+        if player_name in player_config:
+            del player_config[player_name]
+            team.set_player_config(player_config)
+        
+        db.session.commit()
+        
+        current_app.logger.info(f"Spieler '{player_name}' aus Team '{team.name}' entfernt (team.members)")
+        
+        return jsonify({
+            'success': True,
+            'message': f'Spieler "{player_name}" erfolgreich aus Team entfernt'
+        })
+    
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Fehler beim Entfernen des Team-Mitglieds: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': f'Serverfehler: {str(e)}'})
+
+@admin_bp.route('/move_team_member', methods=['POST'])
+@login_required
+def move_team_member():
+    """Verschiebt einen Team-Mitglied zwischen Teams (für nachträglich hinzugefügte Spieler)"""
+    if not isinstance(current_user, Admin):
+        return jsonify({'success': False, 'error': 'Nicht autorisiert'})
+    
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': 'Keine Daten erhalten'})
+        
+        current_team_id = data.get('current_team_id')
+        player_name = data.get('player_name', '').strip()
+        new_team_id = data.get('new_team_id')
+        
+        if not current_team_id or not player_name:
+            return jsonify({'success': False, 'error': 'Team-ID und Spielername sind erforderlich'})
+        
+        # Aktuelles Team finden
+        current_team = Team.query.get(current_team_id)
+        if not current_team:
+            return jsonify({'success': False, 'error': 'Aktuelles Team nicht gefunden'})
+        
+        # Entferne Spieler aus aktuellem Team
+        if not current_team.members:
+            return jsonify({'success': False, 'error': 'Keine Team-Mitglieder im aktuellen Team'})
+        
+        current_members = [m.strip() for m in current_team.members.split(',') if m.strip()]
+        if player_name not in current_members:
+            return jsonify({'success': False, 'error': 'Spieler ist nicht im aktuellen Team'})
+        
+        # Entferne aus aktuellem Team
+        current_members.remove(player_name)
+        current_team.members = ', '.join(current_members) if current_members else None
+        
+        # Entferne auch aus player_config des aktuellen Teams
+        current_config = current_team.get_player_config() or {}
+        if player_name in current_config:
+            del current_config[player_name]
+            current_team.set_player_config(current_config)
+        
+        # Füge zu neuem Team hinzu (falls nicht 0 = kein Team)
+        if new_team_id and new_team_id != 0:
+            new_team = Team.query.get(new_team_id)
+            if not new_team:
+                return jsonify({'success': False, 'error': 'Neues Team nicht gefunden'})
+            
+            # Prüfe ob Spieler bereits im neuen Team ist
+            if new_team.members:
+                new_team_members = [m.strip() for m in new_team.members.split(',') if m.strip()]
+                if player_name in new_team_members:
+                    return jsonify({'success': False, 'error': 'Spieler ist bereits im Ziel-Team'})
+                new_team_members.append(player_name)
+            else:
+                new_team_members = [player_name]
+            
+            new_team.members = ', '.join(new_team_members)
+            
+            # Füge auch zu player_config des neuen Teams hinzu
+            new_config = new_team.get_player_config() or {}
+            new_config[player_name] = {'can_be_selected': True}
+            new_team.set_player_config(new_config)
+        
+        db.session.commit()
+        
+        if new_team_id and new_team_id != 0:
+            current_app.logger.info(f"Spieler '{player_name}' von Team '{current_team.name}' zu Team '{new_team.name}' verschoben")
+            message = f'Spieler "{player_name}" erfolgreich zu neuem Team verschoben'
+        else:
+            current_app.logger.info(f"Spieler '{player_name}' aus Team '{current_team.name}' entfernt (kein neues Team)")
+            message = f'Spieler "{player_name}" erfolgreich aus Team entfernt'
+        
+        return jsonify({
+            'success': True,
+            'message': message
+        })
+    
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Fehler beim Verschieben des Team-Mitglieds: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': f'Serverfehler: {str(e)}'})
+
+@admin_bp.route('/update_team_member_name', methods=['POST'])
+@login_required
+def update_team_member_name():
+    """Ändert den Namen eines Team-Mitglieds (für nachträglich hinzugefügte Spieler)"""
+    if not isinstance(current_user, Admin):
+        return jsonify({'success': False, 'error': 'Nicht autorisiert'})
+    
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': 'Keine Daten erhalten'})
+        
+        team_id = data.get('team_id')
+        old_player_name = data.get('old_player_name', '').strip()
+        new_player_name = data.get('new_player_name', '').strip()
+        
+        if not team_id or not old_player_name or not new_player_name:
+            return jsonify({'success': False, 'error': 'Team-ID, alter und neuer Spielername sind erforderlich'})
+        
+        if len(new_player_name) < 2:
+            return jsonify({'success': False, 'error': 'Neuer Spielername muss mindestens 2 Zeichen lang sein'})
+        
+        if len(new_player_name) > 50:
+            return jsonify({'success': False, 'error': 'Neuer Spielername ist zu lang (max. 50 Zeichen)'})
+        
+        # Team finden
+        team = Team.query.get(team_id)
+        if not team:
+            return jsonify({'success': False, 'error': 'Team nicht gefunden'})
+        
+        # Prüfe ob alter Name in team.members existiert
+        if not team.members:
+            return jsonify({'success': False, 'error': 'Keine Team-Mitglieder vorhanden'})
+        
+        current_members = [m.strip() for m in team.members.split(',') if m.strip()]
+        if old_player_name not in current_members:
+            return jsonify({'success': False, 'error': 'Alter Spielername nicht in Team-Mitgliederliste gefunden'})
+        
+        # Prüfe ob neuer Name bereits existiert (in diesem Team oder als PlayerRegistration)
+        if new_player_name in current_members:
+            return jsonify({'success': False, 'error': 'Neuer Spielername existiert bereits in diesem Team'})
+        
+        existing_registration = PlayerRegistration.query.filter_by(player_name=new_player_name).first()
+        if existing_registration:
+            return jsonify({'success': False, 'error': 'Neuer Spielername ist bereits als registrierter Spieler vergeben'})
+        
+        # Ändere Namen in team.members
+        updated_members = []
+        for member in current_members:
+            if member == old_player_name:
+                updated_members.append(new_player_name)
+            else:
+                updated_members.append(member)
+        
+        team.members = ', '.join(updated_members)
+        
+        # Ändere auch Namen in player_config falls vorhanden
+        player_config = team.get_player_config() or {}
+        if old_player_name in player_config:
+            player_config[new_player_name] = player_config[old_player_name]
+            del player_config[old_player_name]
+            team.set_player_config(player_config)
+        
+        db.session.commit()
+        
+        current_app.logger.info(f"Team-Mitglied '{old_player_name}' in Team '{team.name}' zu '{new_player_name}' umbenannt")
+        
+        return jsonify({
+            'success': True,
+            'message': f'Spielername erfolgreich von "{old_player_name}" zu "{new_player_name}" geändert'
+        })
+    
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Fehler beim Ändern des Team-Mitglied-Namens: {e}", exc_info=True)
         return jsonify({'success': False, 'error': f'Serverfehler: {str(e)}'})
 
 @admin_bp.route('/delete_player', methods=['POST'])
@@ -2500,9 +2728,7 @@ def upload_team_player_image():
         player.profile_image_path = f"profile_images/{filename}"
         
         # Aktualisiere auch Team profile_images
-        profile_images = team.profile_images or {}
-        profile_images[player_name] = f"profile_images/{filename}"
-        team.profile_images = profile_images
+        team.set_profile_image(player_name, f"profile_images/{filename}")
         
         db.session.commit()
         

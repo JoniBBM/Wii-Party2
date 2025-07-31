@@ -8,6 +8,32 @@ from flask_login import current_user
 from datetime import datetime, timedelta
 import json
 
+
+def get_consistent_emoji_for_player(player_name):
+    """
+    Generiert ein deterministisches Emoji für einen Spieler basierend auf seinem Namen.
+    Verwendet die gleiche Hashing-Logik wie das JavaScript Frontend.
+    """
+    available_emojis = [
+        "😀", "😃", "😄", "😁", "😆", "😅", "🤣", "😂", "🙂", "🙃", 
+        "😉", "😊", "😇", "🥰", "😍", "🤩", "😘", "😗", "😚", "😙",
+        "😋", "😛", "😜", "🤪", "😝", "🤑", "🤗", "🤭", "🤫", "🤔",
+        "🤓", "😎", "🤡", "🥳", "😏", "😒", "😞", "😔", "😟", "😕",
+        "🙁", "☹️", "😣", "😖", "😫", "😩", "🥺", "😢", "😭", "😤",
+        "😠", "😡", "🤬", "🤯", "😳", "🥵", "🥶", "😱", "😨", "😰"
+    ]
+    
+    # Verwende die gleiche Hash-Funktion wie JavaScript
+    hash_value = 0
+    for char in player_name:
+        char_code = ord(char)
+        hash_value = ((hash_value << 5) - hash_value) + char_code
+        hash_value = hash_value & 0xFFFFFFFF  # Convert to 32bit integer (JavaScript behavior)
+        if hash_value > 0x7FFFFFFF:  # Handle negative values like JavaScript does
+            hash_value -= 0x100000000
+    
+    return available_emojis[abs(hash_value) % len(available_emojis)]
+
 @main_bp.route('/')
 def index():
     return render_template('index.html')
@@ -784,16 +810,6 @@ def welcome_status():
         # Hole registrierte Spieler
         players = []
         
-        # Emoji-Liste für Spieler ohne Profilbild
-        available_emojis = [
-            "😀", "😃", "😄", "😁", "😆", "😅", "🤣", "😂", "🙂", "🙃", 
-            "😉", "😊", "😇", "🥰", "😍", "🤩", "😘", "😗", "😚", "😙",
-            "😋", "😛", "😜", "🤪", "😝", "🤑", "🤗", "🤭", "🤫", "🤔",
-            "🤓", "😎", "🤡", "🥳", "😏", "😒", "😞", "😔", "😟", "😕",
-            "🙁", "☹️", "😣", "😖", "😫", "😩", "🥺", "😢", "😭", "😤",
-            "😠", "😡", "🤬", "🤯", "😳", "🥵", "🥶", "😱", "😨", "😰"
-        ]
-        
         for registration in welcome_session.get_registered_players():
             player_data = {
                 "id": registration.id,
@@ -807,9 +823,7 @@ def welcome_status():
             else:
                 # Deterministisches Emoji basierend auf Spielername
                 # So bleibt das Emoji immer gleich für jeden Spieler
-                name_hash = hash(registration.player_name) % len(available_emojis)
-                chosen_emoji = available_emojis[name_hash]
-                player_data["emoji"] = chosen_emoji
+                player_data["emoji"] = get_consistent_emoji_for_player(registration.player_name)
             
             players.append(player_data)
         
@@ -1358,21 +1372,6 @@ def get_player_faces():
         # Sammle Profilbilder der ausgewählten Spieler
         player_faces = []
         
-        # Liste von verfügbaren Emojis für Spieler ohne Profilbild
-        available_emojis = [
-            "😀", "😃", "😄", "😁", "😆", "😅", "🤣", "😂", "🙂", "🙃", 
-            "😉", "😊", "😇", "🥰", "😍", "🤩", "😘", "😗", "😚", "😙",
-            "😋", "😛", "😜", "🤪", "😝", "🤑", "🤗", "🤭", "🤫", "🤔",
-            "🤓", "😎", "🤡", "🥳", "😏", "😒", "😞", "😔", "😟", "😕",
-            "🙁", "☹️", "😣", "😖", "😫", "😩", "🥺", "😢", "😭", "😤",
-            "😠", "😡", "🤬", "🤯", "😳", "🥵", "🥶", "😱", "😨", "😰",
-            "😥", "😓", "🤗", "🤔", "😐", "😑", "😬", "🙄", "😯", "😦",
-            "😧", "😮", "😲", "🥱", "😴", "🤤", "😪", "😵", "🤐", "🥴",
-            "🤢", "🤮", "🤧", "😷", "🤒", "🤕", "🤑", "🤠", "😈", "👿",
-            "👹", "👺", "🤡", "💩", "👻", "💀", "☠️", "👽", "👾", "🤖",
-            "🎃", "😺", "😸", "😹", "😻", "😼", "😽", "🙀", "😿", "😾"
-        ]
-        
         for team_id_str, player_names in selected_players.items():
             team = Team.query.get(int(team_id_str))
             if not team:
@@ -1396,15 +1395,12 @@ def get_player_faces():
                     })
                 else:
                     # Deterministisches Emoji basierend auf Spielername
-                    name_hash = hash(player_name) % len(available_emojis)
-                    chosen_emoji = available_emojis[name_hash]
-                    
                     player_faces.append({
                         "player_name": player_name,
                         "team_name": team_name,
                         "team_id": team.id,
                         "team_color": team_color,
-                        "emoji": chosen_emoji,
+                        "emoji": get_consistent_emoji_for_player(player_name),
                         "has_photo": False
                     })
         
@@ -1473,13 +1469,6 @@ def get_field_minigame_player_faces(active_session):
         
         player_faces = []
         
-        # Liste von verfügbaren Emojis für Spieler ohne Profilbild
-        available_emojis = [
-            "😀", "😃", "😄", "😁", "😆", "😅", "🤣", "😂", "🙂", "🙃", 
-            "😉", "😊", "😇", "🥰", "😍", "🤩", "😘", "😗", "😚", "😙",
-            "😋", "😛", "😜", "🤪", "😝", "🤑", "🤗", "🤭", "🤫", "🤔",
-            "🤓", "😎", "🤡", "🥳", "😏", "😒", "😞", "😔", "😟", "😕"
-        ]
         # Hole Spieler vom landenden Team
         landing_team_profiles = landing_team.get_profile_images()
         
@@ -1527,15 +1516,12 @@ def get_field_minigame_player_faces(active_session):
                 })
             else:
                 # Deterministisches Emoji basierend auf Spielername
-                name_hash = hash(player_data["name"]) % len(available_emojis)
-                chosen_emoji = available_emojis[name_hash]
-                
                 player_faces.append({
                     "player_name": player_data["name"],
                     "team_name": landing_team.name,
                     "team_id": landing_team.id,
                     "team_color": landing_team.character.color if landing_team.character else '#CCCCCC',
-                    "emoji": chosen_emoji,
+                    "emoji": get_consistent_emoji_for_player(player_data["name"]),
                     "role": "landing_team",
                     "has_photo": False
                 })
@@ -1584,15 +1570,12 @@ def get_field_minigame_player_faces(active_session):
                         })
                     else:
                         # Deterministisches Emoji basierend auf Spielername
-                        name_hash = hash(player_data["name"]) % len(available_emojis)
-                        chosen_emoji = available_emojis[name_hash]
-                        
                         player_faces.append({
                             "player_name": player_data["name"],
                             "team_name": opponent_team.name,
                             "team_id": opponent_team.id,
                             "team_color": opponent_team.character.color if opponent_team.character else '#CCCCCC',
-                            "emoji": chosen_emoji,
+                            "emoji": get_consistent_emoji_for_player(player_data["name"]),
                             "role": "opponent_team",
                             "has_photo": False
                         })
@@ -1645,15 +1628,12 @@ def get_field_minigame_player_faces(active_session):
                         })
                     else:
                         # Deterministisches Emoji basierend auf Spielername
-                        name_hash = hash(selected_player["name"]) % len(available_emojis)
-                        chosen_emoji = available_emojis[name_hash]
-                        
                         player_faces.append({
                             "player_name": selected_player["name"],
                             "team_name": team.name,
                             "team_id": team.id,
                             "team_color": team.character.color if team.character else '#CCCCCC',
-                            "emoji": chosen_emoji,
+                            "emoji": get_consistent_emoji_for_player(selected_player["name"]),
                             "role": "opponent_team",
                             "has_photo": False
                         })
@@ -1680,13 +1660,6 @@ def get_all_player_images():
         teams = Team.query.all()
         all_players = []
         
-        # Emoji-Liste für Spieler ohne Fotos
-        available_emojis = [
-            "😀", "😃", "😄", "😁", "😆", "😅", "🤣", "😂", "🙂", "🙃", 
-            "😉", "😊", "😇", "🥰", "😍", "🤩", "😘", "😗", "😚", "😙",
-            "😋", "😛", "😜", "🤪", "😝", "🤑", "🤗", "🤭", "🤫", "🤔",
-            "🤓", "😎", "🤡", "🥳", "😏", "😒", "😞", "😔", "😟", "😕"
-        ]
         
         for team in teams:
             # Hole Team-Farbe
@@ -1716,15 +1689,12 @@ def get_all_player_images():
                         # Prüfe ob bereits mit Profilbild hinzugefügt
                         if not any(p["player_name"] == member_name for p in all_players):
                             # Deterministisches Emoji basierend auf Spielername
-                            name_hash = hash(member_name) % len(available_emojis)
-                            chosen_emoji = available_emojis[name_hash]
-                            
                             all_players.append({  
                                 "player_name": member_name,
                                 "team_name": team.name,
                                 "team_id": team.id,
                                 "team_color": team_color,
-                                "emoji": chosen_emoji,
+                                "emoji": get_consistent_emoji_for_player(member_name),
                                 "has_photo": False
                             })
             except:
