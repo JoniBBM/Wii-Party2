@@ -2,8 +2,11 @@
 
 {% block title %}Willkommen - Wii Party U Deluxe{% endblock %}
 
+
 {% block styles %}
 {{ super() }}
+<!-- Admin Status für JavaScript verfügbar machen -->
+<meta name="user-is-admin" content="{% if current_user.is_authenticated and user_type_in_context == 'admin' %}true{% else %}false{% endif %}">
 <style>
     .welcome-container {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -89,6 +92,7 @@
         border: 2px solid rgba(255, 255, 255, 0.3);
         transition: all 0.3s ease;
         animation: fadeInUp 0.5s ease-out;
+        position: relative;
     }
     
     .player-card.static {
@@ -98,6 +102,19 @@
     .player-card:hover {
         transform: translateY(-5px);
         background: rgba(255, 255, 255, 0.2);
+    }
+
+    .player-card:hover .remove-player-btn {
+        display: block !important;
+    }
+
+    .remove-player-btn {
+        transition: all 0.2s ease;
+    }
+
+    .remove-player-btn:hover {
+        background: #cc0000 !important;
+        transform: scale(1.1);
     }
 
     @keyframes fadeInUp {
@@ -398,50 +415,7 @@
         opacity: 0.8;
     }
 
-    .profile-preview {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 1rem;
-        justify-content: center;
-        margin-top: 1rem;
-    }
 
-    .profile-preview-item {
-        text-align: center;
-        background: rgba(255, 255, 255, 0.1);
-        border-radius: 15px;
-        padding: 1rem;
-        border: 1px solid rgba(255, 255, 255, 0.2);
-    }
-
-    .profile-preview-image {
-        width: 80px;
-        height: 80px;
-        border-radius: 50%;
-        object-fit: cover;
-        border: 2px solid rgba(255, 255, 255, 0.3);
-        margin-bottom: 0.5rem;
-    }
-
-    .profile-preview-name {
-        font-size: 0.9rem;
-        font-weight: 600;
-    }
-
-    .profile-completion-bar {
-        background: rgba(255, 255, 255, 0.2);
-        border-radius: 10px;
-        overflow: hidden;
-        height: 8px;
-        margin: 1rem 0;
-    }
-
-    .profile-completion-fill {
-        background: linear-gradient(45deg, #4CAF50, #45A049);
-        height: 100%;
-        width: 0%;
-        transition: width 0.5s ease;
-    }
 
     @media (max-width: 768px) {
         .welcome-title {
@@ -476,16 +450,6 @@
                 <div class="players-section">
                     <h3><i class="fas fa-users"></i> Registrierte Spieler (<span id="player-count">0</span>)</h3>
                     
-                    <!-- Profilbild-Fortschrittsanzeige -->
-                    <div id="profile-progress" style="display: none;">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-                            <span>Profilbilder: <span id="photos-count">0</span>/<span id="total-players">0</span></span>
-                            <span id="completion-percentage">0%</span>
-                        </div>
-                        <div class="profile-completion-bar">
-                            <div class="profile-completion-fill" id="completion-fill"></div>
-                        </div>
-                    </div>
                     
                     <div id="players-container">
                         <div class="no-players">
@@ -494,8 +458,6 @@
                         </div>
                     </div>
                     
-                    <!-- Profilbild-Vorschau -->
-                    <div id="profile-preview" class="profile-preview" style="display: none;"></div>
                 </div>
 
                 <!-- Profilbild-Camera Bereich -->
@@ -576,8 +538,29 @@
 
 <script>
 let updateInterval;
+let isCurrentUserAdmin = false;
+
+// Prüfe ob aktueller Benutzer Admin ist
+function checkAdminStatus() {
+    // Prüfe über ein verstecktes Meta-Tag oder Cookie (sicherer Weg)
+    const adminIndicator = document.querySelector('meta[name="user-is-admin"]');
+    console.log('Admin indicator meta tag:', adminIndicator);
+    if (adminIndicator) {
+        const content = adminIndicator.getAttribute('content');
+        console.log('Admin indicator content:', content);
+        isCurrentUserAdmin = content === 'true';
+    } else {
+        // Fallback: Check wenn URL "/admin" enthält oder bestimmte Admin-Elemente vorhanden sind
+        isCurrentUserAdmin = window.location.pathname.includes('/admin') || 
+                           document.querySelector('.admin-controls') !== null ||
+                           sessionStorage.getItem('user_type') === 'admin';
+        console.log('Admin fallback check - pathname:', window.location.pathname, 'admin-controls:', document.querySelector('.admin-controls'), 'sessionStorage:', sessionStorage.getItem('user_type'));
+    }
+    console.log('Final admin status:', isCurrentUserAdmin);
+}
 
 document.addEventListener('DOMContentLoaded', function() {
+    checkAdminStatus();
     // Live-Updates nur starten wenn Welcome-Session aktiv ist
     {% if welcome_session %}
         updateWelcomeStatus();
@@ -637,16 +620,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 playersSection.innerHTML = `
                     <h3><i class="fas fa-users"></i> Registrierte Spieler (<span id="player-count">0</span>)</h3>
                     
-                    <!-- Profilbild-Fortschrittsanzeige -->
-                    <div id="profile-progress" style="display: none;">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-                            <span>Profilbilder: <span id="photos-count">0</span>/<span id="total-players">0</span></span>
-                            <span id="completion-percentage">0%</span>
-                        </div>
-                        <div class="profile-completion-bar">
-                            <div class="profile-completion-fill" id="completion-fill"></div>
-                        </div>
-                    </div>
                     
                     <div id="players-container">
                         <div class="no-players">
@@ -655,8 +628,6 @@ document.addEventListener('DOMContentLoaded', function() {
                         </div>
                     </div>
                     
-                    <!-- Profilbild-Vorschau -->
-                    <div id="profile-preview" class="profile-preview" style="display: none;"></div>
                 `;
             }
             
@@ -685,16 +656,31 @@ document.addEventListener('DOMContentLoaded', function() {
     {% endif %}
 });
 
+// Letzte Spieler-Daten für Vergleich
+let lastPlayersData = null;
+
 // Welcome-Status Update Funktion (immer verfügbar)
 function updateWelcomeStatus() {
     fetch('/api/welcome-status')
         .then(response => response.json())
         .then(data => {
+            console.log('Welcome status response:', data);
             if (data.success) {
                 // Reset error counter bei erfolgreichem Request
                 window.welcomeErrorCount = 0;
                 
-                updatePlayersList(data.players);
+                // Prüfe ob sich die Spieler-Daten geändert haben
+                const currentPlayersString = JSON.stringify(data.players);
+                const lastPlayersString = JSON.stringify(lastPlayersData);
+                
+                if (currentPlayersString !== lastPlayersString) {
+                    console.log('Players data changed, updating list');
+                    console.log('Calling updatePlayersList with data.players:', data.players);
+                    updatePlayersList(data.players);
+                    lastPlayersData = [...data.players]; // Kopie für nächsten Vergleich
+                } else {
+                    console.log('Players data unchanged, skipping update');
+                }
                 if (data.teams && data.teams.length > 0) {
                     updateTeamsList(data.teams);
                     document.getElementById('teams-section').style.display = 'block';
@@ -724,7 +710,14 @@ function updatePlayersList(players) {
     const container = document.getElementById('players-container');
     const countElement = document.getElementById('player-count');
     
-    countElement.textContent = players.length;
+    console.log('updatePlayersList called with players:', players);
+    console.log('First player object:', players[0]);
+    console.log('Container element:', container);
+    console.log('Count element:', countElement);
+    
+    if (countElement) {
+        countElement.textContent = players.length;
+    }
     
     if (players.length === 0) {
         container.innerHTML = `
@@ -736,77 +729,51 @@ function updatePlayersList(players) {
         return;
     }
     
-    // Prüfe ob bereits ein Grid existiert
-    let playersGrid = container.querySelector('.players-grid');
-    if (!playersGrid) {
-        // Erstelle Grid nur wenn es noch nicht existiert
-        playersGrid = document.createElement('div');
-        playersGrid.className = 'players-grid';
-        container.innerHTML = '';
-        container.appendChild(playersGrid);
-    }
+    // Erstelle Grid komplett neu um Doppeldarstellungen zu vermeiden
+    container.innerHTML = '';
+    const playersGrid = document.createElement('div');
+    playersGrid.className = 'players-grid';
+    container.appendChild(playersGrid);
     
-    // Markiere alle bereits vorhandenen Karten als statisch (keine Animation mehr)
-    playersGrid.querySelectorAll('.player-card').forEach(card => {
-        card.classList.add('static');
-    });
+    console.log('Creating fresh players grid');
     
-    // Hole bereits vorhandene Spieler-Namen
-    const existingPlayers = Array.from(playersGrid.querySelectorAll('.player-card')).map(card => {
-        const nameElement = card.querySelector('.player-name');
-        if (nameElement) {
-            // Entferne das Font Awesome Icon-Element und hole nur den Text
-            const clonedElement = nameElement.cloneNode(true);
-            const iconElement = clonedElement.querySelector('i');
-            if (iconElement) iconElement.remove();
-            return clonedElement.textContent.trim();
-        }
-        return '';
-    });
-    
-    // Füge nur neue Spieler hinzu
+    // Füge alle Spieler hinzu
     players.forEach(player => {
-        if (!existingPlayers.includes(player.name)) {
-            const playerCard = document.createElement('div');
-            playerCard.className = 'player-card';
-            playerCard.innerHTML = `
-                <div class="player-name">
-                    <i class="fas fa-user"></i> ${player.name}
-                </div>
-                <div class="player-time">
-                    ${new Date(player.registration_time).toLocaleTimeString()}
-                </div>
-                <div style="margin-top: 0.5rem;">
-                    <button class="btn-camera btn-camera-capture" style="padding: 0.3rem 0.8rem; font-size: 0.8rem;" onclick="showCameraForPlayer('${player.name}')">
-                        <i class="fas fa-camera"></i> Foto
-                    </button>
-                </div>
-            `;
-            
-            // Nach der Animation als statisch markieren
-            playerCard.addEventListener('animationend', function() {
-                this.classList.add('static');
-            }, { once: true });
-            
-            playersGrid.appendChild(playerCard);
+        console.log('Processing player:', player);
+        console.log('Player has_profile_image:', player.has_profile_image);
+        console.log('Player image_path:', player.image_path);
+        console.log('Player emoji:', player.emoji);
+        const playerName = player.name || player.player_name || 'Unbekannt';
+        console.log('Player name:', playerName);
+        
+        console.log('Adding player card for:', playerName);
+        const playerCard = document.createElement('div');
+        playerCard.className = 'player-card static'; // Direkt als statisch markieren
+        const removeButtonStyle = isCurrentUserAdmin ? 'display: none;' : 'display: none !important;';
+        console.log('Remove button style for admin status', isCurrentUserAdmin, ':', removeButtonStyle);
+        
+        // Profilbild oder Emoji anzeigen (größer)
+        let profileImageHtml = '';
+        if (player.has_profile_image && player.image_path) {
+            profileImageHtml = `<img src="/static/${player.image_path}" style="width: 80px; height: 80px; border-radius: 50%; object-fit: cover; margin-bottom: 1rem;" alt="${playerName}">`;
+        } else if (player.emoji) {
+            profileImageHtml = `<div style="font-size: 4rem; margin-bottom: 1rem;">${player.emoji}</div>`;
+        } else {
+            profileImageHtml = `<div style="font-size: 4rem; margin-bottom: 1rem;">👤</div>`;
         }
-    });
-    
-    // Entferne Spieler die nicht mehr in der Liste sind (falls welche sich abmelden)
-    const currentPlayerNames = players.map(p => p.name);
-    Array.from(playersGrid.querySelectorAll('.player-card')).forEach(card => {
-        const nameElement = card.querySelector('.player-name');
-        if (nameElement) {
-            // Entferne das Font Awesome Icon-Element und hole nur den Text
-            const clonedElement = nameElement.cloneNode(true);
-            const iconElement = clonedElement.querySelector('i');
-            if (iconElement) iconElement.remove();
-            const playerName = clonedElement.textContent.trim();
-            
-            if (!currentPlayerNames.includes(playerName)) {
-                card.remove();
-            }
-        }
+        
+        playerCard.innerHTML = `
+            ${profileImageHtml}
+            <div class="player-name">
+                ${playerName}
+                <button class="remove-player-btn" style="${removeButtonStyle} position: absolute; top: 5px; right: 5px; background: #ff4444; color: white; border: none; border-radius: 50%; width: 20px; height: 20px; font-size: 12px; cursor: pointer;" onclick="removePlayer('${playerName}', ${player.id})" title="Spieler entfernen">×</button>
+            </div>
+            <div class="player-time">
+                ${new Date(player.registration_time).toLocaleTimeString()}
+            </div>
+        `;
+        
+        playersGrid.appendChild(playerCard);
     });
 }
 
@@ -1053,43 +1020,13 @@ async function updateProfileImageStatus() {
 }
 
 function updateProfilePreview(players) {
-    const profilePreview = document.getElementById('profile-preview');
-    
-    // Nur Spieler mit Profilbildern anzeigen
-    const playersWithImages = players.filter(p => p.has_profile_image);
-    
-    if (playersWithImages.length === 0) {
-        profilePreview.style.display = 'none';
-        return;
-    }
-    
-    profilePreview.innerHTML = '';
-    profilePreview.style.display = 'flex';
-    
-    playersWithImages.forEach(player => {
-        const previewItem = document.createElement('div');
-        previewItem.className = 'profile-preview-item';
-        previewItem.innerHTML = `
-            <img src="/static/${player.image_path}" class="profile-preview-image" alt="${player.player_name}">
-            <div class="profile-preview-name">${player.player_name}</div>
-        `;
-        profilePreview.appendChild(previewItem);
-    });
+    // Diese Funktion ist deaktiviert um Doppeldarstellungen zu vermeiden
+    // Alle Spieler (mit und ohne Profilbilder) werden bereits in der Hauptliste angezeigt
+    console.log('updateProfilePreview called but disabled to prevent duplicate display');
 }
 
-// Integration in bestehende Update-Funktion
-const originalUpdatePlayersList = updatePlayersList;
-updatePlayersList = function(players) {
-    originalUpdatePlayersList(players);
-    
-    // Nach dem Update der Spielerliste auch Profilbild-Status updaten
-    if (players.length > 0) {
-        updateProfileImageStatus();
-        
-        // Auto-Kamera für Spieler ohne Profilbild anbieten (optional)
-        checkForPlayersNeedingPhotos(players);
-    }
-};
+// Integration in bestehende Update-Funktion - vereinfacht
+// updateProfileImageStatus() entfernt um Doppeldarstellungen zu vermeiden
 
 async function checkForPlayersNeedingPhotos(players) {
     // Dieser Code ist optional und könnte automatisch die Kamera für neue Spieler öffnen
@@ -1113,6 +1050,55 @@ async function checkForPlayersNeedingPhotos(players) {
         console.error('Fehler beim Prüfen der Profilbild-Anforderungen:', error);
     }
     */
+}
+
+// ADMIN FUNKTIONEN
+
+async function removePlayer(playerName, playerId) {
+    if (!isCurrentUserAdmin) {
+        alert('Nur Admins können Spieler entfernen.');
+        return;
+    }
+    
+    if (!confirm(`Möchtest du wirklich "${playerName}" aus der Registrierung entfernen?\n\nDas Profilbild wird ebenfalls gelöscht.`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/remove-player', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                player_name: playerName,
+                player_id: playerId
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            console.log(`Spieler "${playerName}" erfolgreich entfernt`);
+            
+            // Cache-Busting für Profilbilder - alle img-Tags mit diesem Spieler aktualisieren
+            document.querySelectorAll(`img[alt="${playerName}"], img[src*="${playerName}"]`).forEach(img => {
+                if (img.src) {
+                    const url = new URL(img.src);
+                    url.searchParams.set('t', Date.now());
+                    img.src = url.toString();
+                }
+            });
+            
+            // Der Player wird beim nächsten updateWelcomeStatus() automatisch aus der UI entfernt
+        } else {
+            alert('Fehler beim Entfernen des Spielers: ' + (result.error || 'Unbekannter Fehler'));
+        }
+        
+    } catch (error) {
+        console.error('Fehler beim Entfernen des Spielers:', error);
+        alert('Fehler beim Entfernen des Spielers. Versuche es nochmal.');
+    }
 }
 
 // Cleanup bei Seitenverlassen

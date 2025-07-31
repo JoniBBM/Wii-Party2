@@ -259,6 +259,124 @@
     </div>
     {% endif %}
 
+    <!-- NEU: Minigame-Feld Admin Auswahl -->
+    <div id="minigame-field-selection" class="card mb-4" style="display: none;">
+        <div class="card-header bg-danger text-white">
+            <div class="d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="fas fa-gamepad"></i> 🎮 Minigame-Feld: Admin Auswahl erforderlich!
+                </h5>
+                <button id="refresh-minigame-status" class="btn btn-outline-light btn-sm">
+                    <i class="fas fa-sync"></i> Aktualisieren
+                </button>
+            </div>
+        </div>
+        <div class="card-body">
+            <div id="minigame-selection-info">
+                <!-- Wird dynamisch befüllt -->
+            </div>
+            
+            <div id="minigame-selection-interface" style="display: none;">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="card bg-light">
+                            <div class="card-header">
+                                <h6 class="mb-0">
+                                    <i class="fas fa-info-circle"></i> Spielinformation
+                                </h6>
+                            </div>
+                            <div class="card-body">
+                                <div id="minigame-match-info">
+                                    <!-- Team vs Team Info -->
+                                </div>
+                                <div class="mt-2">
+                                    <strong>Belohnung:</strong>
+                                    <span class="badge badge-success">🚀 5 Felder vorwärts bei Gewinn</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h6 class="mb-0">
+                                    <i class="fas fa-list"></i> Verfügbare Minispiele
+                                </h6>
+                            </div>
+                            <div class="card-body">
+                                <div id="available-minigames-list">
+                                    <!-- Wird dynamisch befüllt -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- NEU: Minispiel-Ergebnis Eingabe Interface -->
+            <div id="minigame-result-interface" style="display: none;">
+                <hr>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="card bg-light">
+                            <div class="card-header">
+                                <h6 class="mb-0">
+                                    <i class="fas fa-gamepad"></i> Laufendes Minispiel
+                                </h6>
+                            </div>
+                            <div class="card-body">
+                                <div id="running-minigame-info">
+                                    <!-- Wird dynamisch befüllt -->
+                                </div>
+                                <div class="mt-2">
+                                    <span class="badge badge-primary">🎮 Spiel läuft...</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h6 class="mb-0">
+                                    <i class="fas fa-trophy"></i> Ergebnis eingeben
+                                </h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="form-group">
+                                    <label>Wie ist das Minispiel ausgegangen?</label>
+                                    <div id="simple-result-options">
+                                        <div class="btn-group btn-group-toggle w-100" data-toggle="buttons">
+                                            <label class="btn btn-outline-success btn-lg col-6" onclick="selectSimpleResult('won')">
+                                                <input type="radio" name="simple-result" value="won" autocomplete="off">
+                                                <i class="fas fa-trophy"></i><br>
+                                                <strong>Herausforderer gewonnen</strong><br>
+                                                <small>+5 Felder Bonus</small>
+                                            </label>
+                                            <label class="btn btn-outline-danger btn-lg col-6" onclick="selectSimpleResult('lost')">
+                                                <input type="radio" name="simple-result" value="lost" autocomplete="off">
+                                                <i class="fas fa-times"></i><br>
+                                                <strong>Herausforderer verloren</strong><br>
+                                                <small>Kein Bonus</small>
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="mt-3">
+                                    <button id="submit-simple-result" class="btn btn-warning btn-block btn-lg" disabled>
+                                        <i class="fas fa-check"></i> Ergebnis bestätigen
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Spielstatus -->
     <div class="card mb-4">
         <div class="card-header bg-info text-white">
@@ -1496,6 +1614,14 @@ document.addEventListener('DOMContentLoaded', function() {
                         } else {
                             stopQuestionResponsesPolling();
                         }
+                        
+                        // Minigame Interface Status bei Phase-Wechsel prüfen
+                        if (newPhase === 'FIELD_MINIGAME_SELECTION_PENDING' || 
+                            newPhase === 'FIELD_MINIGAME_TRIGGERED' || 
+                            newPhase === 'FIELD_MINIGAME_COMPLETED') {
+                            // Sofortiges Update des Minigame Interface
+                            setTimeout(() => checkMinigameFieldStatus(), 100);
+                        }
                     }
                     
                     // Würfel-spezifische Updates
@@ -1538,8 +1664,18 @@ document.addEventListener('DOMContentLoaded', function() {
                 case 'ROUND_OVER':
                     phaseText = 'Runde beendet - Nächsten Inhalt festlegen';
                     break;
+                case 'FIELD_MINIGAME_SELECTION_PENDING':
+                    phaseText = 'Minigame-Feld - Warte auf Admin-Auswahl';
+                    break;
+                case 'FIELD_MINIGAME_TRIGGERED':
+                    phaseText = 'Feld-Minigame läuft - Warte auf Ergebnis';
+                    break;
+                case 'FIELD_MINIGAME_COMPLETED':
+                    phaseText = 'Feld-Minigame beendet - Banner wird angezeigt';
+                    break;
                 default:
-                    phaseText = phase.replace('_', ' ').title();
+                    // JavaScript equivalent of Python's .title()
+                    phaseText = phase.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
             }
             phaseDisplay.textContent = phaseText;
             phaseDisplay.setAttribute('data-phase', phase);
@@ -1575,6 +1711,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 break;
             case 'MINIGAME_ANNOUNCED':
                 targetSection = 'placement-section';
+                break;
+            case 'FIELD_MINIGAME_SELECTION_PENDING':
+            case 'FIELD_MINIGAME_TRIGGERED':
+            case 'FIELD_MINIGAME_COMPLETED':
+                // Field-Minigames verwenden das separate Interface
+                // Aber zeige weiterhin die Dice-Sektion für Kontext
+                targetSection = 'dice-control-section';
                 break;
         }
         
@@ -2154,13 +2297,378 @@ function updateNextItemAlert(section, nextItem) {
     }
 }
 
+// NEU: Minigame-Feld Admin Auswahl Functions
+let selectedMinigameId = null;
+let selectedWinnerTeamId = null;
+
+function checkMinigameFieldStatus() {
+    fetch('/admin/check_minigame_field_status', {
+        method: 'GET',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        const selectionCard = document.getElementById('minigame-field-selection');
+        
+        if (data.selection_pending) {
+            // Zeige Minispiel-Auswahl Interface
+            selectionCard.style.display = 'block';
+            displayMinigameSelection(data);
+        } else if (data.result_pending) {
+            // NEU: Zeige Ergebnis-Eingabe Interface
+            selectionCard.style.display = 'block';
+            displayMinigameResult(data);
+        } else {
+            // Verstecke Interface
+            selectionCard.style.display = 'none';
+        }
+    })
+    .catch(error => {
+        console.error('Fehler beim Prüfen des Minigame-Status:', error);
+    });
+}
+
+function displayMinigameSelection(data) {
+    const infoDiv = document.getElementById('minigame-selection-info');
+    const interfaceDiv = document.getElementById('minigame-selection-interface');
+    const matchInfoDiv = document.getElementById('minigame-match-info');
+    const minigamesListDiv = document.getElementById('available-minigames-list');
+    
+    // Zeige Team-Info mit Admin-Modus-Auswahl
+    matchInfoDiv.innerHTML = `
+        <div class="text-center">
+            <h5 class="text-primary">Team <strong>${data.landing_team}</strong> ist auf einem Minigame-Feld gelandet!</h5>
+            <small class="text-muted">Wähle Modus und Minispiel aus:</small>
+        </div>
+    `;
+    
+    // Verfügbare Minispiele nach Modi gruppiert anzeigen
+    if (data.available_minigames) {
+        let minigamesHtml = '';
+        
+        // Team vs All Modus
+        if (data.available_minigames.team_vs_all && data.available_minigames.team_vs_all.length > 0) {
+            minigamesHtml += `
+                <div class="card mb-3">
+                    <div class="card-header bg-success text-white">
+                        <h6 class="mb-0"><i class="fas fa-users"></i> Team vs Alle (${data.landing_team} gegen alle anderen)</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="list-group">
+            `;
+            
+            data.available_minigames.team_vs_all.forEach(minigame => {
+                minigamesHtml += `
+                    <div class="list-group-item list-group-item-action minigame-option" data-id="${minigame.id}">
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <h6 class="mb-1">🎮 ${minigame.title}</h6>
+                                <small class="text-muted">Spieler pro Team: ${minigame.player_count}</small>
+                            </div>
+                            <div class="text-right">
+                                <input type="radio" name="minigame-selection" value="${minigame.id}" class="minigame-radio">
+                            </div>
+                        </div>
+                        ${minigame.instructions ? `<p class="mb-1 small text-muted">${minigame.instructions}</p>` : ''}
+                    </div>
+                `;
+            });
+            
+            minigamesHtml += `
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        // Team vs Team Modus
+        if (data.available_minigames.team_vs_team && data.available_minigames.team_vs_team.length > 0) {
+            minigamesHtml += `
+                <div class="card mb-3">
+                    <div class="card-header bg-primary text-white">
+                        <h6 class="mb-0"><i class="fas fa-user-friends"></i> Team vs Team (${data.landing_team} gegen ein anderes Team)</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="list-group">
+            `;
+            
+            data.available_minigames.team_vs_team.forEach(minigame => {
+                minigamesHtml += `
+                    <div class="list-group-item list-group-item-action minigame-option" data-id="${minigame.id}">
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <h6 class="mb-1">🎮 ${minigame.title}</h6>
+                                <small class="text-muted">Spieler pro Team: ${minigame.player_count}</small>
+                            </div>
+                            <div class="text-right">
+                                <input type="radio" name="minigame-selection" value="${minigame.id}" class="minigame-radio">
+                            </div>
+                        </div>
+                        ${minigame.instructions ? `<p class="mb-1 small text-muted">${minigame.instructions}</p>` : ''}
+                    </div>
+                `;
+            });
+            
+            minigamesHtml += `
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        // Füge den Start-Button unter die Modi hinzu
+        minigamesHtml += `
+            <div class="mt-3 text-center">
+                <button id="start-selected-minigame" class="btn btn-success btn-lg" disabled>
+                    <i class="fas fa-play"></i> Ausgewähltes Minispiel starten
+                </button>
+            </div>
+        `;
+        
+        minigamesListDiv.innerHTML = minigamesHtml;
+        
+        // Event Listeners für Auswahl
+        document.querySelectorAll('.minigame-option').forEach(option => {
+            option.addEventListener('click', function() {
+                // Deselektiere alle anderen
+                document.querySelectorAll('.minigame-option').forEach(opt => {
+                    opt.classList.remove('active');
+                });
+                document.querySelectorAll('.minigame-radio').forEach(radio => {
+                    radio.checked = false;
+                });
+                
+                // Selektiere das aktuelle
+                this.classList.add('active');
+                this.querySelector('.minigame-radio').checked = true;
+                selectedMinigameId = this.dataset.id;
+                
+                console.log('✅ Minigame ausgewählt:', selectedMinigameId);
+                console.log('✅ Element data-id:', this.dataset.id);
+                
+                // Aktiviere Start-Button
+                const startButton = document.getElementById('start-selected-minigame');
+                if (startButton) {
+                    startButton.disabled = false;
+                    console.log('✅ Start-Button aktiviert');
+                } else {
+                    console.error('❌ Start-Button nicht gefunden beim Aktivieren');
+                }
+            });
+        });
+        
+        // Event Listener für Start-Button (neu hinzufügen)
+        const startButton = document.getElementById('start-selected-minigame');
+        if (startButton) {
+            startButton.addEventListener('click', startSelectedMinigame);
+        }
+        
+        interfaceDiv.style.display = 'block';
+    } else {
+        minigamesListDiv.innerHTML = '<div class="alert alert-warning">Keine verfügbaren Minispiele gefunden!</div>';
+        interfaceDiv.style.display = 'block';
+    }
+}
+
+function startSelectedMinigame() {
+    if (!selectedMinigameId) {
+        alert('Bitte wähle ein Minispiel aus!');
+        return;
+    }
+    
+    console.log('🎮 Starte Feld-Minigame mit ID:', selectedMinigameId);
+    
+    const startButton = document.getElementById('start-selected-minigame');
+    if (!startButton) {
+        console.error('❌ Start-Button nicht gefunden!');
+        return;
+    }
+    
+    startButton.disabled = true;
+    startButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Starte...';
+    
+    const requestData = {
+        minigame_id: selectedMinigameId
+    };
+    
+    console.log('📤 Sende Request:', requestData);
+    
+    fetch('/admin/start_field_minigame', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken
+        },
+        body: JSON.stringify(requestData)
+    })
+    .then(response => {
+        console.log('📥 Response Status:', response.status);
+        return response.json();
+    })
+    .then(data => {
+        console.log('📥 Response Data:', data);
+        if (data.success) {
+            // Verstecke Auswahl-Interface
+            document.getElementById('minigame-field-selection').style.display = 'none';
+            selectedMinigameId = null;
+            
+            // Zeige Erfolg-Nachricht
+            showAlert('success', `Minispiel "${data.minigame_name}" wurde gestartet!`);
+            
+            // Aktualisiere Spielstatus
+            location.reload(); // Einfache Lösung - Seite neu laden
+        } else {
+            showAlert('danger', 'Fehler: ' + data.message);
+            startButton.disabled = false;
+            startButton.innerHTML = '<i class="fas fa-play"></i> Ausgewähltes Minispiel starten';
+        }
+    })
+    .catch(error => {
+        console.error('❌ Fehler beim Starten des Minispiels:', error);
+        showAlert('danger', 'Fehler beim Starten des Minispiels');
+        const startButton = document.getElementById('start-selected-minigame');
+        if (startButton) {
+            startButton.disabled = false;
+            startButton.innerHTML = '<i class="fas fa-play"></i> Ausgewähltes Minispiel starten';
+        }
+    });
+}
+
+// NEU: Ergebnis-Eingabe Interface (vereinfacht)
+function displayMinigameResult(data) {
+    const interfaceDiv = document.getElementById('minigame-selection-interface');
+    const resultInterfaceDiv = document.getElementById('minigame-result-interface');
+    const runningInfoDiv = document.getElementById('running-minigame-info');
+    
+    // Verstecke Auswahl-Interface, zeige Ergebnis-Interface
+    interfaceDiv.style.display = 'none';
+    resultInterfaceDiv.style.display = 'block';
+    
+    // Zeige laufendes Minispiel Info
+    let modeText = '';
+    let challengerTeam = data.landing_team;
+    
+    if (data.mode === 'team_vs_team') {
+        modeText = `<strong>${data.landing_team}</strong> vs <strong>${data.opponent_team}</strong>`;
+    } else {
+        modeText = `<strong>${data.landing_team}</strong> vs <strong>alle anderen Teams</strong>`;
+    }
+    
+    runningInfoDiv.innerHTML = `
+        <div class="text-center">
+            <h6 class="text-primary">🎮 ${data.minigame_name}</h6>
+            <div>${modeText}</div>
+            <div class="mt-2">
+                <span class="badge badge-info">Herausforderer: <strong>${challengerTeam}</strong></span>
+            </div>
+        </div>
+    `;
+    
+    // Reset Auswahl
+    selectedResult = null;
+    document.getElementById('submit-simple-result').disabled = true;
+}
+
+// NEU: Vereinfachte Ergebnis-Auswahl
+let selectedResult = null;
+
+function selectSimpleResult(result) {
+    selectedResult = result;
+    document.getElementById('submit-simple-result').disabled = false;
+    
+    // Visuelles Feedback
+    document.querySelectorAll('.btn-group label').forEach(label => {
+        label.classList.remove('active');
+    });
+    event.target.closest('label').classList.add('active');
+}
+
+function submitMinigameResult() {
+    if (!selectedResult) {
+        alert('Bitte wähle das Ergebnis aus!');
+        return;
+    }
+    
+    const submitButton = document.getElementById('submit-simple-result');
+    submitButton.disabled = true;
+    submitButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Verarbeite Ergebnis...';
+    
+    fetch('/admin/submit_field_minigame_result', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken
+        },
+        body: JSON.stringify({
+            result: selectedResult
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Verstecke Ergebnis-Interface
+            document.getElementById('minigame-field-selection').style.display = 'none';
+            selectedWinnerTeamId = null;
+            
+            // Zeige Erfolg-Nachricht
+            showAlert('success', data.message);
+            
+            // Aktualisiere Spielstatus
+            location.reload(); // Einfache Lösung - Seite neu laden
+        } else {
+            showAlert('danger', 'Fehler: ' + data.message);
+            submitButton.disabled = false;
+            submitButton.innerHTML = '<i class="fas fa-check"></i> Ergebnis bestätigen & Belohnung anwenden';
+        }
+    })
+    .catch(error => {
+        console.error('Fehler beim Übermitteln des Ergebnisses:', error);
+        showAlert('danger', 'Fehler beim Übermitteln des Ergebnisses');
+        submitButton.disabled = false;
+        submitButton.innerHTML = '<i class="fas fa-check"></i> Ergebnis bestätigen & Belohnung anwenden';
+    });
+}
+
+function showAlert(type, message) {
+    // Füge Alert am Anfang der Container hinzu
+    const container = document.querySelector('.container');
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="close" data-dismiss="alert">
+            <span>&times;</span>
+        </button>
+    `;
+    container.insertBefore(alertDiv, container.firstChild);
+    
+    // Auto-remove nach 5 Sekunden
+    setTimeout(() => {
+        if (alertDiv.parentNode) {
+            alertDiv.remove();
+        }
+    }, 5000);
+}
+
 // Live-Updates starten wenn Admin Dashboard geladen wird
 document.addEventListener('DOMContentLoaded', function() {
     // Initiales Update
     updateSequenceStatus();
+    checkMinigameFieldStatus(); // NEU: Prüfe Minigame-Feld Status
     
     // Regelmäßige Updates alle 5 Sekunden
-    sequenceUpdateInterval = setInterval(updateSequenceStatus, 5000);
+    sequenceUpdateInterval = setInterval(function() {
+        updateSequenceStatus();
+        checkMinigameFieldStatus(); // NEU: Prüfe auch Minigame-Status
+    }, 5000);
+    
+    // Event Listeners für Minigame-Auswahl Interface
+    document.getElementById('refresh-minigame-status').addEventListener('click', checkMinigameFieldStatus);
+    // start-selected-minigame wird dynamisch gesetzt
+    document.getElementById('submit-simple-result').addEventListener('click', submitMinigameResult);
     
     // Stoppe Updates wenn Seite verlassen wird
     window.addEventListener('beforeunload', function() {
@@ -2178,7 +2686,11 @@ document.addEventListener('DOMContentLoaded', function() {
         } else {
             // Resume updates wenn Tab wieder aktiv
             updateSequenceStatus();
-            sequenceUpdateInterval = setInterval(updateSequenceStatus, 5000);
+            checkMinigameFieldStatus(); // NEU
+            sequenceUpdateInterval = setInterval(function() {
+                updateSequenceStatus();
+                checkMinigameFieldStatus(); // NEU
+            }, 5000);
         }
     });
 });

@@ -1190,7 +1190,7 @@ class GameSession(db.Model):
     field_minigame_opponent_team = db.relationship('Team', foreign_keys=[field_minigame_opponent_team_id])
 
     current_phase = db.Column(db.String(50), default='SETUP_MINIGAME') 
-    # Mögliche Phasen: SETUP_MINIGAME, MINIGAME_ANNOUNCED, QUESTION_ACTIVE, QUESTION_COMPLETED, DICE_ROLLING, ROUND_OVER, FIELD_ACTION, FIELD_MINIGAME_TRIGGERED, FIELD_MINIGAME_ACTIVE, FIELD_MINIGAME_COMPLETED
+    # Mögliche Phasen: SETUP_MINIGAME, MINIGAME_ANNOUNCED, QUESTION_ACTIVE, QUESTION_COMPLETED, DICE_ROLLING, ROUND_OVER, FIELD_ACTION, FIELD_MINIGAME_SELECTION_PENDING, FIELD_MINIGAME_TRIGGERED, FIELD_MINIGAME_ACTIVE, FIELD_MINIGAME_COMPLETED
     
     dice_roll_order = db.Column(db.String(255), nullable=True)
     current_team_turn_id = db.Column(db.Integer, db.ForeignKey('team.id'), nullable=True)

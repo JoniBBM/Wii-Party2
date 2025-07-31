@@ -769,10 +769,6 @@ function openMinigameEditor(mode) {
                                             <input type="text" class="form-control" id="game_title" placeholder="z.B. Schnellste Reaktion" required>
                                         </div>
                                         <div class="form-group">
-                                            <label for="game_description">Beschreibung</label>
-                                            <textarea class="form-control" id="game_description" rows="2" placeholder="Kurze Beschreibung des Spiels" required></textarea>
-                                        </div>
-                                        <div class="form-group">
                                             <label for="game_instructions">Anleitung</label>
                                             <textarea class="form-control" id="game_instructions" rows="3" placeholder="Detaillierte Anleitung für das Spiel" required></textarea>
                                         </div>
@@ -780,18 +776,6 @@ function openMinigameEditor(mode) {
                                             <label for="player_count">Anzahl Spieler pro Team</label>
                                             <input type="number" class="form-control" id="player_count" value="1" min="1" max="10" placeholder="z.B. 1, 2, 3">
                                             <small class="text-muted">Anzahl der Spieler die pro Team ausgelost werden</small>
-                                        </div>
-                                        <div class="form-group">
-                                            <label for="difficulty">Schwierigkeit</label>
-                                            <select class="form-control" id="difficulty">
-                                                <option value="easy">Leicht</option>
-                                                <option value="medium" selected>Mittel</option>
-                                                <option value="hard">Schwer</option>
-                                            </select>
-                                        </div>
-                                        <div class="form-group">
-                                            <label for="category">Kategorie</label>
-                                            <input type="text" class="form-control" id="category" placeholder="z.B. Geschicklichkeit, Reaktion, Wissen">
                                         </div>
                                         <button type="button" class="btn btn-success" onclick="saveMinigame('${mode}')">
                                             <i class="fas fa-save"></i> Minigame speichern
@@ -844,7 +828,7 @@ function loadExistingMinigames(mode) {
                                         ${minigame.title}
                                     </h6>
                                     <small class="text-muted">
-                                        ${minigame.description}
+                                        ${minigame.instructions || 'Keine Anleitung'}
                                     </small>
                                 </div>
                                 <div>
@@ -874,16 +858,13 @@ function saveMinigame(mode) {
     let data = {
         type: "game",
         title: document.getElementById('game_title').value,
-        description: document.getElementById('game_description').value,
         instructions: document.getElementById('game_instructions').value,
         player_count: parseInt(document.getElementById('player_count').value),
-        difficulty: document.getElementById('difficulty').value,
-        category: document.getElementById('category').value,
         materials: "Keine"
     };
     
     // Validierung
-    if (!data.title || !data.description || !data.instructions) {
+    if (!data.title || !data.instructions) {
         showAlert('Bitte alle Pflichtfelder ausfüllen', 'warning');
         return;
     }
@@ -945,11 +926,8 @@ function deleteMinigame(mode, id) {
 
 function clearForm() {
     document.getElementById('game_title').value = '';
-    document.getElementById('game_description').value = '';
     document.getElementById('game_instructions').value = '';
     document.getElementById('player_count').value = '1';
-    document.getElementById('difficulty').value = 'medium';
-    document.getElementById('category').value = '';
 }
 
 function showAlert(message, type) {

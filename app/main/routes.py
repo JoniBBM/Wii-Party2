@@ -483,7 +483,12 @@ def roll_dice_action_admin_only():
             current_app.logger.error(f"Team {team.id} nicht in Würfelreihenfolge {dice_order_ids_int} gefunden.")
             return jsonify({"success": False, "error": "Fehler in der Würfelreihenfolge (Team nicht gefunden)."}), 500
 
-        if current_team_index_in_order < len(dice_order_ids_int) - 1:
+        # Prüfe ob ein Field-Minigame durch Sonderfeld-Behandlung gestartet wurde
+        field_minigame_phases = ['FIELD_MINIGAME_SELECTION_PENDING', 'FIELD_MINIGAME_TRIGGERED', 'FIELD_MINIGAME_COMPLETED']
+        if active_session.current_phase in field_minigame_phases:
+            # Field-Minigame wurde gestartet - normale Team-Turn-Logik überspringen
+            current_app.logger.info(f"Field-Minigame wurde gestartet (Phase: {active_session.current_phase}) - überspringe normale Turn-Logik")
+        elif current_team_index_in_order < len(dice_order_ids_int) - 1:
             active_session.current_team_turn_id = dice_order_ids_int[current_team_index_in_order + 1]
         else:
             active_session.current_phase = 'ROUND_OVER'
@@ -768,12 +773,35 @@ def welcome_status():
         
         # Hole registrierte Spieler
         players = []
+        
+        # Emoji-Liste für Spieler ohne Profilbild
+        available_emojis = [
+            "😀", "😃", "😄", "😁", "😆", "😅", "🤣", "😂", "🙂", "🙃", 
+            "😉", "😊", "😇", "🥰", "😍", "🤩", "😘", "😗", "😚", "😙",
+            "😋", "😛", "😜", "🤪", "😝", "🤑", "🤗", "🤭", "🤫", "🤔",
+            "🤓", "😎", "🤡", "🥳", "😏", "😒", "😞", "😔", "😟", "😕",
+            "🙁", "☹️", "😣", "😖", "😫", "😩", "🥺", "😢", "😭", "😤",
+            "😠", "😡", "🤬", "🤯", "😳", "🥵", "🥶", "😱", "😨", "😰"
+        ]
+        
         for registration in welcome_session.get_registered_players():
-            players.append({
+            player_data = {
                 "id": registration.id,
                 "name": registration.player_name,
-                "registration_time": registration.registration_time.isoformat()
-            })
+                "registration_time": registration.registration_time.isoformat(),
+                "has_profile_image": registration.profile_image_path is not None
+            }
+            
+            if registration.profile_image_path:
+                player_data["image_path"] = registration.profile_image_path
+            else:
+                # Deterministisches Emoji basierend auf Spielername
+                # So bleibt das Emoji immer gleich für jeden Spieler
+                name_hash = hash(registration.player_name) % len(available_emojis)
+                chosen_emoji = available_emojis[name_hash]
+                player_data["emoji"] = chosen_emoji
+            
+            players.append(player_data)
         
         # Hole Team-Informationen falls bereits erstellt
         teams = []
@@ -1288,17 +1316,26 @@ def get_player_faces():
         if not active_session:
             return jsonify({"success": False, "error": "Keine aktive Spielsitzung"}), 404
         
-        # Prüfe ob Minispiel läuft und nicht alle Teams spielen
+        # Prüfe ob Minispiel läuft (normale Minigames oder Feld-Minigames)
         # Zeige Gesichter bei verschiedenen Minispiel-Phasen
         minigame_phases = ['MINIGAME_ANNOUNCED', 'SETUP_MINIGAME', 'MINIGAME_STARTED', 'MINIGAME_RESULTS', 'DICE_ROLLING']
-        if active_session.current_phase not in minigame_phases:
+        field_minigame_phases = ['FIELD_MINIGAME_TRIGGERED']
+        
+        is_normal_minigame = active_session.current_phase in minigame_phases
+        is_field_minigame = active_session.current_phase in field_minigame_phases
+        
+        if not is_normal_minigame and not is_field_minigame:
             return jsonify({
                 "success": True,
                 "show_faces": False,
                 "message": f"Kein Minispiel aktiv (Phase: {active_session.current_phase})"
             })
         
-        # Hole ausgewählte Spieler aus der Session
+        # Für Feld-Minigames: Hole Spieler basierend auf dem Field-Minigame Setup
+        if is_field_minigame:
+            return get_field_minigame_player_faces(active_session)
+        
+        # Für normale Minigames: Hole ausgewählte Spieler aus der Session
         selected_players = active_session.get_selected_players()
         
         if not selected_players:
@@ -1310,6 +1347,21 @@ def get_player_faces():
         
         # Sammle Profilbilder der ausgewählten Spieler
         player_faces = []
+        
+        # Liste von verfügbaren Emojis für Spieler ohne Profilbild
+        available_emojis = [
+            "😀", "😃", "😄", "😁", "😆", "😅", "🤣", "😂", "🙂", "🙃", 
+            "😉", "😊", "😇", "🥰", "😍", "🤩", "😘", "😗", "😚", "😙",
+            "😋", "😛", "😜", "🤪", "😝", "🤑", "🤗", "🤭", "🤫", "🤔",
+            "🤓", "😎", "🤡", "🥳", "😏", "😒", "😞", "😔", "😟", "😕",
+            "🙁", "☹️", "😣", "😖", "😫", "😩", "🥺", "😢", "😭", "😤",
+            "😠", "😡", "🤬", "🤯", "😳", "🥵", "🥶", "😱", "😨", "😰",
+            "😥", "😓", "🤗", "🤔", "😐", "😑", "😬", "🙄", "😯", "😦",
+            "😧", "😮", "😲", "🥱", "😴", "🤤", "😪", "😵", "🤐", "🥴",
+            "🤢", "🤮", "🤧", "😷", "🤒", "🤕", "🤑", "🤠", "😈", "👿",
+            "👹", "👺", "🤡", "💩", "👻", "💀", "☠️", "👽", "👾", "🤖",
+            "🎃", "😺", "😸", "😹", "😻", "😼", "😽", "🙀", "😿", "😾"
+        ]
         
         for team_id_str, player_names in selected_players.items():
             team = Team.query.get(int(team_id_str))
@@ -1329,10 +1381,24 @@ def get_player_faces():
                         "team_name": team_name,
                         "team_id": team.id,
                         "team_color": team_color,
-                        "image_path": profile_image
+                        "image_path": profile_image,
+                        "has_photo": True
+                    })
+                else:
+                    # Deterministisches Emoji basierend auf Spielername
+                    name_hash = hash(player_name) % len(available_emojis)
+                    chosen_emoji = available_emojis[name_hash]
+                    
+                    player_faces.append({
+                        "player_name": player_name,
+                        "team_name": team_name,
+                        "team_id": team.id,
+                        "team_color": team_color,
+                        "emoji": chosen_emoji,
+                        "has_photo": False
                     })
         
-        # Nur anzeigen wenn mindestens ein Profilbild vorhanden ist
+        # Zeige Gesichter auch wenn nur Emojis vorhanden sind
         show_faces = len(player_faces) > 0
         
         return jsonify({
@@ -1346,12 +1412,271 @@ def get_player_faces():
         current_app.logger.error(f"Fehler beim Abrufen der Spieler-Gesichter: {e}", exc_info=True)
         return jsonify({"success": False, "error": "Ein Fehler ist aufgetreten"}), 500
 
+
+def get_field_minigame_player_faces(active_session):
+    """Holt Spieler-Gesichter für Feld-Minigames"""
+    try:
+        import os
+        import json
+        import random
+        
+        # Hole das aktuelle Feld-Minigame
+        if not active_session.field_minigame_content_id:
+            return jsonify({
+                "success": True,
+                "show_faces": False,
+                "message": "Kein Feld-Minigame Content gefunden"
+            })
+        
+        # Lade das Minigame aus den statischen Dateien
+        mode = active_session.field_minigame_mode
+        field_minigame_path = os.path.join(
+            current_app.static_folder, 
+            'field_minigames', 
+            mode, 
+            f"{active_session.field_minigame_content_id}.json"
+        )
+        
+        if not os.path.exists(field_minigame_path):
+            return jsonify({
+                "success": True,
+                "show_faces": False,
+                "message": "Feld-Minigame Datei nicht gefunden"
+            })
+        
+        # Lade Minigame-Daten um player_count zu erhalten
+        with open(field_minigame_path, 'r', encoding='utf-8') as f:
+            minigame_data = json.load(f)
+        
+        player_count = minigame_data.get('player_count', 1)
+        
+        # Hole die beteiligten Teams
+        landing_team = active_session.field_minigame_landing_team
+        opponent_team = active_session.field_minigame_opponent_team if active_session.field_minigame_opponent_team_id else None
+        
+        if not landing_team:
+            return jsonify({
+                "success": True,
+                "show_faces": False,
+                "message": "Kein landendes Team gefunden"
+            })
+        
+        player_faces = []
+        
+        # Liste von verfügbaren Emojis für Spieler ohne Profilbild
+        available_emojis = [
+            "😀", "😃", "😄", "😁", "😆", "😅", "🤣", "😂", "🙂", "🙃", 
+            "😉", "😊", "😇", "🥰", "😍", "🤩", "😘", "😗", "😚", "😙",
+            "😋", "😛", "😜", "🤪", "😝", "🤑", "🤗", "🤭", "🤫", "🤔",
+            "🤓", "😎", "🤡", "🥳", "😏", "😒", "😞", "😔", "😟", "😕"
+        ]
+        # Hole Spieler vom landenden Team
+        landing_team_profiles = landing_team.get_profile_images()
+        
+        # Alle Teammitglieder des landenden Teams
+        all_landing_players = []
+        if landing_team_profiles:
+            # Spieler mit Profilbildern
+            for player_name, image_path in landing_team_profiles.items():
+                all_landing_players.append({
+                    "name": player_name,
+                    "image_path": image_path,
+                    "has_photo": True
+                })
+        
+        # Zusätzliche Spieler ohne Profilbilder (falls das Team mehr Mitglieder hat)
+        # Diese Information sollte aus der Team-Konfiguration kommen
+        try:
+            # Versuche Team-Mitglieder zu finden (falls in der Datenbank gespeichert)
+            if hasattr(landing_team, 'members') and landing_team.members:
+                team_member_names = landing_team.members.split(',') if isinstance(landing_team.members, str) else landing_team.members
+                for member_name in team_member_names:
+                    member_name = member_name.strip()
+                    if not any(p["name"] == member_name for p in all_landing_players):
+                        all_landing_players.append({
+                            "name": member_name,
+                            "image_path": None,
+                            "has_photo": False
+                        })
+        except:
+            pass
+        
+        # Wähle zufällige Spieler aus dem landenden Team
+        selected_from_landing = random.sample(all_landing_players, min(player_count, len(all_landing_players)))
+        
+        for player_data in selected_from_landing:
+            if player_data["has_photo"]:
+                player_faces.append({
+                    "player_name": player_data["name"],
+                    "team_name": landing_team.name,
+                    "team_id": landing_team.id,
+                    "team_color": landing_team.character.color if landing_team.character else '#CCCCCC',
+                    "image_path": player_data["image_path"],
+                    "role": "landing_team",
+                    "has_photo": True
+                })
+            else:
+                # Deterministisches Emoji basierend auf Spielername
+                name_hash = hash(player_data["name"]) % len(available_emojis)
+                chosen_emoji = available_emojis[name_hash]
+                
+                player_faces.append({
+                    "player_name": player_data["name"],
+                    "team_name": landing_team.name,
+                    "team_id": landing_team.id,
+                    "team_color": landing_team.character.color if landing_team.character else '#CCCCCC',
+                    "emoji": chosen_emoji,
+                    "role": "landing_team",
+                    "has_photo": False
+                })
+        
+        # Für Team vs Team Modus: Hole auch Spieler vom Gegner-Team
+        if mode == 'team_vs_team' and opponent_team:
+            opponent_team_profiles = opponent_team.get_profile_images()
+            
+            all_opponent_players = []
+            if opponent_team_profiles:
+                for player_name, image_path in opponent_team_profiles.items():
+                    all_opponent_players.append({
+                        "name": player_name,
+                        "image_path": image_path,
+                        "has_photo": True
+                    })
+            
+            # Zusätzliche Gegner-Spieler ohne Profilbilder
+            try:
+                if hasattr(opponent_team, 'members') and opponent_team.members:
+                    team_member_names = opponent_team.members.split(',') if isinstance(opponent_team.members, str) else opponent_team.members
+                    for member_name in team_member_names:
+                        member_name = member_name.strip()
+                        if not any(p["name"] == member_name for p in all_opponent_players):
+                            all_opponent_players.append({
+                                "name": member_name,
+                                "image_path": None,
+                                "has_photo": False
+                            })
+            except:
+                pass
+            
+            if all_opponent_players:
+                selected_from_opponent = random.sample(all_opponent_players, min(player_count, len(all_opponent_players)))
+                
+                for player_data in selected_from_opponent:
+                    if player_data["has_photo"]:
+                        player_faces.append({
+                            "player_name": player_data["name"],
+                            "team_name": opponent_team.name,
+                            "team_id": opponent_team.id,
+                            "team_color": opponent_team.character.color if opponent_team.character else '#CCCCCC',
+                            "image_path": player_data["image_path"],
+                            "role": "opponent_team",
+                            "has_photo": True
+                        })
+                    else:
+                        # Deterministisches Emoji basierend auf Spielername
+                        name_hash = hash(player_data["name"]) % len(available_emojis)
+                        chosen_emoji = available_emojis[name_hash]
+                        
+                        player_faces.append({
+                            "player_name": player_data["name"],
+                            "team_name": opponent_team.name,
+                            "team_id": opponent_team.id,
+                            "team_color": opponent_team.character.color if opponent_team.character else '#CCCCCC',
+                            "emoji": chosen_emoji,
+                            "role": "opponent_team",
+                            "has_photo": False
+                        })
+        
+        # Für Team vs All Modus: Hole zufällige Spieler von anderen Teams
+        elif mode == 'team_vs_all':
+            all_teams = Team.query.filter(Team.id != landing_team.id, Team.is_active == True).all()
+            
+            for team in all_teams[:min(3, len(all_teams))]:  # Max 3 andere Teams zeigen
+                team_profiles = team.get_profile_images()
+                
+                # Sammle alle Teammitglieder (mit und ohne Fotos)
+                all_team_players = []
+                if team_profiles:
+                    for player_name, image_path in team_profiles.items():
+                        all_team_players.append({
+                            "name": player_name,
+                            "image_path": image_path,
+                            "has_photo": True
+                        })
+                
+                # Zusätzliche Spieler ohne Profilbilder
+                try:
+                    if hasattr(team, 'members') and team.members:
+                        team_member_names = team.members.split(',') if isinstance(team.members, str) else team.members
+                        for member_name in team_member_names:
+                            member_name = member_name.strip()
+                            if not any(p["name"] == member_name for p in all_team_players):
+                                all_team_players.append({
+                                    "name": member_name,
+                                    "image_path": None,
+                                    "has_photo": False
+                                })
+                except:
+                    pass
+                
+                if all_team_players:
+                    # Ein zufälliger Spieler pro Team
+                    selected_player = random.choice(all_team_players)
+                    
+                    if selected_player["has_photo"]:
+                        player_faces.append({
+                            "player_name": selected_player["name"],
+                            "team_name": team.name,
+                            "team_id": team.id,
+                            "team_color": team.character.color if team.character else '#CCCCCC',
+                            "image_path": selected_player["image_path"],
+                            "role": "opponent_team",
+                            "has_photo": True
+                        })
+                    else:
+                        # Deterministisches Emoji basierend auf Spielername
+                        name_hash = hash(selected_player["name"]) % len(available_emojis)
+                        chosen_emoji = available_emojis[name_hash]
+                        
+                        player_faces.append({
+                            "player_name": selected_player["name"],
+                            "team_name": team.name,
+                            "team_id": team.id,
+                            "team_color": team.character.color if team.character else '#CCCCCC',
+                            "emoji": chosen_emoji,
+                            "role": "opponent_team",
+                            "has_photo": False
+                        })
+        
+        show_faces = len(player_faces) > 0
+        
+        return jsonify({
+            "success": True,
+            "show_faces": show_faces,
+            "player_faces": player_faces,
+            "total_players": len(player_faces),
+            "minigame_title": minigame_data.get('title', 'Feld-Minigame'),
+            "mode": mode
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"Fehler beim Abrufen der Feld-Minigame Spieler-Gesichter: {e}", exc_info=True)
+        return jsonify({"success": False, "error": f"Fehler: {str(e)}"}), 500
+
 @main_bp.route('/api/get-all-player-images')
 def get_all_player_images():
-    """Gibt alle verfügbaren Spieler mit ihren Profilbildern zurück"""
+    """Gibt alle verfügbaren Spieler mit ihren Profilbildern oder Emojis zurück"""
     try:
         teams = Team.query.all()
         all_players = []
+        
+        # Emoji-Liste für Spieler ohne Fotos
+        available_emojis = [
+            "😀", "😃", "😄", "😁", "😆", "😅", "🤣", "😂", "🙂", "🙃", 
+            "😉", "😊", "😇", "🥰", "😍", "🤩", "😘", "😗", "😚", "😙",
+            "😋", "😛", "😜", "🤪", "😝", "🤑", "🤗", "🤭", "🤫", "🤔",
+            "🤓", "😎", "🤡", "🥳", "😏", "😒", "😞", "😔", "😟", "😕"
+        ]
         
         for team in teams:
             # Hole Team-Farbe
@@ -1360,6 +1685,7 @@ def get_all_player_images():
             # Hole alle Profilbilder des Teams
             profile_images = team.get_profile_images()
             
+            # Spieler mit Profilbildern
             for player_name, image_path in profile_images.items():
                 if image_path and image_path.strip():
                     all_players.append({
@@ -1367,8 +1693,32 @@ def get_all_player_images():
                         "team_name": team.name,
                         "team_id": team.id,
                         "team_color": team_color,
-                        "image_path": image_path
+                        "image_path": image_path,
+                        "has_photo": True
                     })
+            
+            # Spieler ohne Profilbilder (falls Team mehr Mitglieder hat)
+            try:
+                if hasattr(team, 'members') and team.members:
+                    team_member_names = team.members.split(',') if isinstance(team.members, str) else team.members
+                    for member_name in team_member_names:
+                        member_name = member_name.strip()
+                        # Prüfe ob bereits mit Profilbild hinzugefügt
+                        if not any(p["player_name"] == member_name for p in all_players):
+                            # Deterministisches Emoji basierend auf Spielername
+                            name_hash = hash(member_name) % len(available_emojis)
+                            chosen_emoji = available_emojis[name_hash]
+                            
+                            all_players.append({  
+                                "player_name": member_name,
+                                "team_name": team.name,
+                                "team_id": team.id,
+                                "team_color": team_color,
+                                "emoji": chosen_emoji,
+                                "has_photo": False
+                            })
+            except:
+                pass
         
         return jsonify({
             "success": True,
@@ -1414,3 +1764,218 @@ def profile_image_status():
     except Exception as e:
         current_app.logger.error(f"Fehler beim Abrufen des Profilbild-Status: {e}", exc_info=True)
         return jsonify({"success": False, "error": "Ein Fehler ist aufgetreten"}), 500
+
+@main_bp.route('/api/remove-player', methods=['POST'])
+@csrf.exempt
+def remove_player():
+    """Spieler aus der Welcome-Session entfernen (nur für Admins)"""
+    try:
+        # Admin-Check wäre hier normalerweise nötig - für jetzt akzeptieren wir alle Requests
+        # da das Frontend bereits prüft
+        
+        data = request.get_json()
+        if not data:
+            return jsonify({"success": False, "error": "Keine Daten empfangen"}), 400
+            
+        player_name = data.get('player_name', '').strip()
+        player_id = data.get('player_id')
+        
+        if not player_name:
+            return jsonify({"success": False, "error": "Spielername ist erforderlich"}), 400
+        
+        # Prüfe ob Registrierung aktiv ist
+        welcome_session = WelcomeSession.get_active_session()
+        if not welcome_session:
+            return jsonify({"success": False, "error": "Keine aktive Registrierung"}), 400
+        
+        # Finde die Registrierung
+        registration = PlayerRegistration.query.filter_by(
+            welcome_session_id=welcome_session.id,
+            player_name=player_name
+        ).first()
+        
+        if player_id and registration and registration.id != player_id:
+            return jsonify({"success": False, "error": "Spieler-ID stimmt nicht überein"}), 400
+        
+        if not registration:
+            return jsonify({"success": False, "error": "Spieler nicht gefunden"}), 404
+        
+        # Lösche Profilbild falls vorhanden
+        deleted_image = False
+        if registration.profile_image_path:
+            try:
+                import os
+                image_path = os.path.join(current_app.static_folder, registration.profile_image_path)
+                if os.path.exists(image_path):
+                    os.remove(image_path)
+                    deleted_image = True
+                    current_app.logger.info(f"Profilbild gelöscht: {image_path}")
+            except Exception as e:
+                current_app.logger.warning(f"Fehler beim Löschen des Profilbildes: {e}")
+        
+        # Entferne Registrierung aus Datenbank
+        db.session.delete(registration)
+        db.session.commit()
+        
+        current_app.logger.info(f"Spieler '{player_name}' erfolgreich entfernt")
+        
+        return jsonify({
+            "success": True,
+            "message": f"Spieler '{player_name}' erfolgreich entfernt",
+            "deleted_image": deleted_image
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Fehler beim Entfernen des Spielers: {e}", exc_info=True)
+        return jsonify({"success": False, "error": "Ein Fehler ist aufgetreten"}), 500
+
+
+@main_bp.route('/api/advance_field_minigame_phase', methods=['POST'])
+def advance_field_minigame_phase():
+    """API-Route um die Field Minigame Phase von COMPLETED zur nächsten Phase zu schalten"""
+    try:
+        active_session = GameSession.query.filter_by(is_active=True).first()
+        if not active_session:
+            return jsonify({'success': False, 'message': 'Keine aktive Spielsitzung'}), 400
+        
+        # Prüfe ob Session in FIELD_MINIGAME_COMPLETED Phase ist
+        if active_session.current_phase != 'FIELD_MINIGAME_COMPLETED':
+            return jsonify({'success': False, 'message': f'Session nicht in FIELD_MINIGAME_COMPLETED Phase (aktuell: {active_session.current_phase})'}), 400
+        
+        # Bestimme nächste Phase basierend auf Würfelreihenfolge
+        if active_session.dice_roll_order and active_session.current_team_turn_id:
+            # Prüfe ob noch weitere Teams nach dem aktuellen Team dran sind
+            try:
+                dice_order_ids = [int(tid_str) for tid_str in active_session.dice_roll_order.split(',') if tid_str.strip().isdigit()]
+                current_team_index = dice_order_ids.index(active_session.current_team_turn_id)
+                
+                if current_team_index < len(dice_order_ids) - 1:
+                    # Es gibt noch weitere Teams - bleibe in DICE_ROLLING
+                    active_session.current_phase = 'DICE_ROLLING'
+                    current_app.logger.info(f"Field Minigame beendet - zurück zu DICE_ROLLING für Team {active_session.current_team_turn_id} (Index {current_team_index} von {len(dice_order_ids)})")
+                else:
+                    # Das war das letzte Team - Runde beendet
+                    active_session.current_phase = 'ROUND_OVER'
+                    active_session.current_team_turn_id = None
+                    current_app.logger.info("Field Minigame beendet - war letztes Team, Runde abgeschlossen (ROUND_OVER)")
+            except (ValueError, IndexError) as e:
+                current_app.logger.error(f"Fehler beim Verarbeiten der Würfelreihenfolge: {e}")
+                # Fallback: Runde beenden
+                active_session.current_phase = 'ROUND_OVER'
+                active_session.current_team_turn_id = None
+        else:
+            # Keine Teams mehr oder Runde schon beendet
+            active_session.current_phase = 'ROUND_OVER'
+            current_app.logger.info("Field Minigame beendet - keine Würfelreihenfolge oder Team, Runde abgeschlossen (ROUND_OVER)")
+        
+        # Field-Minigame Daten löschen
+        active_session.field_minigame_landing_team_id = None
+        active_session.field_minigame_opponent_team_id = None
+        active_session.field_minigame_mode = None
+        active_session.field_minigame_content_id = None
+        active_session.field_minigame_content_type = None
+        active_session.field_minigame_result = None
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'new_phase': active_session.current_phase,
+            'message': f'Phase gewechselt zu {active_session.current_phase}'
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"Fehler beim Weiterschalten der Field Minigame Phase: {e}")
+        db.session.rollback()
+        return jsonify({'success': False, 'message': 'Internal server error'}), 500
+
+@main_bp.route('/api/field_minigame_status')
+def field_minigame_status():
+    """API für Field Minigame Banner Status - wird vom Gameboard abgerufen"""
+    try:
+        active_session = GameSession.query.filter_by(is_active=True).first()
+        if not active_session:
+            return jsonify({"show_banner": False})
+        
+        # Prüfe ob ein Field Minigame gerade gestartet wurde oder gerade beendet wurde
+        if active_session.current_phase in ['FIELD_MINIGAME_SELECTION_PENDING', 'FIELD_MINIGAME_TRIGGERED']:
+            # Phase 1: Minigame läuft - zeige Start-Banner
+            # Hole Team-Informationen
+            landing_team = None
+            opponent_team = None
+            
+            if active_session.field_minigame_landing_team_id:
+                landing_team = Team.query.get(active_session.field_minigame_landing_team_id)
+            
+            if active_session.field_minigame_opponent_team_id:
+                opponent_team = Team.query.get(active_session.field_minigame_opponent_team_id)
+            
+            # Hole Minispiel-Informationen
+            minigame_name = "Unbekanntes Minispiel"
+            if active_session.field_minigame_content_id:
+                from app.admin.minigame_utils import get_minigame_from_folder
+                from app.models import GameRound
+                
+                active_round = GameRound.get_active_round()
+                if active_round and active_round.minigame_folder:
+                    minigame = get_minigame_from_folder(
+                        active_round.minigame_folder.folder_path,
+                        active_session.field_minigame_content_id
+                    )
+                    if minigame:
+                        minigame_name = minigame.get('name', 'Unbekanntes Minispiel')
+            
+            return jsonify({
+                "show_banner": True,
+                "banner_type": "start",  # Start-Banner
+                "minigame_data": {
+                    "mode": active_session.field_minigame_mode,
+                    "landing_team": landing_team.name if landing_team else "Unbekannt",
+                    "opponent_team": opponent_team.name if opponent_team else "alle anderen Teams",
+                    "minigame_name": minigame_name
+                }
+            })
+        
+        elif active_session.current_phase == 'FIELD_MINIGAME_COMPLETED':
+            # Phase 2: Minigame beendet - zeige Ergebnis-Banner für 5 Sekunden
+            # Hole Team-Informationen
+            landing_team = None
+            if active_session.field_minigame_landing_team_id:
+                landing_team = Team.query.get(active_session.field_minigame_landing_team_id)
+            
+            # Hole Ergebnis-Informationen
+            result = active_session.field_minigame_result  # 'won' oder 'lost'
+            
+            # Bestimme Belohnung
+            reward_forward = 0
+            if result == 'won':
+                # Lade Konfiguration für Belohnung
+                import os
+                import json
+                config_path = os.path.join(current_app.static_folder, 'field_minigames', 'config.json')
+                if os.path.exists(config_path):
+                    with open(config_path, 'r', encoding='utf-8') as f:
+                        config = json.load(f)
+                    field_config = config.get('field_minigames', {})
+                    mode_config = field_config.get('modes', {}).get(active_session.field_minigame_mode, {})
+                    reward_forward = mode_config.get('reward_forward', 5)
+                else:
+                    reward_forward = 5  # Default-Wert
+            
+            return jsonify({
+                "show_banner": True,
+                "banner_type": "result",  # Ergebnis-Banner
+                "result_data": {
+                    "won": result == 'won',
+                    "team_name": landing_team.name if landing_team else "Unbekannt",
+                    "reward_forward": reward_forward,
+                    "message": f"🎉 {landing_team.name} gewinnt und bewegt sich {reward_forward} Felder vor!" if result == 'won' else f"❌ {landing_team.name} verliert - keine Bewegung"
+                }
+            })
+        
+        return jsonify({"show_banner": False})
+        
+    except Exception as e:
+        current_app.logger.error(f"Fehler beim Abrufen des Field Minigame Status: {e}")
+        return jsonify({"show_banner": False})

@@ -41,7 +41,9 @@ from app.game_logic.special_fields import (
     check_barrier_release, 
     get_field_type_at_position,
     get_all_special_field_positions,
-    get_field_statistics
+    get_field_statistics,
+    start_selected_field_minigame,  # NEU: Für Admin-Auswahl
+    handle_field_minigame_result  # NEU: Für Ergebnis-Verarbeitung
 )
 
 admin_bp = Blueprint('admin', __name__, template_folder='../templates/admin', url_prefix='/admin')
@@ -3488,7 +3490,7 @@ def api_field_minigames(mode):
             if not data.get('type') or data['type'] != 'game':
                 return jsonify({'success': False, 'error': 'Nur Spiele sind erlaubt'}), 400
             
-            if not data.get('title') or not data.get('description') or not data.get('instructions'):
+            if not data.get('title') or not data.get('instructions'):
                 return jsonify({'success': False, 'error': 'Fehlende Pflichtfelder für Spiel'}), 400
             
             if not data.get('player_count') or not isinstance(data['player_count'], int) or data['player_count'] < 1:
@@ -3710,3 +3712,286 @@ def api_sequence_status():
     except Exception as e:
         current_app.logger.error(f"Fehler bei API sequence_status: {e}", exc_info=True)
         return jsonify({'error': 'Internal server error'}), 500
+
+
+# NEU: Minigame-Feld Admin Auswahl Routes
+def handle_minigame_result_phase(active_session):
+    """Helper function to handle the minigame result input phase"""
+    from app.models import Team
+    
+    # Hole Team-Informationen
+    landing_team = None
+    opponent_team = None
+    
+    if active_session.field_minigame_landing_team_id:
+        landing_team = Team.query.get(active_session.field_minigame_landing_team_id)
+    
+    if active_session.field_minigame_opponent_team_id:
+        opponent_team = Team.query.get(active_session.field_minigame_opponent_team_id)
+    
+    # Hole Minigame-Informationen aus der Session
+    minigame_name = "Unbekanntes Minigame"
+    minigame_mode = "team_vs_all"  # Default
+    
+    if active_session.field_minigame_content_id:
+        try:
+            import os
+            import json
+            
+            # Parse die Content-ID (format: "mode:filename")
+            if ':' in active_session.field_minigame_content_id:
+                mode, filename = active_session.field_minigame_content_id.split(':', 1)
+                minigame_mode = mode
+                
+                # Lade Minigame-Daten
+                field_minigames_path = os.path.join(current_app.static_folder, 'field_minigames', mode)
+                filepath = os.path.join(field_minigames_path, f"{filename}.json")
+                
+                if os.path.exists(filepath):
+                    with open(filepath, 'r', encoding='utf-8') as f:
+                        minigame_data = json.load(f)
+                    minigame_name = minigame_data.get('title', filename)
+        except Exception as e:
+            current_app.logger.warning(f"Fehler beim Laden der Minigame-Daten: {e}")
+    
+    return jsonify({
+        'selection_pending': False,
+        'result_pending': True,
+        'mode': minigame_mode,
+        'landing_team': landing_team.name if landing_team else 'Unbekannt',
+        'opponent_team': opponent_team.name if opponent_team else None,
+        'minigame_name': minigame_name
+    })
+
+@admin_bp.route('/check_minigame_field_status')
+@login_required
+def check_minigame_field_status():
+    """API-Route zum Prüfen ob Minigame-Feld Auswahl erforderlich ist"""
+    if not isinstance(current_user, Admin):
+        return jsonify({'error': 'Unauthorized'}), 403
+    
+    try:
+        active_session = GameSession.query.filter_by(is_active=True).first()
+        if not active_session:
+            return jsonify({'selection_pending': False})
+        
+        # Prüfe ob in FIELD_MINIGAME_SELECTION_PENDING oder FIELD_MINIGAME_TRIGGERED Phase
+        if active_session.current_phase == 'FIELD_MINIGAME_SELECTION_PENDING':
+            # Phase 1: Admin muss Minigame auswählen
+            pass  # Continue with selection logic below
+        elif active_session.current_phase == 'FIELD_MINIGAME_TRIGGERED':
+            # Phase 2: Admin muss Ergebnis eingeben
+            return handle_minigame_result_phase(active_session)
+        else:
+            return jsonify({'selection_pending': False, 'result_pending': False})
+        
+        # Hole Team-Informationen
+        landing_team = None
+        opponent_team = None
+        
+        if active_session.field_minigame_landing_team_id:
+            landing_team = Team.query.get(active_session.field_minigame_landing_team_id)
+        
+        if active_session.field_minigame_opponent_team_id:
+            opponent_team = Team.query.get(active_session.field_minigame_opponent_team_id)
+        
+        # Hole verfügbare Feld-Minispiele aus BEIDEN Modi - Admin soll wählen
+        import os
+        import json
+        
+        available_minigames = {
+            'team_vs_all': [],
+            'team_vs_team': []
+        }
+        
+        for mode in ['team_vs_all', 'team_vs_team']:
+            field_minigames_path = os.path.join(current_app.static_folder, 'field_minigames', mode)
+            
+            if os.path.exists(field_minigames_path):
+                for filename in os.listdir(field_minigames_path):
+                    if filename.endswith('.json'):
+                        try:
+                            filepath = os.path.join(field_minigames_path, filename)
+                            with open(filepath, 'r', encoding='utf-8') as f:
+                                minigame_data = json.load(f)
+                            
+                            # ID ist der Dateiname ohne .json Extension plus Modus
+                            minigame_id = f"{mode}:{filename[:-5]}"  # z.B. "team_vs_all:game123"
+                            
+                            available_minigames[mode].append({
+                                'id': minigame_id,
+                                'title': minigame_data.get('title', filename[:-5]),
+                                'instructions': minigame_data.get('instructions', ''),
+                                'player_count': minigame_data.get('player_count', 1),
+                                'mode': mode
+                            })
+                        except Exception as e:
+                            current_app.logger.warning(f"Fehler beim Laden von Feld-Minispiel {filename}: {e}")
+                            continue
+        
+        # Bestimme Modi-Namen
+        mode_names = {
+            'team_vs_team': 'Ein Team gegen ein anderes',
+            'team_vs_all': 'Ein Team gegen alle anderen'
+        }
+        
+        return jsonify({
+            'selection_pending': True,
+            'mode': 'pending',  # Admin soll wählen
+            'landing_team': landing_team.name if landing_team else 'Unbekannt',
+            'available_minigames': available_minigames,
+            'mode_selection': True  # Zeigt an, dass Admin den Modus wählen soll
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"Fehler beim Prüfen des Minigame-Feld Status: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+@admin_bp.route('/start_field_minigame', methods=['POST'])
+@login_required
+def start_field_minigame():
+    """API-Route zum Starten des ausgewählten Feld-Minigames"""
+    if not isinstance(current_user, Admin):
+        return jsonify({'error': 'Unauthorized'}), 403
+    
+    try:
+        data = request.get_json()
+        current_app.logger.info(f"Field minigame start request data: {data}")
+        
+        if not data or 'minigame_id' not in data:
+            current_app.logger.warning("Missing minigame_id in request data")
+            return jsonify({'success': False, 'message': 'Minigame-ID fehlt'}), 400
+        
+        full_minigame_id = data['minigame_id']
+        current_app.logger.info(f"Received minigame ID: {full_minigame_id}")
+        
+        # Parse die ID um Modus und echte ID zu extrahieren
+        if ':' not in full_minigame_id:
+            current_app.logger.warning(f"Invalid minigame ID format: {full_minigame_id}")
+            return jsonify({'success': False, 'message': 'Ungültiges Minigame-ID Format'}), 400
+        
+        selected_mode, minigame_id = full_minigame_id.split(':', 1)
+        current_app.logger.info(f"Parsed mode: {selected_mode}, minigame_id: {minigame_id}")
+        
+        # Hole aktive Session
+        active_session = GameSession.query.filter_by(is_active=True).first()
+        if not active_session:
+            return jsonify({'success': False, 'message': 'Keine aktive Spielsitzung'}), 400
+        
+        # Setze den gewählten Modus und bestimme Gegner-Team
+        active_session.field_minigame_mode = selected_mode
+        
+        if selected_mode == 'team_vs_team':
+            # Wähle zufälliges anderes Team als Gegner
+            from app.models import Team
+            landing_team_id = active_session.field_minigame_landing_team_id
+            other_teams = Team.query.filter(Team.id != landing_team_id, Team.is_active == True).all()
+            
+            if other_teams:
+                import random
+                opponent_team = random.choice(other_teams)
+                active_session.field_minigame_opponent_team_id = opponent_team.id
+            else:
+                # Fallback zu team_vs_all wenn nur ein Team vorhanden
+                active_session.field_minigame_mode = 'team_vs_all'
+                active_session.field_minigame_opponent_team_id = None
+        else:
+            # team_vs_all - kein spezifisches Gegner-Team
+            active_session.field_minigame_opponent_team_id = None
+        
+        # Starte das ausgewählte Minigame mit dem gewählten Modus
+        result = start_selected_field_minigame(active_session, minigame_id, selected_mode)
+        
+        if result['success']:
+            db.session.commit()
+            
+            return jsonify({
+                'success': True,
+                'message': result['message'],
+                'minigame_name': result['selected_minigame'].get('title', minigame_id)
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': result['message']
+            }), 400
+            
+    except Exception as e:
+        current_app.logger.error(f"Fehler beim Starten des Feld-Minigames: {e}")
+        db.session.rollback()
+        return jsonify({'success': False, 'message': 'Internal server error'}), 500
+
+
+@admin_bp.route('/submit_field_minigame_result', methods=['POST'])
+@login_required
+def submit_field_minigame_result():
+    """API-Route zum Eingeben des Feld-Minigame Ergebnisses"""
+    if not isinstance(current_user, Admin):
+        return jsonify({'error': 'Unauthorized'}), 403
+    
+    try:
+        data = request.get_json()
+        if not data or 'result' not in data:
+            return jsonify({'success': False, 'message': 'Ergebnis fehlt'}), 400
+        
+        result_outcome = data['result']  # 'won' oder 'lost'
+        
+        if result_outcome not in ['won', 'lost']:
+            return jsonify({'success': False, 'message': 'Ungültiges Ergebnis'}), 400
+        
+        # Hole aktive Session
+        active_session = GameSession.query.filter_by(is_active=True).first()
+        if not active_session:
+            return jsonify({'success': False, 'message': 'Keine aktive Spielsitzung'}), 400
+        
+        # Prüfe ob Session in richtigem Status
+        if active_session.current_phase != 'FIELD_MINIGAME_TRIGGERED':
+            return jsonify({'success': False, 'message': 'Kein aktives Feld-Minigame'}), 400
+        
+        # Bestimme Gewinner-Team basierend auf Ergebnis
+        winning_team_id = None
+        if result_outcome == 'won':
+            # Herausforderer (landing team) hat gewonnen
+            winning_team_id = active_session.field_minigame_landing_team_id
+        # Bei 'lost' bleibt winning_team_id None (kein Bonus)
+        
+        # Verarbeite Ergebnis mit Katapult-Belohnung
+        result = handle_field_minigame_result(active_session, winning_team_id)
+        
+        if result['success']:
+            # Setze Session zurück zur Würfelphase falls Runde noch nicht fertig
+            # Prüfe ob noch Teams in der Würfelreihenfolge dran sind
+            if active_session.dice_roll_order and active_session.current_team_turn_id:
+                # Es ist noch ein Team dran - zurück zur Würfelphase
+                active_session.current_phase = 'DICE_ROLLING'  # Würfelrunde fortsetzen
+            else:
+                # Keine Teams mehr oder Runde schon beendet
+                active_session.current_phase = 'ROUND_OVER'  # Runde beendet
+            
+            # Reset Field-Minigame Daten
+            active_session.field_minigame_landing_team_id = None
+            active_session.field_minigame_opponent_team_id = None
+            active_session.field_minigame_mode = None
+            active_session.field_minigame_result = None
+            
+            db.session.commit()
+            
+            return jsonify({
+                'success': True,
+                'message': result['message'],
+                'team_name': result.get('team_name', ''),
+                'reward_forward': result.get('reward_forward', 0),
+                'continue_rolling': active_session.current_phase == 'DICE_ROLLING'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': result['message']
+            }), 400
+            
+    except Exception as e:
+        current_app.logger.error(f"Fehler beim Verarbeiten des Feld-Minigame Ergebnisses: {e}")
+        db.session.rollback()
+        return jsonify({'success': False, 'message': 'Internal server error'}), 500
+

@@ -1,0 +1,10 @@
+{
+  "type": "game",
+  "title": "Test single team",
+  "description": "Test single team",
+  "instructions": "LOL",
+  "player_count": 1,
+  "difficulty": "medium",
+  "category": "",
+  "materials": "Keine"
+}

@@ -523,6 +523,26 @@ body {
     background: linear-gradient(135deg, #ff6b6b 0%, #ee5a52 100%);
 }
 
+/* NEU: Field Minigame Banner Style */
+#field-minigame-banner .banner-content {
+    background: linear-gradient(135deg, #BA68C8 0%, #8E24AA 100%);
+    border: 3px solid rgba(255, 255, 255, 0.3);
+}
+
+#field-minigame-banner .banner-icon {
+    font-size: 8rem;
+    margin-bottom: 2rem;
+    opacity: 1;
+    animation: fieldMinigamePulse 2s ease-in-out infinite;
+}
+
+@keyframes fieldMinigamePulse {
+    0%, 100% { transform: scale(1) rotate(0deg); }
+    25% { transform: scale(1.05) rotate(-2deg); }
+    50% { transform: scale(1.1) rotate(0deg); }
+    75% { transform: scale(1.05) rotate(2deg); }
+}
+
 .banner-results {
     margin-top: 2rem;
     font-size: 2.4rem;
@@ -647,6 +667,22 @@ body {
                     <div class="banner-title">Ergebnisse!</div>
                     <div class="banner-subtitle">Platzierungen wurden eingetragen</div>
                     <div class="banner-results" id="minigame-results-list"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- NEU: Field Minigame Announcement Banner -->
+        <div id="field-minigame-banner" class="announcement-banner">
+            <div class="banner-content">
+                <div class="banner-icon">
+                    <i class="fas fa-chess-board"></i>
+                </div>
+                <div class="banner-text">
+                    <div class="banner-title">🎮 Minigame-Feld!</div>
+                    <div class="banner-subtitle" id="field-minigame-banner-teams">Team vs Team</div>
+                    <div class="banner-description" id="field-minigame-banner-description">
+                        Ein Minispiel wurde gestartet! Der Gewinner bekommt 5 Felder Vorsprung.
+                    </div>
                 </div>
             </div>
         </div>
@@ -933,9 +969,9 @@ const GAME_STATE = {
 let localTeams = [
     {% for team in teams %}
     {
-        id: {{ team.id }},
+        id: {{ team.id|tojson }},
         name: "{{ team.name | e }}",
-        position: {{ team.current_position if team.current_position is not none else 0 }},
+        position: {{ team.current_position|tojson if team.current_position is not none else 0 }},
         color: "{{ team_colors[loop.index0 % team_colors|length] }}",
         character_info: {% if team.character and team.character.name and team.character.js_file %}
         {
@@ -952,11 +988,11 @@ let localTeams = [
             customization: {{ team.get_character_customization() | tojson }}
         }
         {% endif %},
-        bonus_dice_sides: {{ team.bonus_dice_sides if team.bonus_dice_sides else 0 }},
-        minigame_placement: {{ team.minigame_placement if team.minigame_placement else 'null' }},
+        bonus_dice_sides: {{ team.bonus_dice_sides|tojson if team.bonus_dice_sides is not none else 0 }},
+        minigame_placement: {{ team.minigame_placement|tojson if team.minigame_placement is not none else 'null' }},
         is_blocked: {{ team.is_blocked|tojson if team.is_blocked is defined else 'false' }},
-        blocked_target_number: {{ team.blocked_target_number if team.blocked_target_number else 'null' }}
-    }{% if not loop.last %},{% endif %}
+        blocked_target_number: {{ team.blocked_target_number|tojson if team.blocked_target_number is not none else 'null' }}
+    }{{ "," if not loop.last }}
     {% endfor %}
 ];
 
@@ -965,7 +1001,7 @@ let currentMinigameName = "{{ active_session.current_minigame_name | e if active
 let currentMinigameDescription = "{{ active_session.current_minigame_description | e if active_session else '' }}";
 let currentGamePhase = "{{ active_session.current_phase | e if active_session else 'UNKNOWN' }}";
 
-let lastTeamTurnId = {{ active_session.current_team_turn_id if active_session and active_session.current_team_turn_id else 'null' }};
+let lastTeamTurnId = {{ active_session.current_team_turn_id|tojson if active_session and active_session.current_team_turn_id is not none else 'null' }};
 let lastPhase = "";
 let gameStarted = false;
 
@@ -2257,17 +2293,9 @@ class WiiPartyIsland {
         }, duration);
     }
 
-
-
-
-
-    
-    
-    
-    
     isSpecialField(position) {
         // Simple check - could be enhanced with actual field data
-        return [5, 10, 15, 20, 25].includes(position); // Example special field positions
+        return [5, 10, 15, 20, 25].includes(position);
     }
 
 
@@ -2361,23 +2389,31 @@ class WiiPartyIsland {
 
         // Check for minigame/question results using same logic as team_dashboard  
         if (currentGamePhase === 'DICE_ROLLING' && lastPhase !== 'DICE_ROLLING' && !hasShowMinigameResults && localTeams) {
-            console.log("🏆 SIMPLE: Phase changed to DICE_ROLLING - showing minigame results");
+            // Don't show normal minigame results if coming from field minigame phases
+            const fieldMinigamePhases = ['FIELD_MINIGAME_SELECTION_PENDING', 'FIELD_MINIGAME_TRIGGERED', 'FIELD_MINIGAME_COMPLETED'];
+            const isComingFromFieldMinigame = fieldMinigamePhases.includes(lastPhase);
             
-            // Filter teams with placements (same as team_dashboard)
-            const teamsWithPlacements = localTeams.filter(team => team.minigame_placement);
-            
-            console.log("🔍 Teams with placements:", teamsWithPlacements.map(t => ({
-                name: t.name, 
-                placement: t.minigame_placement,
-                placementType: typeof t.minigame_placement
-            })));
-            
-            if (teamsWithPlacements.length > 0) {
-                console.log("🎯 SIMPLE: Showing minigame results for teams:", teamsWithPlacements.map(t => ({name: t.name, placement: t.minigame_placement})));
-                this.showMinigameResultsSimple(teamsWithPlacements);
-                hasShowMinigameResults = true;
+            if (isComingFromFieldMinigame) {
+                console.log("🎯 SIMPLE: Coming from field minigame - skipping normal minigame results banner");
             } else {
-                console.log("❌ SIMPLE: No teams with placements found");
+                console.log("🏆 SIMPLE: Phase changed to DICE_ROLLING - showing minigame results");
+                
+                // Filter teams with placements (same as team_dashboard)
+                const teamsWithPlacements = localTeams.filter(team => team.minigame_placement);
+                
+                console.log("🔍 Teams with placements:", teamsWithPlacements.map(t => ({
+                    name: t.name, 
+                    placement: t.minigame_placement,
+                    placementType: typeof t.minigame_placement
+                })));
+                
+                if (teamsWithPlacements.length > 0) {
+                    console.log("🎯 SIMPLE: Showing minigame results for teams:", teamsWithPlacements.map(t => ({name: t.name, placement: t.minigame_placement})));
+                    this.showMinigameResultsSimple(teamsWithPlacements);
+                    hasShowMinigameResults = true;
+                } else {
+                    console.log("❌ SIMPLE: No teams with placements found");
+                }
             }
         } else if (currentGamePhase !== 'DICE_ROLLING') {
             hasShowMinigameResults = false;
@@ -2708,92 +2744,99 @@ class WiiPartyIsland {
                         // Filter teams with placements
                         const teamsWithPlacements = serverTeams.filter(team => team.minigame_placement);
                         
-                        if (teamsWithPlacements.length > 0 && !hasShownTurnDiceSequence) {
+                        // Don't show normal minigame results during field minigame phases
+                        const fieldMinigamePhases = ['FIELD_MINIGAME_SELECTION_PENDING', 'FIELD_MINIGAME_TRIGGERED', 'FIELD_MINIGAME_COMPLETED'];
+                        const isFieldMinigameActive = fieldMinigamePhases.includes(currentGamePhase);
+                        
+                        if (teamsWithPlacements.length > 0 && !hasShownTurnDiceSequence && !isFieldMinigameActive) {
                             console.log("✅ Showing minigame results IMMEDIATELY before turn system");
                             hasShownTurnDiceSequence = true; // Prevent showing again
                             
                             // Show minigame results banner
                             this.showMinigameResults(serverTeams);
-                            
-                            // Process game logic without banners
-                            setTimeout(() => {
-                                console.log("🔄 Processing game logic after minigame results");
-                                const diceResult = data.last_dice_result || window.pendingDiceResult;
-                                
-                                // Determine current team - prioritize dice result team_id, fallback to current_team_turn_id
-                                let currentTeamId = data.game_session.current_team_turn_id;
-                                if (diceResult && diceResult.team_id) {
-                                    currentTeamId = diceResult.team_id;
-                                    console.log("🎯 Using team ID from dice result:", currentTeamId);
-                                }
-                                
-                                const currentTeam = localTeams.find(t => t.id === currentTeamId);
-                                
-                                if (currentTeam) {
-                                    // Update GAME_STATE with correct team
-                                    GAME_STATE.currentServerTeamTurnId = currentTeamId;
-                                    
-                                    // Check for dice result and process movement
-                                    setTimeout(() => {
-                                        console.log("🔍 DEBUG: Checking for dice result:", {
-                                            hasDataDiceResult: !!data.last_dice_result,
-                                            hasPendingDiceResult: !!window.pendingDiceResult,
-                                            diceResult: diceResult,
-                                            currentTeamId: currentTeamId,
-                                            currentTeamName: currentTeam.name,
-                                            dataTimestamp: data.last_dice_result?.timestamp,
-                                            pendingTimestamp: window.pendingDiceResult?.timestamp,
-                                            currentTime: new Date().toLocaleTimeString(),
-                                            diceResultStandardRoll: diceResult?.standard_roll
-                                        });
-                                        
-                                        if (diceResult && diceResult.standard_roll !== undefined) {
-                                            console.log("🎲 Processing dice result for team:", currentTeam.name);
-                                            
-                                            // Zeige Würfelergebnis-Notification hier - nur einmal
-                                            const notificationKey = `${currentTeam.id}_${diceResult.timestamp || Date.now()}`;
-                                            if (window.NotificationSystem && !window.shownDiceNotifications) {
-                                                window.shownDiceNotifications = new Set();
-                                            }
-                                            
-                                            if (window.NotificationSystem && !window.shownDiceNotifications.has(notificationKey)) {
-                                                const standardRoll = diceResult.standard_roll || 0;
-                                                const bonusRoll = diceResult.bonus_roll || 0;
-                                                const totalRoll = diceResult.total_roll || (standardRoll + bonusRoll);
-                                                
-                                                console.log(`🎲 Showing dice notification for ${currentTeam.name}: ${standardRoll} + ${bonusRoll} = ${totalRoll}`);
-                                                window.NotificationSystem.showDiceRoll(currentTeam.name, standardRoll, bonusRoll, totalRoll, 8000);
-                                                window.shownDiceNotifications.add(notificationKey);
-                                                
-                                                // Bereinige alte Einträge nach 30 Sekunden
-                                                setTimeout(() => {
-                                                    window.shownDiceNotifications.delete(notificationKey);
-                                                }, 15000);
-                                            } else if (!window.NotificationSystem) {
-                                                console.error("❌ NotificationSystem nicht verfügbar für Würfelergebnis!");
-                                            } else {
-                                                console.log(`⚠️ Notification bereits gezeigt für ${currentTeam.name} (${notificationKey})`);
-                                            }
-                                            
-                                            // Clear pending dice result to prevent showing again
-                                            window.pendingDiceResult = null;
-                                            
-                                            // Focus camera and allow movement
-                                            setTimeout(() => {
-                                                console.log("🎯 Focusing camera and allowing movement for:", currentTeam.name);
-                                                this.focusCameraOnCurrentTeam(false);
-                                            }, 200);
-                                        } else {
-                                            // No dice result yet, just focus camera
-                                            console.log("🎯 Focusing camera (no dice yet) for:", currentTeam.name);
-                                            this.focusCameraOnCurrentTeam(false);
-                                        }
-                                    }, 1000); // Reduced timing
-                                } else {
-                                    console.warn("❌ No team found for ID:", currentTeamId);
-                                }
-                            }, 2000); // Reduced timing
+                        } else if (isFieldMinigameActive) {
+                            console.log("🎯 Field minigame active - skipping normal minigame results banner");
                         }
+                        
+                        // Process game logic without banners
+                        setTimeout(() => {
+                            console.log("🔄 Processing game logic after minigame results");
+                            const diceResult = data.last_dice_result || window.pendingDiceResult;
+                            
+                            // Determine current team - prioritize dice result team_id, fallback to current_team_turn_id
+                            let currentTeamId = data.game_session.current_team_turn_id;
+                            if (diceResult && diceResult.team_id) {
+                                currentTeamId = diceResult.team_id;
+                                console.log("🎯 Using team ID from dice result:", currentTeamId);
+                            }
+                            
+                            const currentTeam = localTeams.find(t => t.id === currentTeamId);
+                            
+                            if (currentTeam) {
+                                // Update GAME_STATE with correct team
+                                GAME_STATE.currentServerTeamTurnId = currentTeamId;
+                                
+                                // Check for dice result and process movement
+                                setTimeout(() => {
+                                    console.log("🔍 DEBUG: Checking for dice result:", {
+                                        hasDataDiceResult: !!data.last_dice_result,
+                                        hasPendingDiceResult: !!window.pendingDiceResult,
+                                        diceResult: diceResult,
+                                        currentTeamId: currentTeamId,
+                                        currentTeamName: currentTeam.name,
+                                        dataTimestamp: data.last_dice_result?.timestamp,
+                                        pendingTimestamp: window.pendingDiceResult?.timestamp,
+                                        currentTime: new Date().toLocaleTimeString(),
+                                        diceResultStandardRoll: diceResult?.standard_roll
+                                    });
+                                    
+                                    if (diceResult && diceResult.standard_roll !== undefined) {
+                                        console.log("🎲 Processing dice result for team:", currentTeam.name);
+                                        
+                                        // Zeige Würfelergebnis-Notification hier - nur einmal
+                                        const notificationKey = `${currentTeam.id}_${diceResult.timestamp || Date.now()}`;
+                                        if (window.NotificationSystem && !window.shownDiceNotifications) {
+                                            window.shownDiceNotifications = new Set();
+                                        }
+                                        
+                                        if (window.NotificationSystem && !window.shownDiceNotifications.has(notificationKey)) {
+                                            const standardRoll = diceResult.standard_roll || 0;
+                                            const bonusRoll = diceResult.bonus_roll || 0;
+                                            const totalRoll = diceResult.total_roll || (standardRoll + bonusRoll);
+                                            
+                                            console.log(`🎲 Showing dice notification for ${currentTeam.name}: ${standardRoll} + ${bonusRoll} = ${totalRoll}`);
+                                            window.NotificationSystem.showDiceRoll(currentTeam.name, standardRoll, bonusRoll, totalRoll, 8000);
+                                            window.shownDiceNotifications.add(notificationKey);
+                                            
+                                            // Bereinige alte Einträge nach 30 Sekunden
+                                            setTimeout(() => {
+                                                window.shownDiceNotifications.delete(notificationKey);
+                                            }, 15000);
+                                        } else if (!window.NotificationSystem) {
+                                            console.error("❌ NotificationSystem nicht verfügbar für Würfelergebnis!");
+                                        } else {
+                                            console.log(`⚠️ Notification bereits gezeigt für ${currentTeam.name} (${notificationKey})`);
+                                        }
+                                        
+                                        // Clear pending dice result to prevent showing again
+                                        window.pendingDiceResult = null;
+                                        
+                                        // Focus camera and allow movement
+                                        setTimeout(() => {
+                                            console.log("🎯 Focusing camera and allowing movement for:", currentTeam.name);
+                                            this.focusCameraOnCurrentTeam(false);
+                                        }, 200);
+                                    } else {
+                                        // No dice result yet, just focus camera
+                                        console.log("🎯 Focusing camera (no dice yet) for:", currentTeam.name);
+                                        this.focusCameraOnCurrentTeam(false);
+                                    }
+                                }, 1000); // Reduced timing
+                            } else {
+                                console.warn("❌ No team found for ID:", currentTeamId);
+                            }
+                        }, 2000); // Process game logic timing
+                        
                         hasShowMinigameResults = true;
                     } else if (data.game_session.current_phase !== 'DICE_ROLLING') {
                         hasShowMinigameResults = false;
@@ -2810,7 +2853,18 @@ class WiiPartyIsland {
                     // }
 
                     // Update tracking variables
-                    lastPhase = data.game_session.current_phase || "UNKNOWN";
+                    const newPhase = data.game_session.current_phase || "UNKNOWN";
+                    
+                    // Reset field minigame banner flag when leaving field minigame phases
+                    const fieldMinigamePhases = ['FIELD_MINIGAME_SELECTION_PENDING', 'FIELD_MINIGAME_TRIGGERED', 'FIELD_MINIGAME_COMPLETED'];
+                    if (fieldMinigamePhases.includes(lastPhase) && !fieldMinigamePhases.includes(newPhase)) {
+                        console.log('🎯 Field Minigame Phase verlassen - Banner verstecken und Flags zurücksetzen');
+                        hideFieldMinigameBanner();
+                        fieldMinigameBannerShown = false;
+                        lastShownMinigameData = null;
+                    }
+                    
+                    lastPhase = newPhase;
                     lastTeamTurnId = data.game_session.current_team_turn_id;
                     
                     // Update global state variables
@@ -3293,6 +3347,13 @@ class WiiPartyIsland {
         
         if (!banner) {
             console.error('❌ [MINIGAME BANNER] Banner element not found!');
+            return;
+        }
+        
+        // Field Minigame Phases - don't interfere with field minigame banner system
+        const fieldMinigamePhases = ['FIELD_MINIGAME_SELECTION_PENDING', 'FIELD_MINIGAME_TRIGGERED'];
+        if (fieldMinigamePhases.includes(gameSession.current_phase)) {
+            console.log('🎯 [MINIGAME BANNER] Skipping - field minigame phase detected:', gameSession.current_phase);
             return;
         }
         
@@ -7235,10 +7296,194 @@ function testRealImages() {
 
 console.log('✅ Face-Overlay-System für Profilbilder geladen');
 
+// NEU: Field Minigame Banner Functions
+let fieldMinigameBannerShown = false; // Flag to prevent repeated showing
+let lastShownMinigameData = null; // Track the specific minigame data
+
+function showFieldMinigameBanner(teamData) {
+    console.log('🎮 Zeige Field Minigame Banner:', teamData);
+    
+    // Create a unique identifier for this minigame instance
+    const minigameKey = `${teamData.landing_team}_${teamData.minigame_name}_${teamData.mode}_${teamData.opponent_team}`;
+    const lastMinigameKey = lastShownMinigameData ? 
+        `${lastShownMinigameData.landing_team}_${lastShownMinigameData.minigame_name}_${lastShownMinigameData.mode}_${lastShownMinigameData.opponent_team}` : null;
+    
+    // Prevent repeated showing of the same minigame
+    if (fieldMinigameBannerShown && minigameKey === lastMinigameKey) {
+        console.log('🎯 Field Minigame Banner bereits angezeigt für dieses Minispiel - überspringe');
+        return;
+    }
+    
+    const banner = document.getElementById('field-minigame-banner');
+    const teamsElement = document.getElementById('field-minigame-banner-teams');
+    const descriptionElement = document.getElementById('field-minigame-banner-description');
+    
+    if (!banner || !teamsElement || !descriptionElement) {
+        console.error('❌ Field Minigame Banner Elemente nicht gefunden');
+        return;
+    }
+    
+    // Team-Info setzen
+    let teamsText = '';
+    if (teamData.mode === 'team_vs_team') {
+        teamsText = `${teamData.landing_team} vs ${teamData.opponent_team}`;
+    } else {
+        teamsText = `${teamData.landing_team} vs alle anderen Teams`;
+    }
+    
+    teamsElement.textContent = teamsText;
+    
+    // Beschreibung setzen
+    let description = `Minispiel "${teamData.minigame_name}" wurde gestartet!`;
+    if (teamData.mode === 'team_vs_team') {
+        description += ` Zwei Teams kämpfen gegeneinander.`;
+    } else {
+        description += ` Ein Team gegen alle anderen.`;
+    }
+    description += ` Der Gewinner bekommt 5 Felder Vorsprung!`;
+    
+    descriptionElement.textContent = description;
+    
+    // Banner anzeigen
+    banner.style.display = 'flex';
+    fieldMinigameBannerShown = true; // Mark as shown
+    lastShownMinigameData = teamData; // Store current minigame data
+    
+    // Banner bleibt bis Field-Minispiel beendet ist (kein 8s Timeout mehr)
+}
+
+function hideFieldMinigameBanner() {
+    const banner = document.getElementById('field-minigame-banner');
+    if (banner) {
+        banner.style.display = 'none';
+        // DON'T reset fieldMinigameBannerShown here - keep it true to prevent reshowing the same minigame
+        // Only reset when phase changes or different minigame starts
+        console.log('🎯 Field Minigame Banner versteckt - aber Flag bleibt gesetzt für dieses Minispiel');
+    }
+}
+
+// NEU: Field Minigame Ergebnis Banner anzeigen
+function showFieldMinigameResultBanner(resultData) {
+    console.log('🏆 Zeige Field Minigame Ergebnis Banner:', resultData);
+    
+    // Verwende das bestehende field-minigame-banner Element aber mit neuen Inhalten
+    const banner = document.getElementById('field-minigame-banner');
+    const teamsElement = document.getElementById('field-minigame-banner-teams');
+    const descriptionElement = document.getElementById('field-minigame-banner-description');
+    const titleElement = document.querySelector('#field-minigame-banner .banner-title');
+    const iconElement = document.querySelector('#field-minigame-banner .banner-icon i');
+    
+    if (!banner || !teamsElement || !descriptionElement || !titleElement || !iconElement) {
+        console.error('❌ Field Minigame Result Banner Elemente nicht gefunden');
+        return;
+    }
+    
+    // Banner-Inhalt für Ergebnis anpassen
+    if (resultData.won) {
+        titleElement.textContent = '🎉 Gewonnen!';
+        iconElement.className = 'fas fa-trophy';
+        teamsElement.textContent = `${resultData.team_name} hat gewonnen!`;
+        descriptionElement.textContent = `Belohnung: ${resultData.reward_forward} Felder vorwärts!`;
+        
+        // Banner-Stil für Gewinn (grün)
+        const bannerContent = banner.querySelector('.banner-content');
+        if (bannerContent) {
+            bannerContent.style.background = 'linear-gradient(135deg, #28a745 0%, #20c997 100%)';
+        }
+    } else {
+        titleElement.textContent = '😞 Verloren';
+        iconElement.className = 'fas fa-times-circle';
+        teamsElement.textContent = `${resultData.team_name} hat verloren`;
+        descriptionElement.textContent = 'Keine Belohnung - das nächste Mal klappt es!';
+        
+        // Banner-Stil für Verlust (rot)
+        const bannerContent = banner.querySelector('.banner-content');
+        if (bannerContent) {
+            bannerContent.style.background = 'linear-gradient(135deg, #dc3545 0%, #c82333 100%)';
+        }
+    }
+    
+    // Banner anzeigen
+    banner.style.display = 'flex';
+    
+    // Banner nach 5 Sekunden automatisch verstecken und Phase weiterschalten
+    setTimeout(() => {
+        banner.style.display = 'none';
+        console.log('🎯 Field Minigame Result Banner versteckt - schalte Phase weiter');
+        // Phase automatisch weiterschalten zur nächsten Phase
+        advanceFieldMinigamePhase();
+    }, 5000);
+}
+
+// NEU: Field Minigame Phase weiterschalten
+function advanceFieldMinigamePhase() {
+    console.log('⏭️ Schalte Field Minigame Phase weiter');
+    
+    fetch('/api/advance_field_minigame_phase', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('meta[name=csrf-token]')?.getAttribute('content') || ''
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            console.log('✅ Field Minigame Phase erfolgreich weitergeschaltet:', data.new_phase);
+            // Flag zurücksetzen für neue Field Minigames
+            fieldMinigameBannerShown = false;
+            lastShownMinigameData = null;
+        } else {
+            console.error('❌ Fehler beim Weiterschalten der Field Minigame Phase:', data.message);
+        }
+    })
+    .catch(error => {
+        console.error('❌ Netzwerkfehler beim Weiterschalten der Phase:', error);
+    });
+}
+
+// NEU: Check for Field Minigame Events
+function checkForFieldMinigameEvents() {
+    fetch('/api/field_minigame_status')
+        .then(response => response.json())
+        .then(data => {
+            console.log('🎯 Field Minigame Status Response:', data);
+            if (data.show_banner) {
+                if (data.banner_type === 'start' && data.minigame_data) {
+                    // Start-Banner anzeigen
+                    console.log('🎮 Triggering start banner:', data.minigame_data);
+                    showFieldMinigameBanner(data.minigame_data);
+                } else if (data.banner_type === 'result' && data.result_data) {
+                    // Ergebnis-Banner anzeigen
+                    console.log('🏆 Triggering result banner:', data.result_data);
+                    showFieldMinigameResultBanner(data.result_data);
+                } else {
+                    console.log('🤔 Unknown banner type or missing data:', data);
+                }
+            } else {
+                console.log('🚫 No banner to show - verstecke vorhandenes Banner:', data);
+                // Verstecke Banner wenn keines angezeigt werden soll
+                hideFieldMinigameBanner();
+            }
+        })
+        .catch(error => {
+            // Stille Fehler - nicht jeden Fehler loggen
+            if (Math.random() < 0.01) { // Nur 1% der Fehler loggen
+                console.log('Field Minigame Status Check Error:', error);
+            }
+        });
+}
+
+console.log('✅ Face-Overlay-System für Profilbilder geladen');
+console.log('✅ Field Minigame Banner System geladen');
+
 // Starte Face-Overlay-Check sofort und dann alle 3 Sekunden
 console.log('🚀 Starte Face-Overlay-Check System...');
 checkForFaceOverlay(); // Einmal sofort ausführen
 setInterval(checkForFaceOverlay, 3000); // Dann alle 3 Sekunden
+
+// NEU: Starte Field Minigame Event Check
+setInterval(checkForFieldMinigameEvents, 2000); // Alle 2 Sekunden
 
 </script>
 {% endblock %}
