@@ -5,8 +5,10 @@ import random
 import json
 import uuid
 from datetime import datetime
-from flask import Blueprint, render_template, request, redirect, url_for, flash, session, current_app, g, jsonify, make_response
+from flask import Blueprint, render_template, request, redirect, url_for, flash, session, current_app, g, jsonify, make_response, Response
 from flask_login import login_user, logout_user, login_required, current_user
+import json
+import time
 from ..models import (Admin, Team, Character, GameSession, GameEvent, MinigameFolder, GameRound, 
                      QuestionResponse, FieldConfiguration, WelcomeSession, PlayerRegistration, 
                      MinigameSequence, db)
@@ -47,6 +49,83 @@ from app.game_logic.special_fields import (
 )
 
 admin_bp = Blueprint('admin', __name__, template_folder='../templates/admin', url_prefix='/admin')
+
+# Simple in-memory store for field update events
+field_update_events = []
+MAX_EVENTS = 100  # Keep only last 100 events
+
+def add_field_update_event(event_data):
+    """Add a field update event to the queue."""
+    global field_update_events
+    event_data['timestamp'] = time.time()
+    event_data['id'] = len(field_update_events) + 1
+    field_update_events.append(event_data)
+    
+    # Keep only recent events
+    if len(field_update_events) > MAX_EVENTS:
+        field_update_events = field_update_events[-MAX_EVENTS:]
+
+@admin_bp.route('/api/field_updates/stream')
+def field_updates_stream():
+    """SSE endpoint for real-time field updates."""
+    def event_stream():
+        last_sent_id = 0
+        keepalive_counter = 0
+        
+        # Send initial connection confirmation
+        yield f"data: {json.dumps({'type': 'connected', 'message': 'SSE verbunden', 'timestamp': time.time()})}\n\n"
+        
+        while True:
+            # Send any new events
+            new_events_sent = 0
+            for event in field_update_events:
+                if event['id'] > last_sent_id:
+                    yield f"data: {json.dumps(event)}\n\n"
+                    last_sent_id = event['id']
+                    new_events_sent += 1
+            
+            # Send keepalive every 10 seconds (shorter for testing)
+            keepalive_counter += 1
+            if keepalive_counter >= 10:  # 10 * 1 second = 10 seconds
+                yield f"data: {json.dumps({'type': 'keepalive', 'timestamp': time.time()})}\n\n"
+                keepalive_counter = 0
+            
+            time.sleep(1)  # Check every second
+    
+    return Response(event_stream(), mimetype='text/event-stream',
+                   headers={'Cache-Control': 'no-cache',
+                           'Connection': 'keep-alive',
+                           'Access-Control-Allow-Origin': '*'})
+
+@admin_bp.route('/api/field_updates/poll')
+def field_updates_poll():
+    """Polling endpoint for field updates (fallback for SSE)."""
+    last_id = request.args.get('last_id', 0, type=int)
+    new_events = [event for event in field_update_events if event['id'] > last_id]
+    return jsonify({
+        'events': new_events,
+        'last_id': field_update_events[-1]['id'] if field_update_events else 0
+    })
+
+@admin_bp.route('/api/test_field_update', methods=['POST'])
+@login_required
+def test_field_update():
+    """Test endpoint to manually trigger a field update event."""
+    if not isinstance(current_user, Admin):
+        return jsonify({"success": False, "error": "Zugriff verweigert"}), 403
+    
+    add_field_update_event({
+        'type': 'test_update',
+        'field_type': 'test',
+        'display_name': 'Test Update',
+        'message': 'Test-Event für Live-Updates'
+    })
+    
+    return jsonify({
+        "success": True,
+        "message": "Test-Event gesendet",
+        "events_count": len(field_update_events)
+    })
 
 def get_or_create_active_session():
     active_session = GameSession.query.filter_by(is_active=True).first()
@@ -1349,6 +1428,15 @@ def edit_field(field_type):
             clear_field_distribution_cache()
             
             db.session.commit()
+            
+            # Live-Update Event hinzufügen
+            add_field_update_event({
+                'type': 'field_updated',
+                'field_type': field_type,
+                'display_name': updated_config.display_name,
+                'message': f"Feld '{updated_config.display_name}' wurde aktualisiert"
+            })
+            
             flash(f"Feld-Konfiguration für '{updated_config.display_name}' erfolgreich aktualisiert.", 'success')
             return redirect(url_for('admin.manage_fields'))
         
@@ -1436,6 +1524,16 @@ def toggle_field(field_type):
         current_app.logger.info(f"Successfully committed changes for {field_type}")
         
         action = "aktiviert" if config.is_enabled else "deaktiviert"
+        
+        # Live-Update Event hinzufügen
+        add_field_update_event({
+            'type': 'field_toggled',
+            'field_type': field_type,
+            'display_name': config.display_name,
+            'is_enabled': config.is_enabled,
+            'message': f"Feld '{config.display_name}' wurde {action}"
+        })
+        
         return jsonify({
             "success": True,
             "message": f"Feld-Konfiguration '{config.display_name}' wurde {action}.",
@@ -1698,6 +1796,18 @@ def bulk_edit_fields():
                 clear_field_distribution_cache()
             
             db.session.commit()
+            
+            # Live-Update Event hinzufügen wenn Änderungen gemacht wurden
+            if modified_count > 0:
+                add_field_update_event({
+                    'type': 'bulk_update',
+                    'field_type': 'bulk_update',
+                    'display_name': 'Mehrere Felder',
+                    'modified_count': modified_count,
+                    'action': action,
+                    'message': f"{modified_count} Felder wurden per Massen-Bearbeitung geändert"
+                })
+            
             return redirect(url_for('admin.manage_fields'))
             
         except Exception as e:

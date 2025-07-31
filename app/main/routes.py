@@ -247,6 +247,16 @@ def board_status():
         # Add question data if available
         if question_data:
             response_data["question_data"] = question_data
+        
+        # Add field update timestamp for live updates
+        try:
+            from app.admin.routes import field_update_events
+            if field_update_events:
+                response_data["last_field_update"] = max(event.get('timestamp', 0) for event in field_update_events)
+            else:
+                response_data["last_field_update"] = 0
+        except:
+            response_data["last_field_update"] = 0
             
         return jsonify(response_data)
 

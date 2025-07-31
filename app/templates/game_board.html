@@ -6213,6 +6213,108 @@ document.addEventListener('DOMContentLoaded', async function() {
             
             console.log('✅ Spielbrett mit dynamischen Feld-Konfigurationen geladen!');
             
+            // Live-Update-System initialisieren
+            console.log('🚀 Initialisiere Live-Update System direkt nach Gameboard...');
+            
+            // Direkte Implementierung des Live-Update-Systems
+            let lastFieldUpdateCheck = 0;
+            let liveUpdatePolling = false;
+            
+            function startLiveFieldUpdates() {
+                if (liveUpdatePolling) return;
+                
+                liveUpdatePolling = true;
+                console.log('🔗 Live-Updates aktiviert');
+                
+                function checkForFieldUpdates() {
+                    if (!liveUpdatePolling) return;
+                    
+                    fetch("{{ url_for('main.board_status') }}?check_field_updates=1&t=" + new Date().getTime())
+                        .then(response => response.json())
+                        .then(data => {
+                            const currentUpdateTime = data.last_field_update || 0;
+                            
+                            if (lastFieldUpdateCheck > 0 && currentUpdateTime > lastFieldUpdateCheck) {
+                                console.log('🔄 Feld-Update erkannt - Gameboard wird neu generiert');
+                                
+                                if (window.gameBoard) {
+                                    console.log('🔄 Löse komplette Board-Regeneration aus...');
+                                    
+                                    // 1. Lade Feld-Konfigurationen neu (async)
+                                    if (typeof reloadFieldConfigurations === 'function') {
+                                        console.log('🔄 Lade Feld-Konfigurationen neu...');
+                                        reloadFieldConfigurations().then(() => {
+                                            console.log('🔄 Konfigurationen geladen, regeneriere Board...');
+                                            
+                                            // 2. Entferne alte Board-Felder
+                                            if (window.gameBoard.boardFields) {
+                                                window.gameBoard.boardFields.forEach(field => {
+                                                    if (field.mesh) {
+                                                        window.gameBoard.scene.remove(field.mesh);
+                                                        if (field.mesh.geometry) field.mesh.geometry.dispose();
+                                                        if (field.mesh.material) field.mesh.material.dispose();
+                                                    }
+                                                });
+                                                window.gameBoard.boardFields = [];
+                                            }
+                                            
+                                            // 3. Erstelle Board neu
+                                            if (window.gameBoard.createGameFields) {
+                                                window.gameBoard.createGameFields();
+                                            }
+                                            
+                                            // 4. Aktualisiere Teamdaten
+                                            if (window.gameBoard.fetchBoardStatusAndUpdate) {
+                                                window.gameBoard.fetchBoardStatusAndUpdate();
+                                            }
+                                            
+                                            console.log('✅ Board-Regeneration mit neuen Konfigurationen abgeschlossen');
+                                        });
+                                    } else {
+                                        console.warn('⚠️ reloadFieldConfigurations nicht verfügbar, verwende Standard-Regeneration');
+                                        
+                                        // Fallback ohne Neuladen der Konfigurationen
+                                        if (window.gameBoard.boardFields) {
+                                            window.gameBoard.boardFields.forEach(field => {
+                                                if (field.mesh) {
+                                                    window.gameBoard.scene.remove(field.mesh);
+                                                    if (field.mesh.geometry) field.mesh.geometry.dispose();
+                                                    if (field.mesh.material) field.mesh.material.dispose();
+                                                }
+                                            });
+                                            window.gameBoard.boardFields = [];
+                                        }
+                                        
+                                        if (window.gameBoard.createGameFields) {
+                                            window.gameBoard.createGameFields();
+                                        }
+                                        
+                                        if (window.gameBoard.fetchBoardStatusAndUpdate) {
+                                            window.gameBoard.fetchBoardStatusAndUpdate();
+                                        }
+                                        
+                                        console.log('✅ Board-Regeneration (ohne Konfigurationsneuladung) abgeschlossen');
+                                    }
+                                }
+                            }
+                            
+                            lastFieldUpdateCheck = Math.max(lastFieldUpdateCheck, currentUpdateTime);
+                        })
+                        .catch(error => {
+                            console.log('Live-Update Check Fehler:', error);
+                        })
+                        .finally(() => {
+                            if (liveUpdatePolling) {
+                                setTimeout(checkForFieldUpdates, 2000);
+                            }
+                        });
+                }
+                
+                setTimeout(checkForFieldUpdates, 3000);
+            }
+            
+            startLiveFieldUpdates();
+            
             // Keine automatischen Aktionen mehr - alles manuell
             console.log('🎮 Spielbrett geladen - verwende F für Vollbild, O für Orbit');
             
@@ -7486,4 +7588,6 @@ setInterval(checkForFaceOverlay, 3000); // Dann alle 3 Sekunden
 setInterval(checkForFieldMinigameEvents, 2000); // Alle 2 Sekunden
 
 </script>
+
+<!-- Live-Update-System wurde direkt nach Gameboard-Initialisierung eingefügt -->
 {% endblock %}
