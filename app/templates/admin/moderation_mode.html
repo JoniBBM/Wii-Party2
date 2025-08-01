@@ -1,0 +1,397 @@
+{% extends "base.html" %}
+
+{% block title %}Moderationsmodus - Wii Party U Deluxe{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>Moderationsmodus</h1>
+        <a href="{{ url_for('admin.admin_dashboard') }}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left"></i> Zurück zum Admin Dashboard
+        </a>
+    </div>
+    
+    <!-- Aktueller Spielstatus -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card border-info">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0"><i class="fas fa-eye"></i> Aktueller Spielstatus</h5>
+                </div>
+                <div class="card-body">
+                    {% if game_status %}
+                        <div class="row">
+                            <div class="col-md-3">
+                                <strong>Status:</strong>
+                                <span class="badge badge-{{ game_status.status_color }} badge-lg">
+                                    {{ game_status.current_status }}
+                                </span>
+                            </div>
+                            
+                            {% if game_status.current_team %}
+                            <div class="col-md-3">
+                                <strong>Aktuelles Team:</strong>
+                                <span class="badge badge-primary">{{ game_status.current_team }}</span>
+                            </div>
+                            {% endif %}
+                            
+                            
+                        </div>
+                        
+                        {% if game_status.additional_info %}
+                        <div class="mt-3">
+                            <strong>Details:</strong>
+                            <p class="mb-0">{{ game_status.additional_info }}</p>
+                        </div>
+                        {% endif %}
+                    {% else %}
+                        <div class="text-center text-muted py-4">
+                            <i class="fas fa-pause-circle fa-3x mb-3"></i>
+                            <p>Spiel ist momentan nicht aktiv</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Detailansicht für Fragen/Minigames oder Ergebnisse -->
+    {% if game_status and (game_status.content_details or (game_status.results and game_status.results.has_results)) %}
+    <div class="row mb-4" id="initial-content-card">
+        <div class="col-12">
+            {% if game_status.content_details %}
+            <div class="card border-{{ game_status.content_details.type_color }}">
+                <div class="card-header bg-{{ game_status.content_details.type_color }} text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-{{ game_status.content_details.icon }}"></i> 
+                        {{ game_status.content_details.type_name }}: {{ game_status.content_details.name }}
+                    </h5>
+                </div>
+            {% else %}
+            <div class="card border-success">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-trophy"></i> 
+                        Letzte Ergebnisse
+                    </h5>
+                </div>
+            {% endif %}
+                <div class="card-body">
+                    {% if game_status.content_details %}
+                        {% if game_status.content_details.description %}
+                            <p><strong>Beschreibung:</strong> {{ game_status.content_details.description }}</p>
+                        {% endif %}
+                        
+                        {% if game_status.content_details.question_text %}
+                            <div class="mb-3">
+                                <strong>Frage:</strong>
+                                <p class="h5 text-primary">{{ game_status.content_details.question_text }}</p>
+                            </div>
+                        {% endif %}
+                        
+                        {% if game_status.content_details.options %}
+                            <div class="mb-3">
+                                <strong>Antwortmöglichkeiten:</strong>
+                                <div class="row">
+                                    {% for option in game_status.content_details.options %}
+                                    <div class="col-md-6 mb-2">
+                                        <span class="badge badge-light badge-lg">{{ loop.index }}. {{ option }}</span>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        {% endif %}
+                        
+                        {% if game_status.content_details.correct_answer %}
+                            <div class="alert alert-success">
+                                <strong>Korrekte Antwort:</strong> {{ game_status.content_details.correct_answer }}
+                            </div>
+                        {% endif %}
+                        
+                        {% if game_status.content_details.duration %}
+                            <p><strong>Dauer:</strong> {{ game_status.content_details.duration }}</p>
+                        {% endif %}
+                        
+                        {% if game_status.content_details.instructions %}
+                            <div class="alert alert-info">
+                                <strong>Anweisungen:</strong> {{ game_status.content_details.instructions }}
+                            </div>
+                        {% endif %}
+                        
+                        {% if game_status.content_details.selected_players %}
+                            <div class="mb-3">
+                                <strong>Ausgeloste Spieler:</strong>
+                                <div class="row">
+                                    {% for team_name, player_name in game_status.content_details.selected_players.items() %}
+                                    <div class="col-md-4 mb-2">
+                                        <div class="card border-primary">
+                                            <div class="card-body p-2">
+                                                <strong>{{ team_name }}:</strong><br>
+                                                <span class="text-primary">{{ player_name }}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        {% endif %}
+                        
+                        {% if game_status.content_details.team_responses %}
+                            <div class="mb-3">
+                                <strong>Team-Antworten:</strong>
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <h6 class="text-success">✓ Geantwortet:</h6>
+                                        {% if game_status.content_details.team_responses.answered %}
+                                            {% for team in game_status.content_details.team_responses.answered %}
+                                            <span class="badge badge-success mr-1 mb-1">{{ team }}</span>
+                                            {% endfor %}
+                                        {% else %}
+                                            <span class="text-muted">Noch keine Antworten</span>
+                                        {% endif %}
+                                    </div>
+                                    <div class="col-md-6">
+                                        <h6 class="text-warning">⏳ Ausstehend:</h6>
+                                        {% if game_status.content_details.team_responses.pending %}
+                                            {% for team in game_status.content_details.team_responses.pending %}
+                                            <span class="badge badge-warning mr-1 mb-1">{{ team }}</span>
+                                            {% endfor %}
+                                        {% else %}
+                                            <span class="text-muted">Alle haben geantwortet</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        {% endif %}
+                    {% endif %}
+                    
+                    {% if game_status.results and game_status.results.has_results %}
+                        <div class="mb-3">
+                            <strong>🏆 Platzierungen:</strong>
+                            <div class="row">
+                                {% for result in game_status.results.placements %}
+                                <div class="col-md-4 mb-2">
+                                    <div class="card border-{% if result.placement == 1 %}warning{% elif result.placement == 2 %}secondary{% elif result.placement == 3 %}info{% else %}light{% endif %}">
+                                        <div class="card-body p-2 text-center">
+                                            <div class="h4 mb-1">
+                                                {% if result.placement == 1 %}🥇
+                                                {% elif result.placement == 2 %}🥈
+                                                {% elif result.placement == 3 %}🥉
+                                                {% else %}{{ result.placement }}.{% endif %}
+                                            </div>
+                                            <strong>{{ result.team_name }}</strong>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // AJAX Auto-Update alle 3 Sekunden
+    function updateStatus() {
+        fetch('{{ url_for("admin.moderation_mode_api") }}')
+            .then(response => response.json())
+            .then(data => {
+                if (data.game_status) {
+                    // Update Status Badge
+                    const statusBadge = document.querySelector('.badge-lg');
+                    if (statusBadge) {
+                        statusBadge.className = `badge badge-${data.game_status.status_color} badge-lg`;
+                        statusBadge.textContent = data.game_status.current_status;
+                    }
+                    
+                    // Update Team Info
+                    const teamCol = document.querySelector('.col-md-3:nth-child(2)');
+                    if (teamCol && data.game_status.current_team) {
+                        teamCol.innerHTML = `<strong>Aktuelles Team:</strong>
+                            <span class="badge badge-primary">${data.game_status.current_team}</span>`;
+                    } else if (teamCol) {
+                        teamCol.innerHTML = '';
+                    }
+                    
+                    // Update Details
+                    const detailsDiv = document.querySelector('.mt-3 p');
+                    if (detailsDiv && data.game_status.additional_info) {
+                        detailsDiv.textContent = data.game_status.additional_info;
+                    }
+                    
+                    // Update Content Details Card
+                    if (data.game_status.content_details || (data.game_status.results && data.game_status.results.has_results)) {
+                        // Content oder Ergebnisse vorhanden - zeige initial card oder update dynamic card
+                        const initialCard = document.querySelector('#initial-content-card');
+                        if (initialCard) {
+                            initialCard.style.display = 'block';
+                            
+                            // Update Ergebnisse in initial card falls vorhanden
+                            if (data.game_status.results && data.game_status.results.has_results) {
+                                const cardBody = initialCard.querySelector('.card-body');
+                                if (cardBody) {
+                                    // Entferne alte dynamische Ergebnisse
+                                    const oldResults = cardBody.querySelector('.results-section');
+                                    if (oldResults) {
+                                        oldResults.remove();
+                                    }
+                                    
+                                    // Prüfe ob bereits statische Ergebnisse da sind
+                                    const staticResults = cardBody.innerHTML.includes('🏆 Platzierungen');
+                                    if (!staticResults) {
+                                        // Füge neue Ergebnisse nur hinzu wenn keine statischen da sind
+                                        const resultsDiv = document.createElement('div');
+                                        resultsDiv.className = 'mb-3 results-section';
+                                        resultsDiv.innerHTML = generateResultsHTML(data.game_status.results);
+                                        cardBody.appendChild(resultsDiv);
+                                    }
+                                }
+                            }
+                        }
+                        updateContentCard(data.game_status.content_details, data.game_status.results);
+                    } else {
+                        // Kein Content und keine Ergebnisse - verstecke initial card und entferne dynamic card
+                        const initialCard = document.querySelector('#initial-content-card');
+                        if (initialCard) {
+                            initialCard.style.display = 'none';
+                        }
+                        const dynamicCard = document.querySelector('#dynamic-content-card');
+                        if (dynamicCard) {
+                            dynamicCard.remove();
+                        }
+                    }
+                } else {
+                    // Kein aktives Spiel
+                    const statusCard = document.querySelector('.card-body');
+                    if (statusCard) {
+                        statusCard.innerHTML = `<div class="text-center text-muted py-4">
+                            <i class="fas fa-pause-circle fa-3x mb-3"></i>
+                            <p>Spiel ist momentan nicht aktiv</p>
+                        </div>`;
+                    }
+                }
+            })
+            .catch(error => {
+                console.log('Update failed:', error);
+            });
+    }
+    
+    function updateContentCard(contentDetails) {
+        // Prüfe ob initial card da ist und sichtbar
+        const initialCard = document.querySelector('#initial-content-card');
+        if (initialCard && initialCard.style.display !== 'none') {
+            // Initial card wird bereits angezeigt, nichts zu tun
+            return;
+        }
+        
+        // Update oder erstelle dynamic card nur wenn initial card nicht da/sichtbar ist  
+        let contentCard = document.querySelector('#dynamic-content-card');
+        if (!contentCard) {
+            // Erstelle neue Content Card
+            const mainRow = document.querySelector('.row.mb-4:first-child');
+            contentCard = document.createElement('div');
+            contentCard.className = 'row mb-4';
+            contentCard.id = 'dynamic-content-card';
+            mainRow.parentNode.insertBefore(contentCard, mainRow.nextSibling);
+        }
+        
+        contentCard.innerHTML = `
+            <div class="col-12">
+                <div class="card border-${contentDetails.type_color}">
+                    <div class="card-header bg-${contentDetails.type_color} text-white">
+                        <h5 class="mb-0">
+                            <i class="fas fa-${contentDetails.icon}"></i> 
+                            ${contentDetails.type_name}: ${contentDetails.name}
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        ${contentDetails.description ? `<p><strong>Beschreibung:</strong> ${contentDetails.description}</p>` : ''}
+                        ${contentDetails.question_text ? `<div class="mb-3"><strong>Frage:</strong><p class="h5 text-primary">${contentDetails.question_text}</p></div>` : ''}
+                        ${contentDetails.options ? generateOptionsHTML(contentDetails.options) : ''}
+                        ${contentDetails.correct_answer ? `<div class="alert alert-success"><strong>Korrekte Antwort:</strong> ${contentDetails.correct_answer}</div>` : ''}
+                        ${contentDetails.duration ? `<p><strong>Dauer:</strong> ${contentDetails.duration}</p>` : ''}
+                        ${contentDetails.instructions ? `<div class="alert alert-info"><strong>Anweisungen:</strong> ${contentDetails.instructions}</div>` : ''}
+                        ${contentDetails.selected_players ? generatePlayersHTML(contentDetails.selected_players) : ''}
+                        ${contentDetails.team_responses ? generateResponsesHTML(contentDetails.team_responses) : ''}
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+    
+    function generateOptionsHTML(options) {
+        if (!options || options.length === 0) return '';
+        let html = '<div class="mb-3"><strong>Antwortmöglichkeiten:</strong><div class="row">';
+        options.forEach((option, index) => {
+            html += `<div class="col-md-6 mb-2"><span class="badge badge-light badge-lg">${index + 1}. ${option}</span></div>`;
+        });
+        html += '</div></div>';
+        return html;
+    }
+    
+    function generatePlayersHTML(players) {
+        if (!players || Object.keys(players).length === 0) return '';
+        let html = '<div class="mb-3"><strong>Ausgeloste Spieler:</strong><div class="row">';
+        Object.entries(players).forEach(([teamName, playerName]) => {
+            html += `<div class="col-md-4 mb-2"><div class="card border-primary"><div class="card-body p-2"><strong>${teamName}:</strong><br><span class="text-primary">${playerName}</span></div></div></div>`;
+        });
+        html += '</div></div>';
+        return html;
+    }
+    
+    function generateResponsesHTML(responses) {
+        if (!responses) return '';
+        let html = '<div class="mb-3"><strong>Team-Antworten:</strong><div class="row">';
+        html += '<div class="col-md-6"><h6 class="text-success">✓ Geantwortet:</h6>';
+        if (responses.answered && responses.answered.length > 0) {
+            responses.answered.forEach(team => {
+                html += `<span class="badge badge-success mr-1 mb-1">${team}</span>`;
+            });
+        } else {
+            html += '<span class="text-muted">Noch keine Antworten</span>';
+        }
+        html += '</div><div class="col-md-6"><h6 class="text-warning">⏳ Ausstehend:</h6>';
+        if (responses.pending && responses.pending.length > 0) {
+            responses.pending.forEach(team => {
+                html += `<span class="badge badge-warning mr-1 mb-1">${team}</span>`;
+            });
+        } else {
+            html += '<span class="text-muted">Alle haben geantwortet</span>';
+        }
+        html += '</div></div></div>';
+        return html;
+    }
+    
+    function generateResultsHTML(results) {
+        if (!results || !results.placements || results.placements.length === 0) return '';
+        let html = '<strong>🏆 Platzierungen:</strong><div class="row mt-2">';
+        results.placements.forEach(result => {
+            let medal = result.placement === 1 ? '🥇' : result.placement === 2 ? '🥈' : result.placement === 3 ? '🥉' : `${result.placement}.`;
+            let borderClass = result.placement === 1 ? 'warning' : result.placement === 2 ? 'secondary' : result.placement === 3 ? 'info' : 'light';
+            html += `<div class="col-md-4 mb-2">
+                <div class="card border-${borderClass}">
+                    <div class="card-body p-2 text-center">
+                        <div class="h4 mb-1">${medal}</div>
+                        <strong>${result.team_name}</strong>
+                    </div>
+                </div>
+            </div>`;
+        });
+        html += '</div>';
+        return html;
+    }
+    
+    // Starte Updates alle 3 Sekunden
+    setInterval(updateStatus, 3000);
+    
+    // Initialer Update nach 1 Sekunde
+    setTimeout(updateStatus, 1000);
+});
+</script>
+{% endblock %}

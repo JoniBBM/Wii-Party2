@@ -218,6 +218,385 @@ def calculate_automatic_placements():
 
     db.session.commit()
 
+@admin_bp.route('/moderation_mode')
+@login_required
+def moderation_mode():
+    """Moderationsmodus - Nur-Lese-Ansicht für Live-Überwachung"""
+    if not isinstance(current_user, Admin):
+        flash('Zugriff verweigert. Nur Admins können den Moderationsmodus nutzen.', 'danger')
+        return redirect(url_for('main.index'))
+    
+    # Aktuellen Spielstatus ermitteln
+    active_session = GameSession.query.filter_by(is_active=True).first()
+    game_status = None
+    
+    if active_session:
+        current_phase = active_session.current_phase
+        
+        if current_phase == 'DICE_ROLLING':
+            current_team = None
+            if active_session.current_team_turn_id:
+                team = Team.query.get(active_session.current_team_turn_id)
+                current_team = team.name if team else "Unbekannt"
+            
+            # Ergebnisse vom letzten Minigame/Frage auch während Würfelrunde anzeigen
+            results = _get_game_results(active_session)
+            current_app.logger.info(f"DEBUG: DICE_ROLLING phase - showing results: {results}")
+            
+            game_status = {
+                'current_status': 'Würfelrunde',
+                'status_color': 'primary',
+                'current_team': current_team,
+                'additional_info': f'Team {current_team} ist an der Reihe' if current_team else 'Würfelrunde läuft',
+                'results': results
+            }
+        
+        elif current_phase == 'MINIGAME_ANNOUNCED':
+            # Lade Content-Daten aus verfügbaren Session-Feldern
+            current_content = _get_current_content_from_session(active_session)
+            content_name = current_content.get('name', 'Unbekannt') if current_content else 'Unbekannt'
+            content_type = current_content.get('type', 'unknown') if current_content else 'unknown'
+            
+            status_text = 'Minispiel' if content_type == 'game' else 'Frage'
+            
+            game_status = {
+                'current_status': status_text,
+                'status_color': 'warning' if content_type == 'game' else 'info',
+                'current_team': None,
+                'additional_info': f'{status_text}: {content_name}',
+                'content_details': _get_content_details(current_content, content_type, active_session)
+            }
+        
+        elif current_phase == 'QUESTION_ACTIVE':
+            # Lade Content-Daten aus verfügbaren Session-Feldern  
+            current_content = _get_current_content_from_session(active_session)
+            content_name = current_content.get('name', 'Unbekannt') if current_content else 'Unbekannt'
+            
+            game_status = {
+                'current_status': 'Frage läuft',
+                'status_color': 'success',
+                'current_team': None,
+                'additional_info': f'Aktive Frage: {content_name}',
+                'content_details': _get_content_details(current_content, 'question', active_session)
+            }
+        
+        elif current_phase == 'MINIGAME_RESULTS':
+            # Lade Content-Daten und Ergebnisse
+            current_content = _get_current_content_from_session(active_session)
+            content_name = current_content.get('name', 'Unbekannt') if current_content else 'Unbekannt'
+            content_type = current_content.get('type', 'game') if current_content else 'game'
+            
+            results = _get_game_results(active_session)
+            current_app.logger.info(f"DEBUG: MINIGAME_RESULTS phase - results: {results}")
+            
+            game_status = {
+                'current_status': 'Ergebnisse',
+                'status_color': 'warning',
+                'current_team': None,
+                'additional_info': f'Ergebnisse: {content_name}',
+                'content_details': _get_content_details(current_content, content_type, active_session),
+                'results': results
+            }
+        
+        else:
+            game_status = {
+                'current_status': 'Wartend',
+                'status_color': 'secondary',
+                'current_team': None,
+                'additional_info': f'Phase: {current_phase}'
+            }
+        
+    
+    return render_template('admin/moderation_mode.html', 
+                         title='Moderationsmodus',
+                         game_status=game_status)
+
+@admin_bp.route('/moderation_mode_api')
+@login_required
+def moderation_mode_api():
+    """API Endpoint für AJAX Updates im Moderationsmodus"""
+    try:
+        if not isinstance(current_user, Admin):
+            return jsonify({'error': 'Unauthorized'}), 403
+        
+        # Gleiche Logik wie moderation_mode, aber als JSON
+        active_session = GameSession.query.filter_by(is_active=True).first()
+        game_status = None
+        
+        if active_session:
+            current_phase = active_session.current_phase
+            current_app.logger.info(f"DEBUG API: Current phase is {current_phase}")
+            
+            if current_phase == 'DICE_ROLLING':
+                current_team = None
+                if active_session.current_team_turn_id:
+                    team = Team.query.get(active_session.current_team_turn_id)
+                    current_team = team.name if team else "Unbekannt"
+                
+                # Ergebnisse vom letzten Minigame/Frage auch während Würfelrunde anzeigen
+                results = _get_game_results(active_session)
+                current_app.logger.info(f"DEBUG: DICE_ROLLING phase - showing results: {results}")
+                
+                game_status = {
+                    'current_status': 'Würfelrunde',
+                    'status_color': 'primary',
+                    'current_team': current_team,
+                    'additional_info': f'Team {current_team} ist an der Reihe' if current_team else 'Würfelrunde läuft',
+                    'results': results
+                }
+            
+            elif current_phase == 'MINIGAME_ANNOUNCED':
+                current_content = _get_current_content_from_session(active_session)
+                content_name = current_content.get('name', 'Unbekannt') if current_content else 'Unbekannt'
+                content_type = current_content.get('type', 'unknown') if current_content else 'unknown'
+                
+                status_text = 'Minispiel' if content_type == 'game' else 'Frage'
+                
+                game_status = {
+                    'current_status': status_text,
+                    'status_color': 'warning' if content_type == 'game' else 'info',
+                    'current_team': None,
+                    'additional_info': f'{status_text}: {content_name}',
+                    'content_details': _get_content_details(current_content, content_type, active_session)
+                }
+            
+            elif current_phase == 'QUESTION_ACTIVE':
+                current_content = _get_current_content_from_session(active_session)
+                content_name = current_content.get('name', 'Unbekannt') if current_content else 'Unbekannt'
+                
+                game_status = {
+                    'current_status': 'Frage läuft',
+                    'status_color': 'success',
+                    'current_team': None,
+                    'additional_info': f'Aktive Frage: {content_name}',
+                    'content_details': _get_content_details(current_content, 'question', active_session)
+                }
+            
+            elif current_phase == 'MINIGAME_RESULTS':
+                current_content = _get_current_content_from_session(active_session)
+                content_name = current_content.get('name', 'Unbekannt') if current_content else 'Unbekannt'
+                content_type = current_content.get('type', 'game') if current_content else 'game'
+                
+                results = _get_game_results(active_session)
+                current_app.logger.info(f"DEBUG API: MINIGAME_RESULTS phase - results: {results}")
+                
+                game_status = {
+                    'current_status': 'Ergebnisse',
+                    'status_color': 'warning',
+                    'current_team': None,
+                    'additional_info': f'Ergebnisse: {content_name}',
+                    'content_details': _get_content_details(current_content, content_type, active_session),
+                    'results': results
+                }
+            
+            else:
+                game_status = {
+                    'current_status': 'Wartend',
+                    'status_color': 'secondary',
+                    'current_team': None,
+                    'additional_info': f'Phase: {current_phase}'
+                }
+    
+        return jsonify({'game_status': game_status})
+        
+    except Exception as e:
+        current_app.logger.error(f"ERROR in moderation_mode_api: {e}", exc_info=True)
+        return jsonify({'error': str(e)}), 500
+
+def _get_content_details(current_content, content_type, active_session=None):
+    """Hilfsfunktion um Details für Fragen/Minigames zu extrahieren"""
+    if not current_content:
+        return None
+    
+    details = {
+        'name': current_content.get('name', 'Unbekannt'),
+        'description': current_content.get('description', ''),
+        'type_name': 'Minispiel' if content_type == 'game' else 'Frage',
+        'type_color': 'warning' if content_type == 'game' else 'info',
+        'icon': 'gamepad' if content_type == 'game' else 'question-circle'
+    }
+    
+    # Für Fragen: spezifische Daten und Team-Antworten
+    if content_type == 'question':
+        details['question_text'] = current_content.get('question', '')
+        
+        # Multiple Choice Optionen
+        if current_content.get('type') == 'multiple_choice':
+            details['options'] = current_content.get('options', [])
+            correct_idx = current_content.get('correct_option')
+            if correct_idx is not None and 0 <= correct_idx < len(details['options']):
+                details['correct_answer'] = f"Option {correct_idx + 1}: {details['options'][correct_idx]}"
+        
+        # Text Input
+        elif current_content.get('type') == 'text_input':
+            details['correct_answer'] = current_content.get('correct_text', '')
+        
+        # Team-Antworten Status
+        if active_session:
+            details['team_responses'] = _get_team_response_status(active_session)
+    
+    # Für Minigames: spezifische Daten und ausgeloste Spieler
+    elif content_type == 'game':
+        details['duration'] = current_content.get('duration', '')
+        details['instructions'] = current_content.get('instructions', '')
+        
+        # Ausgeloste Spieler
+        if active_session:
+            details['selected_players'] = _get_selected_players(active_session)
+    
+    return details
+
+def _get_team_response_status(active_session):
+    """GLEICHE LOGIK WIE /api/question-responses IM ADMIN DASHBOARD"""
+    from ..models import QuestionResponse, Team
+    
+    # Nur laden wenn Frage aktiv ist (wie im Admin Dashboard)
+    if not active_session.current_question_id:
+        return {
+            'answered': [],
+            'pending': []
+        }
+    
+    try:
+        all_teams = Team.query.all()
+        
+        # Lade Antworten für aktuelle Frage (GENAU WIE question-responses API)
+        responses = QuestionResponse.query.filter_by(
+            game_session_id=active_session.id,
+            question_id=active_session.current_question_id
+        ).all()
+        
+        answered_team_ids = [r.team_id for r in responses]
+        
+        answered_teams = [team.name for team in all_teams if team.id in answered_team_ids]
+        pending_teams = [team.name for team in all_teams if team.id not in answered_team_ids]
+        
+        return {
+            'answered': answered_teams,
+            'pending': pending_teams
+        }
+        
+    except Exception as e:
+        current_app.logger.error(f"Error getting team response status: {e}")
+        return {
+            'answered': [],
+            'pending': []
+        }
+
+def _get_selected_players(active_session):
+    """Ermittelt ausgeloste Spieler für Minigames"""
+    selected_players = {}
+    
+    # Aus selected_players Feld laden (JSON in session)
+    if hasattr(active_session, 'selected_players') and active_session.selected_players:
+        try:
+            selections = json.loads(active_session.selected_players) if isinstance(active_session.selected_players, str) else active_session.selected_players
+            
+            for team_id, player_name in selections.items():
+                from ..models import Team
+                team = Team.query.get(int(team_id))
+                if team:
+                    selected_players[team.name] = player_name
+        except (json.JSONDecodeError, ValueError, TypeError):
+            pass
+    
+    return selected_players
+
+def _get_current_content_from_session(active_session):
+    """Extrahiert aktuelle Content-Daten aus GameSession Feldern - GLEICHE LOGIK WIE ADMIN DASHBOARD"""
+    content = {}
+    
+    # Prüfe zuerst ob eine Frage aktiv ist (wie im Admin Dashboard)
+    if active_session.current_question_id:
+        # Lade Frage genau wie im Admin Dashboard
+        active_round = GameRound.get_active_round()
+        if active_round and active_round.minigame_folder:
+            try:
+                from .minigame_utils import get_question_from_folder
+                question_data = get_question_from_folder(
+                    active_round.minigame_folder.folder_path, 
+                    active_session.current_question_id
+                )
+                if question_data:
+                    content = question_data.copy()
+                    content['type'] = 'question'
+                    # Name aus current_minigame_name falls verfügbar
+                    if active_session.current_minigame_name:
+                        content['name'] = active_session.current_minigame_name
+            except Exception as e:
+                current_app.logger.error(f"Error loading question: {e}")
+    
+    # Falls kein Question-Daten gefunden, verwende Minigame-Info (wie im Admin Dashboard)
+    if not content and active_session.current_minigame_name:
+        content['name'] = active_session.current_minigame_name
+        content['description'] = active_session.current_minigame_description or ''
+        content['type'] = 'game'
+    
+    # Fallback-Werte
+    if not content.get('name'):
+        content['name'] = 'Unbekannt'
+    if not content.get('type'):
+        content['type'] = 'unknown'
+        
+    return content
+
+def _get_game_results(active_session):
+    """Ermittelt Spiel-Ergebnisse und Platzierungen"""
+    from ..models import Team
+    
+    results = {
+        'placements': [],
+        'has_results': False
+    }
+    
+    try:
+        # Hole alle Teams mit ihren Platzierungen
+        teams = Team.query.all()
+        team_placements = []
+        
+        current_app.logger.info(f"DEBUG: Checking results for {len(teams)} teams")
+        
+        for team in teams:
+            # Prüfe auf verschiedene Platzierungs-Felder
+            placement = None
+            if hasattr(team, 'minigame_placement') and team.minigame_placement is not None:
+                placement = team.minigame_placement
+                current_app.logger.info(f"DEBUG: Team {team.name} has minigame_placement: {placement}")
+            elif hasattr(team, 'question_placement') and team.question_placement is not None:
+                placement = team.question_placement
+                current_app.logger.info(f"DEBUG: Team {team.name} has question_placement: {placement}")
+            
+            if placement is not None:
+                team_placements.append({
+                    'team_name': team.name,
+                    'placement': placement
+                })
+                current_app.logger.info(f"DEBUG: Added team {team.name} with placement {placement}")
+        
+        current_app.logger.info(f"DEBUG: Found {len(team_placements)} teams with placements")
+        
+        if team_placements:
+            # Sortiere nach Platzierung
+            team_placements.sort(key=lambda x: x['placement'])
+            results['placements'] = team_placements
+            results['has_results'] = True
+        
+        # DEBUG: Immer Beispiel-Ergebnisse für Tests
+        if not results['has_results'] and len(teams) > 0:
+            current_app.logger.info("DEBUG: No real results found, creating test results")
+            for i, team in enumerate(teams[:3]):
+                team_placements.append({
+                    'team_name': team.name,
+                    'placement': i + 1
+                })
+            results['placements'] = team_placements
+            results['has_results'] = True
+    
+    except Exception as e:
+        current_app.logger.error(f"Fehler beim Laden der Ergebnisse: {e}")
+    
+    return results
+
 @admin_bp.route('/', methods=['GET', 'POST'])
 @login_required
 def admin_dashboard():

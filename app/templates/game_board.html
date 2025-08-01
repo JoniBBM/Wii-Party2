@@ -953,6 +953,11 @@ const GAME_STATE = {
     cameraMode: 'front',
     currentServerTeamTurnId: null,
     diceRollOrderFromServer: [],
+    
+    // Kamera-Management um Konflikte zu vermeiden
+    cameraTransitionActive: false,
+    lastCameraAction: null,
+    cameraActionTimestamp: 0,
     cinematicMode: false,
     cinematicTimer: null,
     // Auto Camera Management
@@ -2160,7 +2165,7 @@ class WiiPartyIsland {
                     GAME_STATE.isAnimatingCamera = false;
                     GAME_STATE.playerTurnInProgress = false;
                     this.stopCameraFollow();
-                    this.prepareNextPlayerTurn(false);
+                    this.requestCameraMode('team_focus', {team: this.teams[this.currentTurn]}, 'normal');
                 }
             } else if (event.key.toLowerCase() === 'f') {
                 this.toggleFullscreen();
@@ -2550,20 +2555,47 @@ class WiiPartyIsland {
             const nextTeam = localTeams?.find(t => t.id === nextTeamId);
             
             if (nextTeam) {
-                console.log("🎯 [CAMERA] Next team after field minigame:", nextTeam.name);
-                
-                // Update game state to the next team
-                GAME_STATE.currentServerTeamTurnId = nextTeamId;
-                const nextTeamIndex = localTeams.findIndex(t => t.id === nextTeamId);
-                if (nextTeamIndex !== -1) {
-                    GAME_STATE.currentTeamIndex = nextTeamIndex;
+                // Prüfe ob Bewegung aktiv ist
+                if (GAME_STATE.isCharacterMoving || GAME_STATE.isAnimating || this.activeMovementAnimation) {
+                    console.log("🎯 [CAMERA] Next team focus delayed - movement in progress:", nextTeam.name);
+                    // Warte bis Bewegung beendet ist, dann fokussiere das Team
+                    const waitAndFocus = () => {
+                        if (GAME_STATE.isCharacterMoving || GAME_STATE.isAnimating || this.activeMovementAnimation) {
+                            setTimeout(waitAndFocus, 300);
+                            return;
+                        }
+                        console.log("🎯 [CAMERA] Movement finished, now focusing next team:", nextTeam.name);
+                        
+                        // Update game state to the next team
+                        GAME_STATE.currentServerTeamTurnId = nextTeamId;
+                        const nextTeamIndex = localTeams.findIndex(t => t.id === nextTeamId);
+                        if (nextTeamIndex !== -1) {
+                            GAME_STATE.currentTeamIndex = nextTeamIndex;
+                        }
+                        
+                        // Focus camera on next team with smooth transition
+                        this.requestCameraMode('team_focus', {team: nextTeam}, 'normal');
+                        
+                        // Update team display
+                        this.updateTeamDisplay();
+                    };
+                    setTimeout(waitAndFocus, 500);
+                } else {
+                    console.log("🎯 [CAMERA] Next team after field minigame:", nextTeam.name);
+                    
+                    // Update game state to the next team
+                    GAME_STATE.currentServerTeamTurnId = nextTeamId;
+                    const nextTeamIndex = localTeams.findIndex(t => t.id === nextTeamId);
+                    if (nextTeamIndex !== -1) {
+                        GAME_STATE.currentTeamIndex = nextTeamIndex;
+                    }
+                    
+                    // Focus camera on next team with smooth transition
+                    this.requestCameraMode('team_focus', {team: nextTeam}, 'normal');
+                    
+                    // Update team display
+                    this.updateTeamDisplay();
                 }
-                
-                // Focus camera on next team with smooth transition
-                this.prepareNextPlayerTurn(false);
-                
-                // Update team display
-                this.updateTeamDisplay();
                 
             } else {
                 console.warn("🎯 [CAMERA] Next team not found, switching to orbit");
@@ -2899,12 +2931,12 @@ class WiiPartyIsland {
                                         // Focus camera and allow movement
                                         setTimeout(() => {
                                             console.log("🎯 Focusing camera and allowing movement for:", currentTeam.name);
-                                            this.focusCameraOnCurrentTeam(false);
+                                            this.requestCameraMode('team_focus', {team: currentTeam}, 'normal');
                                         }, 200);
                                     } else {
                                         // No dice result yet, just focus camera
                                         console.log("🎯 Focusing camera (no dice yet) for:", currentTeam.name);
-                                        this.focusCameraOnCurrentTeam(false);
+                                        this.requestCameraMode('team_focus', {team: currentTeam}, 'normal');
                                     }
                                 }, 1000); // Reduced timing
                             } else {
@@ -3271,6 +3303,38 @@ class WiiPartyIsland {
                                         console.log(`💔 Showing field minigame loss notification for ${eventTeam.name}`);
                                         window.NotificationSystem.showFieldMinigameLoss(eventTeam.name, 8000);
                                     }
+                                    
+                                    // Nach Minigame-Feld Abschluss: Kamera zum nächsten Spieler schwenken
+                                    // Warte bis alle Bewegungen abgeschlossen sind
+                                    const waitForMovementCompletion = () => {
+                                        if (GAME_STATE.isCharacterMoving || GAME_STATE.isAnimating || this.activeMovementAnimation) {
+                                            console.log("🎯 [CAMERA] Waiting for movement to complete before switching to next team...");
+                                            setTimeout(waitForMovementCompletion, 500);
+                                            return;
+                                        }
+                                        
+                                        const gameSession = data.game_session;
+                                        if (gameSession && gameSession.current_team_turn_id) {
+                                            const nextTeamId = gameSession.current_team_turn_id;
+                                            const nextTeam = localTeams?.find(t => t.id === nextTeamId);
+                                            
+                                            if (nextTeam) {
+                                                console.log("🎯 [CAMERA] Next team after field minigame completion (movement finished):", nextTeam.name);
+                                                
+                                                // Update game state to the next team
+                                                GAME_STATE.currentServerTeamTurnId = nextTeamId;
+                                                const nextTeamIndex = localTeams.findIndex(t => t.id === nextTeamId);
+                                                if (nextTeamIndex !== -1) {
+                                                    GAME_STATE.currentTeamIndex = nextTeamIndex;
+                                                }
+                                                
+                                                // Focus camera on next team with smooth transition
+                                                this.requestCameraMode('team_focus', {team: this.teams[this.currentTurn]}, 'normal');
+                                            }
+                                        }
+                                    };
+                                    
+                                    setTimeout(waitForMovementCompletion, 3000); // 3 Sekunden warten, dann auf Movement-Ende prüfen
                                 }
                                 
                                 window.shownSpecialNotifications.add(notificationKey);
@@ -3554,8 +3618,15 @@ class WiiPartyIsland {
             GAME_STATE.playerFocusTarget = mii;
         }
         
-        // Start camera following during movement
+        // Start camera following during movement (immer aktiv für alle Bewegungen)
+        console.log(`📹 Starting GTA-like camera follow for ${team.name} movement`);
         this.startCameraFollow(mii);
+        
+        // Aktiviere Auto-Kamera für diese Bewegung
+        GAME_STATE.autoCameraEnabled = true;
+        GAME_STATE.isPlayerActive = true;
+        GAME_STATE.lastPlayerActivity = Date.now();
+        GAME_STATE.playerFocusTarget = mii;
 
         const pointsToMove = [];
         const startIdx = Math.min(this.boardFields.length - 1, Math.max(0, oldPositionIndex));
@@ -3610,7 +3681,7 @@ class WiiPartyIsland {
         }
 
         let currentPointIndex = 0;
-        const durationPerStep = 1500; // Viel langsamer: 1.5 Sekunden pro Feld
+        const durationPerStep = 400; // Schnellere Animation: 0.4 Sekunden pro Feld
 
         const moveToNextPoint = () => {
             if (currentPointIndex >= pathPoints.length - 1) {
@@ -3627,7 +3698,7 @@ class WiiPartyIsland {
                 // Längere Pause zwischen den Feldern für cinematographische Wirkung
                 setTimeout(() => {
                     moveToNextPoint();
-                }, 300); // 300ms Pause zwischen Feldern
+                }, 80); // 80ms Pause zwischen Feldern
             }, durationPerStep);
         };
 
@@ -3638,7 +3709,7 @@ class WiiPartyIsland {
         }
     }
 
-    animateCharacterMove(character, targetPosition, callback, totalDuration = 300) {
+    animateCharacterMove(character, targetPosition, callback, totalDuration = 150) {
         GAME_STATE.isAnimating = true;
         GAME_STATE.isCharacterMoving = true;
         
@@ -3793,7 +3864,7 @@ class WiiPartyIsland {
                 setTimeout(() => {
                     // Focus camera on next player
                     if (!GAME_STATE.freeCameraMode) {
-                        this.focusCameraOnCurrentTeam(false, () => {
+                        this.requestCameraMode('team_focus', {team: nextTeam}, 'normal', () => {
                             // Show next team message after camera focuses
                             if (nextTeam.is_blocked) {
                                 this.showStatusMessage(`${nextTeam.name} ist am Zug (BLOCKIERT - muss ${nextTeam.blocked_target_number}+ würfeln).`, 3000, 'warning', true, 'Blockiertes Team am Zug');
@@ -3813,12 +3884,89 @@ class WiiPartyIsland {
             } else {
                 // No next team found - switch to orbit mode
                 console.log("🔄 [CAMERA] No next team found - switching to orbit mode");
-                this.switchToOrbitMode();
+                this.requestCameraMode('orbit', null, 'low');
             }
         } else {
-            // No active team or special phase - switch to orbit mode
-            console.log("🔄 [CAMERA] No active game phase - switching to orbit mode");
-            this.switchToOrbitMode();
+            // No active team or special phase - but check for ongoing movements first
+            if (GAME_STATE.isCharacterMoving || GAME_STATE.isAnimating || this.activeMovementAnimation) {
+                console.log("🔄 [CAMERA] No active game phase but movement ongoing - waiting...");
+                // Warte bis alle Bewegungen beendet sind
+                const waitForAllMovements = () => {
+                    if (GAME_STATE.isCharacterMoving || GAME_STATE.isAnimating || this.activeMovementAnimation) {
+                        setTimeout(waitForAllMovements, 500);
+                        return;
+                    }
+                    console.log("🔄 [CAMERA] All movements finished - now switching to orbit mode");
+                    this.requestCameraMode('orbit', null, 'low');
+                };
+                setTimeout(waitForAllMovements, 1000);
+            } else {
+                console.log("🔄 [CAMERA] No active game phase - switching to orbit mode");
+                this.requestCameraMode('orbit', null, 'low');
+            }
+        }
+    }
+    
+    // Zentrale Kamera-Management Funktion
+    requestCameraMode(mode, data = null, priority = 'normal', callback = null) {
+        const now = Date.now();
+        const timeSinceLastAction = now - GAME_STATE.cameraActionTimestamp;
+        
+        console.log(`🎥 [CAMERA REQUEST] Mode: ${mode}, Priority: ${priority}, Last: ${GAME_STATE.lastCameraAction}, Time since last: ${timeSinceLastAction}ms`);
+        
+        // Hohe Priorität (movement) überschreibt immer
+        if (priority === 'high') {
+            GAME_STATE.cameraTransitionActive = true;
+            GAME_STATE.lastCameraAction = mode;
+            GAME_STATE.cameraActionTimestamp = now;
+            this.executeCameraMode(mode, data);
+            return true;
+        }
+        
+        // Niedrige Priorität nur wenn keine Transition aktiv und genug Zeit vergangen
+        if (GAME_STATE.cameraTransitionActive && timeSinceLastAction < 3000) {
+            console.log(`🚫 [CAMERA REQUEST] Skipping ${mode} - transition active or too soon`);
+            return false;
+        }
+        
+        // Team focus hat mittlere Priorität
+        if (mode === 'team_focus' && GAME_STATE.lastCameraAction === 'team_focus' && timeSinceLastAction < 2000) {
+            console.log(`🚫 [CAMERA REQUEST] Skipping duplicate team focus`);
+            return false;
+        }
+        
+        GAME_STATE.cameraTransitionActive = true;
+        GAME_STATE.lastCameraAction = mode;
+        GAME_STATE.cameraActionTimestamp = now;
+        
+        // Nach 3 Sekunden Transition als beendet markieren
+        setTimeout(() => {
+            GAME_STATE.cameraTransitionActive = false;
+        }, 3000);
+        
+        this.executeCameraMode(mode, data, callback);
+        return true;
+    }
+    
+    executeCameraMode(mode, data, callback = null) {
+        console.log(`🎬 [CAMERA EXECUTE] Mode: ${mode}`);
+        
+        switch(mode) {
+            case 'orbit':
+                this.switchToOrbitMode();
+                break;
+            case 'team_focus':
+                if (data && data.team) {
+                    this.focusCameraOnCurrentTeam(false, callback);
+                }
+                break;
+            case 'gta_follow':
+                if (data && data.character) {
+                    this.startCameraFollow(data.character);
+                }
+                break;
+            default:
+                console.warn(`🚫 [CAMERA] Unknown mode: ${mode}`);
         }
     }
     
@@ -3919,7 +4067,7 @@ class WiiPartyIsland {
                 this.executeGameSequence();
             }, 500);
         } else if (!GAME_STATE.freeCameraMode) {
-            this.prepareNextPlayerTurn(false);
+            this.requestCameraMode('team_focus', {team: this.teams[this.currentTurn]}, 'normal');
         }
     }
 
