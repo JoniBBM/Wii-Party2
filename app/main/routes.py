@@ -1381,6 +1381,9 @@ def get_player_faces():
             team_name = team.name
             team_color = team.character.color if team.character else '#CCCCCC'
             
+            # Hole gespeicherte Player-Konfiguration (enthält gespeicherte Emojis)
+            player_config = team.get_player_config()
+            
             for player_name in player_names:
                 # Hole Profilbild aus Team-Daten
                 profile_image = team.get_profile_image(player_name)
@@ -1395,13 +1398,20 @@ def get_player_faces():
                         "has_photo": True
                     })
                 else:
-                    # Deterministisches Emoji basierend auf Spielername
+                    # Prüfe zuerst nach gespeichertem Emoji in player_config
+                    saved_emoji = None
+                    if player_config and player_name in player_config:
+                        saved_emoji = player_config[player_name].get('emoji')
+                    
+                    # Verwende gespeichertes Emoji oder falle zurück auf deterministisches
+                    emoji = saved_emoji if saved_emoji else get_consistent_emoji_for_player(player_name)
+                    
                     player_faces.append({
                         "player_name": player_name,
                         "team_name": team_name,
                         "team_id": team.id,
                         "team_color": team_color,
-                        "emoji": get_consistent_emoji_for_player(player_name),
+                        "emoji": emoji,
                         "has_photo": False
                     })
         
@@ -1516,13 +1526,21 @@ def get_field_minigame_player_faces(active_session):
                     "has_photo": True
                 })
             else:
-                # Deterministisches Emoji basierend auf Spielername
+                # Prüfe zuerst nach gespeichertem Emoji in player_config
+                player_config = landing_team.get_player_config()
+                saved_emoji = None
+                if player_config and player_data["name"] in player_config:
+                    saved_emoji = player_config[player_data["name"]].get('emoji')
+                
+                # Verwende gespeichertes Emoji oder falle zurück auf deterministisches
+                emoji = saved_emoji if saved_emoji else get_consistent_emoji_for_player(player_data["name"])
+                
                 player_faces.append({
                     "player_name": player_data["name"],
                     "team_name": landing_team.name,
                     "team_id": landing_team.id,
                     "team_color": landing_team.character.color if landing_team.character else '#CCCCCC',
-                    "emoji": get_consistent_emoji_for_player(player_data["name"]),
+                    "emoji": emoji,
                     "role": "landing_team",
                     "has_photo": False
                 })
@@ -1570,13 +1588,21 @@ def get_field_minigame_player_faces(active_session):
                             "has_photo": True
                         })
                     else:
-                        # Deterministisches Emoji basierend auf Spielername
+                        # Prüfe zuerst nach gespeichertem Emoji in player_config
+                        player_config = opponent_team.get_player_config()
+                        saved_emoji = None
+                        if player_config and player_data["name"] in player_config:
+                            saved_emoji = player_config[player_data["name"]].get('emoji')
+                        
+                        # Verwende gespeichertes Emoji oder falle zurück auf deterministisches
+                        emoji = saved_emoji if saved_emoji else get_consistent_emoji_for_player(player_data["name"])
+                        
                         player_faces.append({
                             "player_name": player_data["name"],
                             "team_name": opponent_team.name,
                             "team_id": opponent_team.id,
                             "team_color": opponent_team.character.color if opponent_team.character else '#CCCCCC',
-                            "emoji": get_consistent_emoji_for_player(player_data["name"]),
+                            "emoji": emoji,
                             "role": "opponent_team",
                             "has_photo": False
                         })
@@ -1628,13 +1654,21 @@ def get_field_minigame_player_faces(active_session):
                             "has_photo": True
                         })
                     else:
-                        # Deterministisches Emoji basierend auf Spielername
+                        # Prüfe zuerst nach gespeichertem Emoji in player_config
+                        player_config = team.get_player_config()
+                        saved_emoji = None
+                        if player_config and selected_player["name"] in player_config:
+                            saved_emoji = player_config[selected_player["name"]].get('emoji')
+                        
+                        # Verwende gespeichertes Emoji oder falle zurück auf deterministisches
+                        emoji = saved_emoji if saved_emoji else get_consistent_emoji_for_player(selected_player["name"])
+                        
                         player_faces.append({
                             "player_name": selected_player["name"],
                             "team_name": team.name,
                             "team_id": team.id,
                             "team_color": team.character.color if team.character else '#CCCCCC',
-                            "emoji": get_consistent_emoji_for_player(selected_player["name"]),
+                            "emoji": emoji,
                             "role": "opponent_team",
                             "has_photo": False
                         })
@@ -1669,6 +1703,9 @@ def get_all_player_images():
             # Hole alle Profilbilder des Teams
             profile_images = team.get_profile_images()
             
+            # Hole gespeicherte Player-Konfiguration (enthält gespeicherte Emojis)
+            player_config = team.get_player_config()
+            
             # Spieler mit Profilbildern
             for player_name, image_path in profile_images.items():
                 if image_path and image_path.strip():
@@ -1689,13 +1726,20 @@ def get_all_player_images():
                         member_name = member_name.strip()
                         # Prüfe ob bereits mit Profilbild hinzugefügt
                         if not any(p["player_name"] == member_name for p in all_players):
-                            # Deterministisches Emoji basierend auf Spielername
+                            # Prüfe zuerst nach gespeichertem Emoji in player_config
+                            saved_emoji = None
+                            if player_config and member_name in player_config:
+                                saved_emoji = player_config[member_name].get('emoji')
+                            
+                            # Verwende gespeichertes Emoji oder falle zurück auf deterministisches
+                            emoji = saved_emoji if saved_emoji else get_consistent_emoji_for_player(member_name)
+                            
                             all_players.append({  
                                 "player_name": member_name,
                                 "team_name": team.name,
                                 "team_id": team.id,
                                 "team_color": team_color,
-                                "emoji": get_consistent_emoji_for_player(member_name),
+                                "emoji": emoji,
                                 "has_photo": False
                             })
             except:

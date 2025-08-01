@@ -1178,10 +1178,25 @@ document.addEventListener('DOMContentLoaded', function() {
     document.querySelectorAll('.emoji-display .player-emoji').forEach(function(element) {
         const playerName = element.getAttribute('data-name');
         if (playerName) {
-            element.textContent = getPlayerEmoji(playerName);
+            // Prüfe erst ob ein gespeichertes Emoji existiert
+            const savedEmoji = getSavedPlayerEmoji(playerName);
+            element.textContent = savedEmoji || getPlayerEmoji(playerName);
         }
     });
 });
+
+// Hole gespeichertes Emoji aus Team-Konfiguration
+function getSavedPlayerEmoji(playerName) {
+    // Diese Funktion würde das gespeicherte Emoji aus der Datenbank holen
+    // Für jetzt verwenden wir die deterministische Funktion
+    {% if team and team.get_player_config() %}
+    const playerConfig = {{ team.get_player_config()|tojson }};
+    if (playerConfig && playerConfig[playerName] && playerConfig[playerName].emoji) {
+        return playerConfig[playerName].emoji;
+    }
+    {% endif %}
+    return null;
+}
 
 // Fallback-Funktion: Zeige Emoji wenn Profilbild nicht geladen werden kann
 function showEmojiForPlayer(playerName, playerId, borderColor) {
@@ -1279,13 +1294,466 @@ function moveMemberToTeam(playerName, newTeamId, newTeamName, callback = null) {
 
 // Profilbild-Bearbeitung Modal öffnen
 function openImageEditModal(playerName, playerId, playerType) {
-    // Hier würde ein Modal für die Profilbild-Bearbeitung geöffnet werden
-    // Für jetzt zeigen wir eine einfache Bestätigung
-    if (confirm(`Profilbild für "${playerName}" bearbeiten?\n\nDiese Funktion wird in einer zukünftigen Version implementiert.`)) {
-        console.log('Image edit requested for:', {playerName, playerId, playerType});
-        // TODO: Implementiere Image-Edit Modal
+    console.log('Opening image edit modal for:', {playerName, playerId, playerType});
+    
+    // Erstelle und zeige das Image-Edit-Modal
+    const modalOverlay = document.createElement('div');
+    modalOverlay.className = 'modal-overlay-image-edit';
+    modalOverlay.id = 'image-edit-modal';
+    
+    // Aktuelles Emoji aus verschiedenen Quellen bestimmen
+    let currentEmoji;
+    
+    // 1. Versuche aus DOM zu lesen
+    const currentEmojiElement = document.querySelector(`#player-emoji-${playerId}`);
+    if (currentEmojiElement) {
+        currentEmoji = currentEmojiElement.textContent;
+        console.log('Current emoji from DOM:', currentEmoji);
+    } else {
+        // 2. Versuche gespeichertes Emoji zu laden
+        const savedEmoji = getSavedPlayerEmoji(playerName);
+        if (savedEmoji) {
+            currentEmoji = savedEmoji;
+        } else {
+            // 3. Fallback auf deterministische Generierung
+            currentEmoji = getPlayerEmoji(playerName);
+        }
+    }
+    
+    console.log('Final current emoji for', playerName, ':', currentEmoji);
+    
+    modalOverlay.innerHTML = `
+        <div class="modal-container-image-edit">
+            <button class="modal-close-image-edit" onclick="closeImageEditModal()">&times;</button>
+            
+            <div class="modal-header-image-edit">
+                <h3 class="modal-title-image-edit">✏️ ${playerName} bearbeiten</h3>
+                <p class="modal-subtitle-image-edit">Emoji oder Profilbild ändern</p>
+            </div>
+
+            <div class="modal-content-image-edit">
+                <!-- Current Display -->
+                <div class="current-display">
+                    <h4>Aktuell:</h4>
+                    <div class="current-image-container">
+                        <div class="current-emoji" id="current-emoji-display">${currentEmoji}</div>
+                    </div>
+                </div>
+
+                <!-- Emoji Section -->
+                <div class="edit-section">
+                    <h4><i class="fas fa-smile"></i> Emoji ändern</h4>
+                    <div class="emoji-picker">
+                        <div class="emoji-grid" id="emoji-grid">
+                            <!-- Emojis werden dynamisch hinzugefügt -->
+                        </div>
+                    </div>
+                    <div class="selected-emoji-display">
+                        <span>Ausgewähltes Emoji: </span>
+                        <span class="selected-emoji" id="selected-emoji">${currentEmoji}</span>
+                        <button class="btn-apply-emoji" onclick="applyEmojiChange('${playerName}', '${playerId}', '${playerType}')">
+                            <i class="fas fa-check"></i> Emoji anwenden
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Image Section -->
+                <div class="edit-section">
+                    <h4><i class="fas fa-camera"></i> Profilbild ändern</h4>
+                    <div class="image-options">
+                        <button class="btn-image-option" onclick="openImageUpload('${playerName}', '${playerId}', '${playerType}')">
+                            <i class="fas fa-upload"></i> Neues Bild hochladen
+                        </button>
+                        <button class="btn-image-option btn-remove" onclick="removePlayerImage('${playerName}', '${playerId}', '${playerType}')">
+                            <i class="fas fa-trash"></i> Bild entfernen
+                        </button>
+                    </div>
+                    
+                    <!-- Image Upload Area (hidden by default) -->
+                    <div class="image-upload-area" id="image-upload-area" style="display: none;">
+                        <div class="camera-preview-edit">
+                            <video id="edit-camera-video" class="camera-video-edit" autoplay muted style="display: none;"></video>
+                            <canvas id="edit-camera-canvas" class="camera-canvas-edit"></canvas>
+                            <img id="edit-camera-captured" class="camera-captured-edit" style="display: none;">
+                        </div>
+                        
+                        <div class="camera-controls-edit">
+                            <button id="edit-btn-start-camera" class="btn-camera-edit btn-camera-capture-edit" onclick="startEditCamera()">
+                                <i class="fas fa-video"></i> Kamera starten
+                            </button>
+                            <button id="edit-btn-take-photo" class="btn-camera-edit btn-camera-capture-edit" style="display: none;" onclick="takeEditPhoto()">
+                                <i class="fas fa-camera"></i> Foto aufnehmen
+                            </button>
+                            <button id="edit-btn-retake-photo" class="btn-camera-edit btn-camera-retake-edit" style="display: none;" onclick="retakeEditPhoto()">
+                                <i class="fas fa-redo"></i> Nochmal
+                            </button>
+                            <button id="edit-btn-save-image" class="btn-camera-edit btn-camera-save-edit" style="display: none;" onclick="savePlayerImage('${playerName}', '${playerId}', '${playerType}')">
+                                <i class="fas fa-save"></i> Bild speichern
+                            </button>
+                        </div>
+                        
+                        <div class="camera-status-edit" id="edit-camera-status">
+                            Klicke auf "Kamera starten" um ein neues Foto aufzunehmen.
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-buttons-image-edit">
+                <button type="button" class="btn-modal-secondary-edit" onclick="closeImageEditModal()">
+                    <i class="fas fa-times"></i> Schließen
+                </button>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modalOverlay);
+    
+    // Initialisiere Emoji-Grid
+    initializeEmojiGrid();
+    
+    // Show modal
+    modalOverlay.style.display = 'flex';
+}
+
+function closeImageEditModal() {
+    const modal = document.getElementById('image-edit-modal');
+    if (modal) {
+        stopEditCamera();
+        modal.remove();
     }
 }
+
+function initializeEmojiGrid() {
+    const emojis = [
+        "😀", "😃", "😄", "😁", "😆", "😅", "🤣", "😂", "🙂", "🙃", 
+        "😉", "😊", "😇", "🥰", "😍", "🤩", "😘", "😗", "😚", "😙",
+        "😋", "😛", "😜", "🤪", "😝", "🤑", "🤗", "🤭", "🤫", "🤔",
+        "🤓", "😎", "🤡", "🥳", "😏", "😒", "😞", "😔", "😟", "😕",
+        "🙁", "☹️", "😣", "😖", "😫", "😩", "🥺", "😢", "😭", "😤",
+        "😠", "😡", "🤬", "🤯", "😳", "🥵", "🥶", "😱", "😨", "😰",
+        "👤", "👥", "🫂", "👶", "🧒", "👦", "👧", "🧑", "👨", "👩",
+        "🧓", "👴", "👵", "👨‍⚕️", "👩‍⚕️", "👨‍🎓", "👩‍🎓", "👨‍💻", "👩‍💻", "🧑‍💼",
+        "⚽", "🏀", "🏈", "⚾", "🥎", "🎾", "🏐", "🏉", "🥏", "🎱",
+        "🏓", "🏸", "🏒", "🏑", "🥍", "🏏", "🎯", "🎮", "🕹️", "🎲"
+    ];
+    
+    const emojiGrid = document.getElementById('emoji-grid');
+    emojis.forEach(emoji => {
+        const emojiButton = document.createElement('button');
+        emojiButton.className = 'emoji-button';
+        emojiButton.textContent = emoji;
+        emojiButton.onclick = () => selectEmoji(emoji);
+        emojiGrid.appendChild(emojiButton);
+    });
+}
+
+function selectEmoji(emoji) {
+    // Update selected emoji display
+    document.getElementById('selected-emoji').textContent = emoji;
+    document.getElementById('current-emoji-display').textContent = emoji;
+    
+    // Highlight selected emoji
+    document.querySelectorAll('.emoji-button').forEach(btn => {
+        btn.classList.remove('selected');
+    });
+    event.target.classList.add('selected');
+}
+
+function applyEmojiChange(playerName, playerId, playerType) {
+    const selectedEmoji = document.getElementById('selected-emoji').textContent;
+    
+    console.log('Applying emoji change:', {playerName, playerId, playerType, selectedEmoji});
+    
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || 
+                      document.querySelector('[name=csrf_token]')?.value || '';
+    
+    // Show loading state
+    const applyBtn = event.target;
+    const originalContent = applyBtn.innerHTML;
+    applyBtn.disabled = true;
+    applyBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Speichere...';
+    
+    const requestData = {
+        team_id: {{ team.id }},
+        player_name: playerName,
+        emoji: selectedEmoji,
+        player_type: playerType
+    };
+    
+    console.log('Request data:', requestData);
+    
+    fetch('/admin/api/update_player_emoji', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken
+        },
+        body: JSON.stringify(requestData)
+    })
+    .then(response => {
+        console.log('Response status:', response.status);
+        return response.json();
+    })
+    .then(data => {
+        console.log('Response data:', data);
+        if (data.success) {
+            // Update the emoji in the main page
+            const playerEmojiElement = document.querySelector(`#player-emoji-${playerId}`);
+            if (playerEmojiElement) {
+                // Emoji-Element existiert bereits, einfach aktualisieren
+                playerEmojiElement.textContent = selectedEmoji;
+                console.log('Updated emoji in DOM for player:', playerId);
+            } else {
+                // Emoji-Element existiert nicht (Spieler hat wahrscheinlich ein Profilbild)
+                // Ersetze das Profilbild durch ein Emoji-Element
+                const profileContainer = document.querySelector(`#player-row-${playerId} .profile-image-container`);
+                if (profileContainer) {
+                    // Bestimme die Border-Farbe basierend auf playerType
+                    const borderColor = playerType === 'registration' ? '#007bff' : '#6c757d';
+                    
+                    // Erstelle das neue Emoji-Display
+                    const emojiDisplay = `
+                        <div class="emoji-display" style="width: 40px; height: 40px; border-radius: 50%; background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%); border: 2px solid ${borderColor}; display: flex; align-items: center; justify-content: center; font-size: 20px;">
+                            <span id="player-emoji-${playerId}" class="player-emoji" data-name="${playerName}">${selectedEmoji}</span>
+                        </div>
+                    `;
+                    
+                    // Finde das Bild-Element und ersetze es
+                    const imgElement = profileContainer.querySelector('.player-profile-img');
+                    if (imgElement) {
+                        imgElement.outerHTML = emojiDisplay;
+                        console.log('Replaced profile image with emoji for player:', playerId);
+                    } else {
+                        console.warn('Could not find profile image element for player:', playerId);
+                    }
+                } else {
+                    console.warn('Could not find profile container for player:', playerId);
+                }
+            }
+            
+            showAlert('Emoji erfolgreich geändert!', 'success');
+            closeImageEditModal();
+        } else {
+            console.error('Server error:', data.error);
+            showAlert('Fehler beim Ändern des Emojis: ' + (data.error || 'Unbekannter Fehler'), 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Request error:', error);
+        showAlert('Fehler beim Ändern des Emojis.', 'danger');
+    })
+    .finally(() => {
+        applyBtn.disabled = false;
+        applyBtn.innerHTML = originalContent;
+    });
+}
+
+function openImageUpload(playerName, playerId, playerType) {
+    document.getElementById('image-upload-area').style.display = 'block';
+    document.getElementById('edit-camera-status').textContent = 'Klicke auf "Kamera starten" um ein neues Foto aufzunehmen.';
+}
+
+// Image capture functionality for edit modal
+let editCameraStream = null;
+let editCapturedImageData = null;
+
+function startEditCamera() {
+    navigator.mediaDevices.getUserMedia({ 
+        video: { 
+            facingMode: 'user',
+            width: { ideal: 640, max: 1280 },
+            height: { ideal: 640, max: 1280 }
+        } 
+    })
+    .then(stream => {
+        editCameraStream = stream;
+        const video = document.getElementById('edit-camera-video');
+        video.srcObject = stream;
+        video.style.display = 'block';
+        
+        video.onloadedmetadata = function() {
+            video.play();
+            document.getElementById('edit-btn-start-camera').style.display = 'none';
+            document.getElementById('edit-btn-take-photo').style.display = 'inline-block';
+            document.getElementById('edit-camera-status').textContent = 'Kamera aktiv - Position dich gut und klicke auf "Foto aufnehmen".';
+        };
+    })
+    .catch(error => {
+        console.error('Camera error:', error);
+        document.getElementById('edit-camera-status').innerHTML = 
+            `<div style="color: #ff6b6b;">❌ Kamera konnte nicht gestartet werden: ${error.message}</div>`;
+    });
+}
+
+function stopEditCamera() {
+    if (editCameraStream) {
+        editCameraStream.getTracks().forEach(track => track.stop());
+        editCameraStream = null;
+    }
+}
+
+function takeEditPhoto() {
+    const video = document.getElementById('edit-camera-video');
+    const canvas = document.getElementById('edit-camera-canvas');
+    const capturedImg = document.getElementById('edit-camera-captured');
+    
+    canvas.width = 150;
+    canvas.height = 150;
+    
+    const ctx = canvas.getContext('2d');
+    
+    // Clear and create circular clipping
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.beginPath();
+    ctx.arc(75, 75, 75, 0, 2 * Math.PI);
+    ctx.clip();
+    
+    // Mirror and draw video
+    ctx.scale(-1, 1);
+    ctx.drawImage(video, -canvas.width, 0, canvas.width, canvas.height);
+    
+    editCapturedImageData = canvas.toDataURL('image/jpeg', 0.85);
+    
+    capturedImg.src = editCapturedImageData;
+    capturedImg.style.display = 'block';
+    video.style.display = 'none';
+    
+    document.getElementById('edit-btn-take-photo').style.display = 'none';
+    document.getElementById('edit-btn-retake-photo').style.display = 'inline-block';
+    document.getElementById('edit-btn-save-image').style.display = 'inline-block';
+    
+    document.getElementById('edit-camera-status').textContent = 'Foto aufgenommen! Gefällt es dir?';
+    
+    stopEditCamera();
+}
+
+function retakeEditPhoto() {
+    document.getElementById('edit-camera-video').style.display = 'block';
+    document.getElementById('edit-camera-captured').style.display = 'none';
+    
+    document.getElementById('edit-btn-retake-photo').style.display = 'none';
+    document.getElementById('edit-btn-save-image').style.display = 'none';
+    document.getElementById('edit-btn-start-camera').style.display = 'inline-block';
+    
+    editCapturedImageData = null;
+    document.getElementById('edit-camera-status').textContent = 'Klicke auf "Kamera starten" um es nochmal zu versuchen.';
+}
+
+function savePlayerImage(playerName, playerId, playerType) {
+    if (!editCapturedImageData) {
+        showAlert('Kein Foto aufgenommen!', 'warning');
+        return;
+    }
+    
+    console.log('Saving player image:', {playerName, playerId, playerType});
+    
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || 
+                      document.querySelector('[name=csrf_token]')?.value || '';
+    
+    // Show loading state
+    const saveBtn = document.getElementById('edit-btn-save-image');
+    const originalContent = saveBtn.innerHTML;
+    saveBtn.disabled = true;
+    saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Speichere...';
+    
+    const requestData = {
+        team_id: {{ team.id }},
+        player_name: playerName,
+        player_type: playerType,
+        image_data: editCapturedImageData,
+        action: 'upload'
+    };
+    
+    console.log('Image request data:', requestData);
+    
+    fetch('/admin/api/update_player_image', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken
+        },
+        body: JSON.stringify(requestData)
+    })
+    .then(response => {
+        console.log('Image response status:', response.status);
+        return response.json();
+    })
+    .then(data => {
+        console.log('Image response data:', data);
+        if (data.success) {
+            showAlert('Profilbild erfolgreich aktualisiert!', 'success');
+            closeImageEditModal();
+            // Reload page to show updated image
+            setTimeout(() => {
+                window.location.reload();
+            }, 1500);
+        } else {
+            console.error('Image server error:', data.error);
+            showAlert('Fehler beim Speichern des Bildes: ' + (data.error || 'Unbekannter Fehler'), 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Image request error:', error);
+        showAlert('Fehler beim Speichern des Bildes.', 'danger');
+    })
+    .finally(() => {
+        saveBtn.disabled = false;
+        saveBtn.innerHTML = originalContent;
+    });
+}
+
+function removePlayerImage(playerName, playerId, playerType) {
+    if (!confirm(`Profilbild für "${playerName}" wirklich entfernen?`)) {
+        return;
+    }
+    
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || 
+                      document.querySelector('[name=csrf_token]')?.value || '';
+    
+    fetch('/admin/api/update_player_image', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken
+        },
+        body: JSON.stringify({
+            team_id: {{ team.id }},
+            player_name: playerName,
+            player_type: playerType,
+            action: 'remove'
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert('Profilbild erfolgreich entfernt!', 'success');
+            closeImageEditModal();
+            // Reload page to show emoji fallback
+            setTimeout(() => {
+                window.location.reload();
+            }, 1500);
+        } else {
+            showAlert('Fehler beim Entfernen des Bildes: ' + (data.error || 'Unbekannter Fehler'), 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showAlert('Fehler beim Entfernen des Bildes.', 'danger');
+    });
+}
+
+// ESC key to close image edit modal
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && document.getElementById('image-edit-modal')) {
+        closeImageEditModal();
+    }
+});
+
+// Cleanup on page unload
+window.addEventListener('beforeunload', function() {
+    stopEditCamera();
+});
 
 // Bearbeitung für nachträglich hinzugefügte Team-Mitglieder
 function editMemberName(playerName, playerId) {
@@ -1743,6 +2211,365 @@ function cancelMemberEdit(playerId) {
     }
     
     .modal-buttons {
+        flex-direction: column;
+    }
+}
+
+/* Image Edit Modal Styles */
+.modal-overlay-image-edit {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.85);
+    z-index: 11000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow-y: auto;
+}
+
+.modal-container-image-edit {
+    background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+    border-radius: 20px;
+    padding: 2rem;
+    max-width: 600px;
+    width: 90%;
+    position: relative;
+    color: white;
+    box-shadow: 0 25px 50px rgba(0, 0, 0, 0.5);
+    animation: modalSlideIn 0.3s ease-out;
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+.modal-close-image-edit {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    background: none;
+    border: none;
+    color: white;
+    font-size: 1.5rem;
+    cursor: pointer;
+    opacity: 0.7;
+    transition: opacity 0.3s ease;
+}
+
+.modal-close-image-edit:hover {
+    opacity: 1;
+}
+
+.modal-header-image-edit {
+    text-align: center;
+    margin-bottom: 1.5rem;
+}
+
+.modal-title-image-edit {
+    font-size: 1.8rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+}
+
+.modal-subtitle-image-edit {
+    opacity: 0.9;
+    font-size: 1rem;
+}
+
+.modal-content-image-edit {
+    margin-bottom: 1rem;
+}
+
+.current-display {
+    text-align: center;
+    margin-bottom: 2rem;
+    padding: 1rem;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 15px;
+}
+
+.current-image-container {
+    display: flex;
+    justify-content: center;
+    margin-top: 1rem;
+}
+
+.current-emoji {
+    font-size: 3rem;
+    background: rgba(255, 255, 255, 0.2);
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 3px solid rgba(255, 255, 255, 0.3);
+}
+
+.edit-section {
+    margin-bottom: 2rem;
+    padding: 1.5rem;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 15px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.edit-section h4 {
+    margin-bottom: 1rem;
+    color: #ecf0f1;
+    font-size: 1.2rem;
+}
+
+.emoji-picker {
+    margin-bottom: 1rem;
+}
+
+.emoji-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(40px, 1fr));
+    gap: 0.5rem;
+    max-height: 200px;
+    overflow-y: auto;
+    padding: 1rem;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 10px;
+}
+
+.emoji-button {
+    width: 40px;
+    height: 40px;
+    border: none;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    font-size: 1.5rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.emoji-button:hover {
+    background: rgba(255, 255, 255, 0.2);
+    transform: scale(1.1);
+}
+
+.emoji-button.selected {
+    background: #3498db;
+    transform: scale(1.1);
+    box-shadow: 0 0 10px rgba(52, 152, 219, 0.5);
+}
+
+.selected-emoji-display {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+}
+
+.selected-emoji {
+    font-size: 2rem;
+    background: rgba(255, 255, 255, 0.2);
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.btn-apply-emoji {
+    background: linear-gradient(45deg, #27ae60, #2ecc71);
+    color: white;
+    border: none;
+    padding: 0.6rem 1.2rem;
+    border-radius: 25px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    margin-left: auto;
+}
+
+.btn-apply-emoji:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(46, 204, 113, 0.4);
+}
+
+.image-options {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.btn-image-option {
+    flex: 1;
+    padding: 0.8rem 1rem;
+    border: none;
+    border-radius: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    background: linear-gradient(45deg, #3498db, #2980b9);
+    color: white;
+}
+
+.btn-image-option:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(52, 152, 219, 0.4);
+}
+
+.btn-image-option.btn-remove {
+    background: linear-gradient(45deg, #e74c3c, #c0392b);
+}
+
+.btn-image-option.btn-remove:hover {
+    box-shadow: 0 6px 16px rgba(231, 76, 60, 0.4);
+}
+
+.image-upload-area {
+    margin-top: 1rem;
+    padding: 1rem;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 15px;
+}
+
+.camera-preview-edit {
+    position: relative;
+    width: 150px;
+    height: 150px;
+    margin: 1rem auto;
+    border-radius: 50%;
+    overflow: hidden;
+    border: 3px solid rgba(255, 255, 255, 0.5);
+    background: rgba(0, 0, 0, 0.3);
+}
+
+.camera-video-edit {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transform: scaleX(-1);
+}
+
+.camera-canvas-edit {
+    display: none;
+}
+
+.camera-captured-edit {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.camera-controls-edit {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin: 1rem 0;
+}
+
+.btn-camera-edit {
+    padding: 0.6rem 1rem;
+    border-radius: 20px;
+    border: none;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-size: 0.9rem;
+}
+
+.btn-camera-capture-edit {
+    background: linear-gradient(45deg, #FF6B6B, #EE5A52);
+    color: white;
+    box-shadow: 0 4px 12px rgba(255, 107, 107, 0.4);
+}
+
+.btn-camera-capture-edit:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(255, 107, 107, 0.5);
+}
+
+.btn-camera-retake-edit {
+    background: linear-gradient(45deg, #FFA726, #FF9800);
+    color: white;
+    box-shadow: 0 4px 12px rgba(255, 167, 38, 0.4);
+}
+
+.btn-camera-retake-edit:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(255, 167, 38, 0.5);
+}
+
+.btn-camera-save-edit {
+    background: linear-gradient(45deg, #4CAF50, #45A049);
+    color: white;
+    box-shadow: 0 4px 12px rgba(76, 175, 80, 0.4);
+}
+
+.btn-camera-save-edit:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(76, 175, 80, 0.5);
+}
+
+.camera-status-edit {
+    margin: 0.5rem 0;
+    font-size: 0.9rem;
+    opacity: 0.9;
+    min-height: 20px;
+    text-align: center;
+}
+
+.modal-buttons-image-edit {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.btn-modal-secondary-edit {
+    padding: 0.8rem 1.5rem;
+    border: none;
+    border-radius: 25px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-size: 1rem;
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+}
+
+.btn-modal-secondary-edit:hover {
+    background: rgba(255, 255, 255, 0.3);
+    transform: translateY(-2px);
+}
+
+@media (max-width: 480px) {
+    .modal-container-image-edit {
+        padding: 1.5rem;
+        margin: 1rem;
+    }
+    
+    .emoji-grid {
+        grid-template-columns: repeat(auto-fill, minmax(35px, 1fr));
+        gap: 0.3rem;
+    }
+    
+    .emoji-button {
+        width: 35px;
+        height: 35px;
+        font-size: 1.2rem;
+    }
+    
+    .image-options {
+        flex-direction: column;
+    }
+    
+    .camera-controls-edit {
         flex-direction: column;
     }
 }

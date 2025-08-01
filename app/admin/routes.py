@@ -2750,6 +2750,303 @@ def upload_team_player_image():
         current_app.logger.error(f"Fehler beim Upload des Profilbildes: {e}", exc_info=True)
         return jsonify({'success': False, 'error': 'Serverfehler beim Upload'})
 
+@admin_bp.route('/api/update_player_emoji', methods=['POST'])
+@login_required
+def update_player_emoji():
+    """API-Route zum Ändern des Spieler-Emojis"""
+    if not isinstance(current_user, Admin):
+        return jsonify({'success': False, 'error': 'Nicht autorisiert'})
+    
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': 'Keine Daten erhalten'})
+        
+        team_id = data.get('team_id')
+        player_name = data.get('player_name', '').strip()
+        new_emoji = data.get('emoji', '').strip()
+        player_type = data.get('player_type', 'registration')  # 'registration' oder 'member'
+        
+        if not team_id or not player_name:
+            return jsonify({'success': False, 'error': 'Team-ID und Spielername sind erforderlich'})
+        
+        if not new_emoji:
+            return jsonify({'success': False, 'error': 'Emoji ist erforderlich'})
+        
+        # Team finden
+        team = Team.query.get(team_id)
+        if not team:
+            return jsonify({'success': False, 'error': 'Team nicht gefunden'})
+        
+        if player_type == 'registration':
+            # Spieler in PlayerRegistration finden
+            player = PlayerRegistration.query.filter_by(
+                player_name=player_name,
+                assigned_team_id=team_id
+            ).first()
+            
+            if not player:
+                return jsonify({'success': False, 'error': 'Registrierter Spieler nicht gefunden'})
+            
+            # CLEANUP: Entferne vorhandenes Profilbild falls vorhanden (Wechsel von Bild zu Emoji)
+            if player.profile_image_path:
+                old_file_path = os.path.join(current_app.static_folder, player.profile_image_path)
+                if os.path.exists(old_file_path):
+                    os.remove(old_file_path)
+                    current_app.logger.info(f"Removed old profile image: {old_file_path}")
+                player.profile_image_path = None
+            
+            # Emoji in player_config speichern
+            player_config = team.get_player_config()
+            if player_name not in player_config:
+                player_config[player_name] = {}
+            player_config[player_name]['emoji'] = new_emoji
+            
+            # Speichere in Team player_config
+            team.set_player_config(player_config)
+            
+        else:  # player_type == 'member'
+            # Spieler in team.members (nachträglich hinzugefügter Spieler)
+            members = team.members.split(',') if team.members else []
+            clean_members = [m.strip() for m in members]
+            
+            if player_name not in clean_members:
+                return jsonify({'success': False, 'error': 'Team-Mitglied nicht gefunden'})
+            
+            # CLEANUP: Entferne vorhandenes Profilbild falls vorhanden (Wechsel von Bild zu Emoji)
+            profile_images = team.get_profile_images() or {}
+            if player_name in profile_images:
+                old_file_path = os.path.join(current_app.static_folder, profile_images[player_name])
+                if os.path.exists(old_file_path):
+                    os.remove(old_file_path)
+                    current_app.logger.info(f"Removed old profile image: {old_file_path}")
+                
+                del profile_images[player_name]
+                team.profile_images = json.dumps(profile_images)
+            
+            # Emoji in player_config speichern
+            player_config = team.get_player_config()
+            if player_name not in player_config:
+                player_config[player_name] = {}
+            player_config[player_name]['emoji'] = new_emoji
+            
+            # Speichere in Team player_config
+            team.set_player_config(player_config)
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True, 
+            'message': f'Emoji für {player_name} erfolgreich geändert',
+            'new_emoji': new_emoji
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Fehler beim Ändern des Player-Emojis: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': 'Serverfehler beim Ändern des Emojis'})
+
+@admin_bp.route('/api/update_player_image', methods=['POST'])
+@login_required
+def update_player_image():
+    """API-Route zum Ändern/Hochladen eines neuen Spieler-Profilbildes"""
+    if not isinstance(current_user, Admin):
+        return jsonify({'success': False, 'error': 'Nicht autorisiert'})
+    
+    try:
+        import base64
+        import binascii
+        import os
+        from PIL import Image
+        import io
+        
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': 'Keine Daten erhalten'})
+        
+        team_id = data.get('team_id')
+        player_name = data.get('player_name', '').strip()
+        image_data = data.get('image_data', '')
+        player_type = data.get('player_type', 'registration')  # 'registration' oder 'member'
+        action = data.get('action', 'upload')  # 'upload' oder 'remove'
+        
+        if not team_id or not player_name:
+            return jsonify({'success': False, 'error': 'Team-ID und Spielername sind erforderlich'})
+        
+        # Team finden
+        team = Team.query.get(team_id)
+        if not team:
+            return jsonify({'success': False, 'error': 'Team nicht gefunden'})
+        
+        if action == 'remove':
+            # Profilbild entfernen
+            if player_type == 'registration':
+                player = PlayerRegistration.query.filter_by(
+                    player_name=player_name,
+                    assigned_team_id=team_id
+                ).first()
+                
+                if not player:
+                    return jsonify({'success': False, 'error': 'Registrierter Spieler nicht gefunden'})
+                
+                # Entferne Profilbild-Datei falls vorhanden
+                if player.profile_image_path:
+                    old_file_path = os.path.join(current_app.static_folder, player.profile_image_path)
+                    if os.path.exists(old_file_path):
+                        os.remove(old_file_path)
+                    player.profile_image_path = None
+            
+            else:  # member
+                # Prüfe ob Spieler in team.members existiert
+                members = team.members.split(',') if team.members else []
+                clean_members = [m.strip() for m in members]
+                
+                if player_name not in clean_members:
+                    return jsonify({'success': False, 'error': 'Team-Mitglied nicht gefunden'})
+                
+                # Team-Mitglied Profilbild entfernen
+                profile_images = team.get_profile_images() or {}
+                if player_name in profile_images:
+                    # Entferne Datei falls vorhanden
+                    old_file_path = os.path.join(current_app.static_folder, profile_images[player_name])
+                    if os.path.exists(old_file_path):
+                        os.remove(old_file_path)
+                    
+                    del profile_images[player_name]
+                    team.profile_images = json.dumps(profile_images)
+            
+            db.session.commit()
+            return jsonify({
+                'success': True, 
+                'message': f'Profilbild für {player_name} erfolgreich entfernt'
+            })
+        
+        elif action == 'upload':
+            # Neues Profilbild hochladen
+            if not image_data:
+                return jsonify({'success': False, 'error': 'Bilddaten fehlen'})
+            
+            # Entferne data:image/...;base64, prefix falls vorhanden
+            if 'base64,' in image_data:
+                image_data = image_data.split('base64,')[1]
+            elif image_data.startswith('data:'):
+                parts = image_data.split(',', 1)
+                if len(parts) > 1:
+                    image_data = parts[1]
+            
+            # Dekodiere Base64
+            try:
+                image_binary = base64.b64decode(image_data)
+            except (binascii.Error, ValueError) as e:
+                return jsonify({'success': False, 'error': 'Ungültige Base64-Daten'})
+            
+            # Validiere und verarbeite Bild
+            try:
+                img = Image.open(io.BytesIO(image_binary))
+                
+                # Konvertiere zu RGB falls nötig
+                if img.mode in ('RGBA', 'LA', 'P'):
+                    background = Image.new('RGB', img.size, (255, 255, 255))
+                    if img.mode == 'P':
+                        img = img.convert('RGBA')
+                    background.paste(img, mask=img.split()[-1] if img.mode in ('RGBA', 'LA') else None)
+                    img = background
+                elif img.mode != 'RGB':
+                    img = img.convert('RGB')
+                
+                # Resize auf 150x150 und schneide zu Kreis
+                img = img.resize((150, 150), Image.Resampling.LANCZOS)
+                
+                # Erstelle Upload-Verzeichnis
+                upload_dir = os.path.join(current_app.static_folder, 'team_images')
+                os.makedirs(upload_dir, exist_ok=True)
+                
+                # Generiere Dateinamen
+                import time
+                filename = f"player_{team_id}_{player_name}_{int(time.time())}.jpg"
+                file_path = os.path.join(upload_dir, filename)
+                relative_path = f"team_images/{filename}"
+                
+                # Speichere Bild
+                img.save(file_path, 'JPEG', quality=85, optimize=True)
+                
+                # Aktualisiere Datenbankrecord
+                if player_type == 'registration':
+                    player = PlayerRegistration.query.filter_by(
+                        player_name=player_name,
+                        assigned_team_id=team_id
+                    ).first()
+                    
+                    if not player:
+                        return jsonify({'success': False, 'error': 'Registrierter Spieler nicht gefunden'})
+                    
+                    # Entferne altes Profilbild
+                    if player.profile_image_path:
+                        old_file_path = os.path.join(current_app.static_folder, player.profile_image_path)
+                        if os.path.exists(old_file_path):
+                            os.remove(old_file_path)
+                    
+                    # CLEANUP: Entferne Emoji-Config falls vorhanden (Wechsel von Emoji zu Bild)
+                    player_config = team.get_player_config()
+                    if player_name in player_config and 'emoji' in player_config[player_name]:
+                        del player_config[player_name]['emoji']
+                        # Entferne den ganzen Player-Eintrag wenn er leer ist
+                        if not player_config[player_name]:
+                            del player_config[player_name]
+                        team.set_player_config(player_config)
+                        current_app.logger.info(f"Removed emoji config for player: {player_name}")
+                    
+                    player.profile_image_path = relative_path
+                
+                else:  # member
+                    # Prüfe ob Spieler in team.members existiert
+                    members = team.members.split(',') if team.members else []
+                    clean_members = [m.strip() for m in members]
+                    
+                    if player_name not in clean_members:
+                        return jsonify({'success': False, 'error': 'Team-Mitglied nicht gefunden'})
+                    
+                    # Team-Mitglied Profilbild aktualisieren
+                    profile_images = team.get_profile_images() or {}
+                    
+                    # Entferne altes Bild falls vorhanden
+                    if player_name in profile_images:
+                        old_file_path = os.path.join(current_app.static_folder, profile_images[player_name])
+                        if os.path.exists(old_file_path):
+                            os.remove(old_file_path)
+                    
+                    # CLEANUP: Entferne Emoji-Config falls vorhanden (Wechsel von Emoji zu Bild)
+                    player_config = team.get_player_config()
+                    if player_name in player_config and 'emoji' in player_config[player_name]:
+                        del player_config[player_name]['emoji']
+                        # Entferne den ganzen Player-Eintrag wenn er leer ist
+                        if not player_config[player_name]:
+                            del player_config[player_name]
+                        team.set_player_config(player_config)
+                        current_app.logger.info(f"Removed emoji config for player: {player_name}")
+                    
+                    profile_images[player_name] = relative_path
+                    team.profile_images = json.dumps(profile_images)
+                
+                db.session.commit()
+                
+                return jsonify({
+                    'success': True, 
+                    'message': f'Profilbild für {player_name} erfolgreich aktualisiert',
+                    'image_path': relative_path
+                })
+                
+            except Exception as img_error:
+                return jsonify({'success': False, 'error': f'Fehler bei der Bildverarbeitung: {str(img_error)}'})
+        
+        else:
+            return jsonify({'success': False, 'error': 'Ungültige Aktion'})
+            
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Fehler beim Aktualisieren des Player-Bildes: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': 'Serverfehler beim Aktualisieren des Bildes'})
+
 @admin_bp.route('/init_chars')
 @login_required
 def init_chars():

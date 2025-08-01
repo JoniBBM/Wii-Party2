@@ -7263,7 +7263,7 @@ function showFloatingBubbles(playerFaces) {
         const hasValidImage = player.image_path && 
                player.image_path.trim() !== '' && 
                !player.image_path.includes('default') &&
-               player.image_path.includes('profile_images');
+               (player.image_path.includes('profile_images') || player.image_path.includes('team_images'));
                
         const hasEmoji = player.emoji && player.emoji.trim() !== '';
         
@@ -7345,7 +7345,7 @@ function createFloatingBubble(player, index) {
     const hasValidImage = player.image_path && 
            player.image_path.trim() !== '' && 
            !player.image_path.includes('default') &&
-           player.image_path.includes('profile_images');
+           (player.image_path.includes('profile_images') || player.image_path.includes('team_images'));
     
     if (hasValidImage) {
         // Verwende Profilbild
