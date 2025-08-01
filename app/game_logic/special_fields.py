@@ -853,10 +853,20 @@ def start_selected_field_minigame(game_session, selected_minigame_id, selected_m
                 # Hole verfügbare Spieler für Auslosung
                 selectable_players = landing_team.get_selectable_players()
                 if selectable_players:
-                    if len(selectable_players) >= player_count:
-                        selected_players = random.sample(selectable_players, player_count)
+                    if player_count == -1:
+                        # Ganzes Team
+                        selected_players = selectable_players
+                        # Tracking für alle Spieler aktualisieren
+                        game_session._update_player_rotation_tracking(str(landing_team.id), selected_players)
+                    elif len(selectable_players) >= player_count:
+                        # Faire Rotation verwenden statt zufälliger Auswahl
+                        selected_players = game_session._select_fair_rotation(str(landing_team.id), selectable_players, player_count)
+                        # Tracking aktualisieren
+                        game_session._update_player_rotation_tracking(str(landing_team.id), selected_players)
                     else:
                         selected_players = selectable_players  # Alle Spieler wenn weniger als benötigt
+                        # Tracking für alle verfügbaren Spieler
+                        game_session._update_player_rotation_tracking(str(landing_team.id), selected_players)
                     
                     # Erweitere Spielerdaten um alle nötigen Informationen für die Anzeige
                     current_app.logger.info(f"[DEBUG] Processing {len(selected_players)} players for team {landing_team.name}")
@@ -884,10 +894,20 @@ def start_selected_field_minigame(game_session, selected_minigame_id, selected_m
             if opponent_team:
                 selectable_players = opponent_team.get_selectable_players()
                 if selectable_players:
-                    if len(selectable_players) >= player_count:
-                        selected_players = random.sample(selectable_players, player_count)
+                    if player_count == -1:
+                        # Ganzes Team
+                        selected_players = selectable_players
+                        # Tracking für alle Spieler aktualisieren
+                        game_session._update_player_rotation_tracking(str(opponent_team.id), selected_players)
+                    elif len(selectable_players) >= player_count:
+                        # Faire Rotation verwenden statt zufälliger Auswahl
+                        selected_players = game_session._select_fair_rotation(str(opponent_team.id), selectable_players, player_count)
+                        # Tracking aktualisieren
+                        game_session._update_player_rotation_tracking(str(opponent_team.id), selected_players)
                     else:
                         selected_players = selectable_players
+                        # Tracking für alle verfügbaren Spieler
+                        game_session._update_player_rotation_tracking(str(opponent_team.id), selected_players)
                     
                     # Erweitere Spielerdaten um alle nötigen Informationen für die Anzeige
                     player_data_list = []
@@ -914,10 +934,20 @@ def start_selected_field_minigame(game_session, selected_minigame_id, selected_m
             for team in all_teams:
                 selectable_players = team.get_selectable_players()
                 if selectable_players:
-                    if len(selectable_players) >= player_count:
-                        selected_players = random.sample(selectable_players, player_count)
+                    if player_count == -1:
+                        # Ganzes Team
+                        selected_players = selectable_players
+                        # Tracking für alle Spieler aktualisieren
+                        game_session._update_player_rotation_tracking(str(team.id), selected_players)
+                    elif len(selectable_players) >= player_count:
+                        # Faire Rotation verwenden statt zufälliger Auswahl
+                        selected_players = game_session._select_fair_rotation(str(team.id), selectable_players, player_count)
+                        # Tracking aktualisieren
+                        game_session._update_player_rotation_tracking(str(team.id), selected_players)
                     else:
                         selected_players = selectable_players
+                        # Tracking für alle verfügbaren Spieler
+                        game_session._update_player_rotation_tracking(str(team.id), selected_players)
                     
                     # Erweitere Spielerdaten um alle nötigen Informationen für die Anzeige
                     player_data_list = []

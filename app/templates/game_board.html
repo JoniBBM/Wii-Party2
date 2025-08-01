@@ -2502,6 +2502,81 @@ class WiiPartyIsland {
 
     updateTeamDisplay() {}
     
+    handlePostMinigameCameraUpdates(gameSession) {
+        // Handle camera transitions after field minigames
+        if (!gameSession) return;
+        
+        const currentPhase = gameSession.current_phase;
+        const previousPhase = window.lastGamePhase || '';
+        
+        // Detect transition from field minigame phases to next phase
+        const fieldMinigamePhases = ['FIELD_MINIGAME_SELECTION_PENDING', 'FIELD_MINIGAME_TRIGGERED', 'FIELD_MINIGAME_COMPLETED'];
+        const wasInFieldMinigame = fieldMinigamePhases.includes(previousPhase);
+        const isNowInNextPhase = currentPhase === 'DICE_ROLLING' || currentPhase === 'ROUND_OVER';
+        
+        if (wasInFieldMinigame && isNowInNextPhase) {
+            console.log("🎥 [CAMERA] Field minigame completed, handling camera transition", {
+                from: previousPhase,
+                to: currentPhase,
+                currentTeamTurnId: gameSession.current_team_turn_id
+            });
+            
+            // Add small delay to allow any team position updates to complete
+            setTimeout(() => {
+                this.handleFieldMinigameCameraTransition(gameSession);
+            }, 500);
+        }
+        
+        // Update last phase for next comparison
+        window.lastGamePhase = currentPhase;
+    }
+    
+    handleFieldMinigameCameraTransition(gameSession) {
+        const currentPhase = gameSession.current_phase;
+        
+        if (currentPhase === 'ROUND_OVER') {
+            // Round is over - switch to orbit mode
+            console.log("🌌 [CAMERA] Round over after field minigame - switching to orbit");
+            this.switchToAutoOrbit();
+            
+            // Show status message
+            setTimeout(() => {
+                this.showStatusMessage("Alle Teams haben gewürfelt. Admin kann nächstes Minispiel setzen.", 3000, 'success', true, 'Runde beendet');
+            }, 1000);
+            
+        } else if (currentPhase === 'DICE_ROLLING' && gameSession.current_team_turn_id) {
+            // There's a next team to focus on
+            const nextTeamId = gameSession.current_team_turn_id;
+            const nextTeam = localTeams?.find(t => t.id === nextTeamId);
+            
+            if (nextTeam) {
+                console.log("🎯 [CAMERA] Next team after field minigame:", nextTeam.name);
+                
+                // Update game state to the next team
+                GAME_STATE.currentServerTeamTurnId = nextTeamId;
+                const nextTeamIndex = localTeams.findIndex(t => t.id === nextTeamId);
+                if (nextTeamIndex !== -1) {
+                    GAME_STATE.currentTeamIndex = nextTeamIndex;
+                }
+                
+                // Focus camera on next team with smooth transition
+                this.prepareNextPlayerTurn(false);
+                
+                // Update team display
+                this.updateTeamDisplay();
+                
+            } else {
+                console.warn("🎯 [CAMERA] Next team not found, switching to orbit");
+                this.switchToAutoOrbit();
+            }
+            
+        } else {
+            // Fallback - switch to orbit if no clear next action
+            console.log("🌌 [CAMERA] No clear next action after field minigame - switching to orbit");
+            this.switchToAutoOrbit();
+        }
+    }
+    
     updateMinigameDisplay() {
         // Update any minigame-related UI elements
     }
@@ -3222,6 +3297,9 @@ class WiiPartyIsland {
                     }
 
                     this.updateTeamDisplay();
+                    
+                    // === CAMERA UPDATES AFTER FIELD MINIGAME ===
+                    this.handlePostMinigameCameraUpdates(data.game_session);
                 }
             })
             .catch(error => {

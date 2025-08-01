@@ -3858,6 +3858,47 @@ def api_field_minigames(mode):
             return jsonify({'success': False, 'error': 'Fehler beim Speichern'}), 500
 
 
+@admin_bp.route('/api/field_minigames/<mode>/<minigame_id>', methods=['PUT'])
+@login_required
+def api_update_field_minigame(mode, minigame_id):
+    """API-Endpunkt zum Aktualisieren von Feld-Minigames"""
+    if not isinstance(current_user, Admin):
+        return jsonify({'error': 'Zugriff verweigert'}), 403
+    
+    if mode not in ['team_vs_all', 'team_vs_team']:
+        return jsonify({'error': 'Ungültiger Modus'}), 400
+    
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': 'Keine Daten empfangen'}), 400
+        
+        folder_path = os.path.join(current_app.static_folder, 'field_minigames', mode)
+        file_path = os.path.join(folder_path, minigame_id)
+        
+        if not os.path.exists(file_path) or not file_path.endswith('.json'):
+            return jsonify({'success': False, 'error': 'Minigame nicht gefunden'}), 404
+        
+        # Erstelle das Update-Objekt
+        update_data = {
+            'type': data.get('type', 'game'),
+            'title': data.get('title', ''),
+            'instructions': data.get('instructions', ''),
+            'player_count': data.get('player_count', 1),
+            'materials': data.get('materials', 'Keine')
+        }
+        
+        # Aktualisiere die JSON-Datei
+        with open(file_path, 'w', encoding='utf-8') as f:
+            json.dump(update_data, f, ensure_ascii=False, indent=2)
+        
+        return jsonify({'success': True, 'message': 'Minigame aktualisiert'})
+        
+    except Exception as e:
+        current_app.logger.error(f"Fehler beim Aktualisieren des Minigames: {e}")
+        return jsonify({'success': False, 'error': 'Fehler beim Aktualisieren'}), 500
+
+
 @admin_bp.route('/api/field_minigames/<mode>/<minigame_id>', methods=['DELETE'])
 @login_required
 def api_delete_field_minigame(mode, minigame_id):

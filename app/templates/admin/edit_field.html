@@ -773,6 +773,13 @@ function openMinigameEditor(mode) {
                                             <textarea class="form-control" id="game_instructions" rows="3" placeholder="Detaillierte Anleitung für das Spiel" required></textarea>
                                         </div>
                                         <div class="form-group">
+                                            <label for="player_count_type">Spieler-Auswahl</label>
+                                            <select class="form-control" id="player_count_type" onchange="updatePlayerCountOptions()">
+                                                <option value="number">Bestimmte Anzahl</option>
+                                                <option value="whole_team">Ganzes Team</option>
+                                            </select>
+                                        </div>
+                                        <div class="form-group" id="player_count_number_group">
                                             <label for="player_count">Anzahl Spieler pro Team</label>
                                             <input type="number" class="form-control" id="player_count" value="1" min="1" max="10" placeholder="z.B. 1, 2, 3">
                                             <small class="text-muted">Anzahl der Spieler die pro Team ausgelost werden</small>
@@ -854,12 +861,32 @@ function loadExistingMinigames(mode) {
         });
 }
 
+function updatePlayerCountOptions() {
+    const type = document.getElementById('player_count_type').value;
+    const numberGroup = document.getElementById('player_count_number_group');
+    
+    if (type === 'whole_team') {
+        numberGroup.style.display = 'none';
+    } else {
+        numberGroup.style.display = 'block';
+    }
+}
+
 function saveMinigame(mode) {
+    const playerCountType = document.getElementById('player_count_type').value;
+    let playerCount;
+    
+    if (playerCountType === 'whole_team') {
+        playerCount = -1; // Spezialwert für "ganzes Team"
+    } else {
+        playerCount = parseInt(document.getElementById('player_count').value);
+    }
+    
     let data = {
         type: "game",
         title: document.getElementById('game_title').value,
         instructions: document.getElementById('game_instructions').value,
-        player_count: parseInt(document.getElementById('player_count').value),
+        player_count: playerCount,
         materials: "Keine"
     };
     
@@ -895,8 +922,100 @@ function saveMinigame(mode) {
 }
 
 function editMinigame(mode, id) {
-    // Implementation for editing existing minigame
-    showAlert('Bearbeiten-Funktion wird implementiert', 'info');
+    // Erst die Daten des Minigames laden
+    fetch(`/admin/api/field_minigames/${mode}`)
+        .then(response => response.json())
+        .then(data => {
+            const minigame = data.minigames.find(m => m.id === id);
+            if (!minigame) {
+                showAlert('Minigame nicht gefunden', 'danger');
+                return;
+            }
+            
+            // Formular mit vorhandenen Daten befüllen
+            document.getElementById('game_title').value = minigame.title || '';
+            document.getElementById('game_instructions').value = minigame.instructions || '';
+            
+            // Player count handling
+            const playerCount = minigame.player_count || 1;
+            if (playerCount === -1) {
+                // Ganzes Team
+                document.getElementById('player_count_type').value = 'whole_team';
+                updatePlayerCountOptions();
+            } else {
+                // Bestimmte Anzahl
+                document.getElementById('player_count_type').value = 'number';
+                document.getElementById('player_count').value = playerCount;
+                updatePlayerCountOptions();
+            }
+            
+            showAlert(`Bearbeite "${minigame.title}"`, 'info');
+            
+            // Change the save button to update mode
+            const saveButton = document.querySelector('button[onclick^="saveMinigame"]');
+            saveButton.onclick = () => updateMinigame(mode, id);
+            saveButton.innerHTML = '<i class="fas fa-save"></i> Änderungen speichern';
+        })
+        .catch(error => {
+            console.error('Error loading minigame for editing:', error);
+            showAlert('Fehler beim Laden des Minigames', 'danger');
+        });
+}
+
+function updateMinigame(mode, id) {
+    const playerCountType = document.getElementById('player_count_type').value;
+    let playerCount;
+    
+    if (playerCountType === 'whole_team') {
+        playerCount = -1; // Spezialwert für "ganzes Team"
+    } else {
+        playerCount = parseInt(document.getElementById('player_count').value);
+    }
+    
+    let data = {
+        type: "game",
+        title: document.getElementById('game_title').value,
+        instructions: document.getElementById('game_instructions').value,
+        player_count: playerCount,
+        materials: "Keine"
+    };
+    
+    // Validierung
+    if (!data.title || !data.instructions) {
+        showAlert('Bitte alle Pflichtfelder ausfüllen', 'warning');
+        return;
+    }
+    
+    fetch(`/admin/api/field_minigames/${mode}/${id}`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('input[name="csrf_token"]').value
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(result => {
+        if (result.success) {
+            showAlert('Minigame aktualisiert', 'success');
+            loadExistingMinigames(mode);
+            loadFieldMinigameData(); // Update counts
+            resetFormToCreateMode(mode);
+        } else {
+            showAlert('Fehler beim Aktualisieren: ' + result.message, 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Error updating minigame:', error);
+        showAlert('Fehler beim Aktualisieren', 'danger');
+    });
+}
+
+function resetFormToCreateMode(mode) {
+    clearForm();
+    const saveButton = document.querySelector('button[onclick^="updateMinigame"], button[onclick^="saveMinigame"]');
+    saveButton.onclick = () => saveMinigame(mode);
+    saveButton.innerHTML = '<i class="fas fa-save"></i> Minigame speichern';
 }
 
 function deleteMinigame(mode, id) {
@@ -927,7 +1046,9 @@ function deleteMinigame(mode, id) {
 function clearForm() {
     document.getElementById('game_title').value = '';
     document.getElementById('game_instructions').value = '';
+    document.getElementById('player_count_type').value = 'number';
     document.getElementById('player_count').value = '1';
+    updatePlayerCountOptions();
 }
 
 function showAlert(message, type) {
