@@ -2,6 +2,38 @@
 
 {% block title %}Moderationsmodus - Wii Party U Deluxe{% endblock %}
 
+{% block extra_css %}
+<style>
+.dice-display {
+    text-align: center;
+    padding: 10px;
+}
+
+.dice-display .h1, .dice-display .h2, .dice-display .h4 {
+    margin-bottom: 5px;
+    font-weight: bold;
+}
+
+#dice-result-display {
+    animation: fadeIn 0.5s ease-in;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+#dice-result-display.fade-out {
+    animation: fadeOut 0.5s ease-out;
+}
+
+@keyframes fadeOut {
+    from { opacity: 1; transform: translateY(0); }
+    to { opacity: 0; transform: translateY(-20px); }
+}
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="container-fluid mt-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
@@ -55,27 +87,81 @@
         </div>
     </div>
     
-    <!-- Detailansicht für Fragen/Minigames oder Ergebnisse -->
-    {% if game_status and (game_status.content_details or (game_status.results and game_status.results.has_results)) %}
-    <div class="row mb-4" id="initial-content-card">
+    <!-- WÜRFELERGEBNIS-ANZEIGE - LIVE UPDATES -->
+    <div class="row mb-4" id="dice-result-display" style="display: none;">
         <div class="col-12">
-            {% if game_status.content_details %}
-            <div class="card border-{{ game_status.content_details.type_color }}">
-                <div class="card-header bg-{{ game_status.content_details.type_color }} text-white">
-                    <h5 class="mb-0">
-                        <i class="fas fa-{{ game_status.content_details.icon }}"></i> 
-                        {{ game_status.content_details.type_name }}: {{ game_status.content_details.name }}
-                    </h5>
-                </div>
-            {% else %}
             <div class="card border-success">
                 <div class="card-header bg-success text-white">
                     <h5 class="mb-0">
-                        <i class="fas fa-trophy"></i> 
-                        Letzte Ergebnisse
+                        <i class="fas fa-dice"></i> 
+                        Würfelergebnis
                     </h5>
                 </div>
-            {% endif %}
+                <div class="card-body text-center">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <div class="dice-display">
+                                <small class="text-muted">Team</small>
+                                <div class="h4" id="dice-team-name">-</div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="dice-display">
+                                <small class="text-muted">Standard</small>
+                                <div class="h2 text-primary" id="dice-standard">-</div>
+                            </div>
+                        </div>
+                        <div class="col-md-3" id="dice-bonus-section" style="display: none;">
+                            <div class="dice-display">
+                                <small class="text-muted">Bonus</small>
+                                <div class="h2 text-warning" id="dice-bonus">-</div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="dice-display">
+                                <small class="text-muted">Gesamt</small>
+                                <div class="h1 text-success font-weight-bold" id="dice-total">0</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mt-2">
+                        <small class="text-muted" id="dice-timestamp">Zeit: --:--:--</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Detailansicht für Fragen/Minigames oder Ergebnisse -->
+    <!-- IMMER RENDERN aber anfangs versteckt -->
+    <div class="row mb-4" id="initial-content-card" style="{% if not (game_status and (game_status.content_details or (game_status.results and game_status.results.has_results))) %}display: none;{% endif %}">
+        <div class="col-12">
+            <div id="content-card-inner">
+                {% if game_status and game_status.content_details %}
+                <div class="card border-{{ game_status.content_details.type_color }}">
+                    <div class="card-header bg-{{ game_status.content_details.type_color }} text-white">
+                        <h5 class="mb-0">
+                            <i class="fas fa-{{ game_status.content_details.icon }}"></i> 
+                            {{ game_status.content_details.type_name }}: {{ game_status.content_details.name }}
+                        </h5>
+                    </div>
+                {% elif game_status and game_status.results and game_status.results.has_results %}
+                <div class="card border-success">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0">
+                            <i class="fas fa-trophy"></i> 
+                            Letzte Ergebnisse
+                        </h5>
+                    </div>
+                {% else %}
+                <div class="card border-info">
+                    <div class="card-header bg-info text-white">
+                        <h5 class="mb-0">
+                            <i class="fas fa-info-circle"></i> 
+                            Inhalt
+                        </h5>
+                    </div>
+                {% endif %}
                 <div class="card-body">
                     {% if game_status.content_details %}
                         {% if game_status.content_details.description %}
@@ -139,27 +225,66 @@
                         {% if game_status.content_details.team_responses %}
                             <div class="mb-3">
                                 <strong>Team-Antworten:</strong>
-                                <div class="row">
-                                    <div class="col-md-6">
-                                        <h6 class="text-success">✓ Geantwortet:</h6>
-                                        {% if game_status.content_details.team_responses.answered %}
-                                            {% for team in game_status.content_details.team_responses.answered %}
-                                            <span class="badge badge-success mr-1 mb-1">{{ team }}</span>
+                                <div id="team-responses-section">
+                                    {% if game_status.content_details.team_responses.detailed_responses %}
+                                        <div class="mt-2">
+                                            <small class="text-muted">{{ game_status.content_details.team_responses.total_responses }}/{{ game_status.content_details.team_responses.total_teams }} Teams haben geantwortet</small>
+                                        </div>
+                                        <div class="row mt-2">
+                                            {% for response in game_status.content_details.team_responses.detailed_responses %}
+                                            <div class="col-md-6 mb-2">
+                                                <div class="card border-{% if response.is_correct %}success{% else %}danger{% endif %}">
+                                                    <div class="card-body p-2">
+                                                        <div class="d-flex justify-content-between align-items-center">
+                                                            <div>
+                                                                <strong>{{ response.team_name }}</strong>
+                                                                <small class="d-block text-muted">{{ response.answer_preview }}</small>
+                                                                {% if response.answered_at %}
+                                                                    <small class="text-muted">{{ response.answered_at }}</small>
+                                                                {% endif %}
+                                                            </div>
+                                                            <span>
+                                                                {% if response.is_correct %}
+                                                                    <i class="fas fa-check text-success"></i>
+                                                                {% else %}
+                                                                    <i class="fas fa-times text-danger"></i>
+                                                                {% endif %}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
                                             {% endfor %}
-                                        {% else %}
-                                            <span class="text-muted">Noch keine Antworten</span>
+                                        </div>
+                                        {% if game_status.content_details.team_responses.total_responses == game_status.content_details.team_responses.total_teams and game_status.content_details.team_responses.total_teams > 0 %}
+                                            <div class="alert alert-success mt-2 mb-0">
+                                                <i class="fas fa-check-circle"></i> Alle Teams haben geantwortet!
+                                            </div>
                                         {% endif %}
-                                    </div>
-                                    <div class="col-md-6">
-                                        <h6 class="text-warning">⏳ Ausstehend:</h6>
-                                        {% if game_status.content_details.team_responses.pending %}
-                                            {% for team in game_status.content_details.team_responses.pending %}
-                                            <span class="badge badge-warning mr-1 mb-1">{{ team }}</span>
-                                            {% endfor %}
-                                        {% else %}
-                                            <span class="text-muted">Alle haben geantwortet</span>
-                                        {% endif %}
-                                    </div>
+                                    {% else %}
+                                        <div class="row mt-2">
+                                            <div class="col-md-6">
+                                                <h6 class="text-success">✓ Geantwortet:</h6>
+                                                {% if game_status.content_details.team_responses.answered %}
+                                                    {% for team in game_status.content_details.team_responses.answered %}
+                                                    <span class="badge badge-success mr-1 mb-1">{{ team }}</span>
+                                                    {% endfor %}
+                                                {% else %}
+                                                    <span class="text-muted">Noch keine Antworten</span>
+                                                {% endif %}
+                                            </div>
+                                            <div class="col-md-6">
+                                                <h6 class="text-warning">⏳ Ausstehend:</h6>
+                                                {% if game_status.content_details.team_responses.pending %}
+                                                    {% for team in game_status.content_details.team_responses.pending %}
+                                                    <span class="badge badge-warning mr-1 mb-1">{{ team }}</span>
+                                                    {% endfor %}
+                                                {% else %}
+                                                    <span class="text-muted">Alle haben geantwortet</span>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                    {% endif %}
                                 </div>
                             </div>
                         {% endif %}
@@ -191,138 +316,231 @@
             </div>
         </div>
     </div>
-    {% endif %}
     
 </div>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // AJAX Auto-Update alle 3 Sekunden
+    let lastPhase = null;
+    let diceResultTimeout = null;
+    let lastDiceResult = null;
+    
+    // AJAX Auto-Update alle 3 Sekunden - VEREINFACHT UND ROBUSTER
     function updateStatus() {
         fetch('{{ url_for("admin.moderation_mode_api") }}')
             .then(response => response.json())
             .then(data => {
+                console.log('Update data received:', data);
+                
                 if (data.game_status) {
-                    // Update Status Badge
-                    const statusBadge = document.querySelector('.badge-lg');
-                    if (statusBadge) {
-                        statusBadge.className = `badge badge-${data.game_status.status_color} badge-lg`;
-                        statusBadge.textContent = data.game_status.current_status;
+                    // Erkenne Phasenwechsel
+                    const currentPhase = data.game_status.current_status;
+                    if (lastPhase && lastPhase !== currentPhase) {
+                        console.log(`Phase changed from ${lastPhase} to ${currentPhase}`);
+                        handlePhaseChange(lastPhase, currentPhase);
                     }
+                    lastPhase = currentPhase;
                     
-                    // Update Team Info
-                    const teamCol = document.querySelector('.col-md-3:nth-child(2)');
-                    if (teamCol && data.game_status.current_team) {
-                        teamCol.innerHTML = `<strong>Aktuelles Team:</strong>
-                            <span class="badge badge-primary">${data.game_status.current_team}</span>`;
-                    } else if (teamCol) {
-                        teamCol.innerHTML = '';
-                    }
+                    updateStatusSection(data.game_status);
+                    updateContentSection(data.game_status);
                     
-                    // Update Details
-                    const detailsDiv = document.querySelector('.mt-3 p');
-                    if (detailsDiv && data.game_status.additional_info) {
-                        detailsDiv.textContent = data.game_status.additional_info;
-                    }
-                    
-                    // Update Content Details Card
-                    if (data.game_status.content_details || (data.game_status.results && data.game_status.results.has_results)) {
-                        // Content oder Ergebnisse vorhanden - zeige initial card oder update dynamic card
-                        const initialCard = document.querySelector('#initial-content-card');
-                        if (initialCard) {
-                            initialCard.style.display = 'block';
-                            
-                            // Update Ergebnisse in initial card falls vorhanden
-                            if (data.game_status.results && data.game_status.results.has_results) {
-                                const cardBody = initialCard.querySelector('.card-body');
-                                if (cardBody) {
-                                    // Entferne alte dynamische Ergebnisse
-                                    const oldResults = cardBody.querySelector('.results-section');
-                                    if (oldResults) {
-                                        oldResults.remove();
-                                    }
-                                    
-                                    // Prüfe ob bereits statische Ergebnisse da sind
-                                    const staticResults = cardBody.innerHTML.includes('🏆 Platzierungen');
-                                    if (!staticResults) {
-                                        // Füge neue Ergebnisse nur hinzu wenn keine statischen da sind
-                                        const resultsDiv = document.createElement('div');
-                                        resultsDiv.className = 'mb-3 results-section';
-                                        resultsDiv.innerHTML = generateResultsHTML(data.game_status.results);
-                                        cardBody.appendChild(resultsDiv);
-                                    }
-                                }
-                            }
-                        }
-                        updateContentCard(data.game_status.content_details, data.game_status.results);
-                    } else {
-                        // Kein Content und keine Ergebnisse - verstecke initial card und entferne dynamic card
-                        const initialCard = document.querySelector('#initial-content-card');
-                        if (initialCard) {
-                            initialCard.style.display = 'none';
-                        }
-                        const dynamicCard = document.querySelector('#dynamic-content-card');
-                        if (dynamicCard) {
-                            dynamicCard.remove();
-                        }
-                    }
+                    // Debug dice result data
+                    console.log('Dice result in game_status:', data.game_status.dice_result);
+                    updateDiceResultSection(data.game_status);
                 } else {
-                    // Kein aktives Spiel
-                    const statusCard = document.querySelector('.card-body');
-                    if (statusCard) {
-                        statusCard.innerHTML = `<div class="text-center text-muted py-4">
-                            <i class="fas fa-pause-circle fa-3x mb-3"></i>
-                            <p>Spiel ist momentan nicht aktiv</p>
-                        </div>`;
-                    }
+                    showInactiveGame();
                 }
             })
             .catch(error => {
-                console.log('Update failed:', error);
+                console.error('Update failed:', error);
             });
     }
     
-    function updateContentCard(contentDetails) {
-        // Prüfe ob initial card da ist und sichtbar
-        const initialCard = document.querySelector('#initial-content-card');
-        if (initialCard && initialCard.style.display !== 'none') {
-            // Initial card wird bereits angezeigt, nichts zu tun
+    function handlePhaseChange(oldPhase, newPhase) {
+        const contentPhases = ['Frage läuft', 'Frage', 'Minispiel', 'Ergebnisse', 'Runde beendet'];
+        const wasContentPhase = contentPhases.includes(oldPhase);
+        const isContentPhase = contentPhases.includes(newPhase);
+        
+        // Wenn von Content-Phase zu Würfelrunde gewechselt wird, blende Content aus
+        if (wasContentPhase && newPhase === 'Würfelrunde') {
+            console.log('Hiding content due to phase change to dice rolling');
+            hideContentCard();
+        }
+        
+        // Wenn von Ergebnissen zu neuer Frage/Minispiel gewechselt wird, räume auf
+        if ((oldPhase === 'Ergebnisse' || oldPhase === 'Runde beendet') && isContentPhase && newPhase !== 'Ergebnisse' && newPhase !== 'Runde beendet') {
+            console.log('Clearing old results due to new content');
+            clearContentCard();
+        }
+        
+        // Wenn zu Content-Phase gewechselt wird, stelle sicher dass Content angezeigt wird
+        if (!wasContentPhase && isContentPhase) {
+            console.log('Switching to content phase, ensuring content is visible');
+            // Lass updateContentSection das handhaben
+        }
+        
+        // Würfelergebnis bei Phasenwechsel von Würfelrunde weg - VERLÄNGERTE ANZEIGE
+        if (oldPhase === 'Würfelrunde' && newPhase !== 'Würfelrunde') {
+            console.log('Phase changed away from dice rolling - extending dice result display for 10 seconds');
+            
+            // Lösche vorherigen Timeout
+            if (diceResultTimeout) {
+                clearTimeout(diceResultTimeout);
+            }
+            
+            // Verlängerte Anzeige für 10 Sekunden nach Ende der Würfelrunde
+            diceResultTimeout = setTimeout(() => {
+                console.log('Hiding dice result after extended display (10 seconds)');
+                hideDiceResult();
+            }, 10000);
+        }
+    }
+    
+    function hideContentCard() {
+        const contentCard = document.querySelector('#initial-content-card');
+        if (contentCard) {
+            contentCard.style.display = 'none';
+        }
+    }
+    
+    function clearContentCard() {
+        const contentCard = document.querySelector('#initial-content-card');
+        if (contentCard) {
+            // Entferne alte Ergebnisse
+            const resultsSection = contentCard.querySelector('.results-section');
+            if (resultsSection) {
+                resultsSection.remove();
+            }
+            
+            // Setze Team-Antworten zurück
+            const responsesSection = contentCard.querySelector('#team-responses-section');
+            if (responsesSection) {
+                responsesSection.innerHTML = '<div class="text-center text-muted"><i class="fas fa-clock"></i> Warte auf Antworten...</div>';
+            }
+        }
+    }
+    
+    function updateStatusSection(gameStatus) {
+        // Update Status Badge
+        const statusBadge = document.querySelector('.badge-lg');
+        if (statusBadge) {
+            statusBadge.className = `badge badge-${gameStatus.status_color} badge-lg`;
+            statusBadge.textContent = gameStatus.current_status;
+        }
+        
+        // Update Team Info
+        const teamCol = document.querySelector('.col-md-3:nth-child(2)');
+        if (teamCol) {
+            if (gameStatus.current_team) {
+                teamCol.innerHTML = `<strong>Aktuelles Team:</strong>
+                    <span class="badge badge-primary">${gameStatus.current_team}</span>`;
+            } else {
+                teamCol.innerHTML = '';
+            }
+        }
+        
+        // Update Details
+        const detailsDiv = document.querySelector('.mt-3 p');
+        if (detailsDiv && gameStatus.additional_info) {
+            detailsDiv.textContent = gameStatus.additional_info;
+        }
+    }
+    
+    function updateContentSection(gameStatus) {
+        const contentCard = document.querySelector('#initial-content-card');
+        const currentPhase = gameStatus.current_status;
+        
+        // Zeige Content bei allen relevanten Phasen - ERWEITERT UM "RUNDE BEENDET"
+        const showContentPhases = ['Frage läuft', 'Frage', 'Minispiel', 'Ergebnisse', 'Runde beendet'];
+        const shouldShowContent = showContentPhases.includes(currentPhase) && 
+                                 (gameStatus.content_details || (gameStatus.results && gameStatus.results.has_results));
+        
+        console.log(`Phase: ${currentPhase}, Should show content: ${shouldShowContent}, Has content_details: ${!!gameStatus.content_details}, Has results: ${!!(gameStatus.results && gameStatus.results.has_results)}`);
+        
+        if (shouldShowContent) {
+            if (contentCard) {
+                contentCard.style.display = 'block';
+                console.log('Showing content card - display set to block');
+                
+                // Update the entire content card
+                updateContentCardContent(gameStatus);
+            } else {
+                console.error('Content card element not found! Creating or showing content...');
+                ensureContentCardExists(gameStatus);
+            }
+        } else {
+            // Verstecke Content nur bei Würfelrunde oder wirklich unbekannten Phasen
+            if (contentCard && currentPhase === 'Würfelrunde') {
+                console.log(`Hiding content card for phase: ${currentPhase}`);
+                contentCard.style.display = 'none';
+            }
+        }
+    }
+    
+    function ensureContentCardExists(gameStatus) {
+        // Prüfe ob das initial content card existiert aber versteckt ist
+        let contentCard = document.querySelector('#initial-content-card');
+        
+        if (!contentCard) {
+            console.log('Initial content card not found, checking template...');
             return;
         }
         
-        // Update oder erstelle dynamic card nur wenn initial card nicht da/sichtbar ist  
-        let contentCard = document.querySelector('#dynamic-content-card');
-        if (!contentCard) {
-            // Erstelle neue Content Card
-            const mainRow = document.querySelector('.row.mb-4:first-child');
-            contentCard = document.createElement('div');
-            contentCard.className = 'row mb-4';
-            contentCard.id = 'dynamic-content-card';
-            mainRow.parentNode.insertBefore(contentCard, mainRow.nextSibling);
-        }
+        // Force show the content card
+        contentCard.style.display = 'block';
+        contentCard.style.visibility = 'visible';
         
-        contentCard.innerHTML = `
-            <div class="col-12">
-                <div class="card border-${contentDetails.type_color}">
-                    <div class="card-header bg-${contentDetails.type_color} text-white">
+        console.log('Content card forced to show');
+        
+        // Rebuild the content card inner HTML dynamically
+        updateContentCardContent(gameStatus);
+    }
+    
+    function updateContentCardContent(gameStatus) {
+        const contentInner = document.querySelector('#content-card-inner');
+        if (!contentInner) return;
+        
+        let html = '';
+        
+        if (gameStatus.content_details) {
+            html = `
+                <div class="card border-${gameStatus.content_details.type_color}">
+                    <div class="card-header bg-${gameStatus.content_details.type_color} text-white">
                         <h5 class="mb-0">
-                            <i class="fas fa-${contentDetails.icon}"></i> 
-                            ${contentDetails.type_name}: ${contentDetails.name}
+                            <i class="fas fa-${gameStatus.content_details.icon}"></i> 
+                            ${gameStatus.content_details.type_name}: ${gameStatus.content_details.name}
                         </h5>
                     </div>
                     <div class="card-body">
-                        ${contentDetails.description ? `<p><strong>Beschreibung:</strong> ${contentDetails.description}</p>` : ''}
-                        ${contentDetails.question_text ? `<div class="mb-3"><strong>Frage:</strong><p class="h5 text-primary">${contentDetails.question_text}</p></div>` : ''}
-                        ${contentDetails.options ? generateOptionsHTML(contentDetails.options) : ''}
-                        ${contentDetails.correct_answer ? `<div class="alert alert-success"><strong>Korrekte Antwort:</strong> ${contentDetails.correct_answer}</div>` : ''}
-                        ${contentDetails.duration ? `<p><strong>Dauer:</strong> ${contentDetails.duration}</p>` : ''}
-                        ${contentDetails.instructions ? `<div class="alert alert-info"><strong>Anweisungen:</strong> ${contentDetails.instructions}</div>` : ''}
-                        ${contentDetails.selected_players ? generatePlayersHTML(contentDetails.selected_players) : ''}
-                        ${contentDetails.team_responses ? generateResponsesHTML(contentDetails.team_responses) : ''}
+                        ${gameStatus.content_details.description ? `<p><strong>Beschreibung:</strong> ${gameStatus.content_details.description}</p>` : ''}
+                        ${gameStatus.content_details.question_text ? `<div class="mb-3"><strong>Frage:</strong><p class="h5 text-primary">${gameStatus.content_details.question_text}</p></div>` : ''}
+                        ${gameStatus.content_details.options ? generateOptionsHTML(gameStatus.content_details.options) : ''}
+                        ${gameStatus.content_details.correct_answer ? `<div class="alert alert-success"><strong>Korrekte Antwort:</strong> ${gameStatus.content_details.correct_answer}</div>` : ''}
+                        ${gameStatus.content_details.duration ? `<p><strong>Dauer:</strong> ${gameStatus.content_details.duration}</p>` : ''}
+                        ${gameStatus.content_details.instructions ? `<div class="alert alert-info"><strong>Anweisungen:</strong> ${gameStatus.content_details.instructions}</div>` : ''}
+                        ${gameStatus.content_details.selected_players ? generatePlayersHTML(gameStatus.content_details.selected_players) : ''}
+                        ${gameStatus.content_details.team_responses ? generateResponsesHTML(gameStatus.content_details.team_responses) : ''}
                     </div>
                 </div>
-            </div>
-        `;
+            `;
+        } else if (gameStatus.results && gameStatus.results.has_results) {
+            html = `
+                <div class="card border-success">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0">
+                            <i class="fas fa-trophy"></i> 
+                            Ergebnisse
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        ${generateResultsHTML(gameStatus.results)}
+                    </div>
+                </div>
+            `;
+        }
+        
+        contentInner.innerHTML = html;
+        console.log('Content card inner HTML updated');
     }
     
     function generateOptionsHTML(options) {
@@ -347,6 +565,48 @@ document.addEventListener('DOMContentLoaded', function() {
     
     function generateResponsesHTML(responses) {
         if (!responses) return '';
+        
+        if (responses.detailed_responses && responses.detailed_responses.length > 0) {
+            let html = `<div class="mb-3" id="team-responses-section">
+                <strong>Team-Antworten:</strong>
+                <div class="mt-2">
+                    <small class="text-muted">${responses.total_responses}/${responses.total_teams} Teams haben geantwortet</small>
+                </div>
+                <div class="row mt-2">`;
+            
+            responses.detailed_responses.forEach(response => {
+                const borderClass = response.is_correct ? 'success' : 'danger';
+                const icon = response.is_correct ? 'fas fa-check text-success' : 'fas fa-times text-danger';
+                
+                html += `
+                    <div class="col-md-6 mb-2">
+                        <div class="card border-${borderClass}">
+                            <div class="card-body p-2">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <strong>${response.team_name}</strong>
+                                        <small class="d-block text-muted">${response.answer_preview}</small>
+                                        ${response.answered_at ? `<small class="text-muted">${response.answered_at}</small>` : ''}
+                                    </div>
+                                    <span><i class="${icon}"></i></span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            html += '</div>';
+            
+            if (responses.total_responses === responses.total_teams && responses.total_teams > 0) {
+                html += '<div class="alert alert-success mt-2 mb-0"><i class="fas fa-check-circle"></i> Alle Teams haben geantwortet!</div>';
+            }
+            
+            html += '</div>';
+            return html;
+        }
+        
+        // Fallback zu einfacher Anzeige
         let html = '<div class="mb-3"><strong>Team-Antworten:</strong><div class="row">';
         html += '<div class="col-md-6"><h6 class="text-success">✓ Geantwortet:</h6>';
         if (responses.answered && responses.answered.length > 0) {
@@ -368,6 +628,233 @@ document.addEventListener('DOMContentLoaded', function() {
         return html;
     }
     
+    function updateTeamResponses(teamResponses) {
+        const responsesSection = document.querySelector('#team-responses-section');
+        if (!responsesSection) return;
+        
+        if (teamResponses.detailed_responses && teamResponses.detailed_responses.length > 0) {
+            let html = `<div class="mt-2">
+                <small class="text-muted">${teamResponses.total_responses}/${teamResponses.total_teams} Teams haben geantwortet</small>
+            </div>
+            <div class="row mt-2">`;
+            
+            teamResponses.detailed_responses.forEach(response => {
+                const borderClass = response.is_correct ? 'success' : 'danger';
+                const icon = response.is_correct ? 'fas fa-check text-success' : 'fas fa-times text-danger';
+                
+                html += `
+                    <div class="col-md-6 mb-2">
+                        <div class="card border-${borderClass}">
+                            <div class="card-body p-2">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <strong>${response.team_name}</strong>
+                                        <small class="d-block text-muted">${response.answer_preview}</small>
+                                        ${response.answered_at ? `<small class="text-muted">${response.answered_at}</small>` : ''}
+                                    </div>
+                                    <span><i class="${icon}"></i></span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            html += '</div>';
+            
+            if (teamResponses.total_responses === teamResponses.total_teams && teamResponses.total_teams > 0) {
+                html += '<div class="alert alert-success mt-2 mb-0"><i class="fas fa-check-circle"></i> Alle Teams haben geantwortet!</div>';
+            }
+            
+            responsesSection.innerHTML = html;
+        }
+    }
+    
+    function updateResults(results) {
+        // Prüfe ob bereits statische Ergebnisse da sind
+        const cardBody = document.querySelector('#initial-content-card .card-body');
+        if (!cardBody) return;
+        
+        const staticResults = cardBody.innerHTML.includes('🏆 Platzierungen');
+        if (!staticResults && results.placements && results.placements.length > 0) {
+            // Entferne alte dynamische Ergebnisse
+            const oldResults = cardBody.querySelector('.results-section');
+            if (oldResults) {
+                oldResults.remove();
+            }
+            
+            const resultsDiv = document.createElement('div');
+            resultsDiv.className = 'mb-3 results-section';
+            resultsDiv.innerHTML = generateResultsHTML(results);
+            cardBody.appendChild(resultsDiv);
+        }
+    }
+    
+    function showInactiveGame() {
+        const statusCard = document.querySelector('.card-body');
+        if (statusCard) {
+            statusCard.innerHTML = `<div class="text-center text-muted py-4">
+                <i class="fas fa-pause-circle fa-3x mb-3"></i>
+                <p>Spiel ist momentan nicht aktiv</p>
+            </div>`;
+        }
+        hideDiceResult();
+    }
+    
+    function isRecentDiceResult(diceResult) {
+        // Prüfe ob das Würfelergebnis wirklich recent ist (maximal 10 Sekunden alt)
+        try {
+            const now = new Date();
+            const timestamp = diceResult.timestamp; // Format: "HH:MM:SS"
+            
+            // Parse timestamp (heute + timestamp)
+            const [hours, minutes, seconds] = timestamp.split(':').map(Number);
+            const diceTime = new Date();
+            diceTime.setHours(hours, minutes, seconds, 0);
+            
+            // Wenn das Würfelergebnis von gestern ist (aber gleiche Uhrzeit heute)
+            // dann ist es definitiv alt
+            const timeDiff = Math.abs(now - diceTime);
+            const isRecent = timeDiff <= 10000; // Maximal 10 Sekunden alt
+            
+            console.log(`Dice result time check: ${timestamp}, diff: ${timeDiff}ms, isRecent: ${isRecent}`);
+            return isRecent;
+            
+        } catch (error) {
+            console.error('Error checking dice result time:', error);
+            return false; // Bei Fehlern als alt behandeln
+        }
+    }
+    
+    function updateDiceResultSection(gameStatus) {
+        console.log(`updateDiceResultSection called - Phase: ${gameStatus.current_status}, Has dice_result: ${!!gameStatus.dice_result}`);
+        
+        // Nur bei Würfelrunde und wenn Würfelergebnis vorhanden UND wirklich aktuell ist
+        if (gameStatus.current_status === 'Würfelrunde' && gameStatus.dice_result && gameStatus.dice_result.is_recent && isRecentDiceResult(gameStatus.dice_result)) {
+            const diceResult = gameStatus.dice_result;
+            console.log('Dice result data:', diceResult);
+            
+            // Prüfe ob es ein neues Würfelergebnis ist
+            const diceKey = `${diceResult.team_name}-${diceResult.timestamp}-${diceResult.total_roll}`;
+            console.log(`Dice key: ${diceKey}, Last dice result: ${lastDiceResult}`);
+            
+            if (lastDiceResult !== diceKey) {
+                lastDiceResult = diceKey;
+                showDiceResult(diceResult, gameStatus);
+            } else {
+                console.log('Same dice result as before, not showing again');
+            }
+        } else {
+            console.log('No dice result to show or not in dice rolling phase');
+            // Kein Würfelergebnis oder nicht in Würfelrunde
+            if (gameStatus.current_status !== 'Würfelrunde') {
+                hideDiceResult();
+            }
+        }
+    }
+    
+    function showDiceResult(diceResult, gameStatus) {
+        console.log('Showing dice result:', diceResult);
+        
+        // Prüfe ob alle Elemente existieren
+        const diceDisplay = document.getElementById('dice-result-display');
+        const teamNameEl = document.getElementById('dice-team-name');
+        const standardEl = document.getElementById('dice-standard');
+        const totalEl = document.getElementById('dice-total');
+        const timestampEl = document.getElementById('dice-timestamp');
+        const bonusSection = document.getElementById('dice-bonus-section');
+        const bonusEl = document.getElementById('dice-bonus');
+        
+        console.log('Element check:', {
+            diceDisplay: !!diceDisplay,
+            teamNameEl: !!teamNameEl,
+            standardEl: !!standardEl,
+            totalEl: !!totalEl,
+            timestampEl: !!timestampEl,
+            bonusSection: !!bonusSection,
+            bonusEl: !!bonusEl
+        });
+        
+        if (!diceDisplay) {
+            console.error('dice-result-display element not found!');
+            return;
+        }
+        
+        // Aktualisiere Werte
+        if (teamNameEl) teamNameEl.textContent = diceResult.team_name;
+        if (standardEl) standardEl.textContent = diceResult.standard_roll;
+        if (totalEl) totalEl.textContent = diceResult.total_roll;
+        if (timestampEl) timestampEl.textContent = `Zeit: ${diceResult.timestamp}`;
+        
+        // Bonus-Sektion nur anzeigen wenn Bonus-Würfel vorhanden
+        if (bonusSection && bonusEl) {
+            if (diceResult.has_bonus && diceResult.bonus_roll > 0) {
+                bonusEl.textContent = diceResult.bonus_roll;
+                bonusSection.style.display = 'block';
+            } else {
+                bonusSection.style.display = 'none';
+            }
+        }
+        
+        // Zeige das Würfelergebnis-Feld - SOFORT UND VOLLSTÄNDIG SICHTBAR
+        diceDisplay.style.display = 'block';
+        diceDisplay.style.visibility = 'visible';
+        diceDisplay.style.opacity = '1';
+        diceDisplay.style.zIndex = '1000';
+        diceDisplay.style.position = 'relative';
+        diceDisplay.style.width = 'auto';
+        diceDisplay.style.height = 'auto';
+        
+        // Entferne alle Klassen, die das Element verstecken könnten
+        diceDisplay.classList.remove('fade-out');
+        
+        console.log('Dice display element shown, style.display:', diceDisplay.style.display);
+        
+        // Warte kurz und prüfe dann nochmal die Größe
+        setTimeout(() => {
+            console.log('Element position and size after timeout:', {
+                offsetTop: diceDisplay.offsetTop,
+                offsetLeft: diceDisplay.offsetLeft,
+                offsetWidth: diceDisplay.offsetWidth,
+                offsetHeight: diceDisplay.offsetHeight,
+                computed: window.getComputedStyle(diceDisplay).display,
+                visibility: window.getComputedStyle(diceDisplay).visibility,
+                opacity: window.getComputedStyle(diceDisplay).opacity
+            });
+        }, 100);
+        
+        // Lösche vorherigen Timeout
+        if (diceResultTimeout) {
+            clearTimeout(diceResultTimeout);
+        }
+        
+        // Auto-Ausblenden nach 5 Sekunden (normale Würfelrunde)
+        // Verlängerte Anzeige wird durch Phasenwechsel-Handler übernommen
+        diceResultTimeout = setTimeout(() => {
+            console.log('Auto-hiding dice result after 5 seconds (normal dice roll)');
+            hideDiceResult();
+        }, 5000);
+    }
+    
+    function hideDiceResult() {
+        const diceDisplay = document.getElementById('dice-result-display');
+        if (diceDisplay && diceDisplay.style.display !== 'none') {
+            // Smooth fade-out animation
+            diceDisplay.classList.add('fade-out');
+            
+            setTimeout(() => {
+                diceDisplay.style.display = 'none';
+                diceDisplay.classList.remove('fade-out');
+            }, 500);
+        }
+        
+        if (diceResultTimeout) {
+            clearTimeout(diceResultTimeout);
+            diceResultTimeout = null;
+        }
+        
+        lastDiceResult = null;
+    }
     function generateResultsHTML(results) {
         if (!results || !results.placements || results.placements.length === 0) return '';
         let html = '<strong>🏆 Platzierungen:</strong><div class="row mt-2">';
