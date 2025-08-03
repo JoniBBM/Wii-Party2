@@ -2883,6 +2883,12 @@ class WiiPartyIsland {
                         }
                         console.log("🎯 [CAMERA] Movement finished, now focusing next team:", nextTeam.name);
                         
+                        // ✅ FIX: Stop any running orbit animation before focusing on next team
+                        if (window.orbitAnimationRunning && typeof stopCameraOrbitAnimation === 'function') {
+                            console.log("🎥 Stopping camera orbit to focus on next team");
+                            stopCameraOrbitAnimation();
+                        }
+                        
                         // Update game state to the next team
                         GAME_STATE.currentServerTeamTurnId = nextTeamId;
                         const nextTeamIndex = localTeams.findIndex(t => t.id === nextTeamId);
@@ -2899,6 +2905,12 @@ class WiiPartyIsland {
                     setTimeout(waitAndFocus, 500);
                 } else {
                     console.log("🎯 [CAMERA] Next team after field minigame:", nextTeam.name);
+                    
+                    // ✅ FIX: Stop any running orbit animation before focusing on next team
+                    if (window.orbitAnimationRunning && typeof stopCameraOrbitAnimation === 'function') {
+                        console.log("🎥 Stopping camera orbit to focus on next team (no movement delay)");
+                        stopCameraOrbitAnimation();
+                    }
                     
                     // Update game state to the next team
                     GAME_STATE.currentServerTeamTurnId = nextTeamId;
@@ -3217,6 +3229,17 @@ class WiiPartyIsland {
                                     if (diceResult && diceResult.standard_roll !== undefined) {
                                         console.log("🎲 Processing dice result for team:", currentTeam.name);
                                         
+                                        const standardRoll = diceResult.standard_roll || 0;
+                                        const bonusRoll = diceResult.bonus_roll || 0;
+                                        const totalRoll = diceResult.total_roll || (standardRoll + bonusRoll);
+                                        
+                                        // 🔍 DEBUG: Server-Response komplett loggen (IMMER ausführen!)
+                                        console.log("🔍 DICE RESPONSE DEBUG:", diceResult);
+                                        console.log("🔍 Victory triggered:", diceResult.victory_triggered);
+                                        console.log("🔍 Needs final roll:", diceResult.needs_final_roll);
+                                        console.log("🔍 Current team position:", currentTeam.position);
+                                        console.log("🔍 Current team object:", currentTeam);
+                                        
                                         // Zeige Würfelergebnis-Notification hier - nur einmal
                                         const notificationKey = `${currentTeam.id}_${diceResult.timestamp || Date.now()}`;
                                         if (window.NotificationSystem && !window.shownDiceNotifications) {
@@ -3224,10 +3247,6 @@ class WiiPartyIsland {
                                         }
                                         
                                         if (window.NotificationSystem && !window.shownDiceNotifications.has(notificationKey)) {
-                                            const standardRoll = diceResult.standard_roll || 0;
-                                            const bonusRoll = diceResult.bonus_roll || 0;
-                                            const totalRoll = diceResult.total_roll || (standardRoll + bonusRoll);
-                                            
                                             console.log(`🎲 Showing dice notification for ${currentTeam.name}: ${standardRoll} + ${bonusRoll} = ${totalRoll}`);
                                             window.NotificationSystem.showDiceRoll(currentTeam.name, standardRoll, bonusRoll, totalRoll, 8000);
                                             window.shownDiceNotifications.add(notificationKey);
@@ -3236,10 +3255,45 @@ class WiiPartyIsland {
                                             setTimeout(() => {
                                                 window.shownDiceNotifications.delete(notificationKey);
                                             }, 15000);
-                                        } else if (!window.NotificationSystem) {
-                                            console.error("❌ NotificationSystem nicht verfügbar für Würfelergebnis!");
-                                        } else {
-                                            console.log(`⚠️ Notification bereits gezeigt für ${currentTeam.name} (${notificationKey})`);
+                                        }
+                                        
+                                        // ZIELFELD: Victory oder Final Roll Benachrichtigung (IMMER prüfen!)
+                                        const victoryNotificationKey = `victory_${currentTeam.id}_${diceResult.timestamp || Date.now()}`;
+                                        if (!window.shownVictoryNotifications) {
+                                            window.shownVictoryNotifications = new Set();
+                                        }
+                                        
+                                        if (!window.shownVictoryNotifications.has(victoryNotificationKey)) {
+                                            if (diceResult.victory_triggered) {
+                                                // Team hat gewonnen!
+                                                console.log(`🏆 VICTORY: Team ${currentTeam.name} hat das Spiel gewonnen!`);
+                                                window.shownVictoryNotifications.add(victoryNotificationKey);
+                                                setTimeout(() => {
+                                                    window.NotificationSystem.showFinalRollSuccess(currentTeam.name, totalRoll, 6000);
+                                                }, 1000);
+                                                setTimeout(() => {
+                                                    this.handleVictory(currentTeam, this.miiCharacters[currentTeam.id]);
+                                                }, 2000);
+                                            } else if (diceResult.needs_final_roll) {
+                                                // Team steht auf Zielfeld, braucht aber mindestens 6
+                                                console.log(`🎯 FINAL FIELD: Team ${currentTeam.name} auf Zielfeld - braucht mindestens 6`);
+                                                window.shownVictoryNotifications.add(victoryNotificationKey);
+                                                setTimeout(() => {
+                                                    window.NotificationSystem.showFinalRollNeeded(currentTeam.name, totalRoll, 8000);
+                                                }, 1000);
+                                                // ✅ CAMERA ORBIT FIX: Starte Kamera-Orbit nach fehlgeschlagenem Victory-Versuch
+                                                console.log("🎥 Starting camera orbit after failed victory attempt");
+                                                setTimeout(() => {
+                                                    if (typeof startCameraOrbitAnimation === 'function') {
+                                                        startCameraOrbitAnimation(false);
+                                                    } else {
+                                                        console.warn("startCameraOrbitAnimation function not available");
+                                                    }
+                                                }, 2000); // Start orbit after notification
+                                            } else if (currentTeam.position === 72) {
+                                                // DEBUG: Team ist auf 72 aber keine Victory-Flags gesetzt
+                                                console.log(`❓ DEBUG: Team ${currentTeam.name} auf Position 72, aber keine Victory-Flags in Response!`);
+                                            }
                                         }
                                         
                                         // Clear pending dice result to prevent showing again
@@ -3254,6 +3308,28 @@ class WiiPartyIsland {
                                         // No dice result yet, just focus camera
                                         console.log("🎯 Focusing camera (no dice yet) for:", currentTeam.name);
                                         this.requestCameraMode('team_focus', {team: currentTeam}, 'normal');
+                                        
+                                        // ✅ FINAL FIELD: Check if team is on final field and show reminder
+                                        if (currentTeam.position === 72) {
+                                            console.log("🎯 Team on final field - showing reminder");
+                                            setTimeout(() => {
+                                                this.showStatusMessage(`${currentTeam.name} steht auf dem ZIELFELD - braucht mindestens 6 zum Gewinnen!`, 4000, 'warning', true, 'Zielfeld erreicht');
+                                                
+                                                // Also show notification
+                                                if (window.NotificationSystem) {
+                                                    setTimeout(() => {
+                                                        const notification = window.NotificationSystem.createNotification({
+                                                            type: 'final-field-reminder',
+                                                            icon: '🎯',
+                                                            title: `${currentTeam.name} - Zielfeld erreicht!`,
+                                                            message: `Muss mindestens 6 würfeln um zu gewinnen!`,
+                                                            duration: 6000
+                                                        });
+                                                        window.NotificationSystem.showNotification(notification);
+                                                    }, 500);
+                                                }
+                                            }, 1000);
+                                        }
                                     }
                                 }, 1000); // Reduced timing
                             } else {
@@ -3510,6 +3586,34 @@ class WiiPartyIsland {
                                 console.log(`🎲 Showing dice notification for ${currentTeam.name}: ${standardRoll} + ${bonusRoll} = ${totalRoll}`);
                                 window.NotificationSystem.showDiceRoll(currentTeam.name, standardRoll, bonusRoll, totalRoll, 8000);
                                 window.shownDiceNotifications.add(notificationKey);
+                                
+                                // ZIELFELD: Victory oder Final Roll Benachrichtigung
+                                if (data.last_dice_result.victory_triggered) {
+                                    // Team hat gewonnen!
+                                    console.log(`🏆 VICTORY: Team ${currentTeam.name} hat das Spiel gewonnen!`);
+                                    setTimeout(() => {
+                                        window.NotificationSystem.showFinalRollSuccess(currentTeam.name, totalRoll, 6000);
+                                    }, 1000); // Nach der Dice-Notification
+                                    setTimeout(() => {
+                                        this.handleVictory(currentTeam, this.miiCharacters[currentTeam.id]);
+                                    }, 2000); // Kurz nach der Success-Notification
+                                } else if (data.last_dice_result.needs_final_roll) {
+                                    // Team steht auf Zielfeld, braucht aber mindestens 6
+                                    console.log(`🎯 FINAL FIELD: Team ${currentTeam.name} auf Zielfeld - braucht mindestens 6`);
+                                    setTimeout(() => {
+                                        window.NotificationSystem.showFinalRollNeeded(currentTeam.name, totalRoll, 8000);
+                                    }, 1000); // Nach der Dice-Notification
+                                    
+                                    // ✅ CAMERA ORBIT FIX: Starte Kamera-Orbit nach fehlgeschlagenem Victory-Versuch
+                                    console.log("🎥 Starting camera orbit after failed victory attempt (live updates)");
+                                    setTimeout(() => {
+                                        if (typeof startCameraOrbitAnimation === 'function') {
+                                            startCameraOrbitAnimation(false);
+                                        } else {
+                                            console.warn("startCameraOrbitAnimation function not available");
+                                        }
+                                    }, 2000); // Start orbit after notification
+                                }
                                 
                                 // Clean up after 15 seconds (TEST MODE - longer than backend timeout)
                                 setTimeout(() => {
@@ -4134,12 +4238,8 @@ class WiiPartyIsland {
         // }
         console.log("👤 [MOVEMENT COMPLETION] Character orientation skipped - keeping straight forward");
 
-        // Spezielle Behandlung für Zielfeld
-        if (finalPositionIndex === this.boardFields.length - 1) {
-            console.log("🏆 [VICTORY] Team reached final position, triggering victory sequence");
-            this.handleVictory(currentTeam, mii);
-            return;
-        }
+        // ZIELFELD: Victory wird jetzt nur serverseitig nach Würfelwurf ausgelöst
+        // Kein automatischer Victory-Check mehr beim Erreichen von Position 72
         
         // Spezielle Nachricht für Safe Zone
         if (finalPositionIndex === this.boardFields.length - 2) {
@@ -4185,6 +4285,22 @@ class WiiPartyIsland {
                             // Show next team message after camera focuses
                             if (nextTeam.is_blocked) {
                                 this.showStatusMessage(`${nextTeam.name} ist am Zug (BLOCKIERT - muss ${nextTeam.blocked_target_number}+ würfeln).`, 3000, 'warning', true, 'Blockiertes Team am Zug');
+                            } else if (nextTeam.position === 72) {
+                                // ✅ FINAL FIELD: Show special message for team on final field
+                                this.showStatusMessage(`${nextTeam.name} ist am Zug (ZIELFELD - braucht mindestens 6 zum Gewinnen)!`, 4000, 'warning', true, 'Zielfeld erreicht');
+                                // Also show notification
+                                if (window.NotificationSystem) {
+                                    setTimeout(() => {
+                                        const notification = window.NotificationSystem.createNotification({
+                                            type: 'final-field-reminder',
+                                            icon: '🎯',
+                                            title: `${nextTeam.name} - Zielfeld erreicht!`,
+                                            message: `Muss mindestens 6 würfeln um zu gewinnen!`,
+                                            duration: 6000
+                                        });
+                                        window.NotificationSystem.showNotification(notification);
+                                    }, 1000);
+                                }
                             } else {
                                 this.showStatusMessage(`${nextTeam.name} ist am Zug.`, 2500, 'info', true, 'Team am Zug');
                             }
@@ -4193,6 +4309,22 @@ class WiiPartyIsland {
                         // If free camera mode, just show the message
                         if (nextTeam.is_blocked) {
                             this.showStatusMessage(`${nextTeam.name} ist am Zug (BLOCKIERT - muss ${nextTeam.blocked_target_number}+ würfeln).`, 3000, 'warning', true, 'Blockiertes Team am Zug');
+                        } else if (nextTeam.position === 72) {
+                            // ✅ FINAL FIELD: Show special message for team on final field (free camera mode)
+                            this.showStatusMessage(`${nextTeam.name} ist am Zug (ZIELFELD - braucht mindestens 6 zum Gewinnen)!`, 4000, 'warning', true, 'Zielfeld erreicht');
+                            // Also show notification
+                            if (window.NotificationSystem) {
+                                setTimeout(() => {
+                                    const notification = window.NotificationSystem.createNotification({
+                                        type: 'final-field-reminder',
+                                        icon: '🎯',
+                                        title: `${nextTeam.name} - Zielfeld erreicht!`,
+                                        message: `Muss mindestens 6 würfeln um zu gewinnen!`,
+                                        duration: 6000
+                                    });
+                                    window.NotificationSystem.showNotification(notification);
+                                }, 1000);
+                            }
                         } else {
                             this.showStatusMessage(`${nextTeam.name} ist am Zug.`, 2500, 'info', true, 'Team am Zug');
                         }
@@ -5363,10 +5495,13 @@ class WiiPartyIsland {
                 
                 // WICHTIG: Sende Würfelergebnis an Backend und warte auf Bestätigung
                 this.sendDiceResultToServer(currentTeam.id, diceResult, bonusRoll, totalRoll)
-                    .then(() => {
+                    .then((serverResult) => {
                         console.log("✅ [DICE] Server confirmed dice result, proceeding with movement");
                         
-                        // Warte kurz bevor die Bewegung startet
+                        // Store server result for later use
+                        const hasVictory = serverResult && (serverResult.victory_triggered || serverResult.needs_final_roll);
+                        
+                        // Always complete the dice animation and show result, even with victory
                         setTimeout(() => {
                     this.interactiveDice.visible = false;
 
@@ -5387,6 +5522,14 @@ class WiiPartyIsland {
                     // this.animateCharacterTurn(mii, centerPos, () => {
                     // Direkter Aufruf ohne Drehung:
                     GAME_STATE.isDiceRolling = false;
+                    
+                    // ✅ VICTORY FIX: Ensure dice states are properly reset even with victory
+                    if (hasVictory) {
+                        console.log("🎯 [DICE] Victory condition detected - ensuring proper state cleanup");
+                        GAME_STATE.isAnimating = false;
+                        // Still allow camera follow and movement to complete
+                    }
+                    
                     if (!GAME_STATE.freeCameraMode) {
                         this.startCameraFollow(mii);
                     }
@@ -5396,7 +5539,11 @@ class WiiPartyIsland {
                     })
                     .catch(error => {
                         console.error("❌ [DICE] Failed to send dice result, proceeding anyway:", error);
-                        // Bei Fehlern trotzdem fortfahren
+                        // Bei Fehlern trotzdem fortfahren - reset states properly
+                        GAME_STATE.isDiceRolling = false;
+                        GAME_STATE.isAnimating = false;
+                        this.interactiveDice.visible = false;
+                        
                         setTimeout(() => {
                             this.actuallyMoveCharacter(currentTeam, mii, totalRoll, currentPositionIndex);
                         }, 1000);
@@ -6087,9 +6234,21 @@ class WiiPartyIsland {
             
             if (result.success) {
                 console.log("✅ [DICE] Dice result successfully sent to server:", result);
+                
+                // Handle victory conditions from server response
+                if (result.victory_triggered) {
+                    console.log("🏆 [DICE] Victory triggered from server response!");
+                    // Victory will be handled by live updates, just log for now
+                } else if (result.needs_final_roll) {
+                    console.log("🎯 [DICE] Team needs final roll - notification will be shown");
+                    // Final roll notification will be handled by live updates
+                }
+                
+                return result; // Return server result for further processing
             } else {
                 console.error("⚠️ [DICE] Server rejected dice result:", result);
                 this.showStatusMessage(`Würfelfehler: ${result.error || 'Unbekannter Fehler'}`, 8000, 'error');
+                throw new Error(result.error || 'Server rejected dice result');
             }
         } catch (error) {
             console.error("❌ [DICE] Failed to send dice result to server:", error);
@@ -6186,33 +6345,10 @@ class WiiPartyIsland {
     redirectToGoodbye(winningTeam) {
         console.log(`🔄 Weiterleitung zur Goodbye-Seite...`);
         
-        // Sende Victory-Daten an Server
-        fetch("{{ url_for('main.victory') }}", {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                winning_team_id: winningTeam.id,
-                winning_team_name: winningTeam.name
-            })
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                // Weiterleitung zur Goodbye-Seite
-                window.location.href = "{{ url_for('main.goodbye') }}";
-            } else {
-                console.error('Fehler beim Senden der Victory-Daten:', data.error);
-                // Trotzdem weiterleiten
-                window.location.href = "{{ url_for('main.goodbye') }}";
-            }
-        })
-        .catch(error => {
-            console.error('Fehler beim Senden der Victory-Daten:', error);
-            // Trotzdem weiterleiten
-            window.location.href = "{{ url_for('main.goodbye') }}";
-        });
+        // HINWEIS: Victory-Daten werden jetzt bereits vom Backend gesetzt (bei Würfelwurf)
+        // Direkte Weiterleitung zur Goodbye-Seite ohne zusätzlichen API-Aufruf
+        console.log(`🏆 Victory bereits vom Backend verarbeitet für Team ${winningTeam.name}`);
+        window.location.href = "{{ url_for('main.goodbye') }}";
     }
 
     animateVictory(character, team) {

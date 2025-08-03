@@ -3756,6 +3756,14 @@ function updateTeamDiceButtonState(gameData, isMyTurn) {
     
     if (!diceWaiting || !teamRollDiceBtn || !diceOverlay) return;
     
+    // ✅ FIX: Hide dice interface immediately when game is finished
+    if (gameData && gameData.current_phase === 'GAME_FINISHED') {
+        console.log('🏆 Game finished - hiding dice interface');
+        diceOverlay.style.display = 'none';
+        isDiceAnimationShowing = false;
+        return;
+    }
+    
     // FIX: Zeige Interface wenn Team am Zug ist, Button nur wenn würfeln möglich
     const shouldShowInterface = gameData && isMyTurn;
     const canRollDice = gameData && canTeamRollDice(gameData) && isMyTurn;

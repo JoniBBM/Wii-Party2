@@ -346,6 +346,38 @@ class NotificationSystem {
     }
 
     /**
+     * Zeigt Benachrichtigung für finalen Würfelwurf an
+     */
+    showFinalRollNeeded(teamName, currentRoll, duration = 8000) {
+        const notification = this.createNotification({
+            type: 'final-roll',
+            icon: '🎯',
+            title: `${teamName} - Zielfeld!`,
+            message: `Würfelte ${currentRoll} - braucht mindestens 6 zum Gewinnen!`,
+            duration
+        });
+
+        console.log('📱 Created final roll needed notification:', notification);
+        this.showNotification(notification);
+    }
+
+    /**
+     * Zeigt Benachrichtigung für erfolgreichen finalen Würfelwurf an
+     */
+    showFinalRollSuccess(teamName, currentRoll, duration = 8000) {
+        const notification = this.createNotification({
+            type: 'final-roll-success',
+            icon: '🏆',
+            title: `${teamName} - SIEG!`,
+            message: `Würfelte ${currentRoll} auf dem Zielfeld - HAT GEWONNEN! 🎉`,
+            duration
+        });
+
+        console.log('📱 Created final roll success notification:', notification);
+        this.showNotification(notification);
+    }
+
+    /**
      * Zeigt eine einfache Benachrichtigung an
      */
     show(title, message, type = 'info', duration = 6000) {
@@ -396,6 +428,14 @@ window.showDiceNotification = (teamName, standardRoll, bonusRoll, totalRoll, dur
 };
 
 // Hilfsfunktionen für Sonderfelder
+window.showFinalRollNeededNotification = (teamName, currentRoll, duration) => {
+    window.NotificationSystem.showFinalRollNeeded(teamName, currentRoll, duration);
+};
+
+window.showFinalRollSuccessNotification = (teamName, currentRoll, duration) => {
+    window.NotificationSystem.showFinalRollSuccess(teamName, currentRoll, duration);
+};
+
 window.showCatapultForwardNotification = (teamName, distance, duration) => {
     window.NotificationSystem.showCatapultForward(teamName, distance, duration);
 };

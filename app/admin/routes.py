@@ -1083,6 +1083,24 @@ def admin_roll_dice():
             }
             special_field_result = handle_special_field_action(team, all_teams, active_session, dice_info)
 
+        # ZIELFELD: Prüfe Gewinn-Bedingung
+        # WICHTIG: Team muss BEREITS auf Position 72 gewesen sein (old_position), nicht erst durch den Wurf dorthin gekommen
+        victory_triggered = False
+        current_app.logger.info(f"🔍 ADMIN DICE DEBUG: Team {team.name} - old_position: {old_position}, new_position: {new_position}, total_roll: {total_roll}")
+        
+        if old_position == 72 and total_roll >= 6:
+            # Team war bereits auf Zielfeld und hat 6+ gewürfelt - hat gewonnen!
+            victory_triggered = True
+            current_app.logger.info(f"🏆 VICTORY: Team {team.name} war auf Position 72 und würfelte {total_roll} (>= 6) - SIEG!")
+        elif old_position == 72 and total_roll < 6:
+            # Team war auf Zielfeld, hat aber weniger als 6 gewürfelt
+            current_app.logger.info(f"🎯 FINAL FIELD: Team {team.name} war auf Position 72, würfelte {total_roll} - braucht mindestens 6 zum Gewinnen")
+        elif new_position == 72:
+            # Team ist gerade erst auf Position 72 angekommen - muss nächste Runde 6+ würfeln
+            current_app.logger.info(f"🎯 REACHED FINAL FIELD: Team {team.name} erreichte Position 72 - muss nächste Runde mindestens 6 würfeln")
+            
+        current_app.logger.info(f"🔍 ADMIN DICE DEBUG: victory_triggered = {victory_triggered}")
+
         # Event für den Würfelwurf erstellen
         event_description = f"Admin würfelte für Team {team.name}: {standard_dice_roll}"
         if bonus_dice_roll > 0:
@@ -1092,6 +1110,13 @@ def admin_roll_dice():
             event_description += f" - BLOCKIERT: Konnte sich nicht befreien."
         else:
             event_description += f" und bewegte sich von Feld {old_position} zu Feld {new_position}."
+            
+        if victory_triggered:
+            event_description += f" 🏆 SIEG! Team war auf Zielfeld und würfelte {total_roll}!"
+        elif old_position == 72 and total_roll < 6:
+            event_description += f" 🎯 War auf Zielfeld - braucht mindestens 6 zum Gewinnen (gewürfelt: {total_roll})"
+        elif new_position == 72:
+            event_description += f" 🎯 Erreichte Zielfeld - braucht nächste Runde mindestens 6 zum Gewinnen"
         
         dice_event = GameEvent(
             game_session_id=active_session.id,
@@ -1106,7 +1131,9 @@ def admin_roll_dice():
                 "new_position": new_position,
                 "rolled_by": "admin",
                 "was_blocked": team.is_blocked if barrier_check_result else False,
-                "barrier_released": barrier_check_result.get('released', False) if barrier_check_result else False
+                "barrier_released": barrier_check_result.get('released', False) if barrier_check_result else False,
+                "victory_triggered": victory_triggered,
+                "needs_final_roll": old_position == 72 and total_roll < 6
             })
         )
         db.session.add(dice_event)
@@ -1166,6 +1193,35 @@ def admin_roll_dice():
                 )
                 db.session.add(round_over_event)
 
+        # ZIELFELD: Victory automatisch auslösen wenn gewonnen
+        if victory_triggered:
+            try:
+                # Speichere Victory Event
+                victory_event = GameEvent(
+                    game_session_id=active_session.id,
+                    event_type="game_victory",
+                    description=f"Team {team.name} hat das Spiel gewonnen!",
+                    related_team_id=team.id,
+                    data_json=json.dumps({
+                        "winning_team_id": team.id,
+                        "winning_team_name": team.name,
+                        "victory_timestamp": datetime.utcnow().isoformat(),
+                        "final_position": team.current_position,
+                        "final_dice_roll": total_roll
+                    })
+                )
+                db.session.add(victory_event)
+                
+                # Setze Spiel auf beendet
+                active_session.current_phase = 'GAME_FINISHED'
+                
+                current_app.logger.info(f"🏆 Victory automatisch ausgelöst für Team {team.name}")
+                
+            except Exception as ve:
+                current_app.logger.error(f"Fehler beim Victory-Handling: {ve}")
+                db.session.rollback()
+                return jsonify({"success": False, "error": f"Victory-Fehler: {str(ve)}"}), 500
+
         db.session.commit()
 
         # Response zusammenstellen
@@ -1180,7 +1236,9 @@ def admin_roll_dice():
             "new_position": team.current_position,  # Aktuelle finale Position (nach Special Field)
             "next_team_id": active_session.current_team_turn_id,
             "next_team_name": next_team_name, 
-            "new_phase": active_session.current_phase
+            "new_phase": active_session.current_phase,
+            "victory_triggered": victory_triggered,
+            "needs_final_roll": old_position == 72 and total_roll < 6
         }
 
         # SONDERFELD: Füge Sonderfeld-Informationen hinzu
