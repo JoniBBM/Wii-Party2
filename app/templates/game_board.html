@@ -765,7 +765,7 @@ let BOARD_CONFIG = {
     // Legacy compatibility
     cameraFrontOffset: new THREE.Vector3(0, 15, -8),
     cameraOrbitSpeed: 0.006,
-    cameraOrbitHeight: 40,
+    cameraOrbitHeight: 55,
     cameraOrbitRadius: 55,
     cameraObstacleAvoidanceDistance: 4.0,     // Größerer Abstand zu Hindernissen
     cameraHeightAdjustment: 3.5,              // Höhere Anpassung
@@ -1084,6 +1084,7 @@ class WiiPartyIsland {
         this.createIslandAndMountain();
         this.createSpiralPath();
         this.createSimpleVegetation();
+        this.createAnimatedAnimals();
         
         if (localTeams && localTeams.length > 0) {
             await this.createMiiCharacters();
@@ -1124,6 +1125,62 @@ class WiiPartyIsland {
         
         this.scene.background = new THREE.Color(0x87CEEB);
         this.scene.fog = new THREE.Fog(0xb3d9ff, 60, 150);
+        
+        // Schönere Himmel-Atmosphäre
+        this.createSkyAtmosphere();
+    }
+    
+    createSkyAtmosphere() {
+        // Sanft verlaufender Himmel
+        const skyGeometry = new THREE.SphereGeometry(200, 32, 32);
+        const skyMaterial = new THREE.ShaderMaterial({
+            uniforms: {
+                time: { value: 0.0 }
+            },
+            vertexShader: `
+                varying vec3 vWorldPosition;
+                void main() {
+                    vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+                    vWorldPosition = worldPosition.xyz;
+                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                }
+            `,
+            fragmentShader: `
+                uniform float time;
+                varying vec3 vWorldPosition;
+                void main() {
+                    vec3 direction = normalize(vWorldPosition);
+                    float elevation = direction.y;
+                    
+                    // Himmelfarben basierend auf Höhe
+                    vec3 topColor = vec3(0.53, 0.8, 0.98);     // Hellblau
+                    vec3 horizonColor = vec3(0.85, 0.95, 1.0); // Weißlich
+                    vec3 bottomColor = vec3(0.7, 0.9, 1.0);    // Pastellblau
+                    
+                    // Sanfte Übergänge
+                    vec3 skyColor;
+                    if (elevation > 0.0) {
+                        skyColor = mix(horizonColor, topColor, elevation);
+                    } else {
+                        skyColor = mix(horizonColor, bottomColor, -elevation * 2.0);
+                    }
+                    
+                    // Subtile Wolken-Textur
+                    float clouds = sin(direction.x * 3.0 + time * 0.1) * sin(direction.z * 3.0 + time * 0.07) * 0.1;
+                    skyColor += clouds * vec3(0.1, 0.1, 0.1);
+                    
+                    gl_FragColor = vec4(skyColor, 1.0);
+                }
+            `,
+            side: THREE.BackSide
+        });
+        
+        const sky = new THREE.Mesh(skyGeometry, skyMaterial);
+        sky.userData.animation = (time) => {
+            skyMaterial.uniforms.time.value = time;
+        };
+        this.scene.add(sky);
+        this.skyMesh = sky;
     }
 
     createOcean() {
@@ -1213,7 +1270,7 @@ class WiiPartyIsland {
         islandGeometry.computeVertexNormals();
         
         const islandMaterial = new THREE.MeshPhongMaterial({ 
-            color: 0xF5DEB3, 
+            color: 0x8FBC8F, 
             shininess: 4 
         });
         
@@ -1230,13 +1287,22 @@ class WiiPartyIsland {
     createIslandVegetation() {
         const baseIslandTopY = islandSurfaceY;
         
-        // Vegetation angepasst an größere Insel
-        const vegGeometry = new THREE.CylinderGeometry(28, 30, 0.12, 32);
-        const vegMaterial = new THREE.MeshLambertMaterial({ color: 0x4CAF50 });
-        const vegetation = new THREE.Mesh(vegGeometry, vegMaterial);
-        vegetation.position.y = baseIslandTopY + 0.06;
-        vegetation.receiveShadow = true;
-        this.scene.add(vegetation);
+        // Mehrschichtige Vegetation für natürlicheres Aussehen
+        const vegLayers = [
+            { radius: 28, color: 0x228B22, height: 0.15 }, // Dark Green base
+            { radius: 26, color: 0x32CD32, height: 0.12 }, // Lime Green middle
+            { radius: 24, color: 0x90EE90, height: 0.08 }  // Light Green top
+        ];
+        
+        vegLayers.forEach((layer, index) => {
+            const vegGeometry = new THREE.CylinderGeometry(layer.radius, layer.radius + 2, layer.height, 32);
+            const vegMaterial = new THREE.MeshLambertMaterial({ color: layer.color });
+            const vegetation = new THREE.Mesh(vegGeometry, vegMaterial);
+            vegetation.position.y = baseIslandTopY + 0.03 + (index * 0.04);
+            vegetation.receiveShadow = true;
+            vegetation.castShadow = true;
+            this.scene.add(vegetation);
+        });
     }
 
     createMountainWithPath() {
@@ -1994,19 +2060,48 @@ class WiiPartyIsland {
     }
 
     createSimpleVegetation() {
-        // Vegetation angepasst an größere Insel
-        for (let i = 0; i < 6; i++) {
-            const angle = (i / 6) * Math.PI * 2;
-            const radius = 24 + Math.random() * 4; // Weiter außen für größere Insel
+        // Palmen
+        for (let i = 0; i < 8; i++) {
+            const angle = (i / 8) * Math.PI * 2;
+            const radius = 24 + Math.random() * 4;
             const x = Math.cos(angle) * radius;
             const z = Math.sin(angle) * radius;
             
             if (this.isPositionSafe(x, z, 1.5)) {
                 const palm = this.createSimplePalmTree();
                 palm.position.set(x, islandSurfaceY, z);
-                palm.scale.setScalar(0.7 + Math.random() * 0.2);
+                palm.scale.setScalar(0.8 + Math.random() * 0.3);
                 palm.rotation.y = Math.random() * Math.PI * 2;
                 this.scene.add(palm);
+            }
+        }
+        
+        // Büsche und kleine Bäume
+        for (let i = 0; i < 15; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const radius = 15 + Math.random() * 12;
+            const x = Math.cos(angle) * radius;
+            const z = Math.sin(angle) * radius;
+            
+            if (this.isPositionSafe(x, z, 0.8)) {
+                const bush = this.createBush();
+                bush.position.set(x, islandSurfaceY + 0.2, z);
+                bush.scale.setScalar(0.5 + Math.random() * 0.4);
+                this.scene.add(bush);
+            }
+        }
+        
+        // Blumen
+        for (let i = 0; i < 25; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const radius = 8 + Math.random() * 20;
+            const x = Math.cos(angle) * radius;
+            const z = Math.sin(angle) * radius;
+            
+            if (this.isPositionSafe(x, z, 0.3)) {
+                const flower = this.createFlower();
+                flower.position.set(x, islandSurfaceY + 0.15, z);
+                this.scene.add(flower);
             }
         }
         
@@ -2060,6 +2155,228 @@ class WiiPartyIsland {
         
         palmGroup.add(leavesGroup);
         return palmGroup;
+    }
+    
+    createBush() {
+        const bushGroup = new THREE.Group();
+        
+        // Busch-Stamm
+        const bushGeometry = new THREE.SphereGeometry(0.6, 8, 6);
+        const bushMaterial = new THREE.MeshLambertMaterial({ color: 0x228B22 });
+        const bush = new THREE.Mesh(bushGeometry, bushMaterial);
+        bush.position.y = 0.3;
+        bush.scale.set(1, 0.8, 1);
+        bush.castShadow = true;
+        bush.receiveShadow = true;
+        bushGroup.add(bush);
+        
+        // Kleinere Büschel
+        for (let i = 0; i < 3; i++) {
+            const smallBush = new THREE.Mesh(
+                new THREE.SphereGeometry(0.3, 6, 4),
+                new THREE.MeshLambertMaterial({ color: 0x32CD32 })
+            );
+            smallBush.position.set(
+                (Math.random() - 0.5) * 1.2,
+                0.2 + Math.random() * 0.3,
+                (Math.random() - 0.5) * 1.2
+            );
+            smallBush.castShadow = true;
+            bushGroup.add(smallBush);
+        }
+        
+        return bushGroup;
+    }
+    
+    createFlower() {
+        const flowerGroup = new THREE.Group();
+        
+        // Blütenstiel
+        const stemGeometry = new THREE.CylinderGeometry(0.02, 0.02, 0.3, 4);
+        const stemMaterial = new THREE.MeshLambertMaterial({ color: 0x228B22 });
+        const stem = new THREE.Mesh(stemGeometry, stemMaterial);
+        stem.position.y = 0.15;
+        flowerGroup.add(stem);
+        
+        // Blütenblätter
+        const colors = [0xFF69B4, 0xFF1493, 0xFFB6C1, 0xFFA500, 0xFFFF00, 0xFF4500];
+        const petalGeometry = new THREE.SphereGeometry(0.05, 6, 4);
+        const flowerColor = colors[Math.floor(Math.random() * colors.length)];
+        
+        for (let i = 0; i < 5; i++) {
+            const angle = (i / 5) * Math.PI * 2;
+            const petal = new THREE.Mesh(petalGeometry, new THREE.MeshLambertMaterial({ color: flowerColor }));
+            petal.position.set(
+                Math.cos(angle) * 0.08,
+                0.3,
+                Math.sin(angle) * 0.08
+            );
+            petal.scale.set(1, 0.5, 1);
+            flowerGroup.add(petal);
+        }
+        
+        // Blütenmitte
+        const center = new THREE.Mesh(
+            new THREE.SphereGeometry(0.03, 6, 4),
+            new THREE.MeshLambertMaterial({ color: 0xFFFF00 })
+        );
+        center.position.y = 0.3;
+        flowerGroup.add(center);
+        
+        return flowerGroup;
+    }
+    
+    createAnimatedAnimals() {
+        this.rabbits = [];
+        this.activeBirds = [];
+        this.lastBirdFlockTime = 0;
+        
+        // Hasen erstellen
+        for (let i = 0; i < 3; i++) {
+            const rabbit = this.createRabbit();
+            const angle = Math.random() * Math.PI * 2;
+            const radius = 10 + Math.random() * 15;
+            rabbit.position.set(
+                Math.cos(angle) * radius,
+                islandSurfaceY + 0.3,
+                Math.sin(angle) * radius
+            );
+            rabbit.userData = {
+                speed: 0.3 + Math.random() * 0.2,
+                direction: Math.random() * Math.PI * 2,
+                changeDirectionTimer: 0
+            };
+            this.rabbits.push(rabbit);
+            this.scene.add(rabbit);
+        }
+    }
+    
+    createBirdFlock() {
+        const flockSize = 3 + Math.floor(Math.random() * 4); // 3-6 Vögel
+        const birds = [];
+        
+        // Startposition für den Schwarm (außerhalb der Sicht)
+        const startAngle = Math.random() * Math.PI * 2;
+        const startRadius = 60;
+        const startX = Math.cos(startAngle) * startRadius;
+        const startZ = Math.sin(startAngle) * startRadius;
+        const flightHeight = islandSurfaceY + 8 + Math.random() * 10;
+        
+        // Zielposition (gegenüber)
+        const targetX = -startX + (Math.random() - 0.5) * 20;
+        const targetZ = -startZ + (Math.random() - 0.5) * 20;
+        
+        for (let i = 0; i < flockSize; i++) {
+            const bird = this.createBird();
+            
+            // V-Formation
+            const offsetX = (i - flockSize/2) * 2;
+            const offsetZ = Math.abs(i - flockSize/2) * 1.5;
+            
+            bird.position.set(
+                startX + offsetX,
+                flightHeight + (Math.random() - 0.5) * 2,
+                startZ + offsetZ
+            );
+            
+            bird.userData = {
+                targetX: targetX + offsetX,
+                targetZ: targetZ + offsetZ,
+                targetY: flightHeight + (Math.random() - 0.5) * 2,
+                speed: 1.5 + Math.random() * 0.5,
+                startTime: Date.now(),
+                flightDuration: 8000 + Math.random() * 4000, // 8-12 Sekunden
+                bobSpeed: 2 + Math.random() * 1,
+                wingSpeed: 8 + Math.random() * 4
+            };
+            
+            // Richtung zum Ziel
+            const dx = bird.userData.targetX - bird.position.x;
+            const dz = bird.userData.targetZ - bird.position.z;
+            bird.rotation.y = Math.atan2(dx, dz);
+            
+            birds.push(bird);
+            this.scene.add(bird);
+        }
+        
+        this.activeBirds = this.activeBirds.concat(birds);
+        return birds;
+    }
+    
+    createRabbit() {
+        const rabbitGroup = new THREE.Group();
+        
+        // Körper
+        const bodyGeometry = new THREE.SphereGeometry(0.15, 8, 6);
+        const bodyMaterial = new THREE.MeshLambertMaterial({ color: 0xFFF8DC });
+        const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+        body.scale.set(1, 0.8, 1.2);
+        body.position.y = 0.1;
+        body.castShadow = true;
+        rabbitGroup.add(body);
+        
+        // Kopf
+        const headGeometry = new THREE.SphereGeometry(0.08, 8, 6);
+        const head = new THREE.Mesh(headGeometry, bodyMaterial);
+        head.position.set(0, 0.2, 0.12);
+        head.castShadow = true;
+        rabbitGroup.add(head);
+        
+        // Ohren
+        const earGeometry = new THREE.SphereGeometry(0.03, 6, 4);
+        const leftEar = new THREE.Mesh(earGeometry, bodyMaterial);
+        leftEar.position.set(-0.03, 0.28, 0.12);
+        leftEar.scale.set(1, 2, 0.5);
+        rabbitGroup.add(leftEar);
+        
+        const rightEar = new THREE.Mesh(earGeometry, bodyMaterial);
+        rightEar.position.set(0.03, 0.28, 0.12);
+        rightEar.scale.set(1, 2, 0.5);
+        rabbitGroup.add(rightEar);
+        
+        // Schwanz
+        const tailGeometry = new THREE.SphereGeometry(0.04, 6, 4);
+        const tail = new THREE.Mesh(tailGeometry, bodyMaterial);
+        tail.position.set(0, 0.12, -0.12);
+        rabbitGroup.add(tail);
+        
+        return rabbitGroup;
+    }
+    
+    createBird() {
+        const birdGroup = new THREE.Group();
+        
+        // Einfacheres, vogelähnlicheres Design
+        const bodyGeometry = new THREE.SphereGeometry(0.12, 8, 6);
+        const colors = [0x8B4513, 0x654321, 0x2F4F4F, 0x696969, 0x000000];
+        const birdColor = colors[Math.floor(Math.random() * colors.length)];
+        const bodyMaterial = new THREE.MeshLambertMaterial({ color: birdColor });
+        
+        // Körper - länglicher für Vogel-Form
+        const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+        body.scale.set(0.8, 0.6, 1.4);
+        body.castShadow = true;
+        birdGroup.add(body);
+        
+        // Vereinfachte Flügel - flacher und vogelähnlicher
+        const wingGeometry = new THREE.BoxGeometry(0.15, 0.02, 0.3);
+        const leftWing = new THREE.Mesh(wingGeometry, bodyMaterial);
+        leftWing.position.set(-0.12, 0.02, 0);
+        leftWing.name = 'leftWing';
+        birdGroup.add(leftWing);
+        
+        const rightWing = new THREE.Mesh(wingGeometry, bodyMaterial);
+        rightWing.position.set(0.12, 0.02, 0);
+        rightWing.name = 'rightWing';
+        birdGroup.add(rightWing);
+        
+        // Schwanz
+        const tailGeometry = new THREE.BoxGeometry(0.04, 0.01, 0.2);
+        const tail = new THREE.Mesh(tailGeometry, bodyMaterial);
+        tail.position.set(0, 0, -0.2);
+        birdGroup.add(tail);
+        
+        return birdGroup;
     }
 
     createSimpleBush() {
@@ -6126,6 +6443,10 @@ class WiiPartyIsland {
             this.water.userData.animation(time);
         }
         
+        if (this.skyMesh && this.skyMesh.userData.animation) {
+            this.skyMesh.userData.animation(time);
+        }
+        
         if (this.clouds) {
             this.clouds.forEach(cloudData => {
                 const cloud = cloudData.mesh;
@@ -6150,6 +6471,7 @@ class WiiPartyIsland {
         }
         
         this.updateCharacterAnimations(time);
+        this.animateAnimals(time);
         
         // Safety check: Ensure camera is always at a valid position
         if (!GAME_STATE.freeCameraMode && (isNaN(this.camera.position.x) || isNaN(this.camera.position.y) || isNaN(this.camera.position.z))) {
@@ -6160,6 +6482,83 @@ class WiiPartyIsland {
         }
         
         this.renderer.render(this.scene, this.camera);
+    }
+    
+    animateAnimals(time) {
+        // Animate rabbits
+        if (this.rabbits) {
+            this.rabbits.forEach(rabbit => {
+                const data = rabbit.userData;
+                data.changeDirectionTimer += 0.016;
+                
+                // Change direction randomly
+                if (data.changeDirectionTimer > 2 + Math.random() * 3) {
+                    data.direction += (Math.random() - 0.5) * 1.5;
+                    data.changeDirectionTimer = 0;
+                }
+                
+                // Move rabbit
+                const moveSpeed = data.speed * 0.016;
+                const newX = rabbit.position.x + Math.cos(data.direction) * moveSpeed;
+                const newZ = rabbit.position.z + Math.sin(data.direction) * moveSpeed;
+                
+                // Keep rabbits on island
+                const distanceFromCenter = Math.sqrt(newX * newX + newZ * newZ);
+                if (distanceFromCenter < 25 && this.isPositionSafe(newX, newZ, 0.5)) {
+                    rabbit.position.x = newX;
+                    rabbit.position.z = newZ;
+                    rabbit.rotation.y = data.direction + Math.PI / 2;
+                }
+                
+                // Hopping animation
+                rabbit.position.y = islandSurfaceY + 0.3 + Math.abs(Math.sin(time * 8 + rabbit.position.x)) * 0.1;
+            });
+        }
+        
+        // Gelegentlich neuen Vogelschwarm erstellen
+        const currentTime = Date.now();
+        if (currentTime - this.lastBirdFlockTime > 15000 + Math.random() * 20000) { // 15-35 Sekunden
+            this.createBirdFlock();
+            this.lastBirdFlockTime = currentTime;
+        }
+        
+        // Animate active birds
+        if (this.activeBirds && this.activeBirds.length > 0) {
+            for (let i = this.activeBirds.length - 1; i >= 0; i--) {
+                const bird = this.activeBirds[i];
+                const data = bird.userData;
+                const elapsed = currentTime - data.startTime;
+                
+                // Check if bird should be removed
+                if (elapsed > data.flightDuration) {
+                    this.scene.remove(bird);
+                    this.activeBirds.splice(i, 1);
+                    continue;
+                }
+                
+                // Calculate flight progress
+                const progress = elapsed / data.flightDuration;
+                
+                // Move towards target
+                const startX = bird.position.x - (data.targetX - bird.position.x) * progress / (1 - progress);
+                const startZ = bird.position.z - (data.targetZ - bird.position.z) * progress / (1 - progress);
+                
+                bird.position.x += (data.targetX - bird.position.x) * data.speed * 0.016;
+                bird.position.z += (data.targetZ - bird.position.z) * data.speed * 0.016;
+                
+                // Smooth flying motion
+                bird.position.y = data.targetY + Math.sin(time * data.bobSpeed) * 0.8;
+                
+                // Wing flapping
+                const leftWing = bird.getObjectByName('leftWing');
+                const rightWing = bird.getObjectByName('rightWing');
+                if (leftWing && rightWing) {
+                    const flapAngle = Math.sin(time * data.wingSpeed) * 0.6;
+                    leftWing.rotation.z = flapAngle;
+                    rightWing.rotation.z = -flapAngle;
+                }
+            }
+        }
     }
 
     setupTrackpadZoom() {
@@ -6627,7 +7026,7 @@ function startCameraOrbitAnimationSmooth(isMinigame = false, duration = null) {
     const startX = Math.cos(startAngle) * orbitRadius;
     const startZ = Math.sin(startAngle) * orbitRadius;
     const startPosition = new THREE.Vector3(startX, orbitHeight, startZ);
-    const lookAtTarget = new THREE.Vector3(0, 6, 0);
+    const lookAtTarget = new THREE.Vector3(0, 10, 0);
     
     // Deaktiviere manuelle Kontrolle sanft
     window.gameBoard.controls.enabled = false;
