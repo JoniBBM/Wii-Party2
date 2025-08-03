@@ -2465,7 +2465,8 @@ function updateQuestionContent(questionData, isAnswered, isCorrect) {
                                     <strong>Gib deine Antwort ein:</strong>
                                 </label>
                                 <textarea name="answer_text" class="form-control form-control-lg" 
-                                         rows="3" placeholder="Deine Antwort hier eingeben...">${currentFormData.answer_text || ''}</textarea>
+                                         rows="3" placeholder="Deine Antwort hier eingeben..."
+                                         onkeydown="handleTextareaKeydown(event)">${currentFormData.answer_text || ''}</textarea>
                                 <small class="form-text text-muted mt-2">
                                     <i class="fas fa-lightbulb mr-1"></i>
                                     Tipp: Achte auf Rechtschreibung - die Antwort muss exakt stimmen!
@@ -2515,6 +2516,16 @@ function updateQuestionContent(questionData, isAnswered, isCorrect) {
                     });
                 });
             }
+        }
+    }
+}
+
+function handleTextareaKeydown(event) {
+    if (event.key === 'Enter' && !event.shiftKey) {
+        event.preventDefault();
+        const form = event.target.closest('form');
+        if (form) {
+            form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
         }
     }
 }
