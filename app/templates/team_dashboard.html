@@ -2434,7 +2434,8 @@ function updateQuestionContent(questionData, isAnswered, isCorrect) {
                         <div class="custom-control custom-radio mb-3">
                             <input type="radio" class="custom-control-input" 
                                    id="option_${index}" name="selected_option" value="${index}" ${isChecked}>
-                            <label class="custom-control-label answer-option-label" for="option_${index}">
+                            <label class="custom-control-label answer-option-label" for="option_${index}" 
+                                   ondblclick="handleOptionDoubleClick(event)">
                                 <span class="option-letter">${"ABCD"[index]}.</span>
                                 <span class="option-text">${option}</span>
                             </label>
@@ -2524,6 +2525,20 @@ function handleTextareaKeydown(event) {
     if (event.key === 'Enter' && !event.shiftKey) {
         event.preventDefault();
         const form = event.target.closest('form');
+        if (form) {
+            form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+        }
+    }
+}
+
+function handleOptionDoubleClick(event) {
+    event.preventDefault();
+    const label = event.currentTarget;
+    const radioInput = document.getElementById(label.getAttribute('for'));
+    
+    if (radioInput) {
+        radioInput.checked = true;
+        const form = radioInput.closest('form');
         if (form) {
             form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
         }
@@ -4187,6 +4202,44 @@ function loadMiiCharacterActual(team, canvas, detailsEl) {
     }
 }
 
+let lastKeyPressTime = 0;
+let lastKeyPressed = '';
+
+function setupQuestionKeyboardShortcuts() {
+    document.addEventListener('keydown', function(event) {
+        // Only handle keyboard shortcuts when a question form is visible
+        const questionForm = document.getElementById('question-answer-form');
+        if (!questionForm) return;
+        
+        // Only handle for multiple choice questions
+        const multipleChoiceOptions = questionForm.querySelectorAll('input[name="selected_option"]');
+        if (multipleChoiceOptions.length === 0) return;
+        
+        // Handle keys 1-4
+        if (event.key >= '1' && event.key <= '4') {
+            event.preventDefault();
+            
+            const optionIndex = parseInt(event.key) - 1;
+            if (optionIndex < multipleChoiceOptions.length) {
+                const currentTime = Date.now();
+                const timeDiff = currentTime - lastKeyPressTime;
+                
+                // Select the option
+                multipleChoiceOptions[optionIndex].checked = true;
+                
+                // Check for double key press (within 500ms)
+                if (lastKeyPressed === event.key && timeDiff < 500) {
+                    // Double key press - submit immediately
+                    questionForm.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+                }
+                
+                lastKeyPressed = event.key;
+                lastKeyPressTime = currentTime;
+            }
+        }
+    });
+}
+
 // Initialize team display on page load
 document.addEventListener('DOMContentLoaded', function() {
     // Set up navigation buttons
@@ -4206,6 +4259,9 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Initialize with first team (this will create the Mii button if needed)
     updateTeamDisplay();
+    
+    // Add keyboard shortcuts for multiple choice questions
+    setupQuestionKeyboardShortcuts();
 });
 
 // Update team data when dashboard updates
