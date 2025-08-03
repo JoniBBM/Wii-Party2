@@ -1040,8 +1040,13 @@ def victory():
 def goodbye():
     """Goodbye-Seite mit Spielstatistiken"""
     try:
+        # 🔍 DEBUG: Log available event types for debugging
+        all_events = GameEvent.query.with_entities(GameEvent.event_type).distinct().all()
+        current_app.logger.info(f"📊 Available event types: {[event[0] for event in all_events]}")
+        
         # Hole Victory-Daten aus Session
         victory_data = session.get('victory_data')
+        current_app.logger.info(f"📊 Victory data from session: {victory_data}")
         
         if not victory_data:
             # Fallback: Hole letztes beendetes Spiel
@@ -1077,6 +1082,9 @@ def goodbye():
         minigame_stats = calculate_minigame_statistics(game_session_id) if game_session_id else {}
         position_history = calculate_position_history(game_session_id) if game_session_id else {}
         
+        current_app.logger.info(f"📊 Minigame stats calculated: {minigame_stats}")
+        current_app.logger.info(f"📊 Position history calculated: {list(position_history.keys())}")
+        
         for team in teams:
             team_minigame_stats = minigame_stats.get(str(team.id), {})
             
@@ -1092,6 +1100,7 @@ def goodbye():
                 'is_winner': team.id == victory_data.get('winning_team_id') if victory_data else False
             }
             teams_stats.append(team_stat)
+            current_app.logger.info(f"📊 Team {team.name} stats: position={team.current_position}, wins={team_minigame_stats.get('wins', 0)}, participations={team_minigame_stats.get('participations', 0)}")
         
         # Sortiere Teams nach finaler Position (absteigend)
         teams_stats.sort(key=lambda x: x['final_position'], reverse=True)
@@ -1114,10 +1123,10 @@ def goodbye():
                 else:
                     game_duration = f"{minutes}m"
                 
-                # Zähle Minispiel-Events
+                # Zähle Minispiel-Events (placements_recorded indicates minigames were played)
                 minigame_events = GameEvent.query.filter_by(
                     game_session_id=game_session.id,
-                    event_type='minigame_started'
+                    event_type='placements_recorded'
                 ).count()
                 total_minigames = minigame_events
         
@@ -1141,54 +1150,28 @@ def goodbye():
                              minigame_stats={})
 
 def calculate_minigame_statistics(game_session_id):
-    """Berechnet detaillierte Minispiel-Statistiken für alle Teams"""
+    """Berechnet detaillierte Minispiel-Statistiken für alle Teams basierend auf Team-Daten"""
     if not game_session_id:
         return {}
     
     try:
-        # Hole alle Minispiel-Events für diese Session
-        minigame_events = GameEvent.query.filter_by(
-            game_session_id=game_session_id,
-            event_type='minigame_placements'
-        ).all()
+        # Hole alle Teams
+        teams = Team.query.all()
+        current_app.logger.info(f"📊 Found {len(teams)} teams total")
         
         team_stats = {}
         
-        for event in minigame_events:
-            if event.data_json:
-                try:
-                    # Parse Minispiel-Placement-Daten
-                    if isinstance(event.data_json, str):
-                        data = json.loads(event.data_json)
-                    else:
-                        data = event.data_json
-                    
-                    placements = data.get('placements', {})
-                    
-                    for team_id_str, placement in placements.items():
-                        if team_id_str not in team_stats:
-                            team_stats[team_id_str] = {
-                                'wins': 0,
-                                'participations': 0,
-                                'placements': [],
-                                'average_placement': 0.0
-                            }
-                        
-                        team_stats[team_id_str]['participations'] += 1
-                        team_stats[team_id_str]['placements'].append(placement)
-                        
-                        # Zähle Siege (1. Platz)
-                        if placement == 1:
-                            team_stats[team_id_str]['wins'] += 1
-                
-                except (json.JSONDecodeError, KeyError) as e:
-                    current_app.logger.warning(f"Fehler beim Parsen von Minispiel-Daten: {e}")
+        for team in teams:
+            current_app.logger.info(f"📊 Team {team.name}: minigame_placement={team.minigame_placement}")
+            
+            team_stats[str(team.id)] = {
+                'wins': 1 if team.minigame_placement == 1 else 0,
+                'participations': 1 if team.minigame_placement is not None else 0,
+                'placements': [team.minigame_placement] if team.minigame_placement is not None else [],
+                'average_placement': float(team.minigame_placement) if team.minigame_placement is not None else 0.0
+            }
         
-        # Berechne Durchschnittsplatzierungen
-        for team_id, stats in team_stats.items():
-            if stats['placements']:
-                stats['average_placement'] = sum(stats['placements']) / len(stats['placements'])
-        
+        current_app.logger.info(f"📊 Calculated team stats: {team_stats}")
         return team_stats
         
     except Exception as e:
@@ -1201,12 +1184,21 @@ def calculate_position_history(game_session_id):
         return {}
     
     try:
+        # 🔍 DEBUG: Check all dice events
+        all_dice_events = GameEvent.query.filter_by(
+            game_session_id=game_session_id
+        ).filter(
+            GameEvent.event_type.like('%dice%')
+        ).all()
+        current_app.logger.info(f"📊 All dice events found: {[(e.event_type, e.id) for e in all_dice_events]}")
+        
         # Hole alle Bewegungs-Events
         movement_events = GameEvent.query.filter_by(
             game_session_id=game_session_id
         ).filter(
-            GameEvent.event_type.in_(['dice_roll', 'admin_dice_roll', 'admin_dice_roll_legacy'])
+            GameEvent.event_type.in_(['dice_roll', 'admin_dice_roll', 'admin_dice_roll_legacy', 'team_dice_roll'])
         ).order_by(GameEvent.timestamp.asc()).all()
+        current_app.logger.info(f"📊 Movement events found: {len(movement_events)}")
         
         position_history = {}
         

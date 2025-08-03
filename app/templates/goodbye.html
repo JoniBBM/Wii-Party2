@@ -372,6 +372,8 @@
                 <div class="team-final-position">{{ team.final_position + 1 }}</div>
                 {% if team.minigame_wins > 0 %}
                 <div class="team-placement">🎮 {{ team.minigame_wins }} Minispiel-Sieg(e)</div>
+                {% elif total_minigames == 0 %}
+                <div class="team-placement">🎲 Nur Brettspiel gespielt</div>
                 {% endif %}
             </div>
             {% endfor %}
@@ -382,15 +384,30 @@
                 ⏱️ Spieldauer: {{ game_duration }}
             </div>
             <div class="total-rounds">
+                {% if total_minigames > 0 %}
                 🎯 Minispiele gespielt: {{ total_minigames }}
+                {% else %}
+                🎲 Reines Brettspiel - keine Minispiele gespielt
+                {% endif %}
             </div>
         </div>
     </div>
     
     <!-- Interaktive Charts und Statistiken -->
+    {% if total_minigames > 0 %}
     <div class="charts-container">
         <h2 class="charts-title">📈 Detaillierte Spielstatistiken</h2>
+    {% else %}
+    <div class="charts-container">
+        <h2 class="charts-title">🎲 Brettspiel-Statistiken</h2>
+        <div style="text-align: center; padding: 40px; background: rgba(255, 255, 255, 0.1); border-radius: 15px; margin: 20px 0;">
+            <div style="font-size: 4rem; margin-bottom: 20px;">🎲</div>
+            <div style="font-size: 1.5rem; margin-bottom: 15px;">Reines Brettspiel gespielt!</div>
+            <div style="font-size: 1.1rem; opacity: 0.9;">Dieses Spiel war ein klassisches Würfel-Rennen zum Ziel ohne Minispiele.</div>
+        </div>
+    {% endif %}
         
+        {% if total_minigames > 0 %}
         <div class="chart-grid">
             <!-- Minispiel-Siege Chart -->
             <div class="chart-box">
@@ -416,6 +433,7 @@
                 <canvas id="participationChart" class="chart-canvas"></canvas>
             </div>
         </div>
+        {% endif %}
         
         <!-- Detaillierte Statistiken -->
         <div class="detailed-stats">
@@ -427,6 +445,7 @@
                     <div class="stat-value" style="color: {{ team.color }};">{{ team.name }}</div>
                     <div class="stat-label">Team</div>
                 </div>
+                {% if total_minigames > 0 %}
                 <div class="stat-item">
                     <div class="stat-value">{{ team.minigame_wins }}</div>
                     <div class="stat-label">Minispiel-Siege</div>
@@ -439,6 +458,20 @@
                     <div class="stat-value">{{ "%.1f"|format(team.minigame_placements|sum / team.minigame_placements|length if team.minigame_placements else 0) }}</div>
                     <div class="stat-label">⌀ Platzierung</div>
                 </div>
+                {% else %}
+                <div class="stat-item">
+                    <div class="stat-value">-</div>
+                    <div class="stat-label">Keine Minispiele</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">{{ team.final_position + 1 }}</div>
+                    <div class="stat-label">Feldposition</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">🎲</div>
+                    <div class="stat-label">Spielmodus</div>
+                </div>
+                {% endif %}
                 <div class="stat-item">
                     <div class="stat-value">{{ team.final_position + 1 }}</div>
                     <div class="stat-label">Endposition</div>
