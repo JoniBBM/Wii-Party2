@@ -1,0 +1,387 @@
+{
+  "folder_info": {
+    "name": "Teenie 2025",
+    "description": "",
+    "created_at": "2025-08-04T14:48:06.507823"
+  },
+  "minigames": [
+    {
+      "name": "Ball pusten",
+      "description": "In einer Reihe stehen 8 Becher. Jede Gruppe hat noch einen Becher, mit dem sie bei sich Wasser schöpfen können. Mit dem Becher läuft der erste TN los und füllt den vordersten Becher auf. Dadurch schwimmt ein Ball der im ersten Becher lag nach oben und der TN kann den Ball in den zweiten Becher puste",
+      "type": "game",
+      "player_count": "all",
+      "id": "e5b1f936",
+      "created_at": "2025-08-04T14:48:20.060744"
+    },
+    {
+      "name": "Reise nach Jerusalem",
+      "description": "",
+      "type": "game",
+      "player_count": "all",
+      "id": "6e69768d",
+      "created_at": "2025-08-04T14:48:35.831058"
+    },
+    {
+      "name": "Strecke schätzen",
+      "description": "Aus jedem Team muss ein TN eine Strecke schätzen",
+      "type": "game",
+      "player_count": "1",
+      "id": "e53c3006",
+      "created_at": "2025-08-04T14:49:39.396156"
+    },
+    {
+      "name": "Zeit schätzen",
+      "description": "Jedes Team erhält einen TT-Ball. Dabei muss jeder TN eine gewisse Zeit den Ball halten und dann weitergeben. Das Team, welches am Ende am nähesten an der Gesamtzeit ist. gewinnt",
+      "type": "game",
+      "player_count": "all",
+      "id": "b3836b12",
+      "created_at": "2025-08-04T14:49:54.825198"
+    },
+    {
+      "name": "Bounce",
+      "description": "MA prellt vorne den Ball, TN müssen klatschen, wenn der Ball den Boden berührt. Klatscht man, obwohl der Ball nicht den Boden berührt hat, dann ist diese Person draußen",
+      "type": "game",
+      "player_count": "all",
+      "id": "5842f287",
+      "created_at": "2025-08-04T14:50:12.135748"
+    },
+    {
+      "name": "Codenames",
+      "description": "Von jedem Team kommt ein TN nach vorne. Dieser TN erhält einen Überbegriff, zu dem er passende Unterbegriffe nennen soll.",
+      "type": "game",
+      "player_count": "1",
+      "id": "4193d7e4",
+      "created_at": "2025-08-04T14:50:32.976115",
+      "updated_at": "2025-08-04T14:50:43.879662"
+    },
+    {
+      "name": "Hobby Horsing",
+      "description": "Parcours mit Hobby Horsing auf Zeit",
+      "type": "game",
+      "player_count": "1",
+      "id": "305d8cdd",
+      "created_at": "2025-08-04T14:51:45.768443"
+    },
+    {
+      "name": "Kartenhaus bauen auf Zeit",
+      "description": "",
+      "type": "game",
+      "player_count": "1",
+      "id": "e6788531",
+      "created_at": "2025-08-04T14:51:59.549537"
+    },
+    {
+      "name": "Becherstapel mit Luftballon",
+      "description": "Einen Becherstapel machen nur mithilfe eines Luftballons",
+      "type": "game",
+      "player_count": "1",
+      "id": "ebefc032",
+      "created_at": "2025-08-04T14:52:20.413921"
+    },
+    {
+      "name": "Tisch Tennis Ball hochalten",
+      "description": "",
+      "type": "game",
+      "player_count": "1",
+      "id": "9f78249b",
+      "created_at": "2025-08-04T14:52:43.019807"
+    },
+    {
+      "name": "Komponist Nachtmusik",
+      "description": "",
+      "question_text": "Welcher Komponist schrieb „Die kleine Nachtmusik“?",
+      "question_type": "multiple_choice",
+      "type": "question",
+      "options": [
+        "Ludvig van Beethoven",
+        "Antonio Salieri",
+        "Franz Liszt",
+        "Wolfgang Amadeus Mozart"
+      ],
+      "correct_option": 3,
+      "id": "707713e2",
+      "player_count": "1",
+      "created_at": "2025-08-04T14:53:31.284733"
+    },
+    {
+      "name": "Film aus 1976",
+      "description": "",
+      "question_text": "Welcher Film aus dem Jahr 1976 wurde mit mehreren Oscars ausgezeichnet, in dem Sylvester Stallone als Hauptdarsteller mitspielte?",
+      "question_type": "multiple_choice",
+      "type": "question",
+      "options": [
+        "Rambo",
+        "Rocky",
+        "F.I.S.T - Ein Mann geht seinen Weg",
+        "Vorhof zum Paradies"
+      ],
+      "correct_option": 1,
+      "id": "5a178314",
+      "player_count": "1",
+      "created_at": "2025-08-04T14:54:06.290709"
+    },
+    {
+      "name": "Alkohol in Japan",
+      "description": "",
+      "question_text": "Was ist ein beliebtes alkoholisches Getränk in Japan?",
+      "question_type": "multiple_choice",
+      "type": "question",
+      "options": [
+        "Koto",
+        "Sake",
+        "Katana",
+        "Mate"
+      ],
+      "correct_option": 1,
+      "id": "447f4626",
+      "player_count": "1",
+      "created_at": "2025-08-04T14:54:39.641844"
+    },
+    {
+      "name": "Edelgas",
+      "description": "",
+      "question_text": "Welches dieser Elemente ist ein Edelgas",
+      "question_type": "multiple_choice",
+      "type": "question",
+      "options": [
+        "Sauerstoff",
+        "Stickstoff",
+        "Helium",
+        "Kohlenstoff"
+      ],
+      "correct_option": 2,
+      "id": "f53e6784",
+      "player_count": "1",
+      "created_at": "2025-08-04T14:55:18.454966"
+    },
+    {
+      "name": "Mount Everest",
+      "description": "",
+      "question_text": "Wer war der erste Mensch, der den Mount Everest ohne zusätzlichen Sauerstoff bestieg, und das im Jahr 1978?",
+      "question_type": "multiple_choice",
+      "type": "question",
+      "options": [
+        "Luis Trenkner",
+        "Anderl Heckmair",
+        "Reinhold Messner",
+        "Toni Kurz"
+      ],
+      "correct_option": 2,
+      "id": "e588531a",
+      "player_count": "1",
+      "created_at": "2025-08-04T14:56:03.664569"
+    },
+    {
+      "name": "Eiphone",
+      "description": "",
+      "question_text": "In welchem Jahr kam das aller erste iPhone auf den Markt?",
+      "question_type": "multiple_choice",
+      "type": "question",
+      "options": [
+        "2010",
+        "2007",
+        "2003",
+        "2009"
+      ],
+      "correct_option": 1,
+      "id": "f0ae83fa",
+      "player_count": "1",
+      "created_at": "2025-08-04T14:56:58.532976"
+    },
+    {
+      "name": "Brasilien",
+      "description": "",
+      "question_text": "Was für eine Amtssprache wird in Brasilien gesprochen?",
+      "question_type": "multiple_choice",
+      "type": "question",
+      "options": [
+        "Portugiesisch",
+        "Spanisch",
+        "Englisch",
+        "Französisch"
+      ],
+      "correct_option": 0,
+      "id": "307915b4",
+      "player_count": "1",
+      "created_at": "2025-08-04T14:57:29.329023"
+    },
+    {
+      "name": "Brandenburger Tor",
+      "description": "",
+      "question_text": "Wie viele Pferde sind auf dem Brandenburger Tor zu sehen?",
+      "question_type": "multiple_choice",
+      "type": "question",
+      "options": [
+        "6",
+        "5",
+        "4",
+        "3"
+      ],
+      "correct_option": 2,
+      "id": "1d70751a",
+      "player_count": "1",
+      "created_at": "2025-08-04T14:57:58.617452"
+    },
+    {
+      "name": "Wellholz",
+      "description": "Nur ein Wort",
+      "question_text": "Wo findet man ein Wellholz?",
+      "question_type": "text_input",
+      "type": "question",
+      "correct_text": "Küche",
+      "id": "a7c45446",
+      "player_count": "1",
+      "created_at": "2025-08-04T14:58:27.864353"
+    },
+    {
+      "name": "Franz Kafka",
+      "description": "",
+      "question_text": "Für welches Werk ist der Author Franz Kafka unter anderem berühmt?",
+      "question_type": "multiple_choice",
+      "type": "question",
+      "options": [
+        "Vom Winde verweht",
+        "Wilhelm Tell",
+        "Der Sturm",
+        "Die Verwandlung"
+      ],
+      "correct_option": 3,
+      "id": "a8fae7f2",
+      "player_count": "1",
+      "created_at": "2025-08-04T14:59:06.548487"
+    },
+    {
+      "name": "Tiefste Punkt",
+      "description": "",
+      "question_text": "Welcher ist der tiefste Punkt der Erde?",
+      "question_type": "text_input",
+      "type": "question",
+      "correct_text": "Marianengraben",
+      "id": "a7fd60c3",
+      "player_count": "1",
+      "created_at": "2025-08-04T14:59:37.655884"
+    },
+    {
+      "name": "Sonnensystem ",
+      "description": "Nur als Zahl eingeben, nicht ausgeschrieben (z.B. 3)",
+      "question_text": "Wie viele Planeten hat unser Sonnensystem seit 2006 offiziell?",
+      "question_type": "text_input",
+      "type": "question",
+      "correct_text": "8",
+      "id": "de94d810",
+      "player_count": "1",
+      "created_at": "2025-08-04T15:00:10.845824"
+    },
+    {
+      "name": "Jugendreferenten",
+      "description": "Nur als Ziffer eingeben, nicht ausschreiben (z.b.5)!",
+      "question_text": "Wie viele Jugenreferenten gibt es im CVJM Fellbach?",
+      "question_type": "text_input",
+      "type": "question",
+      "correct_text": "3",
+      "id": "4a02d4eb",
+      "player_count": "1",
+      "created_at": "2025-08-04T15:00:42.462808"
+    },
+    {
+      "name": "Bibelbücher",
+      "description": "",
+      "question_text": "Wie viele Bücher hat die Bibel?",
+      "question_type": "multiple_choice",
+      "type": "question",
+      "options": [
+        "23",
+        "42",
+        "81",
+        "66"
+      ],
+      "correct_option": 3,
+      "id": "dfd0e78f",
+      "player_count": "1",
+      "created_at": "2025-08-04T15:01:14.667070"
+    },
+    {
+      "name": "CVJM Gründung",
+      "description": "",
+      "question_text": "In welchem Jahr wurde der CVJM Fellbach Gegründet?",
+      "question_type": "multiple_choice",
+      "type": "question",
+      "options": [
+        "1864",
+        "1891",
+        "1853",
+        "1898"
+      ],
+      "correct_option": 0,
+      "id": "ca8a29d3",
+      "player_count": "1",
+      "created_at": "2025-08-04T15:01:54.297468"
+    },
+    {
+      "name": "Fünfseitiges Vieleck",
+      "description": "",
+      "question_text": "Wie nennt man ein fünfseitiges Vieleck?",
+      "question_type": "text_input",
+      "type": "question",
+      "correct_text": "Pentagon",
+      "id": "7a27093c",
+      "player_count": "1",
+      "created_at": "2025-08-04T15:02:22.091771"
+    },
+    {
+      "name": "Evangelien",
+      "description": "Bitte Antwort als Ziffer eingeben, nicht ausschreiben (z.B.8)",
+      "question_text": "Wie viele Evangelien gibt es?",
+      "question_type": "text_input",
+      "type": "question",
+      "correct_text": "4",
+      "id": "426a8c3c",
+      "player_count": "1",
+      "created_at": "2025-08-04T15:02:49.911862"
+    },
+    {
+      "name": "Arche",
+      "description": "",
+      "question_text": "Wem hat Gott aufgetragen, eine Arche zu bauen?",
+      "question_type": "multiple_choice",
+      "type": "question",
+      "options": [
+        "Noaah",
+        "Noha",
+        "Noah",
+        "Noa"
+      ],
+      "correct_option": 2,
+      "id": "30779b1b",
+      "player_count": "1",
+      "created_at": "2025-08-04T15:03:27.154399"
+    },
+    {
+      "name": "Gottes Friedenszeichen",
+      "description": "",
+      "question_text": "Was war Gottes Zeichen für Noah, dass er die Erde nie wieder zerstören würde?",
+      "question_type": "multiple_choice",
+      "type": "question",
+      "options": [
+        "Taube",
+        "Regenbogen",
+        "Olivenbaum Zweig"
+      ],
+      "correct_option": 1,
+      "id": "03e25825",
+      "player_count": "1",
+      "created_at": "2025-08-04T15:04:04.534695"
+    },
+    {
+      "name": "Bumerang",
+      "description": "",
+      "question_text": "Wie nennt man einen Bumerang der nicht zurückkommt?",
+      "question_type": "text_input",
+      "type": "question",
+      "correct_text": "Stock",
+      "id": "42c0e537",
+      "player_count": "1",
+      "created_at": "2025-08-04T15:04:30.864203"
+    }
+  ]
+}

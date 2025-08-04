@@ -141,6 +141,41 @@
         </div>
     </div>
     
+    <!-- WÜRFELRUNDEN-ERGEBNISSE -->
+    <div class="row mb-5" id="dice-round-results" style="display: none;">
+        <div class="col-12">
+            <div class="card border-primary">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-dice-six"></i> 
+                        Würfelrunden-Ergebnisse
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row" id="dice-results-container">
+                        <!-- Wird per JavaScript befüllt -->
+                        <div class="col-12 text-center text-muted">
+                            <i class="fas fa-clock"></i> Warte auf Würfelergebnisse...
+                        </div>
+                    </div>
+                    <div class="mt-3" id="dice-round-summary" style="display: none;">
+                        <hr>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6><i class="fas fa-trophy"></i> Höchster Wurf:</h6>
+                                <span id="highest-roll" class="badge badge-success badge-lg">-</span>
+                            </div>
+                            <div class="col-md-6">
+                                <h6><i class="fas fa-chart-bar"></i> Durchschnitt:</h6>
+                                <span id="average-roll" class="badge badge-info badge-lg">-</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
     <!-- Detailansicht für Fragen/Minigames oder Ergebnisse -->
     <!-- IMMER RENDERN aber anfangs versteckt -->
     <div class="row mb-5" id="initial-content-card" style="{% if not (game_status and (game_status.content_details or (game_status.results and game_status.results.has_results))) %}display: none;{% endif %}">
@@ -499,6 +534,9 @@ document.addEventListener('DOMContentLoaded', function() {
     let lastPhase = null;
     let diceResultTimeout = null;
     let lastDiceResult = null;
+    let diceRoundResults = []; // Sammelt alle Würfelergebnisse der aktuellen Runde
+    let diceRoundHideTimeout = null; // Timeout zum automatischen Verstecken
+    let processedTeams = new Set(); // Teams die bereits gewürfelt haben
     
     // AJAX Auto-Update alle 3 Sekunden - VEREINFACHT UND ROBUSTER
     function updateStatus() {
@@ -543,6 +581,18 @@ document.addEventListener('DOMContentLoaded', function() {
         if (wasContentPhase && newPhase === 'Würfelrunde') {
             console.log('Hiding content due to phase change to dice rolling');
             hideContentCard();
+        }
+        
+        // Würfelrunden-Management
+        if (newPhase === 'Würfelrunde' && oldPhase !== 'Würfelrunde') {
+            console.log('Starting new dice round - clearing previous results');
+            clearDiceRoundResults();
+        }
+        
+        // Lösche auch bei allen anderen Phasenwechseln (außer innerhalb Würfelrunde)
+        if (oldPhase === 'Würfelrunde' && newPhase !== 'Würfelrunde') {
+            console.log('Left dice rolling phase - clearing dice results');
+            clearDiceRoundResults();
         }
         
         // Wenn von Ergebnissen zu neuer Frage/Minispiel gewechselt wird, räume auf
@@ -907,23 +957,31 @@ document.addEventListener('DOMContentLoaded', function() {
     function updateDiceResultSection(gameStatus) {
         console.log(`updateDiceResultSection called - Phase: ${gameStatus.current_status}, Has dice_result: ${!!gameStatus.dice_result}`);
         
-        // Nur bei Würfelrunde und wenn Würfelergebnis vorhanden UND wirklich aktuell ist
-        if (gameStatus.current_status === 'Würfelrunde' && gameStatus.dice_result && gameStatus.dice_result.is_recent && isRecentDiceResult(gameStatus.dice_result)) {
+        // VEREINFACHTE LOGIK: Vertraue dem Server is_recent Flag
+        if (gameStatus.current_status === 'Würfelrunde' && gameStatus.dice_result && gameStatus.dice_result.is_recent) {
             const diceResult = gameStatus.dice_result;
-            console.log('Dice result data:', diceResult);
+            console.log('Processing dice result (is_recent=true):', diceResult);
             
-            // Prüfe ob es ein neues Würfelergebnis ist
+            const teamKey = diceResult.team_name;
             const diceKey = `${diceResult.team_name}-${diceResult.timestamp}-${diceResult.total_roll}`;
-            console.log(`Dice key: ${diceKey}, Last dice result: ${lastDiceResult}`);
             
-            if (lastDiceResult !== diceKey) {
-                lastDiceResult = diceKey;
-                showDiceResult(diceResult, gameStatus);
+            // Füge zur Sammlung hinzu, nur wenn es ein neues Team ist
+            if (!processedTeams.has(teamKey)) {
+                console.log(`NEW team ${teamKey} - adding to collection`);
+                processedTeams.add(teamKey);
+                addDiceResult(diceResult);
+                resetDiceRoundHideTimer();
+                
+                // Zeige auch das Live-Popup
+                if (lastDiceResult !== diceKey) {
+                    lastDiceResult = diceKey;
+                    showDiceResult(diceResult, gameStatus);
+                }
             } else {
-                console.log('Same dice result as before, not showing again');
+                console.log(`Team ${teamKey} already processed`);
             }
         } else {
-            console.log('No dice result to show or not in dice rolling phase');
+            console.log(`No dice result or not recent (is_recent: ${gameStatus.dice_result?.is_recent})`);
             // Kein Würfelergebnis oder nicht in Würfelrunde
             if (gameStatus.current_status !== 'Würfelrunde') {
                 hideDiceResult();
@@ -1051,6 +1109,131 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         html += '</div>';
         return html;
+    }
+    
+    // WÜRFELRUNDEN-ERGEBNISSE MANAGEMENT
+    function resetDiceRoundHideTimer() {
+        // Lösche vorherigen Timer
+        if (diceRoundHideTimeout) {
+            clearTimeout(diceRoundHideTimeout);
+        }
+        
+        // Setze neuen Timer für 10 Sekunden
+        diceRoundHideTimeout = setTimeout(() => {
+            console.log('Auto-hiding dice round results after 10 seconds');
+            const diceRoundDiv = document.getElementById('dice-round-results');
+            if (diceRoundDiv) {
+                diceRoundDiv.style.display = 'none';
+            }
+            clearDiceRoundResults();
+        }, 10000);
+        
+        console.log('Reset dice round hide timer to 10 seconds');
+    }
+    
+    function addDiceResult(diceResult) {
+        // Prüfe ob es ein neues, gültiges Würfelergebnis ist
+        if (!diceResult || !diceResult.team_name || !diceResult.total_roll) {
+            console.log('Invalid dice result, not adding:', diceResult);
+            return;
+        }
+        
+        const resultKey = `${diceResult.team_name}-${diceResult.total_roll}-${diceResult.standard_roll}-${diceResult.bonus_roll || 0}`;
+        const exists = diceRoundResults.some(r => `${r.team_name}-${r.total_roll}-${r.standard_roll}-${r.bonus_roll}` === resultKey);
+        
+        if (!exists) {
+            diceRoundResults.push({
+                team_name: diceResult.team_name,
+                standard_roll: diceResult.standard_roll,
+                bonus_roll: diceResult.bonus_roll || 0,
+                total_roll: diceResult.total_roll,
+                has_bonus: diceResult.has_bonus,
+                timestamp: diceResult.timestamp
+            });
+            
+            console.log(`Added dice result for ${diceResult.team_name}: ${diceResult.total_roll}. Total results: ${diceRoundResults.length}`);
+            updateDiceRoundDisplay();
+        } else {
+            console.log(`Dice result already exists for ${diceResult.team_name} at ${diceResult.timestamp}`);
+        }
+    }
+    
+    function clearDiceRoundResults() {
+        diceRoundResults = [];
+        processedTeams.clear();
+        updateDiceRoundDisplay();
+        console.log('Cleared dice round results and processed teams');
+        
+        // Lösche Auto-Hide Timer
+        if (diceRoundHideTimeout) {
+            clearTimeout(diceRoundHideTimeout);
+            diceRoundHideTimeout = null;
+        }
+    }
+    
+    function updateDiceRoundDisplay() {
+        const diceRoundDiv = document.getElementById('dice-round-results');
+        const container = document.getElementById('dice-results-container');
+        const summaryDiv = document.getElementById('dice-round-summary');
+        
+        if (!container) return;
+        
+        if (diceRoundResults.length === 0) {
+            diceRoundDiv.style.display = 'none';
+            return;
+        }
+        
+        console.log(`Updating dice round display with ${diceRoundResults.length} results`);
+        console.log('Results:', diceRoundResults);
+        
+        // Zeige das Würfelrunden-Feld
+        diceRoundDiv.style.display = 'block';
+        
+        // Erstelle HTML für alle Ergebnisse
+        let html = '';
+        diceRoundResults.forEach(result => {
+            html += `
+                <div class="col-md-4 mb-3">
+                    <div class="card border-info">
+                        <div class="card-body p-3">
+                            <h6 class="card-title mb-2">
+                                <i class="fas fa-users"></i> ${result.team_name}
+                            </h6>
+                            <div class="row text-center">
+                                <div class="col-4">
+                                    <small class="text-muted">Standard</small>
+                                    <div class="h5 text-primary">${result.standard_roll}</div>
+                                </div>
+                                ${result.has_bonus ? `
+                                <div class="col-4">
+                                    <small class="text-muted">Bonus</small>
+                                    <div class="h5 text-warning">${result.bonus_roll}</div>
+                                </div>
+                                ` : '<div class="col-4"></div>'}
+                                <div class="col-4">
+                                    <small class="text-muted">Gesamt</small>
+                                    <div class="h4 text-success font-weight-bold">${result.total_roll}</div>
+                                </div>
+                            </div>
+                            <small class="text-muted">${result.timestamp}</small>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+        
+        container.innerHTML = html;
+        
+        // Update Statistiken
+        if (diceRoundResults.length > 0) {
+            const totals = diceRoundResults.map(r => r.total_roll);
+            const highest = Math.max(...totals);
+            const average = (totals.reduce((a, b) => a + b, 0) / totals.length).toFixed(1);
+            
+            document.getElementById('highest-roll').textContent = highest;
+            document.getElementById('average-roll').textContent = average;
+            summaryDiv.style.display = 'block';
+        }
     }
     
     function updateSequenceSection(sequenceInfo) {
