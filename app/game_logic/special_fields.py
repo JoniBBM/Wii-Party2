@@ -328,19 +328,15 @@ def check_barrier_release(team, dice_roll, game_session, bonus_roll=0):
             'display_text': f"Würfle mindestens eine {target_number}!"
         }
     
-    # Calculate total roll
-    total_roll = dice_roll + bonus_roll
+    current_app.logger.info(f"[BARRIER] Team {team.name} Konfiguration: {barrier_config}")
     
     # Check if dice roll releases the team
     # User requirement: "es soll immer das gesamtergebnis der beiden würfel verglichen werden"
     # Only check the total roll (standard + bonus) for barrier release
-    released = False
-    release_method = None
+    released = _check_barrier_dice_roll(total_roll, barrier_config)
+    current_app.logger.info(f"[BARRIER] Team {team.name}: Würfel {total_roll} vs. Konfiguration → {'BEFREIT' if released else 'BLOCKIERT'}")
     
-    # Check total roll only (standard + bonus dice combined)
-    if _check_barrier_dice_roll(total_roll, barrier_config):
-        released = True
-        release_method = "total"
+    release_method = "total" if released else None
     
     # Build dice description for event
     dice_description = f"{dice_roll}"
@@ -638,13 +634,25 @@ def _check_barrier_dice_roll(dice_roll, barrier_config):
     Prüft ob ein Würfelwurf die Barrier-Bedingung erfüllt
     
     Args:
-        dice_roll: Die gewürfelte Zahl
+        dice_roll: Die gewürfelte Zahl (kann durch Bonus-Würfel über 6 sein)
         barrier_config: Die Barrier-Konfiguration
         
     Returns:
         bool: True wenn befreit, False wenn noch blockiert
     """
-    return dice_roll in barrier_config['numbers']
+    mode = barrier_config.get('mode', 'exact')
+    
+    if mode == 'minimum':
+        # Bei 4+ bedeutet: würfle mindestens 4 (auch 7, 8, 9, etc. mit Bonus)
+        min_number = barrier_config.get('min_number', 4)
+        return dice_roll >= min_number
+    elif mode == 'maximum':
+        # Bei -3 bedeutet: würfle höchstens 3
+        max_number = barrier_config.get('max_number', 3)
+        return dice_roll <= max_number
+    else:
+        # Exakte Zahlen: muss in der Liste sein
+        return dice_roll in barrier_config['numbers']
 
 def clear_field_distribution_cache():
     """

@@ -997,7 +997,7 @@ let localTeams = [
         minigame_placement: {{ team.minigame_placement|tojson if team.minigame_placement is not none else 'null' }},
         is_blocked: {{ team.is_blocked|tojson if team.is_blocked is defined else 'false' }},
         blocked_target_number: {{ team.blocked_target_number|tojson if team.blocked_target_number is not none else 'null' }}
-    }{{ "," if not loop.last }}
+    }{% if not loop.last %},{% endif %}
     {% endfor %}
 ];
 
@@ -1006,7 +1006,7 @@ let currentMinigameName = "{{ active_session.current_minigame_name | e if active
 let currentMinigameDescription = "{{ active_session.current_minigame_description | e if active_session else '' }}";
 let currentGamePhase = "{{ active_session.current_phase | e if active_session else 'UNKNOWN' }}";
 
-let lastTeamTurnId = {{ active_session.current_team_turn_id|tojson if active_session and active_session.current_team_turn_id is not none else 'null' }};
+let lastTeamTurnId = {% if active_session and active_session.current_team_turn_id is not none %}{{ active_session.current_team_turn_id|tojson }}{% else %}null{% endif %};
 let lastPhase = "";
 let gameStarted = false;
 
@@ -3247,7 +3247,7 @@ class WiiPartyIsland {
                                         }
                                         
                                         if (window.NotificationSystem && !window.shownDiceNotifications.has(notificationKey)) {
-                                            console.log(`🎲 Showing dice notification for ${currentTeam.name}: ${standardRoll} + ${bonusRoll} = ${totalRoll}`);
+                                            console.log("Showing dice notification for " + currentTeam.name + ": " + standardRoll + " + " + bonusRoll + " = " + totalRoll);
                                             window.NotificationSystem.showDiceRoll(currentTeam.name, standardRoll, bonusRoll, totalRoll, 8000);
                                             window.shownDiceNotifications.add(notificationKey);
                                             
@@ -3266,7 +3266,7 @@ class WiiPartyIsland {
                                         if (!window.shownVictoryNotifications.has(victoryNotificationKey)) {
                                             if (diceResult.victory_triggered) {
                                                 // Team hat gewonnen!
-                                                console.log(`🏆 VICTORY: Team ${currentTeam.name} hat das Spiel gewonnen!`);
+                                                console.log("VICTORY: Team " + currentTeam.name + " hat das Spiel gewonnen!");
                                                 window.shownVictoryNotifications.add(victoryNotificationKey);
                                                 setTimeout(() => {
                                                     window.NotificationSystem.showFinalRollSuccess(currentTeam.name, totalRoll, 6000);
@@ -3276,7 +3276,7 @@ class WiiPartyIsland {
                                                 }, 2000);
                                             } else if (diceResult.needs_final_roll) {
                                                 // Team steht auf Zielfeld, braucht aber mindestens 6
-                                                console.log(`🎯 FINAL FIELD: Team ${currentTeam.name} auf Zielfeld - braucht mindestens 6`);
+                                                console.log("FINAL FIELD: Team " + currentTeam.name + " auf Zielfeld - braucht mindestens 6");
                                                 window.shownVictoryNotifications.add(victoryNotificationKey);
                                                 setTimeout(() => {
                                                     window.NotificationSystem.showFinalRollNeeded(currentTeam.name, totalRoll, 8000);
@@ -3292,7 +3292,7 @@ class WiiPartyIsland {
                                                 }, 2000); // Start orbit after notification
                                             } else if (currentTeam.position === 72) {
                                                 // DEBUG: Team ist auf 72 aber keine Victory-Flags gesetzt
-                                                console.log(`❓ DEBUG: Team ${currentTeam.name} auf Position 72, aber keine Victory-Flags in Response!`);
+                                                console.log("DEBUG: Team " + currentTeam.name + " auf Position 72, aber keine Victory-Flags in Response!");
                                             }
                                         }
                                         
@@ -3395,46 +3395,86 @@ class WiiPartyIsland {
                         let newPositionForAnimation = 0;
                         let oldPositionForAnimation = 0;
 
+                        // NEUE SWAP-ERKENNUNG: Prüfe ob zwei Teams gleichzeitig ihre Positionen tauschen
+                        const positionChanges = [];
                         data.teams.forEach(serverTeam => {
                             const localTeam = localTeams.find(t => t.id === serverTeam.id);
-                            if (localTeam) {
-                                if (localTeam.position !== serverTeam.position) {
-                                    console.log(`🏃 Position change detected: Team ${serverTeam.id} (${localTeam.name}) from position ${localTeam.position} to ${serverTeam.position}`);
-                                    console.log(`🏃 Movement conditions: isCharacterMoving=${GAME_STATE.isCharacterMoving}, activeMovementAnimation=${!!this.activeMovementAnimation}, characterExists=${!!this.miiCharacters[serverTeam.id]}`);
+                            if (localTeam && localTeam.position !== serverTeam.position) {
+                                positionChanges.push({
+                                    team: localTeam,
+                                    oldPos: localTeam.position,
+                                    newPos: serverTeam.position
+                                });
+                            }
+                        });
+                        
+                        // Erkenne Player Swap: Wenn genau 2 Teams ihre Positionen tauschen
+                        let swapDetected = false;
+                        if (positionChanges.length === 2) {
+                            const [change1, change2] = positionChanges;
+                            if (change1.oldPos === change2.newPos && change1.newPos === change2.oldPos) {
+                                swapDetected = true;
+                                console.log("SWAP DETECTION - Player swap detected!", {
+                                    team1: change1.team.name,
+                                    team1_move: change1.oldPos + " -> " + change1.newPos,
+                                    team2: change2.team.name,
+                                    team2_move: change2.oldPos + " -> " + change2.newPos
+                                });
+                                
+                                // Starte sofort die Swap-Animation
+                                this.startImmediatePlayerSwap(change1.team.name, change2.team.name, {
+                                    current_team_new_position: change1.newPos,
+                                    swap_team_new_position: change2.newPos
+                                });
+                            }
+                        }
+                        
+                        // Normale Position-Updates nur wenn KEIN Swap erkannt wurde
+                        if (!swapDetected) {
+                            data.teams.forEach(serverTeam => {
+                                const localTeam = localTeams.find(t => t.id === serverTeam.id);
+                                if (localTeam) {
+                                    if (localTeam.position !== serverTeam.position) {
+                                        console.log("Position change detected: Team " + serverTeam.id + " (" + localTeam.name + ") from position " + localTeam.position + " to " + serverTeam.position);
+                                        console.log(`🏃 Movement conditions: isCharacterMoving=${GAME_STATE.isCharacterMoving}, activeMovementAnimation=${!!this.activeMovementAnimation}, characterExists=${!!this.miiCharacters[serverTeam.id]}`);
+                                    }
                                     
-                                    // WICHTIG: Keine Notification hier - echte Würfelergebnisse kommen vom Server
-                                    // Positionsänderungen können durch Katapulte, Tausch etc. verfälscht sein
-                                }
-                                
-                                // SWAP-SCHUTZ: Blockiere normale Bewegung für Teams die beim Tausch beteiligt sind
-                                const isInvolvedInSwap = this.swapInProgress && this.swapTeams && this.swapTeams.includes(localTeam.name);
-                                
-                                if (localTeam.position !== serverTeam.position) {
-                                    console.log("🔴 [MOVEMENT DEBUG] Position change for", localTeam.name, ":", {
-                                        from: localTeam.position,
-                                        to: serverTeam.position,
-                                        isCharacterMoving: GAME_STATE.isCharacterMoving,
-                                        activeMovementAnimation: !!this.activeMovementAnimation,
-                                        isInvolvedInSwap: isInvolvedInSwap,
-                                        swapInProgress: this.swapInProgress,
-                                        swapTeams: this.swapTeams
-                                    });
-                                }
-                                
-                                if (localTeam.position !== serverTeam.position &&
-                                    !GAME_STATE.isCharacterMoving &&
-                                    (!this.activeMovementAnimation || this.activeMovementAnimation.teamId !== localTeam.id) &&
-                                    !isInvolvedInSwap  // NEUE BEDINGUNG: Keine normale Bewegung während Tausch
-                                ) {
-                                    teamWhosePositionChanged = localTeam;
-                                    oldPositionForAnimation = localTeam.position;
-                                    newPositionForAnimation = serverTeam.position;
-                                    console.log(`✅ Movement will be triggered for team ${localTeam.name}`);
-                                } else if (isInvolvedInSwap) {
-                                    console.log(`🔴 [SWAP DEBUG] Blocking normal movement for ${localTeam.name} - involved in swap`);
-                                }
-                                
-                                localTeam.position = serverTeam.position;
+                                    // SWAP-SCHUTZ: Blockiere normale Bewegung für Teams die beim Tausch beteiligt sind
+                                    const isInvolvedInSwap = this.swapInProgress && this.swapTeams && this.swapTeams.includes(localTeam.name);
+                                    
+                                    if (localTeam.position !== serverTeam.position) {
+                                        console.log("🔴 [MOVEMENT DEBUG] Position change for", localTeam.name, ":", {
+                                            from: localTeam.position,
+                                            to: serverTeam.position,
+                                            isCharacterMoving: GAME_STATE.isCharacterMoving,
+                                            activeMovementAnimation: !!this.activeMovementAnimation,
+                                            isInvolvedInSwap: isInvolvedInSwap,
+                                            swapInProgress: this.swapInProgress,
+                                            swapTeams: this.swapTeams
+                                        });
+                                    }
+                                    
+                                    if (localTeam.position !== serverTeam.position &&
+                                        !GAME_STATE.isCharacterMoving &&
+                                        (!this.activeMovementAnimation || this.activeMovementAnimation.teamId !== localTeam.id) &&
+                                        !isInvolvedInSwap  // NEUE BEDINGUNG: Keine normale Bewegung während Tausch
+                                    ) {
+                                        teamWhosePositionChanged = localTeam;
+                                        oldPositionForAnimation = localTeam.position;
+                                        newPositionForAnimation = serverTeam.position;
+                                        console.log(`✅ Movement will be triggered for team ${localTeam.name}`);
+                                    } else if (isInvolvedInSwap) {
+                                        console.log(`🔴 [SWAP DEBUG] Blocking normal movement for ${localTeam.name} - involved in swap`);
+                                    }
+                                    
+                                    // WICHTIG: Verzögere Position-Update für Teams im Tausch bis Animation fertig ist
+                                    if (!isInvolvedInSwap) {
+                                        localTeam.position = serverTeam.position;
+                                    } else {
+                                        // Speichere finale Position für später aber update noch nicht die lokalTeam.position
+                                        localTeam.finalSwapPosition = serverTeam.position;
+                                        console.log(`🔄 [SWAP DEBUG] Delaying position update for ${localTeam.name}: current=${localTeam.position} -> final=${localTeam.finalSwapPosition}`);
+                                    }
                                 localTeam.bonus_dice_sides = serverTeam.bonus_dice_sides;
                                 localTeam.minigame_placement = serverTeam.minigame_placement;
                                 
@@ -3471,6 +3511,7 @@ class WiiPartyIsland {
                             }
                         }
                     }
+                }
 
                     // Process special field events with banners
                     if (data.special_field_event) {
@@ -3499,12 +3540,17 @@ class WiiPartyIsland {
                         
                         // Convert special_field_event to special_field format
                         if (data.special_field_event.type === 'player_swap') {
+                            // Finde Team-Namen basierend auf IDs
+                            const currentTeam = localTeams?.find(t => t.id === data.special_field_event.current_team_id);
+                            const swapTeam = localTeams?.find(t => t.id === data.special_field_event.swap_team_id);
+                            
                             const convertedData = {
                                 ...data,
+                                team_name: currentTeam?.name || 'Unknown Team',
                                 special_field: {
                                     success: true,
                                     action: 'player_swap',
-                                    swap_team_name: data.special_field_event.swap_team_name || 'Unknown Team',
+                                    swap_team_name: swapTeam?.name || data.special_field_event.swap_team_name || 'Unknown Team',
                                     final_positions: data.special_field_event.final_positions
                                 }
                             };
@@ -3686,6 +3732,10 @@ class WiiPartyIsland {
                                         console.log(`🔄 Showing player swap notification: ${currentTeamName} <-> ${swapTeamName}`);
                                         window.NotificationSystem.showPlayerSwap(currentTeamName, swapTeamName, 8000);
                                         window.shownPlayerSwapNotifications.add(swapKey);
+                                        
+                                        // DEAKTIVIERT: Animation wird jetzt über Position-Detection gestartet
+                                        console.log(`🔴 [SWAP DEBUG] Swap event detected - animation will be handled by position detection`);
+                                        // Animation wird automatisch durch Position-Detection im fetchBoardStatusAndUpdate gestartet
                                         
                                         // Remove from set after some time to allow future swaps
                                         setTimeout(() => {
@@ -5973,9 +6023,11 @@ class WiiPartyIsland {
             }
         });
         
-        // WICHTIG: Blockiere normale Bewegungslogik für Tausch
-        this.swapInProgress = true;
-        this.swapTeams = [team1Name, team2Name];
+        // WICHTIG: Blockiere normale Bewegungslogik für Tausch (falls noch nicht gesetzt)
+        if (!this.swapInProgress) {
+            this.swapInProgress = true;
+            this.swapTeams = [team1Name, team2Name];
+        }
         
         console.log("🔴 [SWAP DEBUG] Swap state set:", {
             swapInProgress: this.swapInProgress,
@@ -6094,14 +6146,28 @@ class WiiPartyIsland {
         const currentPos1 = character1.position.clone();
         const currentPos2 = character2.position.clone();
         
-        // Berechne Zielpositionen basierend auf den Backend-Positionen
-        const targetField1 = this.boardFields[team1.position];
-        const targetField2 = this.boardFields[team2.position];
+        // Berechne Zielpositionen basierend auf den Backend-Positionen (verwende finalSwapPosition wenn verfügbar)
+        const targetPosition1 = team1.finalSwapPosition !== undefined ? team1.finalSwapPosition : team1.position;
+        const targetPosition2 = team2.finalSwapPosition !== undefined ? team2.finalSwapPosition : team2.position;
+        
+        const targetField1 = this.boardFields[targetPosition1];
+        const targetField2 = this.boardFields[targetPosition2];
+        
+        console.log("🔄 [SWAP DEBUG] Target positions:", {
+            team1: team1.name,
+            team1_current: team1.position,
+            team1_final: team1.finalSwapPosition,
+            team1_target: targetPosition1,
+            team2: team2.name,
+            team2_current: team2.position,
+            team2_final: team2.finalSwapPosition,
+            team2_target: targetPosition2
+        });
         
         if (!targetField1 || !targetField2) {
             console.error("⚠️ [SWAP] Could not find target fields:", {
-                team1Pos: team1.position,
-                team2Pos: team2.position
+                team1Pos: targetPosition1,
+                team2Pos: targetPosition2
             });
             this.resetSwapState();
             return;
@@ -6121,21 +6187,21 @@ class WiiPartyIsland {
             targetPos2: targetPos2
         });
         
-        // Animation-Parameter
+        // Animation-Parameter - Maximal 3 Sekunden wie gewünscht
         const flyHeight = 8.0; // Höhe des Fluges
-        const animationDuration = 2500; // 2.5 Sekunden total
+        const animationDuration = 3000; // 3.0 Sekunden total (Maximum wie gewünscht)
         const startTime = Date.now();
         
-        // Kamera auf Übersicht setzen
+        // Kamera auf Übersicht setzen für die gesamte Animation
         this.showPlayerSwapView(animationDuration + 1000);
         
         const animateSwap = () => {
             const elapsed = Date.now() - startTime;
             const progress = Math.min(elapsed / animationDuration, 1);
             
-            // Easing-Funktion für weiche Animation
-            const easeInOutCubic = (t) => t < 0.5 ? 4 * t * t * t : (t - 1) * (2 * t - 2) * (2 * t - 2) + 1;
-            const easedProgress = easeInOutCubic(progress);
+            // Verbesserte Easing-Funktion für sehr weiche Animation (ease-in-out-quart)
+            const easeInOutQuart = (t) => t < 0.5 ? 8 * t * t * t * t : 1 - 8 * (--t) * t * t * t;
+            const easedProgress = easeInOutQuart(progress);
             
             // Berechne Flugbahn (Parabel)
             const heightFactor = Math.sin(progress * Math.PI); // 0 -> 1 -> 0
@@ -6174,12 +6240,12 @@ class WiiPartyIsland {
                 this.resetSwapState();
                 
                 // Aktualisiere Team-Badges an finalen Positionen
-                this.updateTeamBadgeForTeam(team1.id, team1.position);
-                this.updateTeamBadgeForTeam(team2.id, team2.position);
+                this.updateTeamBadgeForTeam(team1.id, targetPosition1);
+                this.updateTeamBadgeForTeam(team2.id, targetPosition2);
                 
                 console.log("📊 [SWAP] Updated team positions to final backend positions:", {
-                    [team1Name]: team1.position,
-                    [team2Name]: team2.position
+                    [team1Name]: targetPosition1,
+                    [team2Name]: targetPosition2
                 });
                 
                 // Zeige Abschluss-Nachricht
@@ -6199,8 +6265,179 @@ class WiiPartyIsland {
         animateSwap();
     }
     
-    // Reset Swap-Zustand
+    // NEUE EINFACHE Player Swap Animation
+    startImmediatePlayerSwap(team1Name, team2Name, swapData) {
+        console.log("SWAP - Starting IMMEDIATE player swap animation:", team1Name, "<->", team2Name);
+        
+        // Stoppe alle anderen Animationen sofort
+        GAME_STATE.isAnimating = true;
+        GAME_STATE.isCharacterMoving = true;
+        this.activeMovementAnimation = null;
+        
+        // WICHTIG: Blockiere normale Bewegungslogik für diese Teams
+        this.swapInProgress = true;
+        this.swapTeams = [team1Name, team2Name];
+        console.log("SWAP - Blocking normal movement for both teams during swap");
+        
+        // Finde die beiden Teams
+        const team1 = localTeams.find(t => t.name === team1Name);
+        const team2 = localTeams.find(t => t.name === team2Name);
+        
+        if (!team1 || !team2) {
+            console.error("SWAP - Could not find teams:", { team1Name, team2Name });
+            return;
+        }
+        
+        const character1 = this.miiCharacters[team1.id];
+        const character2 = this.miiCharacters[team2.id];
+        
+        if (!character1 || !character2) {
+            console.error("⚠️ [SWAP] Could not find characters:", { team1, team2 });
+            return;
+        }
+        
+        // Aktualisiere Team-Positionen SOFORT auf finale Ziele (aus Server-Event-Daten)
+        const team1FinalPos = swapData.swap_team_new_position || team2.position;
+        const team2FinalPos = swapData.current_team_new_position || team1.position;
+        
+        team1.position = team1FinalPos;
+        team2.position = team2FinalPos;
+        
+        console.log("🎯 [SWAP] Team positions updated:", {
+            [team1Name]: team1FinalPos,
+            [team2Name]: team2FinalPos
+        });
+        
+        // Berechne Zielpositionen
+        const targetField1 = this.boardFields[team1FinalPos];
+        const targetField2 = this.boardFields[team2FinalPos];
+        
+        if (!targetField1 || !targetField2) {
+            console.error("⚠️ [SWAP] Could not find target fields");
+            this.resetSimpleSwapState();
+            return;
+        }
+        
+        const targetPos1 = targetField1.mesh.position.clone();
+        const targetPos2 = targetField2.mesh.position.clone();
+        targetPos1.y += BOARD_CONFIG.characterElevation;
+        targetPos2.y += BOARD_CONFIG.characterElevation;
+        
+        // Kamera in Orbit setzen
+        console.log("🎥 [SWAP] Setting camera to orbit for swap animation");
+        this.requestCameraMode('orbit', {}, 'high');
+        
+        // Animation starten
+        this.animateSimplePlayerSwap(character1, character2, targetPos1, targetPos2, team1Name, team2Name);
+    }
+    
+    // Einfache simultane Animation
+    animateSimplePlayerSwap(char1, char2, target1, target2, team1Name, team2Name) {
+        const startPos1 = char1.position.clone();
+        const startPos2 = char2.position.clone();
+        const duration = 3000; // 3 Sekunden
+        const startTime = Date.now();
+        const flyHeight = 8.0;
+        
+        console.log("✈️ [SWAP] Starting flight animation for both players");
+        
+        const animate = () => {
+            const elapsed = Date.now() - startTime;
+            const progress = Math.min(elapsed / duration, 1);
+            
+            // Smooth easing
+            const easeInOutQuart = (t) => t < 0.5 ? 8 * t * t * t * t : 1 - 8 * (--t) * t * t * t;
+            const easedProgress = easeInOutQuart(progress);
+            
+            // Flugbahn (Parabel)
+            const heightFactor = Math.sin(progress * Math.PI);
+            
+            // Player 1 Animation
+            const pos1 = new THREE.Vector3(
+                startPos1.x + (target1.x - startPos1.x) * easedProgress,
+                startPos1.y + (target1.y - startPos1.y) * easedProgress + (flyHeight * heightFactor),
+                startPos1.z + (target1.z - startPos1.z) * easedProgress
+            );
+            
+            // Player 2 Animation
+            const pos2 = new THREE.Vector3(
+                startPos2.x + (target2.x - startPos2.x) * easedProgress,
+                startPos2.y + (target2.y - startPos2.y) * easedProgress + (flyHeight * heightFactor),
+                startPos2.z + (target2.z - startPos2.z) * easedProgress
+            );
+            
+            char1.position.copy(pos1);
+            char2.position.copy(pos2);
+            
+            if (progress < 1) {
+                requestAnimationFrame(animate);
+            } else {
+                // Animation fertig
+                char1.position.copy(target1);
+                char2.position.copy(target2);
+                
+                console.log("✅ [SWAP] Player swap animation completed successfully");
+                
+                this.resetSimpleSwapState();
+                
+                // Status-Nachricht
+                setTimeout(() => {
+                    this.showStatusMessage(
+                        `Positionstausch abgeschlossen! ${team1Name} und ${team2Name} haben ihre Plätze getauscht.`,
+                        3000,
+                        'success',
+                        true,
+                        'Tausch abgeschlossen'
+                    );
+                }, 500);
+                
+                // Kamera zum nächsten Spieler oder bleibt in Orbit
+                setTimeout(() => {
+                    // Prüfe ob es einen aktiven Spieler gibt, sonst bleibt in Orbit
+                    if (GAME_STATE.currentServerTeamTurnId) {
+                        const activeTeam = localTeams.find(t => t.id === GAME_STATE.currentServerTeamTurnId);
+                        if (activeTeam) {
+                            console.log("🎥 [SWAP] Switching camera to active player:", activeTeam.name);
+                            this.requestCameraMode('team_focus', {team: activeTeam}, 'normal');
+                        } else {
+                            console.log("🎥 [SWAP] No active team found, staying in orbit");
+                        }
+                    } else {
+                        console.log("🎥 [SWAP] No current team turn, staying in orbit");
+                    }
+                }, 1000);
+            }
+        };
+        
+        animate();
+    }
+    
+    // Reset für einfaches System
+    resetSimpleSwapState() {
+        GAME_STATE.isAnimating = false;
+        GAME_STATE.isCharacterMoving = false;
+        
+        // WICHTIG: Auch normale Blockierung aufheben
+        this.swapInProgress = false;
+        this.swapTeams = null;
+        
+        console.log("🔄 [SWAP] Simple swap state reset - normal movement re-enabled");
+    }
+
+    // Reset Swap-Zustand (alte Funktion für Kompatibilität)
     resetSwapState() {
+        // Wende verzögerte Position-Updates an
+        if (this.swapTeams && localTeams) {
+            this.swapTeams.forEach(teamName => {
+                const team = localTeams.find(t => t.name === teamName);
+                if (team && team.finalSwapPosition !== undefined) {
+                    console.log(`🔄 [SWAP] Applying delayed position update for ${team.name}: ${team.position} -> ${team.finalSwapPosition}`);
+                    team.position = team.finalSwapPosition;
+                    delete team.finalSwapPosition;
+                }
+            });
+        }
+        
         this.swapInProgress = false;
         this.swapTeams = null;
         console.log("🔄 [SWAP] Swap state reset - normal movement logic re-enabled");
@@ -6851,6 +7088,11 @@ function handleSpecialFieldResponse(data) {
                 specialField: specialField,
                 swapInProgress: this.swapInProgress
             });
+            
+            // SOFORT den Tausch-Zustand setzen um normale Bewegungslogik zu blockieren
+            this.swapInProgress = true;
+            this.swapTeams = [data.team_name, specialField.swap_team_name];
+            console.log("🔴 [SWAP DEBUG] Immediately set swap state to block normal movement logic");
             
             showSpecialFieldEffect(
                 'player_swap',
