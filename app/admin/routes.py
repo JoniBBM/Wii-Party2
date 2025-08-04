@@ -360,9 +360,30 @@ def moderation_mode():
             }
         
     
+    # Lade aktive Sequenz-Informationen
+    active_sequence_info = None
+    active_round = GameRound.get_active_round()
+    if active_round and active_round.minigame_folder:
+        active_sequence = MinigameSequence.query.filter_by(
+            minigame_folder_id=active_round.minigame_folder.id,
+            is_active=True
+        ).first()
+        
+        if active_sequence:
+            active_sequence_info = {
+                'name': f"Plan: {active_round.minigame_folder.name}",
+                'current_position': active_sequence.current_position,
+                'total_items': len(active_sequence.sequence_list),
+                'progress_percentage': active_sequence.get_progress_percentage(),
+                'current_item': active_sequence.get_current_item(),
+                'next_item': active_sequence.get_next_item(),
+                'sequence_list': active_sequence.sequence_list
+            }
+    
     return render_template('admin/moderation_mode.html', 
                          title='Moderationsmodus',
-                         game_status=game_status)
+                         game_status=game_status,
+                         sequence_info=active_sequence_info)
 
 @admin_bp.route('/moderation_mode_api')
 @login_required
@@ -503,7 +524,30 @@ def moderation_mode_api():
                     'additional_info': f'Phase: {current_phase}'
                 }
     
-        return jsonify({'game_status': game_status})
+        # Lade aktive Sequenz-Informationen für API
+        active_sequence_info = None
+        active_round = GameRound.get_active_round()
+        if active_round and active_round.minigame_folder:
+            active_sequence = MinigameSequence.query.filter_by(
+                minigame_folder_id=active_round.minigame_folder.id,
+                is_active=True
+            ).first()
+            
+            if active_sequence:
+                active_sequence_info = {
+                    'name': f"Plan: {active_round.minigame_folder.name}",
+                    'current_position': active_sequence.current_position,
+                    'total_items': len(active_sequence.sequence_list),
+                    'progress_percentage': active_sequence.get_progress_percentage(),
+                    'current_item': active_sequence.get_current_item(),
+                    'next_item': active_sequence.get_next_item(),
+                    'sequence_list': active_sequence.sequence_list
+                }
+        
+        return jsonify({
+            'game_status': game_status,
+            'sequence_info': active_sequence_info
+        })
         
     except Exception as e:
         current_app.logger.error(f"ERROR in moderation_mode_api: {e}", exc_info=True)

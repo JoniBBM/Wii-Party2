@@ -31,16 +31,70 @@
     from { opacity: 1; transform: translateY(0); }
     to { opacity: 0; transform: translateY(-20px); }
 }
+
+/* Mobile Fix: Stelle sicher, dass Würfelergebnis-Display korrekt positioniert ist */
+#dice-result-display {
+    position: relative !important;
+    z-index: auto !important;
+}
+
+@media (max-width: 768px) {
+    #dice-result-display {
+        position: static !important;
+        z-index: auto !important;
+        transform: none !important;
+    }
+    
+    .dice-display {
+        text-align: center;
+        padding: 8px;
+    }
+    
+    .dice-display .h1, .dice-display .h2, .dice-display .h4 {
+        font-size: 1.2rem;
+        margin-bottom: 3px;
+    }
+    
+    /* Ablaufplan mobile Optimierung */
+    #sequence-info-display .card {
+        margin: 0 10px !important;
+    }
+    
+    #sequence-info-display .row.mb-3 {
+        margin-bottom: 1rem !important;
+    }
+    
+    #sequence-info-display .col-md-4 {
+        margin-top: 10px;
+    }
+    
+    #sequence-info-display .card-body .row .col-md-4 {
+        text-align: center;
+        margin-top: 15px;
+    }
+    
+    #sequence-info-display .card-body .row .col-md-8 {
+        text-align: center;
+    }
+}
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="container-fluid mt-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1>Moderationsmodus</h1>
-        <a href="{{ url_for('admin.admin_dashboard') }}" class="btn btn-secondary">
-            <i class="fas fa-arrow-left"></i> Zurück zum Admin Dashboard
-        </a>
+    <div class="mb-4">
+        <!-- Desktop: Titel und Button nebeneinander -->
+        <div class="d-none d-md-flex justify-content-between align-items-center">
+            <h1>Moderationsmodus</h1>
+            <a href="{{ url_for('admin.admin_dashboard') }}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i> Zurück zum Admin Dashboard
+            </a>
+        </div>
+        
+        <!-- Mobile: Nur Titel -->
+        <div class="d-md-none">
+            <h1>Moderationsmodus</h1>
+        </div>
     </div>
     
     <!-- Aktueller Spielstatus -->
@@ -317,6 +371,127 @@
         </div>
     </div>
     
+    <!-- AKTIVER ABLAUFPLAN - WENN VORHANDEN -->
+    {% if sequence_info %}
+    <div class="row mt-5 mb-4" id="sequence-info-display">
+        <div class="col-12">
+            <div class="card border-info shadow-sm" style="margin: 0 15px;">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-list-ol"></i> 
+                        Aktiver Ablaufplan: {{ sequence_info.name }}
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row mb-3">
+                        <div class="col-md-8">
+                            <h6>Fortschritt</h6>
+                            <div class="progress mb-2">
+                                <div class="progress-bar bg-info" id="sequence-progress-bar"
+                                     style="width: {{ sequence_info.progress_percentage }}%">
+                                    {{ sequence_info.progress_percentage }}%
+                                </div>
+                            </div>
+                            <small class="text-muted" id="sequence-position-text">
+                                {{ sequence_info.current_position + 1 }} von {{ sequence_info.total_items }} abgeschlossen
+                            </small>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="text-right">
+                                {% if sequence_info.current_item %}
+                                    <h6 class="text-warning">
+                                        <i class="fas fa-play"></i> Aktuell:
+                                    </h6>
+                                    <div class="card border-warning">
+                                        <div class="card-body p-2">
+                                            {% if sequence_info.current_item.type == 'minigame' %}
+                                                <i class="fas fa-gamepad text-primary"></i>
+                                            {% else %}
+                                                <i class="fas fa-question-circle text-info"></i>
+                                            {% endif %}
+                                            <strong>{{ sequence_info.current_item.name }}</strong>
+                                        </div>
+                                    </div>
+                                {% endif %}
+                                
+                                {% if sequence_info.next_item %}
+                                    <h6 class="text-muted mt-3">
+                                        <i class="fas fa-step-forward"></i> Als nächstes:
+                                    </h6>
+                                    <div class="card border-light">
+                                        <div class="card-body p-2">
+                                            {% if sequence_info.next_item.type == 'minigame' %}
+                                                <i class="fas fa-gamepad text-primary"></i>
+                                            {% else %}
+                                                <i class="fas fa-question-circle text-info"></i>
+                                            {% endif %}
+                                            <strong>{{ sequence_info.next_item.name }}</strong>
+                                        </div>
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Vollständige Sequenz-Liste -->
+                    <div class="collapse" id="full-sequence-list">
+                        <hr>
+                        <h6><i class="fas fa-list"></i> Vollständiger Ablaufplan:</h6>
+                        <div class="row">
+                            {% for item in sequence_info.sequence_list %}
+                            <div class="col-md-4 mb-2">
+                                <div class="card border-{% if loop.index0 < sequence_info.current_position %}success{% elif loop.index0 == sequence_info.current_position %}warning{% else %}light{% endif %}">
+                                    <div class="card-body p-2">
+                                        <div class="d-flex align-items-center">
+                                            <span class="badge badge-primary mr-2">{{ loop.index }}</span>
+                                            {% if item.type == 'minigame' %}
+                                                <i class="fas fa-gamepad text-primary mr-1"></i>
+                                            {% else %}
+                                                <i class="fas fa-question-circle text-info mr-1"></i>
+                                            {% endif %}
+                                            <small class="flex-grow-1">{{ item.name }}</small>
+                                            {% if loop.index0 < sequence_info.current_position %}
+                                                <i class="fas fa-check text-success"></i>
+                                            {% elif loop.index0 == sequence_info.current_position %}
+                                                <i class="fas fa-play text-warning"></i>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    
+                    <div class="text-center mt-3">
+                        <button class="btn btn-outline-info btn-sm" type="button" data-toggle="collapse" data-target="#full-sequence-list">
+                            <i class="fas fa-list"></i> Vollständigen Plan anzeigen
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <!-- Versteckter Platzhalter für dynamische Sequenz-Anzeige -->
+    <div class="row mt-5 mb-4" id="sequence-info-display" style="display: none;">
+        <div class="col-12">
+            <div class="card border-info shadow-sm" id="sequence-info-card" style="margin: 0 15px;">
+                <!-- Wird per JavaScript befüllt -->
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    
+    <!-- Mobile: Zurück-Button am Ende der Seite -->
+    <div class="row mt-5 d-block d-md-none">
+        <div class="col-12 text-center">
+            <a href="{{ url_for('admin.admin_dashboard') }}" class="btn btn-secondary btn-lg">
+                <i class="fas fa-arrow-left"></i> Zurück zum Admin Dashboard
+            </a>
+        </div>
+    </div>
+    
 </div>
 
 <script>
@@ -350,6 +525,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 } else {
                     showInactiveGame();
                 }
+                
+                // Update Sequenz-Informationen
+                updateSequenceSection(data.sequence_info);
             })
             .catch(error => {
                 console.error('Update failed:', error);
@@ -800,8 +978,9 @@ document.addEventListener('DOMContentLoaded', function() {
         diceDisplay.style.display = 'block';
         diceDisplay.style.visibility = 'visible';
         diceDisplay.style.opacity = '1';
-        diceDisplay.style.zIndex = '1000';
-        diceDisplay.style.position = 'relative';
+        // Entferne problematische Position- und z-index-Styles für mobile Geräte
+        diceDisplay.style.position = '';
+        diceDisplay.style.zIndex = '';
         diceDisplay.style.width = 'auto';
         diceDisplay.style.height = 'auto';
         
@@ -872,6 +1051,103 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         html += '</div>';
         return html;
+    }
+    
+    function updateSequenceSection(sequenceInfo) {
+        const sequenceDisplay = document.getElementById('sequence-info-display');
+        
+        if (sequenceInfo) {
+            // Zeige Sequenz-Anzeige IMMER an (auch in Würfelrunde)
+            if (sequenceDisplay) {
+                sequenceDisplay.style.display = 'block';
+                
+                // Update Fortschrittsbalken
+                const progressBar = document.getElementById('sequence-progress-bar');
+                if (progressBar) {
+                    progressBar.style.width = sequenceInfo.progress_percentage + '%';
+                    progressBar.textContent = sequenceInfo.progress_percentage + '%';
+                }
+                
+                // Update Position Text
+                const positionText = document.getElementById('sequence-position-text');
+                if (positionText) {
+                    positionText.textContent = `${sequenceInfo.current_position + 1} von ${sequenceInfo.total_items} abgeschlossen`;
+                }
+                
+                // Dynamisch Sequenz-Karte erstellen falls nicht vorhanden
+                const sequenceCard = document.getElementById('sequence-info-card');
+                if (sequenceCard && sequenceCard.innerHTML.trim() === '') {
+                    updateSequenceCard(sequenceCard, sequenceInfo);
+                }
+            }
+        } else {
+            // Verstecke Sequenz-Anzeige nur wenn wirklich keine aktive Sequenz vorhanden
+            if (sequenceDisplay) {
+                sequenceDisplay.style.display = 'none';
+            }
+        }
+    }
+    
+    function updateSequenceCard(cardElement, sequenceInfo) {
+        let html = `
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0">
+                    <i class="fas fa-list-ol"></i> 
+                    Aktiver Ablaufplan: ${sequenceInfo.name}
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row mb-3">
+                    <div class="col-md-8">
+                        <h6>Fortschritt</h6>
+                        <div class="progress mb-2">
+                            <div class="progress-bar bg-info" id="sequence-progress-bar"
+                                 style="width: ${sequenceInfo.progress_percentage}%">
+                                ${sequenceInfo.progress_percentage}%
+                            </div>
+                        </div>
+                        <small class="text-muted" id="sequence-position-text">
+                            ${sequenceInfo.current_position + 1} von ${sequenceInfo.total_items} abgeschlossen
+                        </small>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="text-right">`;
+        
+        if (sequenceInfo.current_item) {
+            const currentIcon = sequenceInfo.current_item.type === 'minigame' ? 'fas fa-gamepad text-primary' : 'fas fa-question-circle text-info';
+            html += `
+                            <h6 class="text-warning">
+                                <i class="fas fa-play"></i> Aktuell:
+                            </h6>
+                            <div class="card border-warning">
+                                <div class="card-body p-2">
+                                    <i class="${currentIcon}"></i>
+                                    <strong>${sequenceInfo.current_item.name}</strong>
+                                </div>
+                            </div>`;
+        }
+        
+        if (sequenceInfo.next_item) {
+            const nextIcon = sequenceInfo.next_item.type === 'minigame' ? 'fas fa-gamepad text-primary' : 'fas fa-question-circle text-info';
+            html += `
+                            <h6 class="text-muted mt-3">
+                                <i class="fas fa-step-forward"></i> Als nächstes:
+                            </h6>
+                            <div class="card border-light">
+                                <div class="card-body p-2">
+                                    <i class="${nextIcon}"></i>
+                                    <strong>${sequenceInfo.next_item.name}</strong>
+                                </div>
+                            </div>`;
+        }
+        
+        html += `
+                        </div>
+                    </div>
+                </div>
+            </div>`;
+        
+        cardElement.innerHTML = html;
     }
     
     // Starte Updates alle 3 Sekunden
