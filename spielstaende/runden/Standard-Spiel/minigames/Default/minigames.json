@@ -112,6 +112,22 @@
       ],
       "correct_option": 0,
       "player_count": "1"
+    },
+    {
+      "id": "9bf672e1",
+      "name": "Spontane Frage",
+      "description": "",
+      "type": "question",
+      "question_text": "lololo",
+      "question_type": "multiple_choice",
+      "created_at": "2025-08-03T15:20:46.290832",
+      "options": [
+        "lol",
+        "qqqq",
+        "lololoo"
+      ],
+      "correct_option": 0,
+      "player_count": "1"
     }
   ]
 }

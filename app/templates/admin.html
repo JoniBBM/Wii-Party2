@@ -1285,6 +1285,33 @@
     line-height: 1.25;
     border-radius: 0.15rem;
 }
+
+/* Field Minigame Markers */
+.field-minigame-item {
+    border-left: 4px solid #17a2b8 !important;
+    background-color: rgba(23, 162, 184, 0.05) !important;
+}
+
+.field-minigame-item:hover {
+    background-color: rgba(23, 162, 184, 0.1) !important;
+}
+
+.field-minigame-item .badge-info {
+    background-color: #17a2b8;
+    border: 1px solid #138496;
+    font-size: 0.75em;
+    animation: subtle-pulse 2s infinite;
+}
+
+@keyframes subtle-pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.8; }
+    100% { opacity: 1; }
+}
+
+.field-minigame-item .badge-info i {
+    margin-right: 2px;
+}
 </style>
 
 <script>
@@ -2369,10 +2396,15 @@ function displayMinigameSelection(data) {
             
             data.available_minigames.team_vs_all.forEach(minigame => {
                 minigamesHtml += `
-                    <div class="list-group-item list-group-item-action minigame-option" data-id="${minigame.id}">
+                    <div class="list-group-item list-group-item-action minigame-option field-minigame-item" data-id="${minigame.id}">
                         <div class="d-flex justify-content-between">
                             <div>
-                                <h6 class="mb-1">🎮 ${minigame.title}</h6>
+                                <h6 class="mb-1">
+                                    🎮 ${minigame.title}
+                                    <span class="badge badge-info ml-2" title="Dieses Spiel wird für Feld-Minispiele verwendet">
+                                        <i class="fas fa-map-marker-alt"></i> Feld-Minigame
+                                    </span>
+                                </h6>
                                 <small class="text-muted">Spieler pro Team: ${minigame.player_count}</small>
                             </div>
                             <div class="text-right">
@@ -2404,10 +2436,15 @@ function displayMinigameSelection(data) {
             
             data.available_minigames.team_vs_team.forEach(minigame => {
                 minigamesHtml += `
-                    <div class="list-group-item list-group-item-action minigame-option" data-id="${minigame.id}">
+                    <div class="list-group-item list-group-item-action minigame-option field-minigame-item" data-id="${minigame.id}">
                         <div class="d-flex justify-content-between">
                             <div>
-                                <h6 class="mb-1">🎮 ${minigame.title}</h6>
+                                <h6 class="mb-1">
+                                    🎮 ${minigame.title}
+                                    <span class="badge badge-info ml-2" title="Dieses Spiel wird für Feld-Minispiele verwendet">
+                                        <i class="fas fa-map-marker-alt"></i> Feld-Minigame
+                                    </span>
+                                </h6>
                                 <small class="text-muted">Spieler pro Team: ${minigame.player_count}</small>
                             </div>
                             <div class="text-right">

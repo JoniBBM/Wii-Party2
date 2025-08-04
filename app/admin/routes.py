@@ -5361,3 +5361,64 @@ def submit_field_minigame_result():
         db.session.rollback()
         return jsonify({'success': False, 'message': 'Internal server error'}), 500
 
+
+@admin_bp.route('/debug/field_distribution', methods=['GET'])
+@login_required
+def debug_field_distribution():
+    """Debug-Route zum Testen der Feld-Verteilung"""
+    if not isinstance(current_user, Admin):
+        return redirect(url_for('main.index'))
+    
+    try:
+        from app.game_logic.special_fields import (
+            force_field_cache_refresh, 
+            get_field_type_at_position,
+            calculate_smart_field_distribution,
+            clear_field_distribution_cache
+        )
+        from app.models import FieldConfiguration
+        
+        # Erzwinge Cache-Refresh
+        current_app.logger.info("🔄 Debug: Cache wird geleert und neu berechnet...")
+        minigame_positions = force_field_cache_refresh()
+        
+        # Teste spezifische Positionen
+        test_positions = [6, 12, 18, 24, 30, 36, 42, 45, 48, 54, 60, 66]
+        position_results = {}
+        
+        for pos in test_positions:
+            field_type = get_field_type_at_position(pos)
+            position_results[pos] = field_type
+            current_app.logger.info(f"Position {pos}: {field_type}")
+        
+        # Hole Minigame-Konfiguration
+        minigame_config = FieldConfiguration.query.filter_by(field_type='minigame').first()
+        config_info = {}
+        if minigame_config:
+            config_info = {
+                'enabled': minigame_config.is_enabled,
+                'frequency_type': minigame_config.frequency_type,
+                'frequency_value': minigame_config.frequency_value,
+                'display_name': minigame_config.display_name
+            }
+        
+        # Berechne komplette Verteilung
+        full_distribution = calculate_smart_field_distribution(73)
+        all_minigame_positions = [pos for pos, field_type in full_distribution.items() if field_type == 'minigame']
+        
+        return jsonify({
+            'success': True,
+            'minigame_config': config_info,
+            'minigame_positions': sorted(all_minigame_positions),
+            'test_positions': position_results,
+            'total_minigame_fields': len(all_minigame_positions),
+            'cache_refreshed': True
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"Debug-Fehler: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+

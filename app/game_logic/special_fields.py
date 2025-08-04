@@ -429,11 +429,13 @@ def calculate_smart_field_distribution(max_fields=73):
             # Normale Felder werden später als Fallback zugewiesen
             continue
         elif config.frequency_type == 'modulo' and config.frequency_value > 0:
-            # Modulo-basierte Felder
-            for pos in range(max_fields):
-                if pos > 0 and pos < max_fields - 1:  # Nicht Start oder Ziel
-                    if pos % config.frequency_value == 0:
-                        positions.append(pos)
+            # Modulo-basierte Felder - erweiterte Logik für bessere Verteilung
+            for pos in range(1, max_fields - 1):  # Nicht Start oder Ziel
+                # Erweiterte Modulo-Logik: Verteile Felder in regelmäßigen Abständen
+                # aber berücksichtige auch Offset-Positionen für bessere Abdeckung
+                if (pos % config.frequency_value == 0 or 
+                    (pos + config.frequency_value // 2) % config.frequency_value == 0):
+                    positions.append(pos)
         elif config.frequency_type == 'fixed_positions':
             # Fest definierte Positionen
             fixed_positions = config.config_dict.get('positions', [])
@@ -667,6 +669,15 @@ def clear_field_distribution_cache():
         field_configs = FieldConfiguration.get_all_enabled()
         if field_configs:
             current_app.logger.info(f"Cache geleert. {len(field_configs)} Feld-Konfigurationen verfügbar.")
+            
+            # DEBUG: Logge Minigame-Konfiguration
+            minigame_config = next((c for c in field_configs if c.field_type == 'minigame'), None)
+            if minigame_config:
+                current_app.logger.info(f"Minigame-Feld: aktiviert={minigame_config.is_enabled}, "
+                                       f"typ={minigame_config.frequency_type}, "
+                                       f"wert={minigame_config.frequency_value}")
+            else:
+                current_app.logger.warning("Keine Minigame-Feld-Konfiguration gefunden!")
         else:
             current_app.logger.warning("Cache geleert, aber keine FieldConfiguration-Daten gefunden!")
     except Exception as e:
@@ -688,9 +699,27 @@ def get_field_type_at_position(position):
         
         _field_distribution_cache = calculate_smart_field_distribution(max_fields)
         _cache_max_fields = max_fields
+        
+        # DEBUG: Logge Minigame-Positionen
+        try:
+            minigame_positions = [pos for pos, field_type in _field_distribution_cache.items() if field_type == 'minigame']
+            if current_app:
+                current_app.logger.info(f"Minigame-Felder auf Positionen: {sorted(minigame_positions)}")
+        except:
+            pass
     
     # Position aus Cache zurückgeben
-    return _field_distribution_cache.get(position, 'normal')
+    field_type = _field_distribution_cache.get(position, 'normal')
+    
+    # DEBUG: Logge wenn Minigame-Feld erkannt wird
+    if field_type == 'minigame':
+        try:
+            if current_app:
+                current_app.logger.info(f"MINIGAME-FELD ERKANNT auf Position {position}")
+        except:
+            pass
+    
+    return field_type
 
 
 def get_field_config_for_position(position):
@@ -1255,3 +1284,25 @@ def regenerate_field_distribution():
     """
     clear_field_distribution_cache()
     return calculate_smart_field_distribution(73)
+
+
+def force_field_cache_refresh():
+    """
+    Erzwingt eine Neuerstellung des Feld-Caches und loggt Debug-Informationen
+    """
+    clear_field_distribution_cache()
+    
+    # Erzwinge Neuberechnung durch Aufruf von get_field_type_at_position
+    get_field_type_at_position(1)  # Trigger cache rebuild
+    
+    global _field_distribution_cache
+    if _field_distribution_cache:
+        # Zeige Minigame-Positionen
+        minigame_positions = [pos for pos, field_type in _field_distribution_cache.items() if field_type == 'minigame']
+        if current_app:
+            current_app.logger.info(f"Cache erneuert. Minigame-Felder: {sorted(minigame_positions)}")
+        return sorted(minigame_positions)
+    else:
+        if current_app:
+            current_app.logger.error("Cache konnte nicht erstellt werden!")
+        return []
