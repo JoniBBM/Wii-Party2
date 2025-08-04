@@ -141,54 +141,9 @@
         </div>
     </div>
     
-    <!-- WÜRFELERGEBNIS-ANZEIGE - LIVE UPDATES -->
-    <div class="row mb-4" id="dice-result-display" style="display: none;">
-        <div class="col-12">
-            <div class="card border-success">
-                <div class="card-header bg-success text-white">
-                    <h5 class="mb-0">
-                        <i class="fas fa-dice"></i> 
-                        Würfelergebnis
-                    </h5>
-                </div>
-                <div class="card-body text-center">
-                    <div class="row">
-                        <div class="col-md-3">
-                            <div class="dice-display">
-                                <small class="text-muted">Team</small>
-                                <div class="h4" id="dice-team-name">-</div>
-                            </div>
-                        </div>
-                        <div class="col-md-3">
-                            <div class="dice-display">
-                                <small class="text-muted">Standard</small>
-                                <div class="h2 text-primary" id="dice-standard">-</div>
-                            </div>
-                        </div>
-                        <div class="col-md-3" id="dice-bonus-section" style="display: none;">
-                            <div class="dice-display">
-                                <small class="text-muted">Bonus</small>
-                                <div class="h2 text-warning" id="dice-bonus">-</div>
-                            </div>
-                        </div>
-                        <div class="col-md-3">
-                            <div class="dice-display">
-                                <small class="text-muted">Gesamt</small>
-                                <div class="h1 text-success font-weight-bold" id="dice-total">0</div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="mt-2">
-                        <small class="text-muted" id="dice-timestamp">Zeit: --:--:--</small>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-    
     <!-- Detailansicht für Fragen/Minigames oder Ergebnisse -->
     <!-- IMMER RENDERN aber anfangs versteckt -->
-    <div class="row mb-4" id="initial-content-card" style="{% if not (game_status and (game_status.content_details or (game_status.results and game_status.results.has_results))) %}display: none;{% endif %}">
+    <div class="row mb-5" id="initial-content-card" style="{% if not (game_status and (game_status.content_details or (game_status.results and game_status.results.has_results))) %}display: none;{% endif %}">
         <div class="col-12">
             <div id="content-card-inner">
                 {% if game_status and game_status.content_details %}
@@ -371,15 +326,14 @@
         </div>
     </div>
     
-    <!-- AKTIVER ABLAUFPLAN - WENN VORHANDEN -->
-    {% if sequence_info %}
-    <div class="row mt-5 mb-4" id="sequence-info-display">
+    <!-- AKTIVER ABLAUFPLAN - IMMER SICHTBAR -->
+    <div class="row mb-5" id="sequence-info-display">
         <div class="col-12">
             <div class="card border-info shadow-sm" style="margin: 0 15px;">
                 <div class="card-header bg-info text-white">
                     <h5 class="mb-0">
                         <i class="fas fa-list-ol"></i> 
-                        Aktiver Ablaufplan: {{ sequence_info.name }}
+                        Aktiver Ablaufplan: {% if sequence_info %}{{ sequence_info.name }}{% else %}Wird geladen...{% endif %}
                     </h5>
                 </div>
                 <div class="card-body">
@@ -388,17 +342,17 @@
                             <h6>Fortschritt</h6>
                             <div class="progress mb-2">
                                 <div class="progress-bar bg-info" id="sequence-progress-bar"
-                                     style="width: {{ sequence_info.progress_percentage }}%">
-                                    {{ sequence_info.progress_percentage }}%
+                                     style="width: {% if sequence_info %}{{ sequence_info.progress_percentage }}{% else %}0{% endif %}%">
+                                    {% if sequence_info %}{{ sequence_info.progress_percentage }}{% else %}0{% endif %}%
                                 </div>
                             </div>
                             <small class="text-muted" id="sequence-position-text">
-                                {{ sequence_info.current_position + 1 }} von {{ sequence_info.total_items }} abgeschlossen
+                                {% if sequence_info %}{{ sequence_info.current_position + 1 }} von {{ sequence_info.total_items }} abgeschlossen{% else %}Lade Informationen...{% endif %}
                             </small>
                         </div>
                         <div class="col-md-4">
                             <div class="text-right">
-                                {% if sequence_info.current_item %}
+                                {% if sequence_info and sequence_info.current_item %}
                                     <h6 class="text-warning">
                                         <i class="fas fa-play"></i> Aktuell:
                                     </h6>
@@ -412,9 +366,13 @@
                                             <strong>{{ sequence_info.current_item.name }}</strong>
                                         </div>
                                     </div>
+                                {% else %}
+                                    <h6 class="text-muted">
+                                        <i class="fas fa-clock"></i> Wird geladen...
+                                    </h6>
                                 {% endif %}
                                 
-                                {% if sequence_info.next_item %}
+                                {% if sequence_info and sequence_info.next_item %}
                                     <h6 class="text-muted mt-3">
                                         <i class="fas fa-step-forward"></i> Als nächstes:
                                     </h6>
@@ -438,28 +396,34 @@
                         <hr>
                         <h6><i class="fas fa-list"></i> Vollständiger Ablaufplan:</h6>
                         <div class="row">
-                            {% for item in sequence_info.sequence_list %}
-                            <div class="col-md-4 mb-2">
-                                <div class="card border-{% if loop.index0 < sequence_info.current_position %}success{% elif loop.index0 == sequence_info.current_position %}warning{% else %}light{% endif %}">
-                                    <div class="card-body p-2">
-                                        <div class="d-flex align-items-center">
-                                            <span class="badge badge-primary mr-2">{{ loop.index }}</span>
-                                            {% if item.type == 'minigame' %}
-                                                <i class="fas fa-gamepad text-primary mr-1"></i>
-                                            {% else %}
-                                                <i class="fas fa-question-circle text-info mr-1"></i>
-                                            {% endif %}
-                                            <small class="flex-grow-1">{{ item.name }}</small>
-                                            {% if loop.index0 < sequence_info.current_position %}
-                                                <i class="fas fa-check text-success"></i>
-                                            {% elif loop.index0 == sequence_info.current_position %}
-                                                <i class="fas fa-play text-warning"></i>
-                                            {% endif %}
+                            {% if sequence_info and sequence_info.sequence_list %}
+                                {% for item in sequence_info.sequence_list %}
+                                <div class="col-md-4 mb-2">
+                                    <div class="card border-{% if loop.index0 < sequence_info.current_position %}success{% elif loop.index0 == sequence_info.current_position %}warning{% else %}light{% endif %}">
+                                        <div class="card-body p-2">
+                                            <div class="d-flex align-items-center">
+                                                <span class="badge badge-primary mr-2">{{ loop.index }}</span>
+                                                {% if item.type == 'minigame' %}
+                                                    <i class="fas fa-gamepad text-primary mr-1"></i>
+                                                {% else %}
+                                                    <i class="fas fa-question-circle text-info mr-1"></i>
+                                                {% endif %}
+                                                <small class="flex-grow-1">{{ item.name }}</small>
+                                                {% if loop.index0 < sequence_info.current_position %}
+                                                    <i class="fas fa-check text-success"></i>
+                                                {% elif loop.index0 == sequence_info.current_position %}
+                                                    <i class="fas fa-play text-warning"></i>
+                                                {% endif %}
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
-                            </div>
-                            {% endfor %}
+                                {% endfor %}
+                            {% else %}
+                                <div class="col-12 text-center text-muted">
+                                    <i class="fas fa-clock"></i> Lade Ablaufplan...
+                                </div>
+                            {% endif %}
                         </div>
                     </div>
                     
@@ -472,16 +436,52 @@
             </div>
         </div>
     </div>
-    {% else %}
-    <!-- Versteckter Platzhalter für dynamische Sequenz-Anzeige -->
-    <div class="row mt-5 mb-4" id="sequence-info-display" style="display: none;">
+    
+    <!-- WÜRFELERGEBNIS-ANZEIGE - LIVE UPDATES -->
+    <div class="row mb-4" id="dice-result-display" style="display: none;">
         <div class="col-12">
-            <div class="card border-info shadow-sm" id="sequence-info-card" style="margin: 0 15px;">
-                <!-- Wird per JavaScript befüllt -->
+            <div class="card border-success">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-dice"></i> 
+                        Würfelergebnis
+                    </h5>
+                </div>
+                <div class="card-body text-center">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <div class="dice-display">
+                                <small class="text-muted">Team</small>
+                                <div class="h4" id="dice-team-name">-</div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="dice-display">
+                                <small class="text-muted">Standard</small>
+                                <div class="h2 text-primary" id="dice-standard">-</div>
+                            </div>
+                        </div>
+                        <div class="col-md-3" id="dice-bonus-section" style="display: none;">
+                            <div class="dice-display">
+                                <small class="text-muted">Bonus</small>
+                                <div class="h2 text-warning" id="dice-bonus">-</div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="dice-display">
+                                <small class="text-muted">Gesamt</small>
+                                <div class="h1 text-success font-weight-bold" id="dice-total">0</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mt-2">
+                        <small class="text-muted" id="dice-timestamp">Zeit: --:--:--</small>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
-    {% endif %}
+    
     
     <!-- Mobile: Zurück-Button am Ende der Seite -->
     <div class="row mt-5 d-block d-md-none">
@@ -1056,36 +1056,38 @@ document.addEventListener('DOMContentLoaded', function() {
     function updateSequenceSection(sequenceInfo) {
         const sequenceDisplay = document.getElementById('sequence-info-display');
         
+        // FIXE: Sequenz-Anzeige IMMER sichtbar machen - egal ob sequenceInfo vorhanden ist
+        if (sequenceDisplay) {
+            sequenceDisplay.style.display = 'block';
+            sequenceDisplay.style.visibility = 'visible';
+            console.log('Sequence display forced to be visible');
+        }
+        
         if (sequenceInfo) {
-            // Zeige Sequenz-Anzeige IMMER an (auch in Würfelrunde)
-            if (sequenceDisplay) {
-                sequenceDisplay.style.display = 'block';
-                
-                // Update Fortschrittsbalken
-                const progressBar = document.getElementById('sequence-progress-bar');
-                if (progressBar) {
-                    progressBar.style.width = sequenceInfo.progress_percentage + '%';
-                    progressBar.textContent = sequenceInfo.progress_percentage + '%';
-                }
-                
-                // Update Position Text
-                const positionText = document.getElementById('sequence-position-text');
-                if (positionText) {
-                    positionText.textContent = `${sequenceInfo.current_position + 1} von ${sequenceInfo.total_items} abgeschlossen`;
-                }
-                
-                // Dynamisch Sequenz-Karte erstellen falls nicht vorhanden
-                const sequenceCard = document.getElementById('sequence-info-card');
-                if (sequenceCard && sequenceCard.innerHTML.trim() === '') {
-                    updateSequenceCard(sequenceCard, sequenceInfo);
-                }
+            console.log('Updating sequence info:', sequenceInfo);
+            
+            // Update Fortschrittsbalken
+            const progressBar = document.getElementById('sequence-progress-bar');
+            if (progressBar) {
+                progressBar.style.width = sequenceInfo.progress_percentage + '%';
+                progressBar.textContent = sequenceInfo.progress_percentage + '%';
+            }
+            
+            // Update Position Text
+            const positionText = document.getElementById('sequence-position-text');
+            if (positionText) {
+                positionText.textContent = `${sequenceInfo.current_position + 1} von ${sequenceInfo.total_items} abgeschlossen`;
+            }
+            
+            // Dynamisch Sequenz-Karte erstellen falls nicht vorhanden
+            const sequenceCard = document.getElementById('sequence-info-card');
+            if (sequenceCard && sequenceCard.innerHTML.trim() === '') {
+                updateSequenceCard(sequenceCard, sequenceInfo);
             }
         } else {
-            // Verstecke Sequenz-Anzeige nur wenn wirklich keine aktive Sequenz vorhanden
-            if (sequenceDisplay) {
-                sequenceDisplay.style.display = 'none';
-            }
+            console.log('No sequence info received, but keeping display visible');
         }
+        // Sequenz-Anzeige wird NIEMALS versteckt - bleibt permanent sichtbar
     }
     
     function updateSequenceCard(cardElement, sequenceInfo) {
@@ -1148,6 +1150,14 @@ document.addEventListener('DOMContentLoaded', function() {
             </div>`;
         
         cardElement.innerHTML = html;
+    }
+    
+    // Stelle sicher, dass Sequenz-Anzeige beim Laden sichtbar ist
+    const sequenceDisplay = document.getElementById('sequence-info-display');
+    if (sequenceDisplay) {
+        sequenceDisplay.style.display = 'block';
+        sequenceDisplay.style.visibility = 'visible';
+        console.log('Initial sequence display made visible');
     }
     
     // Starte Updates alle 3 Sekunden
