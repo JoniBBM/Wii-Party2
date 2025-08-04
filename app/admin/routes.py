@@ -263,17 +263,9 @@ def moderation_mode():
                         }
                         current_app.logger.info(f"DEBUG: Using team last_dice_result: {dice_result}")
                     else:
-                        # FORCE TEST: Erstelle einfach Test-Daten
-                        dice_result = {
-                            'team_name': team.name if team else 'Test Team',
-                            'standard_roll': 4,
-                            'bonus_roll': 2,
-                            'total_roll': 6,
-                            'timestamp': datetime.utcnow().strftime('%H:%M:%S'),
-                            'has_bonus': True,
-                            'is_recent': True
-                        }
-                        current_app.logger.info(f"DEBUG: Using FORCE TEST dice result: {dice_result}")
+                        # Keine Fallback-Daten - zeige nur echte Würfelergebnisse
+                        dice_result = None
+                        current_app.logger.info("DEBUG: No dice result available - not showing hardcoded values")
             
             current_app.logger.info(f"DEBUG: DICE_ROLLING phase - final dice result: {dice_result}")
             
@@ -431,17 +423,9 @@ def moderation_mode_api():
                             }
                             current_app.logger.info(f"DEBUG API: Using team last_dice_result: {dice_result}")
                         else:
-                            # FORCE TEST: Erstelle einfach Test-Daten
-                            dice_result = {
-                                'team_name': team.name if team else 'Test Team',
-                                'standard_roll': 4,
-                                'bonus_roll': 2,
-                                'total_roll': 6,
-                                'timestamp': datetime.utcnow().strftime('%H:%M:%S'),
-                                'has_bonus': True,
-                                'is_recent': True
-                            }
-                            current_app.logger.info(f"DEBUG API: Using FORCE TEST dice result: {dice_result}")
+                            # Keine Fallback-Daten - zeige nur echte Würfelergebnisse
+                            dice_result = None
+                            current_app.logger.info("DEBUG API: No dice result available - not showing hardcoded values")
                 
                 current_app.logger.info(f"DEBUG API: DICE_ROLLING phase - final dice result: {dice_result}")
                 
