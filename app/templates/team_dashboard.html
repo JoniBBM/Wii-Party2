@@ -6,33 +6,40 @@
 <!-- Three.js für 3D-Charakteranzeige -->
 <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"></script>
 
-<div class="container-fluid mt-4">
+<div class="team-dashboard-container">
+<div class="team-content">
+<div class="container-fluid">
     <!-- Team-Header -->
     <div class="row mb-4">
         <div class="col-md-12">
-            <div class="card bg-gradient-primary text-white">
-                <div class="card-body">
+            <div class="team-header-card">
+                <div class="team-header-background"></div>
+                <div class="team-header-content">
                     <div class="row align-items-center">
                         <div class="col-md-8">
-                            <h1 class="mb-1">
-                                <i class="fas fa-users mr-2"></i>
-                                Team {{ current_user.name }}
-                            </h1>
-                            <p class="mb-0 opacity-75">
-                                {% if current_user.character %}
-                                    <i class="fas fa-user-astronaut mr-1"></i>
-                                    Charakter: {{ current_user.character.name }}
-                                {% else %}
-                                    <i class="fas fa-user-slash mr-1"></i>
-                                    Kein Charakter zugewiesen
-                                {% endif %}
-                            </p>
+                            <div class="team-title-section">
+                                <h1 class="team-title">
+                                    <i class="fas fa-users team-icon"></i>
+                                    <span class="team-name-text">Team {{ current_user.name }}</span>
+                                </h1>
+                                <div class="team-subtitle">
+                                    {% if current_user.character %}
+                                        <i class="fas fa-user-astronaut character-icon"></i>
+                                        <span class="character-text">{{ current_user.character.name }}</span>
+                                    {% else %}
+                                        <i class="fas fa-user-slash character-icon"></i>
+                                        <span class="character-text">Kein Charakter zugewiesen</span>
+                                    {% endif %}
+                                </div>
+                            </div>
                         </div>
                         <div class="col-md-4 text-md-right">
-                            <div class="team-position-display">
-                                <div class="position-circle" id="position-circle">
-                                    <span class="position-number" id="position-number">{{ current_user.current_position }}</span>
-                                    <small class="position-label">Position</small>
+                            <div class="position-display-wrapper">
+                                <div class="position-ring" id="position-circle">
+                                    <div class="position-inner">
+                                        <span class="position-number" id="position-number">{{ current_user.current_position }}</span>
+                                        <span class="position-label">Position</span>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -114,7 +121,7 @@
     <!-- Spielstatus -->
     <div class="row mb-4">
         <div class="col-md-12">
-            <div class="alert alert-{{ game_status_class }} alert-dismissible fade show" role="alert" id="game-status-alert">
+            <div class="modern-status-card alert-{{ game_status_class }}" id="game-status-alert">
                 <h5 class="alert-heading">
                     <i class="fas fa-info-circle mr-2"></i>
                     Aktueller Spielstatus
@@ -331,56 +338,64 @@
     <!-- Hauptstatistiken -->
     <div class="row mb-4">
         <div class="col-xl-3 col-lg-6 col-md-6 col-sm-6 mb-3">
-            <div class="stat-card stat-card-primary">
-                <div class="stat-icon">
+            <div class="modern-stat-card rank-card">
+                <div class="stat-glow rank-glow"></div>
+                <div class="modern-stat-icon rank-icon">
                     <i class="fas fa-trophy"></i>
                 </div>
-                <div class="stat-content">
-                    <h3 id="current-rank">{{ current_team_rank }}</h3>
-                    <p>von <span id="teams-count">{{ teams_count }}</span></p>
-                    <small>Aktuelle Platzierung</small>
+                <div class="modern-stat-content">
+                    <h3 class="stat-number" id="current-rank">{{ current_team_rank }}</h3>
+                    <p class="stat-description">von <span id="teams-count">{{ teams_count }}</span></p>
+                    <small class="stat-label">Aktuelle Platzierung</small>
                 </div>
+                <div class="stat-decoration rank-decoration"></div>
             </div>
         </div>
         
         <div class="col-xl-3 col-lg-6 col-md-6 col-sm-6 mb-3">
-            <div class="stat-card stat-card-success">
-                <div class="stat-icon">
+            <div class="modern-stat-card goal-card">
+                <div class="stat-glow goal-glow"></div>
+                <div class="modern-stat-icon goal-icon">
                     <i class="fas fa-flag-checkered"></i>
                 </div>
-                <div class="stat-content">
-                    <h3 id="fields-to-goal">{{ fields_to_goal }}</h3>
-                    <p>Felder</p>
-                    <small>bis zum Ziel</small>
+                <div class="modern-stat-content">
+                    <h3 class="stat-number" id="fields-to-goal">{{ fields_to_goal }}</h3>
+                    <p class="stat-description">Felder</p>
+                    <small class="stat-label">bis zum Ziel</small>
                 </div>
+                <div class="stat-decoration goal-decoration"></div>
             </div>
         </div>
         
         <div class="col-xl-3 col-lg-6 col-md-6 col-sm-6 mb-3">
-            <div class="stat-card stat-card-warning">
-                <div class="stat-icon">
+            <div class="modern-stat-card teams-card">
+                <div class="stat-glow teams-glow"></div>
+                <div class="modern-stat-icon teams-icon">
                     <i class="fas fa-users-cog"></i>
                 </div>
-                <div class="stat-content">
-                    <h3 id="teams-ahead">{{ teams_ahead }}</h3>
-                    <p>Teams</p>
-                    <small>vor dir</small>
+                <div class="modern-stat-content">
+                    <h3 class="stat-number" id="teams-ahead">{{ teams_ahead }}</h3>
+                    <p class="stat-description">Teams</p>
+                    <small class="stat-label">vor dir</small>
                 </div>
+                <div class="stat-decoration teams-decoration"></div>
             </div>
         </div>
         
         <div class="col-xl-3 col-lg-6 col-md-6 col-sm-6 mb-3">
-            <div class="stat-card stat-card-info">
-                <div class="stat-icon">
+            <div class="modern-stat-card dice-card">
+                <div class="stat-glow dice-glow"></div>
+                <div class="modern-stat-icon dice-icon">
                     <i class="fas fa-dice"></i>
                 </div>
-                <div class="stat-content">
-                    <h3 id="bonus-dice">
+                <div class="modern-stat-content">
+                    <h3 class="stat-number" id="bonus-dice">
                         {% if current_user.bonus_dice_sides == 6 %}1-6{% elif current_user.bonus_dice_sides == 4 %}1-4{% elif current_user.bonus_dice_sides == 2 %}1-2{% else %}Standard{% endif %}
                     </h3>
-                    <p>Würfel</p>
-                    <small>Bonus-Stufe</small>
+                    <p class="stat-description">Würfel</p>
+                    <small class="stat-label">Bonus-Stufe</small>
                 </div>
+                <div class="stat-decoration dice-decoration"></div>
             </div>
         </div>
     </div>
@@ -388,13 +403,16 @@
     <!-- Team-Anzeige -->
     <div class="row mb-4">
         <div class="col-md-12">
-            <div class="card">
-                <div class="card-header bg-white">
-                    <h5 class="mb-0">
-                        <i class="fas fa-users mr-2 text-primary"></i>
-                        Team-Übersicht
-                    </h5>
-                    <small class="text-muted">Klicke auf die Pfeile um zwischen den Teams zu wechseln</small>
+            <div class="modern-card team-overview-card">
+                <div class="modern-card-header team-overview-header">
+                    <div class="card-header-content">
+                        <h5 class="card-title">
+                            <i class="fas fa-users card-icon"></i>
+                            <span class="title-text">Team-Übersicht</span>
+                        </h5>
+                        <small class="card-subtitle">Klicke auf die Pfeile um zwischen den Teams zu wechseln</small>
+                    </div>
+                    <div class="header-decoration"></div>
                 </div>
                 <div class="card-body">
                     <div class="team-display" id="team-display">
@@ -447,18 +465,21 @@
     <div class="row">
         <!-- Team-Rangliste -->
         <div class="col-xl-8 col-lg-6 mb-4">
-            <div class="card h-100">
-                <div class="card-header bg-white">
-                    <h5 class="mb-0">
-                        <i class="fas fa-list-ol mr-2 text-primary"></i>
-                        Team-Rangliste
-                    </h5>
-                    <small class="text-muted">Sortiert nach Position auf dem Spielbrett</small>
+            <div class="modern-card rankings-card">
+                <div class="modern-card-header rankings-header">
+                    <div class="card-header-content">
+                        <h5 class="card-title">
+                            <i class="fas fa-list-ol card-icon"></i>
+                            <span class="title-text">Team-Rangliste</span>
+                        </h5>
+                        <small class="card-subtitle">Sortiert nach Position auf dem Spielbrett</small>
+                    </div>
+                    <div class="header-decoration"></div>
                 </div>
                 <div class="card-body p-0">
                     <div class="table-responsive">
                         <table class="table table-hover mb-0">
-                            <thead class="table-light">
+                            <thead class="modern-table-header">
                                 <tr>
                                     <th>Rang</th>
                                     <th>Team</th>
@@ -524,12 +545,15 @@
 
         <!-- Spielinformationen -->
         <div class="col-xl-4 col-lg-6 mb-4">
-            <div class="card h-100">
-                <div class="card-header bg-white">
-                    <h5 class="mb-0">
-                        <i class="fas fa-gamepad mr-2 text-success"></i>
-                        Spielinformationen
-                    </h5>
+            <div class="modern-card game-info-card">
+                <div class="modern-card-header game-info-header">
+                    <div class="card-header-content">
+                        <h5 class="card-title">
+                            <i class="fas fa-gamepad card-icon"></i>
+                            <span class="title-text">Spielinformationen</span>
+                        </h5>
+                    </div>
+                    <div class="header-decoration"></div>
                 </div>
                 <div class="card-body">
                     <!-- Würfelreihenfolge -->
@@ -623,13 +647,16 @@
     <!-- Aktive Felder Übersicht - Vollbreite unter den anderen Bereichen -->
     <div class="row mb-4">
         <div class="col-12">
-            <div class="card">
-                <div class="card-header bg-white">
-                    <h5 class="mb-0">
-                        <i class="fas fa-th-large mr-2 text-warning"></i>
-                        Aktive Spezialfelder
-                    </h5>
-                    <small class="text-muted">Welche Felder sind aktiviert und was passiert</small>
+            <div class="modern-card special-fields-card">
+                <div class="modern-card-header special-fields-header">
+                    <div class="card-header-content">
+                        <h5 class="card-title">
+                            <i class="fas fa-th-large card-icon"></i>
+                            <span class="title-text">Aktive Spezialfelder</span>
+                        </h5>
+                        <small class="card-subtitle">Welche Felder sind aktiviert und was passiert</small>
+                    </div>
+                    <div class="header-decoration"></div>
                 </div>
                 <div class="card-body">
                     <div id="active-fields-list">
@@ -648,13 +675,16 @@
     <!-- NEU: Spielverlauf Graph -->
     <div class="row mt-4 mb-4">
         <div class="col-md-12">
-            <div class="card">
-                <div class="card-header bg-white">
-                    <h5 class="mb-0">
-                        <i class="fas fa-chart-line mr-2 text-info"></i>
-                        Dein Spielverlauf
-                    </h5>
-                    <small class="text-muted">Zeigt deine Position nach jedem Würfelwurf</small>
+            <div class="modern-card progress-card">
+                <div class="modern-card-header progress-header">
+                    <div class="card-header-content">
+                        <h5 class="card-title">
+                            <i class="fas fa-chart-line card-icon"></i>
+                            <span class="title-text">Dein Spielverlauf</span>
+                        </h5>
+                        <small class="card-subtitle">Zeigt deine Position nach jedem Würfelwurf</small>
+                    </div>
+                    <div class="header-decoration"></div>
                 </div>
                 <div class="card-body">
                     <div class="progress-chart-container">
@@ -729,11 +759,307 @@
         </div>
     </div>
 </div>
+</div>
+
+<!-- Floating elements -->
+<div class="floating-elements">
+    <div class="floating-element"></div>
+    <div class="floating-element"></div>
+    <div class="floating-element"></div>
+    <div class="floating-element"></div>
+</div>
+</div>
 
 <!-- Chart.js Library -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
 
 <style>
+/* Team Dashboard Theme - Gaming Vibes with Neon Accents */
+.team-dashboard-container {
+    background: radial-gradient(ellipse at center, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+    min-height: 100vh;
+    position: relative;
+    overflow-x: hidden;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.team-dashboard-container::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: 
+        radial-gradient(circle at 20% 80%, rgba(120, 119, 198, 0.3) 0%, transparent 50%),
+        radial-gradient(circle at 80% 20%, rgba(255, 119, 198, 0.15) 0%, transparent 50%),
+        radial-gradient(circle at 40% 40%, rgba(120, 219, 255, 0.1) 0%, transparent 50%);
+    animation: backgroundShift 20s ease-in-out infinite;
+    pointer-events: none;
+    z-index: 0;
+}
+
+@keyframes backgroundShift {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+}
+
+.team-content {
+    position: relative;
+    z-index: 2;
+    padding: 2rem 0;
+}
+
+/* Floating Elements */
+.floating-elements {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    z-index: 1;
+    pointer-events: none;
+}
+
+.floating-element {
+    position: absolute;
+    border-radius: 50%;
+    animation: float 25s infinite linear;
+    opacity: 0.1;
+}
+
+.floating-element:nth-child(1) {
+    width: 100px;
+    height: 100px;
+    background: linear-gradient(45deg, #ff6b6b, #4ecdc4);
+    top: 10%;
+    left: 80%;
+    animation-delay: 0s;
+}
+
+.floating-element:nth-child(2) {
+    width: 150px;
+    height: 150px;
+    background: linear-gradient(45deg, #45b7d1, #96ceb4);
+    top: 70%;
+    right: 10%;
+    animation-delay: -8s;
+}
+
+.floating-element:nth-child(3) {
+    width: 80px;
+    height: 80px;
+    background: linear-gradient(45deg, #f9ca24, #f0932b);
+    top: 30%;
+    left: 5%;
+    animation-delay: -16s;
+}
+
+.floating-element:nth-child(4) {
+    width: 120px;
+    height: 120px;
+    background: linear-gradient(45deg, #6c5ce7, #a29bfe);
+    top: 50%;
+    right: 60%;
+    animation-delay: -12s;
+}
+
+@keyframes float {
+    0% {
+        transform: translateY(0px) translateX(0px) rotate(0deg);
+        opacity: 0.1;
+    }
+    25% {
+        transform: translateY(-20px) translateX(20px) rotate(90deg);
+        opacity: 0.2;
+    }
+    50% {
+        transform: translateY(-40px) translateX(-10px) rotate(180deg);
+        opacity: 0.15;
+    }
+    75% {
+        transform: translateY(-20px) translateX(-30px) rotate(270deg);
+        opacity: 0.1;
+    }
+    100% {
+        transform: translateY(0px) translateX(0px) rotate(360deg);
+        opacity: 0.1;
+    }
+}
+
+/* Modern Team Header */
+.team-header-card {
+    position: relative;
+    border-radius: 25px;
+    padding: 0;
+    overflow: hidden;
+    box-shadow: 
+        0 20px 40px rgba(0, 0, 0, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.team-header-background {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(135deg, rgba(255, 107, 107, 0.2) 0%, rgba(78, 205, 196, 0.2) 50%, rgba(69, 183, 209, 0.2) 100%);
+    z-index: 1;
+}
+
+.team-header-background::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: 
+        radial-gradient(circle at 20% 50%, rgba(255, 255, 255, 0.1) 0%, transparent 50%),
+        radial-gradient(circle at 80% 50%, rgba(120, 219, 255, 0.1) 0%, transparent 50%);
+    animation: headerGlow 8s ease-in-out infinite;
+}
+
+@keyframes headerGlow {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
+}
+
+.team-header-content {
+    position: relative;
+    z-index: 2;
+    padding: 2.5rem;
+}
+
+.team-title-section {
+    margin-bottom: 1rem;
+}
+
+.team-title {
+    font-size: 3rem;
+    font-weight: 800;
+    margin-bottom: 1rem;
+    background: linear-gradient(45deg, #4ecdc4, #45b7d1, #ff6b6b, #4ecdc4);
+    background-size: 200% 200%;
+    background-clip: text;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: titleShimmer 4s ease-in-out infinite;
+    text-shadow: 0 0 30px rgba(78, 205, 196, 0.5);
+}
+
+@keyframes titleShimmer {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+}
+
+.team-icon {
+    margin-right: 1rem;
+    filter: drop-shadow(0 0 10px rgba(78, 205, 196, 0.6));
+}
+
+.team-subtitle {
+    font-size: 1.2rem;
+    color: rgba(255, 255, 255, 0.8);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.character-icon {
+    color: #4ecdc4;
+    filter: drop-shadow(0 0 5px rgba(78, 205, 196, 0.8));
+}
+
+/* Modern Position Display */
+.position-display-wrapper {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.position-ring {
+    position: relative;
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(78, 205, 196, 0.2));
+    backdrop-filter: blur(10px);
+    border: 2px solid rgba(78, 205, 196, 0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 
+        0 0 30px rgba(78, 205, 196, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    animation: positionGlow 3s ease-in-out infinite;
+}
+
+@keyframes positionGlow {
+    0%, 100% { 
+        box-shadow: 
+            0 0 30px rgba(78, 205, 196, 0.3),
+            inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    }
+    50% { 
+        box-shadow: 
+            0 0 40px rgba(78, 205, 196, 0.5),
+            inset 0 1px 0 rgba(255, 255, 255, 0.3);
+    }
+}
+
+.position-ring::before {
+    content: '';
+    position: absolute;
+    top: -3px;
+    left: -3px;
+    right: -3px;
+    bottom: -3px;
+    border-radius: 50%;
+    background: conic-gradient(from 0deg, #4ecdc4, #45b7d1, #ff6b6b, #4ecdc4);
+    z-index: -1;
+    animation: rotateGradient 6s linear infinite;
+}
+
+@keyframes rotateGradient {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.position-inner {
+    text-align: center;
+    color: white;
+}
+
+.position-number {
+    font-size: 2.2rem;
+    font-weight: 900;
+    display: block;
+    line-height: 1;
+    color: #ffffff;
+    text-shadow: 
+        0 0 20px rgba(255, 255, 255, 0.8),
+        0 0 40px rgba(78, 205, 196, 0.6),
+        0 2px 4px rgba(0, 0, 0, 0.8);
+    filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.5));
+}
+
+.position-label {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: #4ecdc4;
+    margin-top: 0.25rem;
+    display: block;
+    text-shadow: 0 0 10px rgba(78, 205, 196, 0.8);
+    font-weight: 600;
+}
+
 /* Basis-Styling */
 .bg-gradient-primary {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -906,7 +1232,7 @@
 
 .question-form {
     padding: 2rem;
-    background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
+    background: linear-gradient(135deg, rgba(26, 26, 46, 0.8) 0%, rgba(22, 33, 62, 0.8) 100%);
     border-radius: 15px;
 }
 
@@ -1059,7 +1385,7 @@
     position: absolute;
     width: 120px;
     height: 120px;
-    background: linear-gradient(135deg, #fff 0%, #f0f0f0 100%);
+    background: linear-gradient(135deg, rgba(26, 26, 46, 0.9) 0%, rgba(22, 33, 62, 0.7) 100%);
     border: 3px solid #333;
     border-radius: 15px;
     display: flex;
@@ -1302,73 +1628,176 @@
     backdrop-filter: blur(5px);
 }
 
-/* Statistiken */
-.stat-card {
-    background: white;
-    border-radius: 12px;
-    padding: 1.5rem;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-    border-left: 4px solid;
-    transition: transform 0.2s ease;
+/* Modern Statistics Cards */
+.modern-stat-card {
+    position: relative;
+    border-radius: 20px;
+    padding: 0;
+    overflow: hidden;
+    backdrop-filter: blur(15px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 
+        0 15px 35px rgba(0, 0, 0, 0.2),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
     height: 100%;
+    display: flex;
+    flex-direction: column;
 }
 
-.stat-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+.modern-stat-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(26, 26, 46, 0.6);
+    z-index: 1;
 }
 
-.stat-card.stat-updated {
-    animation: statPulse 0.8s ease-in-out;
+.modern-stat-card:hover {
+    transform: translateY(-10px) scale(1.02);
+    box-shadow: 
+        0 25px 50px rgba(0, 0, 0, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.2);
 }
 
-@keyframes statPulse {
-    0% { transform: scale(1); }
-    50% { transform: scale(1.05); }
-    100% { transform: scale(1); }
+.stat-glow {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    opacity: 0.6;
+    z-index: 2;
+    transition: opacity 0.3s ease;
 }
 
-.stat-card-primary { border-left-color: #007bff; }
-.stat-card-success { border-left-color: #28a745; }
-.stat-card-warning { border-left-color: #ffc107; }
-.stat-card-info { border-left-color: #17a2b8; }
+.modern-stat-card:hover .stat-glow {
+    opacity: 0.8;
+}
 
-.stat-icon {
-    width: 50px;
-    height: 50px;
+.rank-card .stat-glow.rank-glow {
+    background: linear-gradient(135deg, rgba(255, 215, 0, 0.3) 0%, rgba(255, 140, 0, 0.2) 100%);
+}
+
+.goal-card .stat-glow.goal-glow {
+    background: linear-gradient(135deg, rgba(34, 197, 94, 0.3) 0%, rgba(16, 185, 129, 0.2) 100%);
+}
+
+.teams-card .stat-glow.teams-glow {
+    background: linear-gradient(135deg, rgba(249, 115, 22, 0.3) 0%, rgba(234, 88, 12, 0.2) 100%);
+}
+
+.dice-card .stat-glow.dice-glow {
+    background: linear-gradient(135deg, rgba(168, 85, 247, 0.3) 0%, rgba(139, 92, 246, 0.2) 100%);
+}
+
+.modern-stat-icon {
+    position: relative;
+    z-index: 4;
+    width: 60px;
+    height: 60px;
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 1.5rem;
-    margin-bottom: 1rem;
+    font-size: 1.8rem;
+    margin: 1.5rem auto 1rem;
+    color: white;
+    backdrop-filter: blur(10px);
+    border: 2px solid rgba(255, 255, 255, 0.2);
+    box-shadow: 
+        0 10px 20px rgba(0, 0, 0, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+
+.rank-icon.modern-stat-icon {
+    background: radial-gradient(circle, rgba(255, 215, 0, 0.4), rgba(255, 140, 0, 0.2));
+}
+
+.goal-icon.modern-stat-icon {
+    background: radial-gradient(circle, rgba(34, 197, 94, 0.4), rgba(16, 185, 129, 0.2));
+}
+
+.teams-icon.modern-stat-icon {
+    background: radial-gradient(circle, rgba(249, 115, 22, 0.4), rgba(234, 88, 12, 0.2));
+}
+
+.dice-icon.modern-stat-icon {
+    background: radial-gradient(circle, rgba(168, 85, 247, 0.4), rgba(139, 92, 246, 0.2));
+}
+
+.modern-stat-content {
+    position: relative;
+    z-index: 4;
+    text-align: center;
+    padding: 0 1.5rem 2rem;
+    flex-grow: 1;
     color: white;
 }
 
-.stat-card-primary .stat-icon { background: #007bff; }
-.stat-card-success .stat-icon { background: #28a745; }
-.stat-card-warning .stat-icon { background: #ffc107; }
-.stat-card-info .stat-icon { background: #17a2b8; }
-
-.stat-content h3 {
-    font-size: 2rem;
-    font-weight: bold;
-    margin: 0;
-    color: #333;
+.stat-number {
+    font-size: 2.5rem;
+    font-weight: 900;
+    margin: 0 0 0.25rem;
+    background: linear-gradient(45deg, #4ecdc4, #45b7d1, #ff6b6b);
+    background-clip: text;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    text-shadow: 0 0 20px rgba(78, 205, 196, 0.6);
     transition: all 0.3s ease;
 }
 
-.stat-content p {
-    margin: 0;
-    font-size: 0.9rem;
-    color: #666;
+.stat-description {
+    margin: 0 0 0.5rem;
+    font-size: 1rem;
+    color: rgba(255, 255, 255, 0.8);
+    font-weight: 500;
 }
 
-.stat-content small {
-    font-size: 0.8rem;
-    color: #999;
+.stat-label {
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.6);
     text-transform: uppercase;
-    letter-spacing: 0.5px;
+    letter-spacing: 1px;
+    font-weight: 600;
+}
+
+.stat-decoration {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    z-index: 3;
+}
+
+.rank-decoration.stat-decoration {
+    background: linear-gradient(90deg, #ffd700, #ffa500);
+}
+
+.goal-decoration.stat-decoration {
+    background: linear-gradient(90deg, #22c55e, #10b981);
+}
+
+.teams-decoration.stat-decoration {
+    background: linear-gradient(90deg, #f97316, #ea580c);
+}
+
+.dice-decoration.stat-decoration {
+    background: linear-gradient(90deg, #a855f7, #8b5cf6);
+}
+
+.modern-stat-card.stat-updated {
+    animation: modernStatPulse 1s ease-in-out;
+}
+
+@keyframes modernStatPulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.05); box-shadow: 0 30px 60px rgba(0, 0, 0, 0.4); }
+    100% { transform: scale(1); }
 }
 
 .rank-badge {
@@ -1456,6 +1885,98 @@
     100% { transform: scale(1); }
 }
 
+/* Modern Cards */
+.modern-card {
+    position: relative;
+    background: rgba(26, 26, 46, 0.7);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 20px;
+    backdrop-filter: blur(20px);
+    box-shadow: 
+        0 20px 40px rgba(0, 0, 0, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    color: white;
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.modern-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 
+        0 30px 60px rgba(0, 0, 0, 0.4),
+        inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    border-color: rgba(78, 205, 196, 0.3);
+}
+
+.modern-card-header {
+    position: relative;
+    padding: 1.5rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    overflow: hidden;
+}
+
+.rankings-header.modern-card-header {
+    background: linear-gradient(135deg, rgba(255, 215, 0, 0.1) 0%, rgba(255, 140, 0, 0.05) 100%);
+}
+
+.game-info-header.modern-card-header {
+    background: linear-gradient(135deg, rgba(34, 197, 94, 0.1) 0%, rgba(16, 185, 129, 0.05) 100%);
+}
+
+.card-header-content {
+    position: relative;
+    z-index: 2;
+}
+
+.card-title {
+    font-size: 1.4rem;
+    font-weight: 700;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.card-icon {
+    font-size: 1.2rem;
+    filter: drop-shadow(0 0 8px currentColor);
+}
+
+.rankings-header .card-icon {
+    color: #ffd700;
+}
+
+.game-info-header .card-icon {
+    color: #22c55e;
+}
+
+.title-text {
+    background: linear-gradient(45deg, #4ecdc4, #45b7d1, rgba(255, 107, 107, 0.8));
+    background-clip: text;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.card-subtitle {
+    color: rgba(255, 255, 255, 0.6);
+    margin-top: 0.5rem;
+    font-size: 0.85rem;
+    display: block;
+}
+
+.header-decoration {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 100px;
+    height: 100%;
+    background: radial-gradient(circle at center, rgba(255, 255, 255, 0.05) 0%, transparent 70%);
+    z-index: 1;
+}
+
 .card {
     border: none;
     box-shadow: 0 2px 10px rgba(0,0,0,0.1);
@@ -1471,8 +1992,61 @@
     padding: 1rem 1.25rem;
 }
 
+/* Modern Gaming Table Styling */
+.table {
+    background: linear-gradient(135deg, rgba(26, 26, 46, 0.8) 0%, rgba(22, 33, 62, 0.6) 100%) !important;
+    border-radius: 15px !important;
+    overflow: hidden !important;
+    color: white !important;
+    backdrop-filter: blur(15px) !important;
+    border: 1px solid rgba(78, 205, 196, 0.1) !important;
+    box-shadow: 
+        0 10px 30px rgba(0, 0, 0, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.05) !important;
+}
+
+.table td,
+.table th {
+    padding: 1.25rem !important;
+    border-color: rgba(78, 205, 196, 0.1) !important;
+    background: transparent !important;
+    color: rgba(255, 255, 255, 0.9) !important;
+    transition: all 0.3s ease !important;
+}
+
+.modern-table-header th {
+    background: linear-gradient(135deg, rgba(78, 205, 196, 0.2) 0%, rgba(69, 183, 209, 0.1) 100%) !important;
+    font-weight: 700 !important;
+    color: #4ecdc4 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 1px !important;
+    font-size: 0.85rem !important;
+    text-shadow: 0 0 10px rgba(78, 205, 196, 0.3) !important;
+    border-bottom: 2px solid rgba(78, 205, 196, 0.3) !important;
+}
+
+.table tbody tr {
+    transition: all 0.3s ease !important;
+}
+
+.table tbody tr:hover {
+    background: rgba(78, 205, 196, 0.1) !important;
+    transform: scale(1.01) !important;
+    box-shadow: 0 5px 15px rgba(78, 205, 196, 0.2) !important;
+}
+
+.table-striped tbody tr:nth-of-type(odd) {
+    background: rgba(26, 26, 46, 0.4) !important;
+}
+
+.table-striped tbody tr:nth-of-type(even) {
+    background: rgba(22, 33, 62, 0.3) !important;
+}
+
 .table-primary {
-    background-color: rgba(0, 123, 255, 0.1);
+    background: linear-gradient(135deg, rgba(78, 205, 196, 0.2) 0%, rgba(69, 183, 209, 0.1) 100%) !important;
+    border: 1px solid rgba(78, 205, 196, 0.3) !important;
+    box-shadow: 0 0 15px rgba(78, 205, 196, 0.2) !important;
 }
 
 .btn-lg {
@@ -1502,11 +2076,104 @@
     height: 300px !important;
 }
 
+/* Gaming Button Styling */
+.btn {
+    border-radius: 15px !important;
+    font-weight: 700 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 1px !important;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    border: none !important;
+    position: relative !important;
+    overflow: hidden !important;
+    backdrop-filter: blur(10px) !important;
+    box-shadow: 
+        0 4px 15px rgba(0, 0, 0, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1) !important;
+}
+
+.btn::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+    transition: left 0.6s;
+    z-index: 1;
+}
+
+.btn:hover::before {
+    left: 100%;
+}
+
+.btn:hover {
+    transform: translateY(-3px) scale(1.02) !important;
+    box-shadow: 
+        0 8px 25px rgba(0, 0, 0, 0.4),
+        inset 0 1px 0 rgba(255, 255, 255, 0.2) !important;
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+    color: white !important;
+    border: 1px solid rgba(102, 126, 234, 0.3) !important;
+}
+
+.btn-primary:hover {
+    background: linear-gradient(135deg, #5a6fd8 0%, #6a4190 100%) !important;
+    color: white !important;
+    border-color: rgba(102, 126, 234, 0.5) !important;
+}
+
+.btn-success {
+    background: linear-gradient(135deg, #4ecdc4 0%, #44a08d 100%) !important;
+    color: white !important;
+    border: 1px solid rgba(78, 205, 196, 0.3) !important;
+}
+
+.btn-success:hover {
+    background: linear-gradient(135deg, #45b7d1 0%, #3e8e7b 100%) !important;
+    color: white !important;
+    border-color: rgba(78, 205, 196, 0.5) !important;
+}
+
+.btn-info {
+    background: linear-gradient(135deg, #45b7d1 0%, #2980b9 100%) !important;
+    color: white !important;
+    border: 1px solid rgba(69, 183, 209, 0.3) !important;
+}
+
+.btn-info:hover {
+    background: linear-gradient(135deg, #3ea5bf 0%, #2471a3 100%) !important;
+    color: white !important;
+    border-color: rgba(69, 183, 209, 0.5) !important;
+}
+
+.btn-outline-danger {
+    background: transparent !important;
+    color: #ff6b6b !important;
+    border: 2px solid #ff6b6b !important;
+    backdrop-filter: blur(10px) !important;
+}
+
+.btn-outline-danger:hover {
+    background: linear-gradient(135deg, #ff6b6b 0%, #ee5a52 100%) !important;
+    color: white !important;
+    border-color: #ff6b6b !important;
+    box-shadow: 0 0 20px rgba(255, 107, 107, 0.4) !important;
+}
+
 .progress-info {
-    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-    border-radius: 10px;
-    padding: 1.5rem;
-    border: 1px solid #dee2e6;
+    background: linear-gradient(135deg, rgba(26, 26, 46, 0.8) 0%, rgba(22, 33, 62, 0.6) 100%);
+    border-radius: 20px;
+    padding: 2rem;
+    border: 1px solid rgba(78, 205, 196, 0.2);
+    backdrop-filter: blur(15px);
+    box-shadow: 
+        0 10px 30px rgba(0, 0, 0, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
 }
 
 .progress-stat {
@@ -1535,19 +2202,106 @@
     margin: 2rem 0;
 }
 
-/* Responsive */
-@media (max-width: 768px) {
-    .position-circle {
-        width: 60px;
-        height: 60px;
+/* Responsive Design */
+@media (max-width: 1200px) {
+    .team-content {
+        padding: 1.5rem 0;
+    }
+    
+    .team-title {
+        font-size: 2.5rem;
+    }
+}
+
+@media (max-width: 992px) {
+    .team-header-content {
+        padding: 2rem;
+    }
+    
+    .position-ring {
+        width: 100px;
+        height: 100px;
     }
     
     .position-number {
-        font-size: 1.4rem;
+        font-size: 1.8rem;
     }
     
-    .stat-card {
+    .modern-stat-card {
+        margin-bottom: 1.5rem;
+    }
+    
+    .stat-number {
+        font-size: 2rem;
+    }
+}
+
+@media (max-width: 768px) {
+    .team-dashboard-container::before {
+        background: 
+            radial-gradient(circle at 20% 80%, rgba(120, 119, 198, 0.2) 0%, transparent 40%),
+            radial-gradient(circle at 80% 20%, rgba(255, 119, 198, 0.1) 0%, transparent 40%);
+    }
+    
+    .team-content {
+        padding: 1rem 0;
+    }
+    
+    .team-header-content {
+        padding: 1.5rem;
+    }
+    
+    .team-title {
+        font-size: 2rem;
+        margin-bottom: 0.5rem;
+    }
+    
+    .team-subtitle {
+        font-size: 1rem;
+    }
+    
+    .position-ring {
+        width: 80px;
+        height: 80px;
+    }
+    
+    .position-number {
+        font-size: 1.5rem;
+    }
+    
+    .position-label {
+        font-size: 0.7rem;
+    }
+    
+    .modern-stat-card {
         margin-bottom: 1rem;
+    }
+    
+    .modern-stat-icon {
+        width: 50px;
+        height: 50px;
+        font-size: 1.5rem;
+        margin: 1rem auto 0.75rem;
+    }
+    
+    .stat-number {
+        font-size: 1.8rem;
+    }
+    
+    .stat-description {
+        font-size: 0.9rem;
+    }
+    
+    .stat-label {
+        font-size: 0.7rem;
+    }
+    
+    .modern-card-header {
+        padding: 1.25rem;
+    }
+    
+    .card-title {
+        font-size: 1.2rem;
     }
     
     .btn-lg {
@@ -1575,7 +2329,7 @@
     .dice-face-6 { transform: rotateX(-90deg) translateZ(40px); }
     
     .banner-content {
-        padding: 2rem;
+        padding: 2rem 1.5rem;
         margin: 0 10px;
     }
     
@@ -1598,6 +2352,226 @@
     .question-card {
         margin-bottom: 1rem;
     }
+    
+    .floating-element {
+        opacity: 0.05;
+    }
+}
+
+@media (max-width: 576px) {
+    .team-header-content {
+        padding: 1rem;
+        text-align: center;
+    }
+    
+    .team-title {
+        font-size: 1.8rem;
+    }
+    
+    .position-ring {
+        width: 70px;
+        height: 70px;
+        margin: 0 auto;
+    }
+    
+    .position-number {
+        font-size: 1.3rem;
+    }
+    
+    .modern-stat-icon {
+        width: 45px;
+        height: 45px;
+        font-size: 1.3rem;
+    }
+    
+    .stat-number {
+        font-size: 1.6rem;
+    }
+    
+    .banner-content {
+        padding: 1.5rem 1rem;
+        margin: 0 5px;
+    }
+    
+    .banner-title {
+        font-size: 1.5rem;
+    }
+    
+    .banner-icon {
+        font-size: 3rem;
+    }
+    
+    .floating-element {
+        display: none;
+    }
+}
+
+/* Additional card header styling */
+.team-overview-header.modern-card-header {
+    background: linear-gradient(135deg, rgba(69, 183, 209, 0.1) 0%, rgba(78, 205, 196, 0.05) 100%);
+}
+
+.special-fields-header.modern-card-header {
+    background: linear-gradient(135deg, rgba(249, 115, 22, 0.1) 0%, rgba(234, 88, 12, 0.05) 100%);
+}
+
+.progress-header.modern-card-header {
+    background: linear-gradient(135deg, rgba(45, 212, 191, 0.1) 0%, rgba(16, 185, 129, 0.05) 100%);
+}
+
+.team-overview-header .card-icon {
+    color: #45b7d1;
+}
+
+.special-fields-header .card-icon {
+    color: #f97316;
+}
+
+.progress-header .card-icon {
+    color: #2dd4bf;
+}
+
+.no-progress-data {
+    background: linear-gradient(135deg, rgba(26, 26, 46, 0.6) 0%, rgba(22, 33, 62, 0.4) 100%);
+    border-radius: 20px;
+    margin: 2rem 0;
+    border: 1px solid rgba(78, 205, 196, 0.1);
+    backdrop-filter: blur(15px);
+    color: rgba(255, 255, 255, 0.7);
+}
+
+/* Gaming Progress and Status Elements */
+.progress {
+    background: rgba(26, 26, 46, 0.8) !important;
+    border-radius: 10px !important;
+    overflow: hidden !important;
+    border: 1px solid rgba(78, 205, 196, 0.2) !important;
+}
+
+.progress-bar {
+    background: linear-gradient(90deg, #4ecdc4, #45b7d1, #ff6b6b) !important;
+    border-radius: 10px !important;
+    box-shadow: 0 0 10px rgba(78, 205, 196, 0.4) !important;
+    animation: progressGlow 2s ease-in-out infinite !important;
+}
+
+@keyframes progressGlow {
+    0%, 100% { box-shadow: 0 0 10px rgba(78, 205, 196, 0.4); }
+    50% { box-shadow: 0 0 20px rgba(78, 205, 196, 0.6); }
+}
+
+.alert {
+    background: linear-gradient(135deg, rgba(26, 26, 46, 0.9) 0%, rgba(22, 33, 62, 0.8) 100%) !important;
+    border: 1px solid rgba(78, 205, 196, 0.3) !important;
+    border-radius: 15px !important;
+    backdrop-filter: blur(15px) !important;
+    color: rgba(255, 255, 255, 0.9) !important;
+    box-shadow: 
+        0 10px 30px rgba(0, 0, 0, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1) !important;
+}
+
+.alert-success {
+    border-left-color: #4ecdc4 !important;
+    background: linear-gradient(135deg, rgba(78, 205, 196, 0.1) 0%, rgba(26, 26, 46, 0.8) 100%) !important;
+}
+
+.alert-info {
+    border-left-color: #45b7d1 !important;
+    background: linear-gradient(135deg, rgba(69, 183, 209, 0.1) 0%, rgba(26, 26, 46, 0.8) 100%) !important;
+}
+
+.alert-warning {
+    border-left-color: #f97316 !important;
+    background: linear-gradient(135deg, rgba(249, 115, 22, 0.1) 0%, rgba(26, 26, 46, 0.8) 100%) !important;
+}
+
+.alert-danger {
+    border-left-color: #ff6b6b !important;
+    background: linear-gradient(135deg, rgba(255, 107, 107, 0.1) 0%, rgba(26, 26, 46, 0.8) 100%) !important;
+}
+
+/* Modern Status Card - Transparent like Header */
+.modern-status-card {
+    position: relative;
+    border-radius: 25px;
+    padding: 2rem;
+    overflow: hidden;
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 
+        0 20px 40px rgba(0, 0, 0, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    color: white;
+    margin-bottom: 1rem;
+}
+
+.modern-status-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(135deg, rgba(78, 205, 196, 0.1) 0%, rgba(69, 183, 209, 0.05) 50%, rgba(255, 107, 107, 0.08) 100%);
+    z-index: 1;
+    animation: statusGlow 6s ease-in-out infinite;
+}
+
+@keyframes statusGlow {
+    0%, 100% { opacity: 0.6; }
+    50% { opacity: 0.8; }
+}
+
+.modern-status-card > * {
+    position: relative;
+    z-index: 2;
+}
+
+.modern-status-card .alert-heading {
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin-bottom: 1rem;
+    background: linear-gradient(45deg, #4ecdc4, #45b7d1, #ff6b6b);
+    background-clip: text;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    text-shadow: 0 0 20px rgba(78, 205, 196, 0.5);
+}
+
+.modern-status-card .live-indicator {
+    float: right;
+    color: #4ecdc4;
+    font-size: 0.9rem;
+    animation: livePulse 2s infinite;
+    text-shadow: 0 0 10px rgba(78, 205, 196, 0.6);
+}
+
+.modern-status-card .current-team-display {
+    background: rgba(78, 205, 196, 0.1);
+    border-radius: 12px;
+    padding: 1rem;
+    border-left: 4px solid #4ecdc4;
+    backdrop-filter: blur(10px);
+    box-shadow: 0 5px 15px rgba(78, 205, 196, 0.1);
+}
+
+.modern-status-card .text-primary {
+    color: #4ecdc4 !important;
+    font-weight: 800;
+    text-shadow: 0 0 10px rgba(78, 205, 196, 0.4);
+}
+
+.modern-status-card hr {
+    border-color: rgba(78, 205, 196, 0.3);
+    opacity: 0.6;
+}
+
+.modern-status-card p,
+.modern-status-card strong,
+.modern-status-card em {
+    color: rgba(255, 255, 255, 0.9);
+}
     
     .question-submit-btn {
         font-size: 1rem;
