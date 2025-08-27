@@ -5,6 +5,12 @@
 {% block styles %}
 {{ super() }}
 <style>
+    /* Page-specific background */
+    html, body {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+    }
+
     /* Modern Hero Section */
     .hero-section {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -1982,6 +1988,8 @@ function retakePhoto() {
 
 console.log('✅ Camera-System für Registration Modal geladen');
 console.log('✅ File-Upload Alternative für HTTP aktiviert');
+
+// Removed smooth transitions to prevent browser back button issues
 
 </script>
 {% endblock %}

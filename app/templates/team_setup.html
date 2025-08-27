@@ -274,6 +274,9 @@
         border-radius: 15px;
         display: none;
         font-weight: 600;
+        transition: opacity 0.3s ease, transform 0.3s ease;
+        transform: translateY(0);
+        opacity: 1;
     }
 
     .status-success {
@@ -797,7 +800,7 @@
                 {% with messages = get_flashed_messages(with_categories=true) %}
                     {% if messages %}
                         {% for category, message in messages %}
-                        <div class="status-message status-{{ 'success' if category == 'success' else 'error' }}" style="display: block;">
+                        <div class="status-message status-{{ 'success' if category == 'success' else 'error' }} flash-message" style="display: block;">
                             {{ message }}
                         </div>
                         {% endfor %}
@@ -1693,12 +1696,28 @@ function showStatus(message, type) {
     statusText.textContent = message;
     statusDiv.style.display = 'block';
     
-    // Auto-hide nach 5 Sekunden bei Fehlern
-    if (type === 'error') {
-        setTimeout(() => {
-            statusDiv.style.display = 'none';
-        }, 5000);
-    }
+    // Auto-hide nach 5 Sekunden bei Fehlern, 3 Sekunden bei Success
+    const hideTimeout = type === 'error' ? 5000 : 3000;
+    setTimeout(() => {
+        statusDiv.style.display = 'none';
+    }, hideTimeout);
 }
+
+// Auto-hide für Flash Messages beim Laden der Seite
+document.addEventListener('DOMContentLoaded', function() {
+    const flashMessages = document.querySelectorAll('.flash-message');
+    flashMessages.forEach(message => {
+        const isSuccess = message.classList.contains('status-success');
+        const hideTimeout = isSuccess ? 4000 : 6000; // Success 4s, Error 6s
+        
+        setTimeout(() => {
+            message.style.opacity = '0';
+            message.style.transform = 'translateY(-20px)';
+            setTimeout(() => {
+                message.style.display = 'none';
+            }, 300); // Fade-out Animation
+        }, hideTimeout);
+    });
+});
 </script>
 {% endblock %}

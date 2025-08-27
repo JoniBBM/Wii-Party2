@@ -2,8 +2,415 @@
 
 {% block title %}Ablaufplan bearbeiten - {{ folder.name }}{% endblock %}
 
+{% block styles %}
+{{ super() }}
+<style>
+    /* Admin Dashboard Theme - Dark Professional */
+    .admin-dashboard-container {
+        background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+        min-height: 100vh;
+        color: white;
+        position: relative;
+        padding: 0;
+        margin: 0;
+        overflow-x: hidden;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .admin-dashboard-container::before {
+        content: '';
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: linear-gradient(45deg, rgba(52, 73, 94, 0.1) 25%, transparent 25%),
+                    linear-gradient(-45deg, rgba(52, 73, 94, 0.1) 25%, transparent 25%),
+                    linear-gradient(45deg, transparent 75%, rgba(52, 73, 94, 0.1) 75%),
+                    linear-gradient(-45deg, transparent 75%, rgba(52, 73, 94, 0.1) 75%);
+        background-size: 60px 60px;
+        background-position: 0 0, 0 30px, 30px -30px, -30px 0px;
+        animation: movePattern 20s linear infinite;
+        opacity: 0.15;
+        z-index: -1;
+        pointer-events: none;
+    }
+
+    @keyframes movePattern {
+        0% { transform: translateX(0px) translateY(0px); }
+        100% { transform: translateX(60px) translateY(60px); }
+    }
+
+    .admin-content {
+        position: relative;
+        z-index: 2;
+        padding: 2rem 0;
+        min-height: 100vh;
+    }
+
+    .admin-content .container {
+        max-width: 1200px;
+        padding-left: 1.5rem;
+        padding-right: 1.5rem;
+    }
+
+    /* Header styling */
+    .admin-content h2 {
+        color: white;
+        font-weight: 700;
+        margin-bottom: 1rem;
+    }
+
+    /* Card styling */
+    .card {
+        background: rgba(44, 62, 80, 0.15);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 18px;
+        backdrop-filter: blur(15px);
+        box-shadow: 0 15px 40px rgba(0, 0, 0, 0.3);
+        color: white;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        overflow: hidden;
+        margin-bottom: 1.5rem;
+    }
+
+    .card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 25px 50px rgba(0, 0, 0, 0.4);
+        border-color: rgba(255, 255, 255, 0.2);
+    }
+
+    .card-header {
+        background: rgba(255, 255, 255, 0.1);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 18px 18px 0 0;
+        padding: 1.5rem 2rem;
+    }
+
+    .card-header h5, .card-header h6 {
+        margin: 0;
+        font-weight: 700;
+        color: white;
+    }
+
+    .card-body {
+        padding: 2rem;
+    }
+
+    /* Progress bar styling */
+    .progress {
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 10px;
+        height: 10px;
+    }
+
+    .progress-bar {
+        border-radius: 10px;
+        background: linear-gradient(45deg, #1abc9c, #16a085);
+    }
+
+    /* Button styling */
+    .btn {
+        border-radius: 10px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        transition: all 0.3s ease;
+        border: none;
+        padding: 8px 16px;
+    }
+
+    .btn:hover {
+        transform: translateY(-2px);
+    }
+
+    .btn-success {
+        background: linear-gradient(45deg, #27ae60, #229954);
+        color: white;
+        box-shadow: 0 5px 15px rgba(39, 174, 96, 0.3);
+    }
+
+    .btn-success:hover {
+        background: linear-gradient(45deg, #229954, #1e8449);
+        color: white;
+        box-shadow: 0 8px 20px rgba(39, 174, 96, 0.4);
+    }
+
+    .btn-secondary {
+        background: linear-gradient(45deg, #95a5a6, #7f8c8d);
+        color: white;
+        box-shadow: 0 5px 15px rgba(149, 165, 166, 0.3);
+    }
+
+    .btn-secondary:hover {
+        background: linear-gradient(45deg, #7f8c8d, #6c7b7d);
+        color: white;
+        box-shadow: 0 8px 20px rgba(149, 165, 166, 0.4);
+    }
+
+    .btn-outline-secondary {
+        border: 2px solid #95a5a6;
+        color: #95a5a6;
+        background: transparent;
+    }
+
+    .btn-outline-secondary:hover {
+        background: #95a5a6;
+        color: white;
+        box-shadow: 0 5px 15px rgba(149, 165, 166, 0.3);
+    }
+
+    .btn-outline-success {
+        border: 2px solid #27ae60;
+        color: #27ae60;
+        background: transparent;
+    }
+
+    .btn-outline-success:hover {
+        background: #27ae60;
+        color: white;
+        box-shadow: 0 5px 15px rgba(39, 174, 96, 0.3);
+    }
+
+    .btn-outline-danger {
+        border: 2px solid #e74c3c;
+        color: #e74c3c;
+        background: transparent;
+    }
+
+    .btn-outline-danger:hover {
+        background: #e74c3c;
+        color: white;
+        box-shadow: 0 5px 15px rgba(231, 76, 60, 0.3);
+    }
+
+    .btn-sm {
+        padding: 6px 12px;
+        font-size: 0.8rem;
+    }
+
+    /* Badge styling */
+    .badge {
+        border-radius: 15px;
+        padding: 0.4rem 0.6rem;
+        font-weight: 600;
+        font-size: 0.75rem;
+    }
+
+    .badge-success {
+        background: linear-gradient(45deg, #27ae60, #229954);
+        color: white;
+    }
+
+    .badge-warning {
+        background: linear-gradient(45deg, #f1c40f, #f39c12);
+        color: #2c3e50;
+    }
+
+    .badge-secondary {
+        background: rgba(149, 165, 166, 0.8);
+        color: white;
+    }
+
+    /* Text colors */
+    .text-muted {
+        color: rgba(255, 255, 255, 0.6) !important;
+    }
+
+    .text-info {
+        color: #1abc9c !important;
+    }
+
+    .text-primary {
+        color: #3498db !important;
+    }
+
+    /* Sortable list styling */
+    .sortable-list {
+        min-height: 100px;
+        padding: 15px;
+        border: 2px dashed rgba(255, 255, 255, 0.3);
+        border-radius: 15px;
+        background: rgba(255, 255, 255, 0.02);
+    }
+
+    .sortable-list.drag-over {
+        border-color: #3498db;
+        background: rgba(52, 152, 219, 0.1);
+    }
+
+    .sequence-item {
+        margin-bottom: 15px;
+        cursor: move;
+    }
+
+    .item-content {
+        display: flex;
+        align-items: center;
+        padding: 15px;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 15px;
+        background: rgba(255, 255, 255, 0.05);
+        transition: all 0.3s ease;
+        backdrop-filter: blur(10px);
+    }
+
+    .item-content:hover {
+        box-shadow: 0 5px 20px rgba(0, 0, 0, 0.3);
+        background: rgba(255, 255, 255, 0.08);
+        border-color: rgba(255, 255, 255, 0.3);
+    }
+
+    .item-content.completed {
+        background: rgba(39, 174, 96, 0.2);
+        border-color: rgba(39, 174, 96, 0.4);
+    }
+
+    .item-content.current {
+        background: rgba(241, 196, 15, 0.2);
+        border-color: rgba(241, 196, 15, 0.4);
+    }
+
+    .drag-handle {
+        color: rgba(255, 255, 255, 0.6);
+        margin-right: 15px;
+        cursor: move;
+        font-size: 1.2rem;
+    }
+
+    .item-info {
+        flex-grow: 1;
+    }
+
+    .item-header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .item-number {
+        display: inline-block;
+        min-width: 30px;
+        height: 30px;
+        line-height: 30px;
+        text-align: center;
+        background: linear-gradient(45deg, #3498db, #2980b9);
+        color: white;
+        border-radius: 50%;
+        font-size: 14px;
+        font-weight: bold;
+    }
+
+    .item-description {
+        font-size: 0.9em;
+        color: rgba(255, 255, 255, 0.7);
+        margin-top: 8px;
+        font-style: italic;
+    }
+
+    /* Available items styling */
+    .available-items {
+        max-height: 400px;
+        overflow-y: auto;
+    }
+
+    .available-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 12px 15px;
+        margin-bottom: 8px;
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        border-radius: 10px;
+        background: rgba(255, 255, 255, 0.05);
+        transition: all 0.3s ease;
+    }
+
+    .available-item:hover {
+        background: rgba(255, 255, 255, 0.1);
+        border-color: rgba(255, 255, 255, 0.3);
+        transform: translateY(-2px);
+    }
+
+    .available-item span {
+        flex-grow: 1;
+        margin-left: 10px;
+        font-size: 0.9em;
+        color: white;
+    }
+
+    .add-item-btn {
+        opacity: 0.7;
+        transition: all 0.3s ease;
+    }
+
+    .available-item:hover .add-item-btn {
+        opacity: 1;
+        transform: scale(1.1);
+    }
+
+    /* Sortable effects */
+    .sortable-ghost {
+        opacity: 0.4;
+        transform: rotate(2deg);
+    }
+
+    .sortable-chosen {
+        transform: scale(1.05) rotate(2deg);
+        z-index: 999;
+    }
+
+    /* Custom scrollbar */
+    .available-items::-webkit-scrollbar {
+        width: 6px;
+    }
+
+    .available-items::-webkit-scrollbar-track {
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 3px;
+    }
+
+    .available-items::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, 0.3);
+        border-radius: 3px;
+    }
+
+    .available-items::-webkit-scrollbar-thumb:hover {
+        background: rgba(255, 255, 255, 0.5);
+    }
+
+    @media (max-width: 768px) {
+        .admin-content .container {
+            padding-left: 1rem;
+            padding-right: 1rem;
+        }
+
+        .card-body, .card-header {
+            padding: 1.5rem;
+        }
+
+        .col-md-4 {
+            margin-top: 2rem;
+        }
+
+        .item-content {
+            flex-direction: column;
+            align-items: flex-start;
+        }
+
+        .drag-handle {
+            margin-right: 0;
+            margin-bottom: 10px;
+        }
+    }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="container mt-4">
+<div class="admin-dashboard-container">
+    <div class="admin-content">
+        <div class="container">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h2><i class="fas fa-list-ol text-info"></i> Ablaufplan für "{{ folder.name }}"</h2>
         <div>
@@ -166,6 +573,8 @@
             </div>
         </div>
     </div>
+        </div>
+    </div>
 </div>
 
 <!-- Hidden Form für Speicherung -->
@@ -174,128 +583,6 @@
     <input type="hidden" id="sequence-data" name="sequence_data" value="">
 </form>
 
-<style>
-.sortable-list {
-    min-height: 100px;
-    padding: 10px;
-    border: 2px dashed #dee2e6;
-    border-radius: 5px;
-}
-
-.sortable-list.drag-over {
-    border-color: #007bff;
-    background-color: #f8f9fa;
-}
-
-.sequence-item {
-    margin-bottom: 10px;
-    cursor: move;
-}
-
-.item-content {
-    display: flex;
-    align-items: center;
-    padding: 15px;
-    border: 1px solid #dee2e6;
-    border-radius: 5px;
-    background: white;
-    transition: all 0.2s;
-}
-
-.item-content:hover {
-    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-}
-
-.item-content.completed {
-    background-color: #d4edda;
-    border-color: #c3e6cb;
-}
-
-.item-content.current {
-    background-color: #fff3cd;
-    border-color: #ffeeba;
-}
-
-.drag-handle {
-    color: #6c757d;
-    margin-right: 15px;
-    cursor: move;
-}
-
-.item-info {
-    flex-grow: 1;
-}
-
-.item-header {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.item-number {
-    display: inline-block;
-    min-width: 25px;
-    height: 25px;
-    line-height: 25px;
-    text-align: center;
-    background: #007bff;
-    color: white;
-    border-radius: 50%;
-    font-size: 12px;
-    font-weight: bold;
-}
-
-.item-description {
-    font-size: 0.9em;
-    color: #6c757d;
-    margin-top: 5px;
-}
-
-.available-items {
-    max-height: 300px;
-    overflow-y: auto;
-}
-
-.available-item {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 8px 12px;
-    margin-bottom: 5px;
-    border: 1px solid #e9ecef;
-    border-radius: 4px;
-    background: white;
-    transition: background-color 0.2s;
-}
-
-.available-item:hover {
-    background-color: #f8f9fa;
-}
-
-.available-item span {
-    flex-grow: 1;
-    margin-left: 8px;
-    font-size: 0.9em;
-}
-
-.add-item-btn {
-    opacity: 0.6;
-    transition: opacity 0.2s;
-}
-
-.available-item:hover .add-item-btn {
-    opacity: 1;
-}
-
-/* Sortable Styling */
-.sortable-ghost {
-    opacity: 0.4;
-}
-
-.sortable-chosen {
-    transform: scale(1.05);
-}
-</style>
 
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
 <script>

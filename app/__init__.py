@@ -46,6 +46,7 @@ def create_app(config_class=Config):
         'teams': 'teams.team_login',
     }
     login_manager.login_message_category = 'info'
+    login_manager.login_message = None  # Disable automatic login messages
 
 
     from app.main.routes import main_bp

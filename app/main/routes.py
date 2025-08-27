@@ -893,6 +893,7 @@ def welcome_status():
                 PlayerRegistration.assigned_team_id.isnot(None)
             ).distinct().all()
             
+            teams_raw = []
             for team in team_objects:
                 # Hole Mitglieder dieses Teams
                 team_players = PlayerRegistration.query.filter_by(
@@ -900,12 +901,20 @@ def welcome_status():
                     assigned_team_id=team.id
                 ).all()
                 
-                teams.append({
+                teams_raw.append({
                     "id": team.id,
                     "name": team.name,
                     "password": team.welcome_password or "Passwort nicht verfügbar",
                     "members": [p.player_name for p in team_players]
                 })
+            
+            # Sortiere Teams korrekt (Team 1, Team 2, Team 3, ...)
+            def extract_team_number(team_name):
+                import re
+                match = re.search(r'Team (\d+)', team_name)
+                return int(match.group(1)) if match else 999  # 999 für Teams ohne Nummer
+            
+            teams = sorted(teams_raw, key=lambda t: extract_team_number(t['name']))
         
         return jsonify({
             "success": True,
@@ -945,6 +954,7 @@ def welcome_admin_status():
             team_count = len(team_ids)
             
             # Hole vollständige Team-Informationen mit Passwörtern
+            teams_raw = []
             for team_id_tuple in team_ids:
                 team = Team.query.get(team_id_tuple[0])
                 if team:
@@ -954,12 +964,20 @@ def welcome_admin_status():
                         assigned_team_id=team.id
                     ).all()
                     
-                    teams_data.append({
+                    teams_raw.append({
                         "id": team.id,
                         "name": team.name,
                         "password": team.welcome_password or "Kein Passwort",
                         "members": [member.player_name for member in members]
                     })
+            
+            # Sortiere Teams korrekt (Team 1, Team 2, Team 3, ...)
+            def extract_team_number(team_name):
+                import re
+                match = re.search(r'Team (\d+)', team_name)
+                return int(match.group(1)) if match else 999  # 999 für Teams ohne Nummer
+            
+            teams_data = sorted(teams_raw, key=lambda t: extract_team_number(t['name']))
         
         return jsonify({
             "success": True,

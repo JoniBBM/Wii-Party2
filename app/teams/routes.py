@@ -15,9 +15,8 @@ def team_login():
     # Teams müssen immer das Passwort eingeben - automatische Auslogung
     if current_user.is_authenticated:
         if isinstance(current_user, Team):
-            # Team ist eingeloggt -> automatisch ausloggen für neue Anmeldung
+            # Team ist eingeloggt -> automatisch ausloggen für neue Anmeldung (OHNE Flash-Message)
             logout_user()
-            flash('Bitte melde dich erneut an.', 'info')
         elif isinstance(current_user, Admin):
              flash('Du bist bereits als Admin eingeloggt.', 'info')
              return redirect(url_for('admin.admin_dashboard'))
@@ -28,7 +27,12 @@ def team_login():
         if team and team.check_password(form.password.data):
             login_user(team, remember=True)  # Remember session für längere Laufzeit
             flash(f'Team "{team.name}" erfolgreich eingeloggt.', 'success')
-            return redirect(url_for('teams.team_dashboard'))
+            
+            # Direkter Check: Wenn Team aus Welcome-System kommt und Setup braucht, redirect zu Setup
+            if team.welcome_password and not team.character_id:
+                return redirect(url_for('teams.team_setup'))
+            else:
+                return redirect(url_for('teams.team_dashboard'))
         else:
             flash('Ungültiger Teamname oder Passwort.', 'danger')
     return render_template('team_login.html', title='Team Login', form=form)
@@ -37,7 +41,6 @@ def team_login():
 @login_required
 def team_logout():
     if not isinstance(current_user, Team):
-        flash('Nur Teams können sich hier ausloggen.', 'warning')
         if isinstance(current_user, Admin):
             return redirect(url_for('admin.admin_dashboard'))
         return redirect(url_for('main.index'))
@@ -349,10 +352,8 @@ def team_dashboard():
         flash('Nur eingeloggte Teams können ihr Dashboard sehen.', 'warning')
         return redirect(url_for('teams.team_login'))
     
-    # Prüfe ob Team-Setup erforderlich ist (aus Welcome-System kommend)
-    if current_user.welcome_password and not current_user.character_id:
-        # Team ist aus Welcome-System und muss noch Setup durchführen
-        return redirect(url_for('teams.team_setup'))
+    # Setup-Check entfernt - wird jetzt im Login-Route behandelt
+    # Dies vermeidet zusätzliche Redirects und Flash-Messages
     
     template_data = _get_dashboard_data(current_user)
     return render_template('team_dashboard.html', **template_data)

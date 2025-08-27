@@ -2,101 +2,462 @@
 
 {% block title %}Minigame-Ordner verwalten - Admin Dashboard{% endblock %}
 
+{% block styles %}
+{{ super() }}
+<style>
+    /* Admin Dashboard Theme - Dark Professional */
+    .admin-dashboard-container {
+        background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+        min-height: 100vh;
+        color: white;
+        position: relative;
+        padding: 0;
+        margin: 0;
+        overflow-x: hidden;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+
+    /* Content styling */
+    .admin-container {
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 25px;
+        padding: 2rem;
+        backdrop-filter: blur(20px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        box-shadow: 0 25px 50px rgba(0, 0, 0, 0.3);
+        color: white;
+        margin-top: 2rem;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .admin-dashboard-container::before {
+        content: '';
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: linear-gradient(45deg, rgba(52, 73, 94, 0.1) 25%, transparent 25%),
+                    linear-gradient(-45deg, rgba(52, 73, 94, 0.1) 25%, transparent 25%),
+                    linear-gradient(45deg, transparent 75%, rgba(52, 73, 94, 0.1) 75%),
+                    linear-gradient(-45deg, transparent 75%, rgba(52, 73, 94, 0.1) 75%);
+        background-size: 60px 60px;
+        background-position: 0 0, 0 30px, 30px -30px, -30px 0px;
+        animation: movePattern 20s linear infinite;
+        opacity: 0.15;
+        z-index: -1;
+        pointer-events: none;
+    }
+
+    @keyframes movePattern {
+        0% { transform: translateX(0px) translateY(0px); }
+        100% { transform: translateX(60px) translateY(60px); }
+    }
+
+    .admin-content {
+        position: relative;
+        z-index: 2;
+        padding: 1rem 0;
+        min-height: 100vh;
+    }
+
+    .admin-content .container {
+        max-width: 1200px;
+        padding-left: 1.5rem;
+        padding-right: 1.5rem;
+    }
+
+    .page-header {
+        text-align: center;
+        margin-bottom: 2.5rem;
+        position: relative;
+        z-index: 2;
+    }
+
+    .page-title {
+        font-size: 2.5rem;
+        font-weight: 700;
+        margin-bottom: 0.5rem;
+        background: linear-gradient(45deg, #ecf0f1, #bdc3c7, #ecf0f1);
+        background-size: 200% 200%;
+        background-clip: text;
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        animation: shimmer 3s ease-in-out infinite;
+    }
+
+    @keyframes shimmer {
+        0% { background-position: 0% 50%; }
+        50% { background-position: 100% 50%; }
+        100% { background-position: 0% 50%; }
+    }
+
+    .page-subtitle {
+        opacity: 0.8;
+        font-size: 1.1rem;
+        margin-bottom: 1.5rem;
+    }
+
+    /* Action buttons */
+    .action-buttons {
+        display: flex;
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: 1rem;
+        margin-bottom: 2rem;
+        position: relative;
+        z-index: 2;
+    }
+
+    .modern-btn {
+        padding: 12px 24px;
+        border: none;
+        border-radius: 15px;
+        font-weight: 600;
+        text-decoration: none;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        position: relative;
+        overflow: hidden;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        min-width: 160px;
+        justify-content: center;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        font-size: 0.9rem;
+    }
+
+    .btn-primary-modern {
+        background: linear-gradient(45deg, #3498db, #2980b9);
+        color: white;
+        box-shadow: 0 8px 25px rgba(52, 152, 219, 0.3);
+    }
+
+    .btn-success-modern {
+        background: linear-gradient(45deg, #27ae60, #229954);
+        color: white;
+        box-shadow: 0 8px 25px rgba(39, 174, 96, 0.3);
+    }
+
+    .btn-secondary-modern {
+        background: linear-gradient(45deg, #95a5a6, #7f8c8d);
+        color: white;
+        box-shadow: 0 8px 25px rgba(149, 165, 166, 0.3);
+    }
+
+    .modern-btn:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 15px 35px rgba(0, 0, 0, 0.4);
+        color: white;
+        text-decoration: none;
+    }
+
+    .modern-btn::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: -100%;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+        transition: left 0.5s;
+    }
+
+    .modern-btn:hover::before {
+        left: 100%;
+    }
+
+    /* Folder cards */
+    .folder-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+        gap: 2rem;
+        position: relative;
+        z-index: 2;
+    }
+
+    .folder-card {
+        background: rgba(255, 255, 255, 0.08);
+        border-radius: 20px;
+        padding: 1.5rem;
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        position: relative;
+        overflow: hidden;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .folder-card:hover {
+        transform: translateY(-8px);
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+        border-color: rgba(255, 255, 255, 0.2);
+    }
+
+    .folder-header {
+        display: flex;
+        justify-content: between;
+        align-items: center;
+        margin-bottom: 1rem;
+        padding-bottom: 1rem;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .folder-name {
+        font-size: 1.3rem;
+        font-weight: 600;
+        color: #ecf0f1;
+        margin: 0;
+        flex-grow: 1;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .folder-badge {
+        background: linear-gradient(45deg, #3498db, #2980b9);
+        color: white;
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+
+    .folder-body {
+        flex-grow: 1;
+        margin-bottom: 1.5rem;
+    }
+
+    .folder-description {
+        margin-bottom: 1rem;
+        opacity: 0.9;
+        line-height: 1.5;
+    }
+
+    .folder-meta {
+        font-size: 0.9rem;
+        opacity: 0.7;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .folder-actions {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+
+    .action-btn {
+        flex: 1;
+        min-width: 90px;
+        padding: 8px 12px;
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        border-radius: 10px;
+        background: rgba(255, 255, 255, 0.1);
+        color: white;
+        text-decoration: none;
+        font-size: 0.8rem;
+        font-weight: 500;
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .action-btn:hover {
+        background: rgba(255, 255, 255, 0.2);
+        border-color: rgba(255, 255, 255, 0.5);
+        color: white;
+        text-decoration: none;
+        transform: translateY(-2px);
+    }
+
+    .action-btn.btn-primary-action:hover {
+        background: rgba(52, 152, 219, 0.3);
+        border-color: #3498db;
+    }
+
+    .action-btn.btn-info-action:hover {
+        background: rgba(26, 188, 156, 0.3);
+        border-color: #1abc9c;
+    }
+
+    .action-btn.btn-danger-action:hover {
+        background: rgba(220, 53, 69, 0.3);
+        border-color: #dc3545;
+    }
+
+    .action-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    .action-btn:disabled:hover {
+        transform: none;
+        background: rgba(255, 255, 255, 0.1);
+    }
+
+    /* Empty state */
+    .empty-state {
+        text-align: center;
+        padding: 3rem;
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 20px;
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        position: relative;
+        z-index: 2;
+    }
+
+    .empty-icon {
+        font-size: 4rem;
+        opacity: 0.6;
+        margin-bottom: 1rem;
+        color: #bdc3c7;
+    }
+
+    .empty-title {
+        font-size: 1.5rem;
+        font-weight: 600;
+        margin-bottom: 1rem;
+        color: #ecf0f1;
+    }
+
+    .empty-text {
+        opacity: 0.8;
+        margin-bottom: 2rem;
+        font-size: 1.1rem;
+    }
+
+    @media (max-width: 768px) {
+        .admin-container {
+            margin: 1rem;
+            padding: 1.5rem;
+        }
+
+        .page-title {
+            font-size: 2rem;
+        }
+
+        .action-buttons {
+            flex-direction: column;
+            align-items: stretch;
+        }
+
+        .modern-btn {
+            min-width: auto;
+        }
+
+        .folder-grid {
+            grid-template-columns: 1fr;
+            gap: 1.5rem;
+        }
+    }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="container mt-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h2><i class="fas fa-folder"></i> Minigame-Ordner verwalten</h2>
-        <div>
-            <a href="{{ url_for('admin.sync_folders') }}" class="btn btn-success">
-                <i class="fas fa-sync-alt"></i> Ordner synchronisieren
+<div class="admin-dashboard-container">
+    <div class="admin-content">
+        <div class="container">
+            <div class="admin-container">
+        <div class="page-header">
+            <h1 class="page-title">
+                <i class="fas fa-folder"></i> Minigame-Ordner
+            </h1>
+            <p class="page-subtitle">Verwalte und organisiere deine Minispiel-Sammlungen</p>
+        </div>
+
+        <div class="action-buttons">
+            <a href="{{ url_for('admin.sync_folders') }}" class="modern-btn btn-success-modern">
+                <i class="fas fa-sync-alt"></i> Synchronisieren
             </a>
-            <a href="{{ url_for('admin.create_folder') }}" class="btn btn-primary ml-2">
-                <i class="fas fa-plus-circle"></i> Neuen Ordner erstellen
+            <a href="{{ url_for('admin.create_folder') }}" class="modern-btn btn-primary-modern">
+                <i class="fas fa-plus-circle"></i> Neuer Ordner
             </a>
-            <a href="{{ url_for('admin.admin_dashboard') }}" class="btn btn-secondary ml-2">
-                <i class="fas fa-arrow-left"></i> Zurück zum Dashboard
+            <a href="{{ url_for('admin.admin_dashboard') }}" class="modern-btn btn-secondary-modern">
+                <i class="fas fa-arrow-left"></i> Dashboard
             </a>
         </div>
-    </div>
 
-    {% if folders %}
-        <div class="row">
-            {% for folder in folders %}
-            <div class="col-md-6 col-lg-4 mb-4">
-                <div class="card h-100">
-                    <div class="card-header d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0">
-                            <i class="fas fa-folder-open text-primary"></i> 
+        {% if folders %}
+            <div class="folder-grid">
+                {% for folder in folders %}
+                <div class="folder-card">
+                    <div class="folder-header">
+                        <h3 class="folder-name">
+                            <i class="fas fa-folder-open"></i>
                             {{ folder.name }}
-                        </h5>
-                        <span class="badge badge-info">{{ folder.get_minigames_count() }} Spiele</span>
+                        </h3>
+                        <div class="folder-badge">{{ folder.get_minigames_count() }} Spiele</div>
                     </div>
-                    <div class="card-body">
-                        {% if folder.description %}
-                            <p class="card-text">{{ folder.description }}</p>
-                        {% else %}
-                            <p class="card-text text-muted">Keine Beschreibung</p>
-                        {% endif %}
-                        
-                        <small class="text-muted">
-                            <i class="fas fa-calendar-alt"></i> 
-                            Erstellt: {{ folder.created_at.strftime('%d.%m.%Y %H:%M') }}
-                        </small>
-                    </div>
-                    <div class="card-footer">
-                        <div class="btn-group w-100" role="group">
-                            <a href="{{ url_for('admin.edit_folder', folder_id=folder.id) }}" 
-                               class="btn btn-outline-primary btn-sm">
-                                <i class="fas fa-edit"></i> Bearbeiten
-                            </a>
-                            <a href="{{ url_for('admin.manage_sequence', folder_id=folder.id) }}" 
-                               class="btn btn-outline-info btn-sm" title="Ablaufplan für diesen Ordner bearbeiten">
-                                <i class="fas fa-list-ol"></i> Plan bearbeiten
-                            </a>
-                            {% set is_default = folder.name == config.get('DEFAULT_MINIGAME_FOLDER', 'Default') %}
-                            {% if not is_default %}
-                                <a href="{{ url_for('admin.delete_folder', folder_id=folder.id) }}" 
-                                   class="btn btn-outline-danger btn-sm">
-                                    <i class="fas fa-trash-alt"></i> Löschen
-                                </a>
+                    
+                    <div class="folder-body">
+                        <div class="folder-description">
+                            {% if folder.description %}
+                                {{ folder.description }}
                             {% else %}
-                                <button class="btn btn-outline-secondary btn-sm" disabled title="Standard-Ordner kann nicht gelöscht werden">
-                                    <i class="fas fa-lock"></i> Standard
-                                </button>
+                                <em>Keine Beschreibung verfügbar</em>
                             {% endif %}
                         </div>
+                        
+                        <div class="folder-meta">
+                            <i class="fas fa-calendar-alt"></i>
+                            Erstellt: {{ folder.created_at.strftime('%d.%m.%Y %H:%M') }}
+                        </div>
+                    </div>
+                    
+                    <div class="folder-actions">
+                        <a href="{{ url_for('admin.edit_folder', folder_id=folder.id) }}" 
+                           class="action-btn btn-primary-action">
+                            <i class="fas fa-edit"></i> Bearbeiten
+                        </a>
+                        <a href="{{ url_for('admin.manage_sequence', folder_id=folder.id) }}" 
+                           class="action-btn btn-info-action" title="Ablaufplan für diesen Ordner bearbeiten">
+                            <i class="fas fa-list-ol"></i> Plan
+                        </a>
+                        {% set is_default = folder.name == config.get('DEFAULT_MINIGAME_FOLDER', 'Default') %}
+                        {% if not is_default %}
+                            <a href="{{ url_for('admin.delete_folder', folder_id=folder.id) }}" 
+                               class="action-btn btn-danger-action">
+                                <i class="fas fa-trash-alt"></i> Löschen
+                            </a>
+                        {% else %}
+                            <button class="action-btn" disabled title="Standard-Ordner kann nicht gelöscht werden">
+                                <i class="fas fa-lock"></i> Standard
+                            </button>
+                        {% endif %}
                     </div>
                 </div>
+                {% endfor %}
             </div>
-            {% endfor %}
+        {% else %}
+            <div class="empty-state">
+                <div class="empty-icon">
+                    <i class="fas fa-folder-plus"></i>
+                </div>
+                <h3 class="empty-title">Noch keine Minigame-Ordner vorhanden</h3>
+                <p class="empty-text">Erstelle deinen ersten Ordner, um Minispiele zu organisieren und zu verwalten.</p>
+                <a href="{{ url_for('admin.create_folder') }}" class="modern-btn btn-primary-modern">
+                    <i class="fas fa-plus-circle"></i> Ersten Ordner erstellen
+                </a>
+            </div>
+        {% endif %}
+            </div>
         </div>
-    {% else %}
-        <div class="alert alert-info text-center">
-            <h4><i class="fas fa-folder-plus"></i> Noch keine Minigame-Ordner vorhanden</h4>
-            <p>Erstelle deinen ersten Ordner, um Minispiele zu organisieren.</p>
-            <a href="{{ url_for('admin.create_folder') }}" class="btn btn-primary">
-                <i class="fas fa-plus-circle"></i> Ersten Ordner erstellen
-            </a>
-        </div>
-    {% endif %}
+    </div>
 </div>
 
-<style>
-.card {
-    transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
-}
-
-.card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-}
-
-.badge {
-    font-size: 0.8rem;
-}
-
-.btn-group .btn {
-    flex: 1;
-}
-</style>
 {% endblock %}

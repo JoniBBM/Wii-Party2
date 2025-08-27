@@ -4406,6 +4406,23 @@ def start_welcome():
         if existing_session:
             return jsonify({"success": False, "error": "Welcome-System ist bereits aktiv"}), 400
         
+        # NEU: Prüfe ob bereits Teams existieren oder ein Spiel aktiv ist
+        existing_teams = Team.query.all()
+        active_game_session = GameSession.query.filter_by(is_active=True).first()
+        
+        if existing_teams or active_game_session:
+            teams_count = len(existing_teams)
+            return jsonify({
+                "success": False, 
+                "error": "GAME_ACTIVE",
+                "message": f"Es sind bereits {teams_count} Teams registriert oder ein Spiel ist aktiv. Das Welcome-System kann nur mit einem komplett neuen Spiel gestartet werden.",
+                "details": {
+                    "teams_count": teams_count,
+                    "active_game": active_game_session is not None,
+                    "team_names": [team.name for team in existing_teams[:5]]  # Erste 5 Team-Namen
+                }
+            }), 400
+        
         # Erstelle neue Welcome-Session
         welcome_session = WelcomeSession()
         welcome_session.activate()
@@ -4425,6 +4442,111 @@ def start_welcome():
         current_app.logger.error(f"Fehler beim Starten des Welcome-Systems: {e}", exc_info=True)
         return jsonify({"success": False, "error": "Ein Fehler ist aufgetreten"}), 500
 
+@admin_bp.route('/api/reset-game-complete', methods=['POST'])
+@login_required
+def reset_game_complete():
+    """Setzt das komplette Spiel zurück - löscht alle Teams, Sessions, Minigame-Daten etc."""
+    if not isinstance(current_user, Admin):
+        return jsonify({"success": False, "error": "Nur Admins können das Spiel zurücksetzen"}), 403
+    
+    try:
+        current_app.logger.info(f"Complete game reset initiated by admin: {current_user.username}")
+        
+        # Sammle Statistiken vor dem Reset für Logging
+        teams_count = Team.query.count()
+        sessions_count = GameSession.query.count()
+        events_count = GameEvent.query.count()
+        registrations_count = PlayerRegistration.query.count()
+        welcome_sessions_count = WelcomeSession.query.count()
+        
+        current_app.logger.info(f"Reset stats - Teams: {teams_count}, Sessions: {sessions_count}, Events: {events_count}, Registrations: {registrations_count}, Welcome Sessions: {welcome_sessions_count}")
+        
+        # 1. Lösche alle PlayerRegistrations
+        PlayerRegistration.query.delete()
+        current_app.logger.info("PlayerRegistrations deleted")
+        
+        # 2. Lösche alle WelcomeSessions
+        WelcomeSession.query.delete()
+        current_app.logger.info("WelcomeSessions deleted")
+        
+        # 3. Lösche alle GameEvents
+        GameEvent.query.delete()
+        current_app.logger.info("GameEvents deleted")
+        
+        # 4. Lösche alle GameSessions
+        GameSession.query.delete()
+        current_app.logger.info("GameSessions deleted")
+        
+        # 5. Setze alle Charaktere auf nicht ausgewählt
+        Character.query.update({'is_selected': False})
+        current_app.logger.info("Characters reset to not selected")
+        
+        # 6. Lösche alle Teams
+        Team.query.delete()
+        current_app.logger.info("Teams deleted")
+        
+        # 7. Lösche Profilbilder
+        try:
+            import os
+            import shutil
+            profile_images_dir = os.path.join(current_app.root_path, 'static', 'profile_images')
+            if os.path.exists(profile_images_dir):
+                # Lösche alle Dateien im Ordner, aber behalte den Ordner
+                for filename in os.listdir(profile_images_dir):
+                    file_path = os.path.join(profile_images_dir, filename)
+                    try:
+                        if os.path.isfile(file_path):
+                            os.remove(file_path)
+                        elif os.path.isdir(file_path):
+                            shutil.rmtree(file_path)
+                    except Exception as file_e:
+                        current_app.logger.warning(f"Could not delete profile image file {file_path}: {file_e}")
+                current_app.logger.info("Profile images cleared")
+        except Exception as profile_e:
+            current_app.logger.warning(f"Error clearing profile images: {profile_e}")
+        
+        # 8. Lösche gespielte Content-IDs aus aktiven Runden (Reset für Minigames)
+        try:
+            from app.models import GameRound
+            active_round = GameRound.get_active_round()
+            if active_round:
+                # Reset der gespielten Inhalte
+                if hasattr(active_round, 'reset_played_content'):
+                    active_round.reset_played_content()
+                current_app.logger.info("Active round played content reset")
+        except Exception as round_e:
+            current_app.logger.warning(f"Error resetting round content: {round_e}")
+        
+        # 9. Commit alle Änderungen
+        db.session.commit()
+        
+        # 10. NEU: Automatisch Welcome-System starten nach Reset
+        try:
+            new_welcome_session = WelcomeSession(is_active=True)
+            db.session.add(new_welcome_session)
+            db.session.commit()
+            current_app.logger.info("Welcome-System automatisch nach Reset gestartet")
+            
+            return jsonify({
+                "success": True,
+                "message": f"Spiel komplett zurückgesetzt und Welcome-System gestartet! {teams_count} Teams, {sessions_count} Sessions und alle Spieldaten wurden gelöscht.",
+                "welcome_started": True
+            })
+        except Exception as welcome_e:
+            current_app.logger.error(f"Fehler beim automatischen Starten des Welcome-Systems nach Reset: {welcome_e}")
+            return jsonify({
+                "success": True,
+                "message": f"Spiel komplett zurückgesetzt! {teams_count} Teams, {sessions_count} Sessions und alle Spieldaten wurden gelöscht. Welcome-System konnte nicht automatisch gestartet werden.",
+                "welcome_started": False
+            })
+        
+        current_app.logger.info(f"Complete game reset completed successfully by admin: {current_user.username}")
+        
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Fehler beim kompletten Spiel-Reset: {e}", exc_info=True)
+        return jsonify({"success": False, "error": f"Fehler beim Zurücksetzen: {str(e)}"}), 500
+
 @admin_bp.route('/api/create-teams', methods=['POST'])
 @login_required
 def create_teams():
@@ -4439,8 +4561,8 @@ def create_teams():
         data = request.get_json()
         team_count = data.get('team_count')
         
-        if not team_count or not isinstance(team_count, int) or team_count < 2 or team_count > 6:
-            return jsonify({"success": False, "error": "Ungültige Team-Anzahl (2-6 erlaubt)"}), 400
+        if not team_count or not isinstance(team_count, int) or team_count < 2 or team_count > 10:
+            return jsonify({"success": False, "error": "Ungültige Team-Anzahl (2-10 erlaubt)"}), 400
         
         # Prüfe aktive Welcome-Session
         welcome_session = WelcomeSession.get_active_session()
@@ -4517,8 +4639,17 @@ def create_teams():
         current_app.logger.info(f"Teams erstellt von Admin {current_user.username}: {team_count} Teams mit {len(players_list)} Spielern")
         
         # Erstelle Response mit Team-Informationen (inkl. Passwörter für Admin)
+        # Sortiere Teams korrekt (Team 1, Team 2, Team 3, ...)
+        def extract_team_number(team_name):
+            import re
+            match = re.search(r'Team (\d+)', team_name)
+            return int(match.group(1)) if match else 999  # 999 für Teams ohne Nummer
+        
+        # Sortiere created_teams nach Team-Nummer
+        created_teams_sorted = sorted(created_teams, key=lambda t: extract_team_number(t["team"].name))
+        
         teams_info = []
-        for team_data in created_teams:
+        for team_data in created_teams_sorted:
             teams_info.append({
                 "id": team_data["team"].id,
                 "name": team_data["team"].name,

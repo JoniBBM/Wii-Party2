@@ -2,84 +2,192 @@
 
 {% block title %}Spielrunde erstellen - Admin Dashboard{% endblock %}
 
+{% block styles %}
+{{ super() }}
+<style>
+    /* Admin Create Round Theme - Dark Professional */
+    .create-round-container {
+        background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+        min-height: 100vh;
+        color: white;
+        position: relative;
+        padding: 0;
+        margin: 0;
+        overflow-x: hidden;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .create-round-container::before {
+        content: '';
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: linear-gradient(45deg, rgba(52, 73, 94, 0.1) 25%, transparent 25%),
+                    linear-gradient(-45deg, rgba(52, 73, 94, 0.1) 25%, transparent 25%),
+                    linear-gradient(45deg, transparent 75%, rgba(52, 73, 94, 0.1) 75%),
+                    linear-gradient(-45deg, transparent 75%, rgba(52, 73, 94, 0.1) 75%);
+        background-size: 60px 60px;
+        background-position: 0 0, 0 30px, 30px -30px, -30px 0px;
+        animation: movePattern 20s linear infinite;
+        opacity: 0.1;
+        z-index: -1;
+        pointer-events: none;
+    }
+
+    @keyframes movePattern {
+        0% { transform: translateX(0px) translateY(0px); }
+        100% { transform: translateX(60px) translateY(60px); }
+    }
+
+    .create-content {
+        position: relative;
+        z-index: 2;
+        padding: 2rem 0;
+        min-height: 100vh;
+    }
+
+    .card {
+        background: rgba(44, 62, 80, 0.15) !important;
+        border: 1px solid rgba(255, 255, 255, 0.1) !important;
+        border-radius: 20px !important;
+        backdrop-filter: blur(15px);
+        box-shadow: 0 15px 40px rgba(0, 0, 0, 0.3);
+        color: white !important;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        overflow: hidden;
+    }
+
+    .card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4);
+        border-color: rgba(255, 255, 255, 0.25) !important;
+    }
+
+    .card-header {
+        background: rgba(39, 174, 96, 0.25) !important;
+        border-bottom: 1px solid rgba(39, 174, 96, 0.4) !important;
+        border-radius: 20px 20px 0 0 !important;
+        padding: 2rem 2.5rem !important;
+        color: white !important;
+        position: relative;
+    }
+
+    .card-header h3 {
+        margin: 0;
+        font-size: 1.8rem;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        background: linear-gradient(45deg, #27ae60, #2ecc71, #27ae60);
+        background-size: 200% 200%;
+        background-clip: text;
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        animation: shimmer 3s ease-in-out infinite;
+    }
+
+    @keyframes shimmer {
+        0% { background-position: 0% 50%; }
+        50% { background-position: 100% 50%; }
+        100% { background-position: 0% 50%; }
+    }
+
+    .card-body {
+        padding: 2.5rem !important;
+        color: white !important;
+        background: transparent !important;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="container mt-4">
-    <div class="row justify-content-center">
-        <div class="col-md-8">
-            <div class="card">
-                <div class="card-header bg-success text-white">
-                    <h3 class="mb-0">
-                        <i class="fas fa-gamepad"></i> Neue Spielrunde erstellen
-                    </h3>
-                </div>
-                <div class="card-body">
-                    <form method="POST" action="{{ url_for('admin.create_round') }}" novalidate>
-                        {{ form.hidden_tag() }}
-                        
-                        <div class="form-group">
-                            {{ form.name.label(class="form-control-label") }}
-                            {{ form.name(class="form-control" + (" is-invalid" if form.name.errors else ""), 
-                                         placeholder="z.B. Sommer2025-Turnier, Weihnachtsparty, Kindergeburtstag") }}
-                            {% if form.name.errors %}
-                                <div class="invalid-feedback">
-                                    {% for error in form.name.errors %}
-                                        <span>{{ error }}</span>
-                                    {% endfor %}
+<div class="create-round-container">
+    <div class="create-content">
+        <div class="container">
+            <div class="row justify-content-center">
+                <div class="col-md-8">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>
+                                <i class="fas fa-gamepad"></i> Neue Spielrunde erstellen
+                            </h3>
+                        </div>
+                        <div class="card-body">
+                            <form method="POST" action="{{ url_for('admin.create_round') }}" novalidate>
+                                {{ form.hidden_tag() }}
+                                
+                                <div class="form-group">
+                                    {{ form.name.label(class="form-control-label") }}
+                                    {{ form.name(class="form-control" + (" is-invalid" if form.name.errors else ""), 
+                                                 placeholder="z.B. Sommer2025-Turnier, Weihnachtsparty, Kindergeburtstag") }}
+                                    {% if form.name.errors %}
+                                        <div class="invalid-feedback">
+                                            {% for error in form.name.errors %}
+                                                <span>{{ error }}</span>
+                                            {% endfor %}
+                                        </div>
+                                    {% endif %}
                                 </div>
-                            {% endif %}
-                        </div>
-                        
-                        <div class="form-group">
-                            {{ form.description.label(class="form-control-label") }}
-                            {{ form.description(class="form-control" + (" is-invalid" if form.description.errors else ""), 
-                                               rows="3", placeholder="Beschreibung für diese Spielrunde...") }}
-                            {% if form.description.errors %}
-                                <div class="invalid-feedback">
-                                    {% for error in form.description.errors %}
-                                        <span>{{ error }}</span>
-                                    {% endfor %}
+                                
+                                <div class="form-group">
+                                    {{ form.description.label(class="form-control-label") }}
+                                    {{ form.description(class="form-control" + (" is-invalid" if form.description.errors else ""), 
+                                                       rows="3", placeholder="Beschreibung für diese Spielrunde...") }}
+                                    {% if form.description.errors %}
+                                        <div class="invalid-feedback">
+                                            {% for error in form.description.errors %}
+                                                <span>{{ error }}</span>
+                                            {% endfor %}
+                                        </div>
+                                    {% endif %}
                                 </div>
-                            {% endif %}
-                        </div>
-                        
-                        <div class="form-group">
-                            {{ form.minigame_folder_id.label(class="form-control-label") }}
-                            {{ form.minigame_folder_id(class="form-control" + (" is-invalid" if form.minigame_folder_id.errors else "")) }}
-                            {% if form.minigame_folder_id.errors %}
-                                <div class="invalid-feedback">
-                                    {% for error in form.minigame_folder_id.errors %}
-                                        <span>{{ error }}</span>
-                                    {% endfor %}
+                                
+                                <div class="form-group">
+                                    {{ form.minigame_folder_id.label(class="form-control-label") }}
+                                    {{ form.minigame_folder_id(class="form-control" + (" is-invalid" if form.minigame_folder_id.errors else "")) }}
+                                    {% if form.minigame_folder_id.errors %}
+                                        <div class="invalid-feedback">
+                                            {% for error in form.minigame_folder_id.errors %}
+                                                <span>{{ error }}</span>
+                                            {% endfor %}
+                                        </div>
+                                    {% endif %}
+                                    <small class="form-text">
+                                        <i class="fas fa-info-circle"></i> 
+                                        Wähle den Minigame-Ordner, aus dem für diese Runde die Spiele ausgewählt werden.
+                                    </small>
                                 </div>
-                            {% endif %}
-                            <small class="form-text text-muted">
-                                <i class="fas fa-info-circle"></i> 
-                                Wähle den Minigame-Ordner, aus dem für diese Runde die Spiele ausgewählt werden.
-                            </small>
+                                
+                                <hr>
+                                
+                                <div class="form-group mt-4">
+                                    {{ form.submit(class="btn btn-success btn-lg") }}
+                                    <a href="{{ url_for('admin.manage_rounds') }}" class="btn btn-secondary btn-lg">
+                                        <i class="fas fa-arrow-left"></i> Abbrechen
+                                    </a>
+                                </div>
+                            </form>
                         </div>
-                        
-                        <div class="form-group mt-4">
-                            {{ form.submit(class="btn btn-success btn-lg") }}
-                            <a href="{{ url_for('admin.manage_rounds') }}" class="btn btn-secondary btn-lg ml-2">
-                                Abbrechen
-                            </a>
-                        </div>
-                    </form>
-                </div>
-                <div class="card-footer bg-light">
-                    <div class="row">
-                        <div class="col-md-6">
-                            <h6><i class="fas fa-play-circle text-success"></i> Aktivierung:</h6>
-                            <small class="text-muted">
-                                Nach dem Erstellen kannst du die Runde aktivieren, um sie als aktuelle Spielrunde zu nutzen.
-                            </small>
-                        </div>
-                        <div class="col-md-6">
-                            <h6><i class="fas fa-folder text-primary"></i> Minigame-Ordner:</h6>
-                            <small class="text-muted">
-                                Du kannst <a href="{{ url_for('admin.manage_folders') }}">hier weitere Ordner erstellen</a>, 
-                                falls der gewünschte noch nicht existiert.
-                            </small>
+                        <div class="card-footer">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <h6><i class="fas fa-play-circle"></i> Aktivierung:</h6>
+                                    <small>
+                                        Nach dem Erstellen kannst du die Runde aktivieren, um sie als aktuelle Spielrunde zu nutzen.
+                                    </small>
+                                </div>
+                                <div class="col-md-6">
+                                    <h6><i class="fas fa-folder"></i> Minigame-Ordner:</h6>
+                                    <small>
+                                        Du kannst <a href="{{ url_for('admin.manage_folders') }}">hier weitere Ordner erstellen</a>, 
+                                        falls der gewünschte noch nicht existiert.
+                                    </small>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -89,31 +197,251 @@
 </div>
 
 <style>
-.card {
-    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-}
+    /* Form styling */
+    .form-group {
+        margin-bottom: 2rem;
+    }
 
-.btn-lg {
-    padding: 0.75rem 1.5rem;
-    font-size: 1.1rem;
-}
+    .form-control-label {
+        display: block;
+        margin-bottom: 0.8rem;
+        font-weight: 600;
+        color: rgba(255, 255, 255, 0.9) !important;
+        font-size: 1.1rem;
+    }
 
-.form-control {
-    border-radius: 0.5rem;
-}
+    .form-control {
+        width: 100%;
+        padding: 1.5rem 1.2rem;
+        border: 2px solid rgba(255, 255, 255, 0.2) !important;
+        border-radius: 12px !important;
+        background: rgba(44, 62, 80, 0.2) !important;
+        color: white !important;
+        font-size: 1.1rem;
+        backdrop-filter: blur(10px);
+        transition: all 0.3s ease;
+        min-height: 3.5rem;
+    }
 
-.form-control:focus {
-    border-color: #28a745;
-    box-shadow: 0 0 0 0.2rem rgba(40, 167, 69, 0.25);
-}
+    /* Special styling for select elements */
+    select.form-control {
+        appearance: none;
+        -webkit-appearance: none;
+        -moz-appearance: none;
+        background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 4 5'%3E%3Cpath fill='%23fff' d='m2 0-2 2h4zm0 5 2-2h-4z'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 1rem center;
+        background-size: 0.75em;
+        padding-right: 2.5rem;
+        cursor: pointer;
+        padding: 1.5rem 2.5rem 1.5rem 1.2rem;
+    }
 
-.card-footer a {
-    color: #007bff;
-    text-decoration: none;
-}
+    select.form-control option {
+        background: #2c3e50;
+        color: white;
+        padding: 0.8rem;
+    }
 
-.card-footer a:hover {
-    text-decoration: underline;
-}
+    .form-control::placeholder {
+        color: rgba(255, 255, 255, 0.6);
+    }
+
+    .form-control:focus {
+        outline: none;
+        border-color: #27ae60 !important;
+        background: rgba(44, 62, 80, 0.3) !important;
+        box-shadow: 0 0 0 0.2rem rgba(39, 174, 96, 0.25) !important;
+        color: white !important;
+    }
+
+    .form-control.is-invalid {
+        border-color: #e74c3c !important;
+        background: rgba(231, 76, 60, 0.15) !important;
+    }
+
+    .invalid-feedback {
+        color: #ff8a80;
+        font-size: 0.9rem;
+        margin-top: 0.5rem;
+        display: block;
+    }
+
+    .form-text {
+        color: rgba(255, 255, 255, 0.7) !important;
+        font-size: 0.9rem;
+        margin-top: 0.5rem;
+        background: rgba(44, 62, 80, 0.2);
+        padding: 0.8rem;
+        border-radius: 8px;
+        border-left: 3px solid rgba(52, 152, 219, 0.5);
+    }
+
+    /* Button styling */
+    .btn {
+        border-radius: 25px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        border: none;
+        position: relative;
+        overflow: hidden;
+        padding: 1rem 2rem;
+        margin: 0.25rem;
+    }
+
+    .btn::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: -100%;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+        transition: left 0.5s;
+    }
+
+    .btn:hover::before {
+        left: 100%;
+    }
+
+    .btn:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 12px 25px rgba(0, 0, 0, 0.3);
+    }
+
+    .btn-success {
+        background: linear-gradient(45deg, #27ae60, #2ecc71) !important;
+        color: white !important;
+        box-shadow: 0 5px 15px rgba(39, 174, 96, 0.3);
+    }
+
+    .btn-success:hover {
+        background: linear-gradient(45deg, #2ecc71, #27ae60) !important;
+        box-shadow: 0 8px 20px rgba(39, 174, 96, 0.4);
+        color: white !important;
+    }
+
+    .btn-secondary {
+        background: linear-gradient(45deg, #95a5a6, #7f8c8d) !important;
+        color: white !important;
+        box-shadow: 0 5px 15px rgba(149, 165, 166, 0.3);
+    }
+
+    .btn-secondary:hover {
+        background: linear-gradient(45deg, #7f8c8d, #6c7b7d) !important;
+        box-shadow: 0 8px 20px rgba(149, 165, 166, 0.4);
+        color: white !important;
+    }
+
+    .btn-lg {
+        padding: 1.2rem 2.5rem;
+        font-size: 1.1rem;
+        min-width: 160px;
+    }
+
+    /* Card Footer styling */
+    .card-footer {
+        background: rgba(44, 62, 80, 0.1) !important;
+        border-top: 1px solid rgba(255, 255, 255, 0.1) !important;
+        border-radius: 0 0 20px 20px !important;
+        padding: 2rem 2.5rem !important;
+        color: white !important;
+    }
+
+    .card-footer h6 {
+        color: white;
+        font-weight: 700;
+        margin-bottom: 1rem;
+        font-size: 1.1rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .card-footer small {
+        color: rgba(255, 255, 255, 0.8) !important;
+        line-height: 1.6;
+        background: rgba(44, 62, 80, 0.2);
+        padding: 1rem;
+        border-radius: 10px;
+        display: block;
+        border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .card-footer a {
+        color: #3498db;
+        text-decoration: none;
+        font-weight: 600;
+        transition: all 0.3s ease;
+    }
+
+    .card-footer a:hover {
+        color: #2980b9;
+        text-decoration: underline;
+    }
+
+    hr {
+        border-color: rgba(255, 255, 255, 0.2);
+        margin: 2.5rem 0;
+    }
+
+    /* Button group alignment */
+    .form-group.mt-4 {
+        display: flex;
+        gap: 1rem;
+        justify-content: center;
+        align-items: center;
+        flex-wrap: wrap;
+        padding-top: 2rem;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    /* Responsive design */
+    @media (max-width: 768px) {
+        .create-content .container {
+            padding-left: 1rem;
+            padding-right: 1rem;
+        }
+
+        .card {
+            margin: 1rem 0;
+        }
+
+        .card-header {
+            padding: 1.8rem !important;
+        }
+
+        .card-header h3 {
+            font-size: 1.5rem;
+        }
+
+        .card-body {
+            padding: 2rem !important;
+        }
+
+        .form-group.mt-4 {
+            flex-direction: column;
+        }
+
+        .btn-lg {
+            width: 100%;
+            max-width: 280px;
+        }
+    }
+
+    @media (max-width: 576px) {
+        .card-header,
+        .card-body,
+        .card-footer {
+            padding: 1.5rem !important;
+        }
+
+        .btn {
+            font-size: 0.9rem;
+            padding: 0.9rem 1.8rem;
+        }
+    }
 </style>
 {% endblock %}

@@ -2,53 +2,337 @@
 
 {% block title %}{{ title }}{% endblock %}
 
+{% block styles %}
+{{ super() }}
+<style>
+    /* Page-specific background */
+    html, body {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+    }
+
+    .login-container {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        color: white;
+        position: relative;
+        overflow: hidden;
+        display: flex;
+        align-items: center;
+    }
+
+    .login-container::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: linear-gradient(45deg, rgba(255,255,255,0.1) 25%, transparent 25%),
+                    linear-gradient(-45deg, rgba(255,255,255,0.1) 25%, transparent 25%),
+                    linear-gradient(45deg, transparent 75%, rgba(255,255,255,0.1) 75%),
+                    linear-gradient(-45deg, transparent 75%, rgba(255,255,255,0.1) 75%);
+        background-size: 60px 60px;
+        background-position: 0 0, 0 30px, 30px -30px, -30px 0px;
+        animation: movePattern 20s linear infinite;
+        opacity: 0.3;
+    }
+
+    @keyframes movePattern {
+        0% { transform: translateX(0px) translateY(0px); }
+        100% { transform: translateX(60px) translateY(60px); }
+    }
+
+    .login-card {
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 20px;
+        padding: 2.5rem;
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        box-shadow: 0 25px 50px rgba(0, 0, 0, 0.1);
+        position: relative;
+        z-index: 2;
+        max-width: 450px;
+        width: 100%;
+        margin: 0 auto;
+    }
+
+    .login-header {
+        text-align: center;
+        margin-bottom: 2rem;
+    }
+
+    .login-title {
+        font-size: 2.5rem;
+        font-weight: 700;
+        margin-bottom: 0.5rem;
+        background: linear-gradient(45deg, #fff, #f8f9ff, #fff);
+        background-size: 200% 200%;
+        background-clip: text;
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        animation: shimmer 3s ease-in-out infinite;
+    }
+
+    @keyframes shimmer {
+        0% { background-position: 0% 50%; }
+        50% { background-position: 100% 50%; }
+        100% { background-position: 0% 50%; }
+    }
+
+    .login-subtitle {
+        opacity: 0.9;
+        font-size: 1.1rem;
+        margin-bottom: 0;
+    }
+
+    .login-icon {
+        font-size: 3rem;
+        margin-bottom: 1rem;
+        opacity: 0.8;
+    }
+
+    .form-group {
+        margin-bottom: 1.5rem;
+    }
+
+    .form-label {
+        display: block;
+        margin-bottom: 0.5rem;
+        font-weight: 600;
+        color: rgba(255, 255, 255, 0.9);
+    }
+
+    .form-control {
+        width: 100%;
+        padding: 1rem;
+        border: 2px solid rgba(255, 255, 255, 0.3);
+        border-radius: 10px;
+        background: rgba(255, 255, 255, 0.1);
+        color: white;
+        font-size: 1rem;
+        backdrop-filter: blur(10px);
+        transition: all 0.3s ease;
+    }
+
+    .form-control::placeholder {
+        color: rgba(255, 255, 255, 0.7);
+    }
+
+    .form-control:focus {
+        outline: none;
+        border-color: #FFD700;
+        background: rgba(255, 255, 255, 0.2);
+        box-shadow: 0 0 0 0.2rem rgba(255, 215, 0, 0.25);
+    }
+
+    .form-control.is-invalid {
+        border-color: #ff6b6b;
+        background: rgba(255, 107, 107, 0.1);
+    }
+
+    .invalid-feedback {
+        color: #ffcccb;
+        font-size: 0.875rem;
+        margin-top: 0.5rem;
+    }
+
+    .btn-login {
+        width: 100%;
+        padding: 1rem;
+        font-size: 1.1rem;
+        font-weight: 600;
+        border-radius: 50px;
+        border: none;
+        background: linear-gradient(45deg, #4ecdc4, #44a08d);
+        color: white;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        box-shadow: 0 8px 25px rgba(78, 205, 196, 0.3);
+        position: relative;
+        overflow: hidden;
+    }
+
+    .btn-login::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: -100%;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+        transition: left 0.5s;
+    }
+
+    .btn-login:hover::before {
+        left: 100%;
+    }
+
+    .btn-login:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 15px 35px rgba(78, 205, 196, 0.4);
+        color: white;
+    }
+
+    .login-footer {
+        text-align: center;
+        margin-top: 2rem;
+        padding-top: 2rem;
+        border-top: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .login-footer small {
+        opacity: 0.8;
+        display: block;
+        margin-bottom: 0.5rem;
+    }
+
+    .login-footer a {
+        color: #FFD700;
+        text-decoration: none;
+        font-weight: 600;
+        transition: all 0.3s ease;
+    }
+
+    .login-footer a:hover {
+        color: #FFC107;
+        text-decoration: underline;
+    }
+
+    /* Floating elements for visual appeal */
+    .floating-elements {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        z-index: 1;
+    }
+
+    .floating-element {
+        position: absolute;
+        background: rgba(255,255,255,0.1);
+        border-radius: 50%;
+        animation: float 15s infinite linear;
+    }
+
+    .floating-element:nth-child(1) {
+        width: 80px;
+        height: 80px;
+        top: 20%;
+        left: 10%;
+        animation-delay: 0s;
+    }
+
+    .floating-element:nth-child(2) {
+        width: 120px;
+        height: 120px;
+        top: 60%;
+        right: 15%;
+        animation-delay: -5s;
+    }
+
+    .floating-element:nth-child(3) {
+        width: 60px;
+        height: 60px;
+        top: 80%;
+        left: 80%;
+        animation-delay: -10s;
+    }
+
+    @keyframes float {
+        0% {
+            transform: translateY(0px) rotate(0deg);
+            opacity: 0.7;
+        }
+        33% {
+            transform: translateY(-30px) rotate(120deg);
+            opacity: 0.9;
+        }
+        66% {
+            transform: translateY(-60px) rotate(240deg);
+            opacity: 0.7;
+        }
+        100% {
+            transform: translateY(0px) rotate(360deg);
+            opacity: 0.7;
+        }
+    }
+
+    @media (max-width: 768px) {
+        .login-card {
+            margin: 1rem;
+            padding: 2rem;
+        }
+        
+        .login-title {
+            font-size: 2rem;
+        }
+    }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="container mt-5">
-    <div class="row justify-content-center">
-        <div class="col-md-6">
-            <div class="card">
-                <div class="card-header bg-primary text-white">
-                    <h3 class="mb-0">{{ title }}</h3>
+<div class="login-container">
+    <div class="floating-elements">
+        <div class="floating-element"></div>
+        <div class="floating-element"></div>
+        <div class="floating-element"></div>
+    </div>
+    
+    <div class="container">
+        <div class="login-card">
+            <div class="login-header">
+                <div class="login-icon">
+                    <i class="fas fa-users"></i>
                 </div>
-                <div class="card-body">
-                    <form method="POST" action="{{ url_for('teams.team_login') }}" novalidate>
-                        {{ form.hidden_tag() }} {# WICHTIG: Für CSRF-Schutz #}
-                        
-                        <div class="form-group">
-                            {{ form.team_name.label(class="form-control-label") }}
-                            {{ form.team_name(class="form-control" + (" is-invalid" if form.team_name.errors else ""), placeholder="Teamname eingeben") }}
-                            {% if form.team_name.errors %}
-                                <div class="invalid-feedback">
-                                    {% for error in form.team_name.errors %}
-                                        <span>{{ error }}</span>
-                                    {% endfor %}
-                                </div>
-                            {% endif %}
+                <h1 class="login-title">{{ title }}</h1>
+                <p class="login-subtitle">Melde dich mit deinem Team an</p>
+            </div>
+
+            <form method="POST" action="{{ url_for('teams.team_login') }}" novalidate>
+                {{ form.hidden_tag() }}
+                
+                <div class="form-group">
+                    {{ form.team_name.label(class="form-label") }}
+                    {{ form.team_name(class="form-control" + (" is-invalid" if form.team_name.errors else ""), placeholder="Teamname eingeben") }}
+                    {% if form.team_name.errors %}
+                        <div class="invalid-feedback">
+                            {% for error in form.team_name.errors %}
+                                <span>{{ error }}</span>
+                            {% endfor %}
                         </div>
-                        
-                        <div class="form-group">
-                            {{ form.password.label(class="form-control-label") }}
-                            {{ form.password(class="form-control" + (" is-invalid" if form.password.errors else ""), placeholder="Passwort") }}
-                            {% if form.password.errors %}
-                                <div class="invalid-feedback">
-                                    {% for error in form.password.errors %}
-                                        <span>{{ error }}</span>
-                                    {% endfor %}
-                                </div>
-                            {% endif %}
-                        </div>
-                        
-                        <div class="form-group mt-4">
-                            {{ form.submit(class="btn btn-success btn-block") }}
-                        </div>
-                    </form>
+                    {% endif %}
                 </div>
-                <div class="card-footer text-center">
-                    <small>Noch kein Team-Account? Ein Admin muss ihn für euch anlegen.</small><br>
-                    <small><a href="{{ url_for('main.index') }}">Zurück zur Startseite</a></small>
+                
+                <div class="form-group">
+                    {{ form.password.label(class="form-label") }}
+                    {{ form.password(class="form-control" + (" is-invalid" if form.password.errors else ""), placeholder="Passwort eingeben") }}
+                    {% if form.password.errors %}
+                        <div class="invalid-feedback">
+                            {% for error in form.password.errors %}
+                                <span>{{ error }}</span>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
                 </div>
+                
+                <div class="form-group">
+                    {{ form.submit(class="btn-login") }}
+                </div>
+            </form>
+
+            <div class="login-footer">
+                <small>Noch kein Team-Account? Ein Admin muss ihn für euch anlegen.</small>
+                <small><a href="{{ url_for('main.index') }}"><i class="fas fa-home mr-1"></i>Zurück zur Startseite</a></small>
             </div>
         </div>
     </div>
 </div>
+
+<script>
+// Removed smooth transitions to prevent browser back button issues
+</script>
 {% endblock %}

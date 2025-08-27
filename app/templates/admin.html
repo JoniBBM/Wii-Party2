@@ -2,17 +2,723 @@
 
 {% block title %}Admin Dashboard - Wii Party U Deluxe{% endblock %}
 
+{% block styles %}
+{{ super() }}
+<style>
+    /* Admin Dashboard Theme - Dark Professional */
+    .admin-dashboard-container {
+        background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+        min-height: 100vh;
+        color: white;
+        position: relative;
+        padding: 0;
+        margin: 0;
+        /* Fix scrolling issues */
+        overflow-x: hidden;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .admin-dashboard-container::before {
+        content: '';
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: linear-gradient(45deg, rgba(52, 73, 94, 0.1) 25%, transparent 25%),
+                    linear-gradient(-45deg, rgba(52, 73, 94, 0.1) 25%, transparent 25%),
+                    linear-gradient(45deg, transparent 75%, rgba(52, 73, 94, 0.1) 75%),
+                    linear-gradient(-45deg, transparent 75%, rgba(52, 73, 94, 0.1) 75%);
+        background-size: 60px 60px;
+        background-position: 0 0, 0 30px, 30px -30px, -30px 0px;
+        animation: movePattern 20s linear infinite;
+        opacity: 0.15;
+        z-index: -1;
+        pointer-events: none;
+    }
+
+    @keyframes movePattern {
+        0% { transform: translateX(0px) translateY(0px); }
+        100% { transform: translateX(60px) translateY(60px); }
+    }
+
+    .admin-content {
+        position: relative;
+        z-index: 2;
+        padding: 1rem 0;
+        min-height: 100vh;
+    }
+
+    .admin-content .container {
+        max-width: 1200px;
+        padding-left: 1.5rem;
+        padding-right: 1.5rem;
+    }
+
+    .admin-header {
+        background: rgba(44, 62, 80, 0.2);
+        border-radius: 20px;
+        padding: 2rem 2.5rem;
+        margin-bottom: 3rem;
+        backdrop-filter: blur(15px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        box-shadow: 0 15px 40px rgba(0, 0, 0, 0.3);
+        position: relative;
+    }
+
+    .admin-header h1 {
+        font-size: 2.5rem;
+        font-weight: 700;
+        margin-bottom: 0.5rem;
+        background: linear-gradient(45deg, #ecf0f1, #bdc3c7, #ecf0f1);
+        background-size: 200% 200%;
+        background-clip: text;
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        animation: shimmer 3s ease-in-out infinite;
+    }
+
+    @keyframes shimmer {
+        0% { background-position: 0% 50%; }
+        50% { background-position: 100% 50%; }
+        100% { background-position: 0% 50%; }
+    }
+
+    .admin-header p {
+        color: #bdc3c7;
+        font-size: 1.1rem;
+        margin: 0;
+    }
+
+    /* Improved spacing and layout */
+    .row {
+        margin-left: -15px;
+        margin-right: -15px;
+        margin-bottom: 2rem;
+    }
+
+    .col-md-4,
+    .col-md-6,
+    .col-md-8,
+    .col-md-12 {
+        padding-left: 15px;
+        padding-right: 15px;
+        margin-bottom: 2rem;
+    }
+
+    /* Card styling with better spacing */
+    .card {
+        background: rgba(44, 62, 80, 0.15);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 18px;
+        backdrop-filter: blur(15px);
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        color: white;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        height: auto;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    .card:hover {
+        transform: translateY(-8px);
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+        border-color: rgba(255, 255, 255, 0.2);
+    }
+
+    .card-body {
+        padding: 2rem;
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .card-header {
+        background: rgba(231, 76, 60, 0.2) !important;
+        border-bottom: 1px solid rgba(231, 76, 60, 0.3);
+        border-radius: 18px 18px 0 0 !important;
+        padding: 1.5rem 2rem;
+        flex-shrink: 0;
+    }
+
+    .card-header h5 {
+        margin: 0;
+        font-size: 1.25rem;
+        font-weight: 700;
+    }
+
+    .card-header.bg-success {
+        background: rgba(39, 174, 96, 0.2) !important;
+        border-bottom: 1px solid rgba(39, 174, 96, 0.3);
+    }
+
+    .card-header.bg-primary {
+        background: rgba(52, 152, 219, 0.2) !important;
+        border-bottom: 1px solid rgba(52, 152, 219, 0.3);
+    }
+
+    .card-header.bg-warning {
+        background: rgba(241, 196, 15, 0.2) !important;
+        border-bottom: 1px solid rgba(241, 196, 15, 0.3);
+    }
+
+    .card-header.bg-info {
+        background: rgba(26, 188, 156, 0.2) !important;
+        border-bottom: 1px solid rgba(26, 188, 156, 0.3);
+    }
+
+    .card-title {
+        color: white;
+        font-weight: 600;
+    }
+
+    .card-text {
+        color: rgba(255, 255, 255, 0.9);
+    }
+
+    /* Button styling */
+    .btn {
+        border-radius: 25px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        transition: all 0.3s ease;
+        border: none;
+    }
+
+    .btn:hover {
+        transform: translateY(-2px);
+    }
+
+    .btn-outline-success {
+        border: 2px solid #27ae60;
+        color: #27ae60;
+        background: transparent;
+    }
+
+    .btn-outline-success:hover {
+        background: #27ae60;
+        color: white;
+        box-shadow: 0 5px 15px rgba(39, 174, 96, 0.3);
+    }
+
+    .btn-outline-primary {
+        border: 2px solid #3498db;
+        color: #3498db;
+        background: transparent;
+    }
+
+    .btn-outline-primary:hover {
+        background: #3498db;
+        color: white;
+        box-shadow: 0 5px 15px rgba(52, 152, 219, 0.3);
+    }
+
+    .btn-outline-warning {
+        border: 2px solid #f1c40f;
+        color: #f1c40f;
+        background: transparent;
+    }
+
+    .btn-outline-warning:hover {
+        background: #f1c40f;
+        color: #2c3e50;
+        box-shadow: 0 5px 15px rgba(241, 196, 15, 0.3);
+    }
+
+    .btn-outline-info {
+        border: 2px solid #1abc9c;
+        color: #1abc9c;
+        background: transparent;
+    }
+
+    .btn-outline-info:hover {
+        background: #1abc9c;
+        color: white;
+        box-shadow: 0 5px 15px rgba(26, 188, 156, 0.3);
+    }
+
+    .btn-outline-danger {
+        border: 2px solid #e74c3c;
+        color: #e74c3c;
+        background: transparent;
+    }
+
+    .btn-outline-danger:hover {
+        background: #e74c3c;
+        color: white;
+        box-shadow: 0 5px 15px rgba(231, 76, 60, 0.3);
+    }
+
+    .btn-warning {
+        background: linear-gradient(45deg, #f39c12, #e67e22);
+        color: white;
+        box-shadow: 0 5px 15px rgba(243, 156, 18, 0.3);
+    }
+
+    .btn-warning:hover {
+        background: linear-gradient(45deg, #e67e22, #d35400);
+        color: white;
+        box-shadow: 0 8px 20px rgba(243, 156, 18, 0.4);
+    }
+
+    .btn-info {
+        background: linear-gradient(45deg, #1abc9c, #16a085);
+        color: white;
+        box-shadow: 0 5px 15px rgba(26, 188, 156, 0.3);
+    }
+
+    .btn-info:hover {
+        background: linear-gradient(45deg, #16a085, #138d75);
+        color: white;
+        box-shadow: 0 8px 20px rgba(26, 188, 156, 0.4);
+    }
+
+    /* Badge styling */
+    .badge {
+        border-radius: 15px;
+        padding: 0.5rem 0.8rem;
+        font-weight: 600;
+    }
+
+    .badge-info {
+        background: linear-gradient(45deg, #3498db, #2980b9);
+    }
+
+    .badge-secondary {
+        background: rgba(149, 165, 166, 0.8);
+    }
+
+    .badge-success {
+        background: linear-gradient(45deg, #27ae60, #229954);
+    }
+
+    .badge-warning {
+        background: linear-gradient(45deg, #f1c40f, #f39c12);
+        color: #2c3e50;
+    }
+
+    .badge-danger {
+        background: linear-gradient(45deg, #e74c3c, #c0392b);
+    }
+
+    /* Progress bar styling */
+    .progress {
+        background: rgba(44, 62, 80, 0.3);
+        border-radius: 10px;
+        overflow: hidden;
+    }
+
+    .progress-bar {
+        background: linear-gradient(45deg, #3498db, #2980b9);
+        border-radius: 10px;
+    }
+
+    /* Alert styling */
+    .alert {
+        border: none;
+        border-radius: 10px;
+        backdrop-filter: blur(10px);
+        border-left: 4px solid;
+    }
+
+    .alert-success {
+        background: rgba(39, 174, 96, 0.15);
+        color: #a8e6cf;
+        border-left-color: #27ae60;
+    }
+
+    .alert-danger {
+        background: rgba(231, 76, 60, 0.15);
+        color: #ffcccb;
+        border-left-color: #e74c3c;
+    }
+
+    .alert-warning {
+        background: rgba(241, 196, 15, 0.15);
+        color: #fff3cd;
+        border-left-color: #f1c40f;
+    }
+
+    .alert-info {
+        background: rgba(52, 152, 219, 0.15);
+        color: #a8d8ea;
+        border-left-color: #3498db;
+    }
+
+    /* Text colors */
+    .text-warning {
+        color: #f39c12 !important;
+    }
+
+    .text-muted {
+        color: rgba(255, 255, 255, 0.6) !important;
+    }
+
+    /* Floating elements - positioned better */
+    .floating-elements {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        z-index: -1;
+        pointer-events: none;
+    }
+
+    .floating-element {
+        position: absolute;
+        background: rgba(231, 76, 60, 0.08);
+        border-radius: 50%;
+        animation: float 20s infinite linear;
+    }
+
+    .floating-element:nth-child(1) {
+        width: 120px;
+        height: 120px;
+        top: 15%;
+        left: 85%;
+        animation-delay: 0s;
+    }
+
+    .floating-element:nth-child(2) {
+        width: 80px;
+        height: 80px;
+        top: 65%;
+        right: 8%;
+        animation-delay: -7s;
+    }
+
+    .floating-element:nth-child(3) {
+        width: 60px;
+        height: 60px;
+        top: 35%;
+        left: 3%;
+        animation-delay: -14s;
+    }
+
+    @keyframes float {
+        0% {
+            transform: translateY(0px) rotate(0deg);
+            opacity: 0.4;
+        }
+        33% {
+            transform: translateY(-30px) rotate(120deg);
+            opacity: 0.6;
+        }
+        66% {
+            transform: translateY(-60px) rotate(240deg);
+            opacity: 0.4;
+        }
+        100% {
+            transform: translateY(0px) rotate(360deg);
+            opacity: 0.4;
+        }
+    }
+
+    /* Better spacing for content sections */
+    .content-section {
+        margin-bottom: 3rem;
+    }
+
+    .content-section:last-child {
+        margin-bottom: 2rem;
+    }
+
+    /* Fix table spacing */
+    .table {
+        margin-bottom: 0;
+    }
+
+    /* Table styling - no white backgrounds */
+    .table {
+        background: rgba(44, 62, 80, 0.1);
+        border-radius: 12px;
+        overflow: hidden;
+        color: white;
+    }
+
+    .table td,
+    .table th {
+        padding: 1rem;
+        border-color: rgba(255, 255, 255, 0.1);
+        background: transparent;
+        color: white;
+    }
+
+    .table th {
+        background: rgba(44, 62, 80, 0.3);
+        font-weight: 600;
+        color: rgba(255, 255, 255, 0.9);
+    }
+
+    .table-striped tbody tr:nth-of-type(odd) {
+        background: rgba(44, 62, 80, 0.1);
+    }
+
+    .table-striped tbody tr:nth-of-type(even) {
+        background: rgba(44, 62, 80, 0.05);
+    }
+
+    /* Form styling - no white backgrounds */
+    .form-control,
+    .form-select,
+    select.form-control,
+    input.form-control,
+    textarea.form-control {
+        background: rgba(44, 62, 80, 0.2) !important;
+        border: 1px solid rgba(255, 255, 255, 0.2) !important;
+        color: white !important;
+        border-radius: 8px;
+    }
+
+    .form-control::placeholder {
+        color: rgba(255, 255, 255, 0.6) !important;
+    }
+
+    .form-control:focus {
+        background: rgba(44, 62, 80, 0.3) !important;
+        border-color: #e74c3c !important;
+        box-shadow: 0 0 0 0.2rem rgba(231, 76, 60, 0.25) !important;
+        color: white !important;
+    }
+
+    /* Modal styling - no white backgrounds */
+    .modal-content {
+        background: rgba(44, 62, 80, 0.95) !important;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 15px;
+        backdrop-filter: blur(15px);
+        color: white;
+    }
+
+    .modal-header {
+        background: rgba(231, 76, 60, 0.2);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 15px 15px 0 0;
+    }
+
+    .modal-body {
+        background: transparent;
+        color: white;
+    }
+
+    .modal-footer {
+        background: transparent;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    /* List group styling */
+    .list-group {
+        background: transparent;
+    }
+
+    .list-group-item {
+        background: rgba(44, 62, 80, 0.1) !important;
+        border: 1px solid rgba(255, 255, 255, 0.1) !important;
+        color: white !important;
+        margin-bottom: 0.5rem;
+        border-radius: 8px !important;
+    }
+
+    .list-group-item:hover {
+        background: rgba(44, 62, 80, 0.2) !important;
+    }
+
+    /* Dropdown styling */
+    .dropdown-menu {
+        background: rgba(44, 62, 80, 0.95) !important;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 10px;
+        backdrop-filter: blur(15px);
+    }
+
+    .dropdown-item {
+        color: white !important;
+    }
+
+    .dropdown-item:hover,
+    .dropdown-item:focus {
+        background: rgba(231, 76, 60, 0.2) !important;
+        color: white !important;
+    }
+
+    /* Additional elements that might have white backgrounds */
+    .nav-tabs {
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .nav-tabs .nav-link {
+        background: rgba(44, 62, 80, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        color: rgba(255, 255, 255, 0.8);
+        border-radius: 8px 8px 0 0;
+    }
+
+    .nav-tabs .nav-link:hover {
+        background: rgba(44, 62, 80, 0.2);
+        color: white;
+    }
+
+    .nav-tabs .nav-link.active {
+        background: rgba(231, 76, 60, 0.2);
+        border-color: rgba(231, 76, 60, 0.3);
+        color: white;
+    }
+
+    .tab-content {
+        background: rgba(44, 62, 80, 0.05);
+        border-radius: 0 0 8px 8px;
+        padding: 2rem;
+    }
+
+    /* Pagination styling */
+    .pagination .page-link {
+        background: rgba(44, 62, 80, 0.2) !important;
+        border: 1px solid rgba(255, 255, 255, 0.1) !important;
+        color: white !important;
+        margin: 0 2px;
+        border-radius: 6px !important;
+    }
+
+    .pagination .page-link:hover {
+        background: rgba(231, 76, 60, 0.2) !important;
+        color: white !important;
+    }
+
+    .pagination .page-item.active .page-link {
+        background: rgba(231, 76, 60, 0.3) !important;
+        border-color: rgba(231, 76, 60, 0.5) !important;
+        color: white !important;
+    }
+
+    /* Breadcrumb styling */
+    .breadcrumb {
+        background: rgba(44, 62, 80, 0.1) !important;
+        border-radius: 8px;
+        padding: 0.75rem 1rem;
+    }
+
+    .breadcrumb-item a {
+        color: rgba(255, 255, 255, 0.8);
+    }
+
+    .breadcrumb-item.active {
+        color: white;
+    }
+
+    /* Tooltip styling */
+    .tooltip .tooltip-inner {
+        background: rgba(44, 62, 80, 0.95) !important;
+        color: white !important;
+        border-radius: 6px;
+    }
+
+    .tooltip .arrow::before {
+        border-top-color: rgba(44, 62, 80, 0.95) !important;
+        border-bottom-color: rgba(44, 62, 80, 0.95) !important;
+        border-left-color: rgba(44, 62, 80, 0.95) !important;
+        border-right-color: rgba(44, 62, 80, 0.95) !important;
+    }
+
+    /* Any remaining white backgrounds */
+    div[style*="background: white"],
+    div[style*="background-color: white"],
+    div[style*="background:#fff"],
+    div[style*="background: #fff"] {
+        background: rgba(44, 62, 80, 0.1) !important;
+        color: white !important;
+    }
+
+    /* Generic catch-all for any missed white backgrounds */
+    *:not(.navbar):not(.navbar-brand):not(.nav-link) {
+        background-color: transparent !important;
+    }
+
+    /* Specifically target common Bootstrap components */
+    .jumbotron,
+    .well,
+    .panel,
+    .panel-body,
+    .panel-default {
+        background: rgba(44, 62, 80, 0.1) !important;
+        color: white !important;
+    }
+
+    /* Responsive design */
+    @media (max-width: 768px) {
+        .admin-content .container {
+            padding-left: 1rem;
+            padding-right: 1rem;
+        }
+
+        .admin-header {
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        
+        .admin-header h1 {
+            font-size: 2rem;
+        }
+
+        .col-md-4,
+        .col-md-6,
+        .col-md-8,
+        .col-md-12 {
+            margin-bottom: 1.5rem;
+        }
+
+        .card-body {
+            padding: 1.5rem;
+        }
+
+        .card-header {
+            padding: 1rem 1.5rem;
+        }
+    }
+
+    @media (max-width: 576px) {
+        .admin-header {
+            padding: 1rem;
+        }
+
+        .admin-header .d-flex {
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .btn {
+            font-size: 0.875rem;
+            padding: 0.6rem 1.2rem;
+        }
+    }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="container mt-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <div>
-            <h1 class="mb-0">Admin Dashboard</h1>
-            <p class="mb-0">Willkommen im Admin-Bereich, {{ current_user.username }}!</p>
-        </div>
-        <a href="{{ url_for('admin.moderation_mode') }}" class="btn btn-info">
-            <i class="fas fa-eye"></i> Moderationsmodus
-        </a>
+<div class="admin-dashboard-container">
+    <div class="floating-elements">
+        <div class="floating-element"></div>
+        <div class="floating-element"></div>
+        <div class="floating-element"></div>
     </div>
+    
+    <div class="admin-content">
+        <div class="container mt-4">
+            <div class="admin-header">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h1>Admin Dashboard</h1>
+                        <p>Willkommen im Admin-Bereich, {{ current_user.username }}!</p>
+                    </div>
+                    <a href="{{ url_for('admin.moderation_mode') }}" class="btn btn-info">
+                        <i class="fas fa-eye"></i> Moderationsmodus
+                    </a>
+                </div>
+            </div>
 
     <!-- Flash Nachrichten -->
     {% with messages = get_flashed_messages(with_categories=true) %}
@@ -140,12 +846,24 @@
                                 <option value="4">4 Teams</option>
                                 <option value="5">5 Teams</option>
                                 <option value="6">6 Teams</option>
+                                <option value="7">7 Teams</option>
+                                <option value="8">8 Teams</option>
+                                <option value="9">9 Teams</option>
+                                <option value="10">10 Teams</option>
                             </select>
                         </div>
                         <button id="create-teams-admin-btn" class="btn btn-warning btn-sm btn-block" disabled>
                             <i class="fas fa-magic"></i> Teams erstellen
                         </button>
                     </div>
+                    
+                    <!-- Styling für nicht mögliche Team-Optionen -->
+                    <style>
+                        #team-count-select option.insufficient-players {
+                            color: #dc3545 !important;
+                            background-color: rgba(220, 53, 69, 0.1) !important;
+                        }
+                    </style>
                 </div>
             </div>
         </div>
@@ -153,7 +871,7 @@
         <!-- NEU: Feld-Management -->
         <div class="col-md-4">
             <div class="card border-warning">
-                <div class="card-header bg-warning text-dark">
+                <div class="card-header bg-warning text-white">
                     <h5 class="mb-0"><i class="fas fa-chess-board"></i> Spielfeld-Management</h5>
                 </div>
                 <div class="card-body">
@@ -1900,7 +2618,16 @@ function updateWelcomeStatus() {
                                     <div class="card card-body p-2 mb-2" style="font-size: 0.85em;">
                                         <div class="d-flex justify-content-between align-items-center">
                                             <strong>Team ${team.name}</strong>
-                                            <span class="badge badge-dark" style="font-family: monospace;">🔑 ${team.password}</span>
+                                            <div class="d-flex align-items-center gap-2">
+                                                <span class="badge badge-dark" style="font-family: monospace;">🔑 ${team.password}</span>
+                                                <button class="btn btn-sm btn-outline-secondary copy-password-btn" 
+                                                        data-password="${team.password}" 
+                                                        data-team-name="Team ${team.name}"
+                                                        title="Passwort kopieren"
+                                                        style="padding: 2px 6px; font-size: 0.7rem;">
+                                                    📋
+                                                </button>
+                                            </div>
                                         </div>
                                         <div style="font-size: 0.75em; color: #666;">
                                             ${team.members.join(', ')}
@@ -1933,6 +2660,9 @@ function updateWelcomeStatus() {
                         </div>
                     `}
                 `;
+                
+                // Aktualisiere Team-Optionen basierend auf Spieleranzahl
+                updateTeamOptions(data.player_count || 0);
                 startBtn.innerHTML = '<i class="fas fa-stop"></i> Beenden';
                 startBtn.className = 'btn btn-danger btn-sm';
                 startBtn.onclick = function() {
@@ -1994,18 +2724,51 @@ function updateWelcomeStatus() {
                     }).then(response => {
                         if (!response.ok) {
                             return response.json().then(errorData => {
+                                // Spezielle Behandlung für GAME_ACTIVE Fehler
+                                if (errorData.error === 'GAME_ACTIVE') {
+                                    return { gameActive: true, data: errorData };
+                                }
                                 throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
                             });
                         }
                         return response.json();
                     })
-                    .then(data => {
-                        if (data.success) {
+                    .then(result => {
+                        // Behandlung von GAME_ACTIVE Konflikt
+                        if (result.gameActive) {
+                            const errorData = result.data;
+                            
+                            // Befülle das Custom Modal mit Daten
+                            document.getElementById('customGameResetMessage').textContent = errorData.message;
+                            
+                            const existingTeamsDiv = document.getElementById('customExistingTeams');
+                            if (errorData.details.team_names.length > 0) {
+                                existingTeamsDiv.innerHTML = `
+                                    <div style="background: rgba(52, 152, 219, 0.25); padding: 1.5rem; border-radius: 10px; border-left: 4px solid #3498db; margin-top: 1rem;">
+                                        <strong style="font-size: 1.1rem;"><i class="fas fa-users"></i> Vorhandene Teams (${errorData.details.teams_count}):</strong><br>
+                                        <span style="color: #a8d8ea; font-size: 1.1rem; margin-top: 0.5rem; display: block;">${errorData.details.team_names.join(', ')}${errorData.details.teams_count > 5 ? '...' : ''}</span>
+                                    </div>
+                                `;
+                            } else {
+                                existingTeamsDiv.innerHTML = '';
+                            }
+                            
+                            // Speichere errorData für die Funktionen
+                            window.currentGameResetData = errorData;
+                            
+                            // Zeige Custom Modal
+                            showCustomModal();
+                            
+                            return; // Beende Funktion hier
+                        }
+                        
+                        // Normaler Success-Fall
+                        if (result.success) {
                             updateWelcomeStatus();
                             // Admin bleibt im Dashboard - kein automatisches Öffnen der Welcome-Seite
                             alert('Welcome-System erfolgreich gestartet! Welcome-Seite ist jetzt aktiv.');
                         } else {
-                            alert('Fehler beim Starten: ' + data.error);
+                            alert('Fehler beim Starten: ' + result.error);
                             // Aktualisiere Status da etwas nicht stimmt
                             updateWelcomeStatus();
                         }
@@ -2032,6 +2795,41 @@ function updateWelcomeStatus() {
                 </div>
             `;
         });
+}
+
+// Funktion zum Aktualisieren der Team-Optionen basierend auf Spieleranzahl
+function updateTeamOptions(playerCount) {
+    const select = document.getElementById('team-count-select');
+    const options = select.querySelectorAll('option[value]'); // Alle Optionen mit Werten
+    
+    options.forEach(option => {
+        const teamCount = parseInt(option.value);
+        
+        // Überspringe ungültige Werte
+        if (isNaN(teamCount) || teamCount <= 0) {
+            return;
+        }
+        
+        if (teamCount > playerCount) {
+            // Nicht genügend Spieler für diese Team-Anzahl
+            option.classList.add('insufficient-players');
+            option.disabled = true;
+            const needed = teamCount - playerCount;
+            option.textContent = `${teamCount} Teams ❌ (${needed} Spieler fehlen)`;
+        } else {
+            // Genügend Spieler vorhanden
+            option.classList.remove('insufficient-players');
+            option.disabled = false;
+            option.textContent = `${teamCount} Teams ✅`;
+        }
+    });
+    
+    // Wenn die aktuell ausgewählte Option nicht mehr gültig ist, zurücksetzen
+    const selectedValue = parseInt(select.value);
+    if (selectedValue && selectedValue > playerCount) {
+        select.value = '';
+        document.getElementById('create-teams-admin-btn').disabled = true;
+    }
 }
 
 // Team-Management-Controls Event-Listener
@@ -2737,6 +3535,233 @@ document.addEventListener('DOMContentLoaded', function() {
             }, 5000);
         }
     });
+
+    // Copy Password Functionality - Event Delegation für dynamische Buttons
+    document.addEventListener('click', function(e) {
+        if (e.target.classList.contains('copy-password-btn')) {
+            const password = e.target.getAttribute('data-password');
+            const teamName = e.target.getAttribute('data-team-name');
+            
+            // Modern Clipboard API
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(password).then(function() {
+                    // Success feedback
+                    const originalContent = e.target.innerHTML;
+                    e.target.innerHTML = '✅';
+                    e.target.title = 'Kopiert!';
+                    e.target.classList.remove('btn-outline-secondary');
+                    e.target.classList.add('btn-success');
+                    
+                    // Reset nach 2 Sekunden
+                    setTimeout(function() {
+                        e.target.innerHTML = originalContent;
+                        e.target.title = 'Passwort kopieren';
+                        e.target.classList.remove('btn-success');
+                        e.target.classList.add('btn-outline-secondary');
+                    }, 2000);
+                    
+                    // Optional: Toast notification
+                    console.log(`Passwort für ${teamName} kopiert: ${password}`);
+                }).catch(function(err) {
+                    console.error('Fehler beim Kopieren:', err);
+                    alert('Fehler beim Kopieren des Passworts');
+                });
+            } else {
+                // Fallback für ältere Browser
+                const textArea = document.createElement('textarea');
+                textArea.value = password;
+                textArea.style.position = 'fixed';
+                textArea.style.left = '-999999px';
+                textArea.style.top = '-999999px';
+                document.body.appendChild(textArea);
+                textArea.focus();
+                textArea.select();
+                
+                try {
+                    document.execCommand('copy');
+                    textArea.remove();
+                    
+                    // Success feedback
+                    const originalContent = e.target.innerHTML;
+                    e.target.innerHTML = '✅';
+                    e.target.classList.remove('btn-outline-secondary');
+                    e.target.classList.add('btn-success');
+                    
+                    setTimeout(function() {
+                        e.target.innerHTML = originalContent;
+                        e.target.classList.remove('btn-success');
+                        e.target.classList.add('btn-outline-secondary');
+                    }, 2000);
+                } catch (copyErr) {
+                    textArea.remove();
+                    console.error('Fallback copy failed:', copyErr);
+                    alert('Fehler beim Kopieren des Passworts');
+                }
+            }
+        }
+    });
+
+    // Custom Modal Functions
+    window.showCustomModal = function() {
+        console.log('🔧 Showing custom modal');
+        document.getElementById('customGameResetModal').style.display = 'block';
+    };
+
+    window.hideCustomModal = function() {
+        console.log('🔧 Hiding custom modal');
+        document.getElementById('customGameResetModal').style.display = 'none';
+    };
+
+    window.showFinalConfirmModal = function() {
+        console.log('🗑️ Showing final confirm modal');
+        hideCustomModal();
+        setTimeout(function() {
+            document.getElementById('customFinalResetModal').style.display = 'block';
+        }, 200);
+    };
+
+    window.hideFinalConfirmModal = function() {
+        console.log('🔧 Hiding final confirm modal');
+        document.getElementById('customFinalResetModal').style.display = 'none';
+    };
+
+    window.executeGameReset = function() {
+        console.log('💣 Executing game reset');
+        const executeBtn = document.getElementById('customExecuteResetBtn');
+        
+        // Verstecke Modal
+        hideFinalConfirmModal();
+        
+        // Zeige Loading-Feedback
+        executeBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Wird gelöscht...';
+        executeBtn.disabled = true;
+        
+        fetch('/admin/api/reset-game-complete', {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRFToken': csrfToken
+            },
+            credentials: 'same-origin',
+            body: JSON.stringify({})
+        })
+        .then(response => response.json())
+        .then(resetData => {
+            if (resetData.success) {
+                // Erfolgsmeldung mit Welcome-System Status
+                let successMsg = `✅ ${resetData.message}`;
+                if (resetData.welcome_started) {
+                    successMsg += `\\n\\n🎉 Das Welcome-System wurde automatisch gestartet!`;
+                } else {
+                    successMsg += `\\n\\n⚠️ Das Welcome-System muss manuell gestartet werden.`;
+                }
+                alert(successMsg);
+                updateWelcomeStatus();
+                window.location.reload(); // Full-Refresh für komplette Aktualisierung
+            } else {
+                alert('❌ Fehler beim Reset: ' + resetData.error);
+                executeBtn.innerHTML = '<i class="fas fa-bomb"></i> JA, ALLES LÖSCHEN!';
+                executeBtn.disabled = false;
+            }
+        })
+        .catch(resetError => {
+            console.error('Reset Error:', resetError);
+            alert('❌ Ein Fehler ist beim Reset aufgetreten. Bitte versuche es erneut.');
+            executeBtn.innerHTML = '<i class="fas fa-bomb"></i> JA, ALLES LÖSCHEN!';
+            executeBtn.disabled = false;
+        });
+    };
+
+    // Schließe Modal bei Klick außerhalb
+    window.addEventListener('click', function(e) {
+        if (e.target.id === 'customGameResetModal') {
+            hideCustomModal();
+        }
+        if (e.target.id === 'customFinalResetModal') {
+            hideFinalConfirmModal();
+        }
+    });
 });
 </script>
+
+<!-- Custom Glassmorphism Modal für Game Reset Bestätigung -->
+<div id="customGameResetModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); z-index: 9999;">
+    <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 90%; max-width: 700px; background: rgba(255, 255, 255, 0.1); color: white; border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 20px; backdrop-filter: blur(30px); -webkit-backdrop-filter: blur(30px); box-shadow: 0 25px 50px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.05);">
+        
+        <!-- Header -->
+        <div style="background: rgba(231, 76, 60, 0.15); padding: 2rem; border-bottom: 1px solid rgba(255, 255, 255, 0.1); border-radius: 20px 20px 0 0; backdrop-filter: blur(10px);">
+            <h3 style="margin: 0; color: #fff; display: flex; align-items: center; gap: 1rem; text-shadow: 0 2px 4px rgba(0,0,0,0.3);">
+                <i class="fas fa-exclamation-triangle" style="color: #f1c40f; font-size: 2rem; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));"></i> 
+                <strong>SPIEL BEREITS AKTIV</strong>
+            </h3>
+        </div>
+        
+        <!-- Body -->
+        <div style="padding: 2.5rem;">
+            <div style="background: rgba(241, 196, 15, 0.15); border-left: 4px solid rgba(241, 196, 15, 0.6); color: #fff; padding: 2rem; border-radius: 15px; margin-bottom: 2rem; backdrop-filter: blur(10px); box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);">
+                <p id="customGameResetMessage" style="margin-bottom: 1rem; font-size: 1.2rem; line-height: 1.6; text-shadow: 0 1px 2px rgba(0,0,0,0.2);"></p>
+                <div id="customExistingTeams" style="margin-top: 1.5rem;"></div>
+            </div>
+            
+            <div style="background: rgba(52, 152, 219, 0.12); border-left: 4px solid rgba(52, 152, 219, 0.6); color: #e8f4f8; padding: 2rem; border-radius: 15px; backdrop-filter: blur(10px); box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);">
+                <h4 style="margin-bottom: 1.5rem; text-shadow: 0 1px 2px rgba(0,0,0,0.2);"><i class="fas fa-info-circle"></i> Was möchtest du tun?</h4>
+                <p style="margin-bottom: 1rem; font-size: 1.1rem; text-shadow: 0 1px 2px rgba(0,0,0,0.1);"><strong>Option 1:</strong> Abbrechen und das aktuelle Spiel fortsetzen</p>
+                <p style="margin-bottom: 0; font-size: 1.1rem; text-shadow: 0 1px 2px rgba(0,0,0,0.1);"><strong>Option 2:</strong> Kompletten Neustart durchführen (alle Daten werden gelöscht)</p>
+            </div>
+        </div>
+        
+        <!-- Footer -->
+        <div style="padding: 2rem; border-top: 1px solid rgba(255, 255, 255, 0.1); display: flex; justify-content: space-between; gap: 1rem; border-radius: 0 0 20px 20px; background: rgba(255, 255, 255, 0.05);">
+            <button type="button" id="customCancelBtn" onclick="hideCustomModal()" style="background: rgba(149, 165, 166, 0.2); border: 1px solid rgba(149, 165, 166, 0.3); padding: 1.2rem 2.5rem; border-radius: 15px; color: white; font-size: 1.1rem; font-weight: 600; cursor: pointer; transition: all 0.3s; min-width: 280px; backdrop-filter: blur(10px); text-shadow: 0 1px 2px rgba(0,0,0,0.3); box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);">
+                <i class="fas fa-times"></i> Abbrechen (Spiel fortsetzen)
+            </button>
+            <button type="button" id="customConfirmResetBtn" onclick="showFinalConfirmModal()" style="background: rgba(231, 76, 60, 0.25); border: 1px solid rgba(231, 76, 60, 0.4); padding: 1.2rem 2.5rem; border-radius: 15px; color: white; font-size: 1.1rem; font-weight: 600; cursor: pointer; transition: all 0.3s; min-width: 280px; backdrop-filter: blur(10px); text-shadow: 0 1px 2px rgba(0,0,0,0.3); box-shadow: 0 4px 15px rgba(231, 76, 60, 0.2);">
+                <i class="fas fa-trash-alt"></i> Neues Spiel starten (Alles löschen)
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Custom Glassmorphism Modal für finale Reset-Bestätigung -->
+<div id="customFinalResetModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10000;">
+    <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 90%; max-width: 500px; background: rgba(192, 57, 43, 0.15); color: white; border: 1px solid rgba(231, 76, 60, 0.3); border-radius: 20px; backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px); box-shadow: 0 25px 70px rgba(0,0,0,0.4), 0 0 0 1px rgba(231, 76, 60, 0.1); -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;">
+        
+        <!-- Header -->
+        <div style="padding: 2rem; border-bottom: 1px solid rgba(255, 255, 255, 0.15); text-align: center; background: rgba(231, 76, 60, 0.1); border-radius: 20px 20px 0 0;">
+            <h3 style="margin: 0; color: #fff; display: flex; align-items: center; justify-content: center; gap: 1rem; text-shadow: 0 2px 4px rgba(0,0,0,0.3);">
+                <i class="fas fa-skull-crossbones" style="font-size: 2rem; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));"></i> 
+                <strong>ACHTUNG: KOMPLETTER SPIEL-RESET</strong>
+            </h3>
+        </div>
+        
+        <!-- Body -->
+        <div style="padding: 2.5rem; text-align: center;">
+            <div style="font-size: 5rem; margin-bottom: 1.5rem; filter: drop-shadow(0 4px 8px rgba(0,0,0,0.3));">🚨</div>
+            <h4 style="margin-bottom: 2rem; color: #ffcccb; text-shadow: 0 1px 2px rgba(0,0,0,0.3);">ALLE DATEN WERDEN PERMANENT GELÖSCHT!</h4>
+            
+            <div style="background: rgba(0, 0, 0, 0.2); padding: 2rem; border-radius: 15px; margin-bottom: 2rem; text-align: left; backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1);">
+                <p style="margin-bottom: 1rem; font-size: 1.1rem; text-shadow: 0 1px 2px rgba(0,0,0,0.2);"><i class="fas fa-users" style="width: 20px;"></i> <strong>Alle Teams und Spieler</strong></p>
+                <p style="margin-bottom: 1rem; font-size: 1.1rem; text-shadow: 0 1px 2px rgba(0,0,0,0.2);"><i class="fas fa-gamepad" style="width: 20px;"></i> <strong>Alle Spielsessions und Events</strong></p>
+                <p style="margin-bottom: 1rem; font-size: 1.1rem; text-shadow: 0 1px 2px rgba(0,0,0,0.2);"><i class="fas fa-images" style="width: 20px;"></i> <strong>Alle Profilbilder</strong></p>
+                <p style="margin-bottom: 0; font-size: 1.1rem; text-shadow: 0 1px 2px rgba(0,0,0,0.2);"><i class="fas fa-history" style="width: 20px;"></i> <strong>Kompletter Spielfortschritt</strong></p>
+            </div>
+            
+            <p style="color: #ff8a80; font-weight: bold; margin-bottom: 0; font-size: 1.2rem; text-shadow: 0 1px 2px rgba(0,0,0,0.3);">Dieser Vorgang kann NICHT rückgängig gemacht werden!</p>
+        </div>
+        
+        <!-- Footer -->
+        <div style="padding: 2rem; border-top: 1px solid rgba(255, 255, 255, 0.15); display: flex; justify-content: space-between; gap: 1rem; background: rgba(255, 255, 255, 0.05); border-radius: 0 0 20px 20px;">
+            <button type="button" onclick="hideFinalConfirmModal()" style="background: rgba(255, 255, 255, 0.2); color: #fff; border: 1px solid rgba(255, 255, 255, 0.3); padding: 1.2rem 2rem; border-radius: 15px; font-size: 1.1rem; font-weight: 600; cursor: pointer; transition: all 0.3s; backdrop-filter: blur(10px); text-shadow: 0 1px 2px rgba(0,0,0,0.3); box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);">
+                <i class="fas fa-shield-alt"></i> Sicherheitsabbruch
+            </button>
+            <button type="button" id="customExecuteResetBtn" onclick="executeGameReset()" style="background: rgba(231, 76, 60, 0.25); border: 1px solid rgba(231, 76, 60, 0.5); color: #fff; padding: 1.2rem 2rem; border-radius: 15px; font-size: 1.1rem; font-weight: 600; cursor: pointer; transition: all 0.3s; backdrop-filter: blur(10px); text-shadow: 0 1px 2px rgba(0,0,0,0.3); box-shadow: 0 4px 15px rgba(231, 76, 60, 0.3);">
+                <i class="fas fa-bomb"></i> JA, ALLES LÖSCHEN!
+            </button>
+        </div>
+    </div>
+</div>
+        </div>
+    </div>
+</div>
 {% endblock %}

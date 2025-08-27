@@ -3,6 +3,12 @@
     "name": "Default",
     "description": "Standard-Minispiele für allgemeine Verwendung",
     "folder_path": "Default",
-    "created_at": "2025-08-04T06:56:36.528830"
+    "created_at": "2025-08-26T13:16:34.236553"
+  },
+  {
+    "name": "Teenie 2025",
+    "description": "Minigame-Sammlung",
+    "folder_path": "Teenie 2025",
+    "created_at": "2025-08-26T13:16:34.240799"
   }
 ]

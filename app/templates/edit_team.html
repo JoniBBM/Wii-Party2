@@ -2,8 +2,461 @@
 
 {% block title %}Team bearbeiten - {{ team.name }}{% endblock %}
 
+{% block styles %}
+{{ super() }}
+<style>
+    /* Admin Dashboard Theme - Dark Professional */
+    .admin-dashboard-container {
+        background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+        min-height: 100vh;
+        color: white;
+        position: relative;
+        padding: 0;
+        margin: 0;
+        overflow-x: hidden;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .admin-dashboard-container::before {
+        content: '';
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: linear-gradient(45deg, rgba(52, 73, 94, 0.1) 25%, transparent 25%),
+                    linear-gradient(-45deg, rgba(52, 73, 94, 0.1) 25%, transparent 25%),
+                    linear-gradient(45deg, transparent 75%, rgba(52, 73, 94, 0.1) 75%),
+                    linear-gradient(-45deg, transparent 75%, rgba(52, 73, 94, 0.1) 75%);
+        background-size: 60px 60px;
+        background-position: 0 0, 0 30px, 30px -30px, -30px 0px;
+        animation: movePattern 20s linear infinite;
+        opacity: 0.15;
+        z-index: -1;
+        pointer-events: none;
+    }
+
+    @keyframes movePattern {
+        0% { transform: translateX(0px) translateY(0px); }
+        100% { transform: translateX(60px) translateY(60px); }
+    }
+
+    .admin-content {
+        position: relative;
+        z-index: 2;
+        padding: 2rem 0;
+        min-height: 100vh;
+    }
+
+    .admin-content .container {
+        max-width: 1200px;
+        padding-left: 1.5rem;
+        padding-right: 1.5rem;
+    }
+
+    /* Header styling */
+    .admin-content h1, .admin-content h2 {
+        color: white;
+        font-weight: 700;
+        margin-bottom: 2rem;
+        text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+    }
+
+    /* Card styling */
+    .card {
+        background: rgba(44, 62, 80, 0.15);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 18px;
+        backdrop-filter: blur(15px);
+        box-shadow: 0 15px 40px rgba(0, 0, 0, 0.3);
+        color: white;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        overflow: hidden;
+        margin-bottom: 2rem;
+    }
+
+    .card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 25px 50px rgba(0, 0, 0, 0.4);
+        border-color: rgba(255, 255, 255, 0.2);
+    }
+
+    .card-header {
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 18px 18px 0 0 !important;
+        padding: 1.5rem 2rem;
+    }
+
+    .card-header.bg-primary {
+        background: rgba(52, 152, 219, 0.2) !important;
+        border-bottom: 1px solid rgba(52, 152, 219, 0.3);
+    }
+
+    .card-header.bg-warning {
+        background: rgba(241, 196, 15, 0.2) !important;
+        border-bottom: 1px solid rgba(241, 196, 15, 0.3);
+    }
+
+    .card-header.bg-success {
+        background: rgba(39, 174, 96, 0.2) !important;
+        border-bottom: 1px solid rgba(39, 174, 96, 0.3);
+    }
+
+    .card-header.bg-danger {
+        background: rgba(231, 76, 60, 0.2) !important;
+        border-bottom: 1px solid rgba(231, 76, 60, 0.3);
+    }
+
+    .card-header.bg-info {
+        background: rgba(26, 188, 156, 0.2) !important;
+        border-bottom: 1px solid rgba(26, 188, 156, 0.3);
+    }
+
+    .card-header h5 {
+        margin: 0;
+        font-weight: 700;
+        color: white !important;
+    }
+
+    .card-body {
+        padding: 2rem;
+    }
+
+    .card-footer {
+        background: rgba(44, 62, 80, 0.2) !important;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+        padding: 1.5rem 2rem;
+    }
+
+    /* Alert styling */
+    .alert {
+        border-radius: 15px;
+        border: none;
+        padding: 1rem 1.5rem;
+        backdrop-filter: blur(10px);
+        font-weight: 500;
+        margin-bottom: 1.5rem;
+    }
+
+    .alert-success {
+        background: rgba(39, 174, 96, 0.2);
+        border: 1px solid rgba(39, 174, 96, 0.3);
+        color: white;
+    }
+
+    .alert-danger {
+        background: rgba(231, 76, 60, 0.2);
+        border: 1px solid rgba(231, 76, 60, 0.3);
+        color: white;
+    }
+
+    .alert-warning {
+        background: rgba(241, 196, 15, 0.2);
+        border: 1px solid rgba(241, 196, 15, 0.3);
+        color: white;
+    }
+
+    .alert-info {
+        background: rgba(26, 188, 156, 0.2);
+        border: 1px solid rgba(26, 188, 156, 0.3);
+        color: white;
+    }
+
+    /* Form styling */
+    .form-group {
+        margin-bottom: 1.5rem;
+    }
+
+    .form-control-label {
+        color: white;
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+        display: block;
+    }
+
+    .form-control {
+        background: rgba(255, 255, 255, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 10px;
+        color: white;
+        padding: 12px 16px;
+        transition: all 0.3s ease;
+    }
+
+    .form-control:focus {
+        background: rgba(255, 255, 255, 0.15);
+        border-color: rgba(52, 152, 219, 0.5);
+        box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+        color: white;
+    }
+
+    .form-control::placeholder {
+        color: rgba(255, 255, 255, 0.6);
+    }
+
+    .form-text {
+        color: rgba(255, 255, 255, 0.7) !important;
+        font-size: 0.875rem;
+        margin-top: 0.25rem;
+    }
+
+    .invalid-feedback {
+        color: #e74c3c;
+        font-weight: 500;
+    }
+
+    .form-control.is-invalid {
+        border-color: #e74c3c;
+        background: rgba(231, 76, 60, 0.1);
+    }
+
+    /* Select styling */
+    select.form-control {
+        appearance: none;
+        background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%23ffffff' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e");
+        background-position: right 12px center;
+        background-repeat: no-repeat;
+        background-size: 16px 12px;
+        padding-right: 40px;
+    }
+
+    /* Button styling */
+    .btn {
+        border-radius: 10px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        transition: all 0.3s ease;
+        border: none;
+        padding: 12px 24px;
+    }
+
+    .btn:hover {
+        transform: translateY(-2px);
+    }
+
+    .btn-primary {
+        background: linear-gradient(45deg, #3498db, #2980b9);
+        color: white;
+        box-shadow: 0 5px 15px rgba(52, 152, 219, 0.3);
+    }
+
+    .btn-primary:hover {
+        background: linear-gradient(45deg, #2980b9, #21618c);
+        color: white;
+        box-shadow: 0 8px 20px rgba(52, 152, 219, 0.4);
+    }
+
+    .btn-success {
+        background: linear-gradient(45deg, #27ae60, #229954);
+        color: white;
+        box-shadow: 0 5px 15px rgba(39, 174, 96, 0.3);
+    }
+
+    .btn-success:hover {
+        background: linear-gradient(45deg, #229954, #1e8449);
+        color: white;
+        box-shadow: 0 8px 20px rgba(39, 174, 96, 0.4);
+    }
+
+    .btn-danger {
+        background: linear-gradient(45deg, #e74c3c, #c0392b);
+        color: white;
+        box-shadow: 0 5px 15px rgba(231, 76, 60, 0.3);
+    }
+
+    .btn-danger:hover {
+        background: linear-gradient(45deg, #c0392b, #a93226);
+        color: white;
+        box-shadow: 0 8px 20px rgba(231, 76, 60, 0.4);
+    }
+
+    .btn-warning {
+        background: linear-gradient(45deg, #f1c40f, #f39c12);
+        color: #2c3e50;
+        box-shadow: 0 5px 15px rgba(241, 196, 15, 0.3);
+    }
+
+    .btn-warning:hover {
+        background: linear-gradient(45deg, #f39c12, #e67e22);
+        color: #2c3e50;
+        box-shadow: 0 8px 20px rgba(241, 196, 15, 0.4);
+    }
+
+    .btn-secondary {
+        background: linear-gradient(45deg, #95a5a6, #7f8c8d);
+        color: white;
+        box-shadow: 0 5px 15px rgba(149, 165, 166, 0.3);
+    }
+
+    .btn-secondary:hover {
+        background: linear-gradient(45deg, #7f8c8d, #6c7b7d);
+        color: white;
+        box-shadow: 0 8px 20px rgba(149, 165, 166, 0.4);
+    }
+
+    .btn-lg {
+        padding: 16px 32px;
+        font-size: 1.1rem;
+    }
+
+    .btn-sm {
+        padding: 8px 16px;
+        font-size: 0.9rem;
+    }
+
+    /* Table styling */
+    .table {
+        color: white;
+        margin-bottom: 0;
+    }
+
+    .table thead th {
+        border-color: rgba(255, 255, 255, 0.2);
+        background: rgba(255, 255, 255, 0.05);
+        color: white;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        font-size: 0.9rem;
+    }
+
+    .table tbody td {
+        border-color: rgba(255, 255, 255, 0.1);
+        background: rgba(255, 255, 255, 0.02);
+        vertical-align: middle;
+    }
+
+    .table tbody tr:hover {
+        background: rgba(255, 255, 255, 0.08);
+    }
+
+    .table-responsive {
+        border-radius: 15px;
+        overflow: hidden;
+    }
+
+    /* Badge styling */
+    .badge {
+        border-radius: 15px;
+        padding: 0.4rem 0.8rem;
+        font-weight: 600;
+        font-size: 0.8rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .badge-success {
+        background: linear-gradient(45deg, #27ae60, #229954);
+        color: white;
+    }
+
+    .badge-warning {
+        background: linear-gradient(45deg, #f1c40f, #f39c12);
+        color: #2c3e50;
+    }
+
+    .badge-danger {
+        background: linear-gradient(45deg, #e74c3c, #c0392b);
+        color: white;
+    }
+
+    .badge-primary {
+        background: linear-gradient(45deg, #3498db, #2980b9);
+        color: white;
+    }
+
+    .badge-secondary {
+        background: rgba(149, 165, 166, 0.8);
+        color: white;
+    }
+
+    /* Progress styling */
+    .progress {
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 10px;
+        height: 20px;
+    }
+
+    .progress-bar {
+        border-radius: 10px;
+        background: linear-gradient(45deg, #27ae60, #229954);
+    }
+
+    /* Text colors */
+    .text-muted {
+        color: rgba(255, 255, 255, 0.6) !important;
+    }
+
+    /* Breadcrumb styling */
+    .breadcrumb {
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 10px;
+        padding: 0.75rem 1rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .breadcrumb-item a {
+        color: rgba(255, 255, 255, 0.8);
+        text-decoration: none;
+    }
+
+    .breadcrumb-item a:hover {
+        color: white;
+    }
+
+    .breadcrumb-item.active {
+        color: white;
+    }
+
+    /* Character preview */
+    .character-preview {
+        width: 60px;
+        height: 60px;
+        border-radius: 50%;
+        border: 3px solid rgba(255, 255, 255, 0.3);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+        margin: 0 auto;
+        background: rgba(255, 255, 255, 0.1);
+        transition: all 0.3s ease;
+    }
+
+    .character-preview:hover {
+        transform: scale(1.1);
+        border-color: rgba(255, 255, 255, 0.6);
+    }
+
+    @media (max-width: 768px) {
+        .admin-content .container {
+            padding-left: 1rem;
+            padding-right: 1rem;
+        }
+
+        .card-body, .card-header, .card-footer {
+            padding: 1.5rem;
+        }
+
+        .btn-lg {
+            width: 100%;
+            margin-bottom: 0.5rem;
+        }
+
+        .admin-content h1, .admin-content h2 {
+            font-size: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+    }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="container mt-4">
+<div class="admin-dashboard-container">
+    <div class="admin-content">
+        <div class="container">
     <div class="row">
         <div class="col-md-8">
             <h2><i class="fas fa-users"></i> Team "{{ team.name }}" bearbeiten</h2>
@@ -1917,6 +2370,9 @@ function cancelMemberEdit(playerId) {
 
         <div id="add-player-status" class="add-player-status" style="display: none;">
             <span id="add-player-status-message"></span>
+        </div>
+    </div>
+</div>
         </div>
     </div>
 </div>

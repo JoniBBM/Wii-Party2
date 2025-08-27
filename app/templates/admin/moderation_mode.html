@@ -2,100 +2,385 @@
 
 {% block title %}Moderationsmodus - Wii Party U Deluxe{% endblock %}
 
-{% block extra_css %}
+{% block styles %}
+{{ super() }}
 <style>
-.dice-display {
-    text-align: center;
-    padding: 10px;
-}
-
-.dice-display .h1, .dice-display .h2, .dice-display .h4 {
-    margin-bottom: 5px;
-    font-weight: bold;
-}
-
-#dice-result-display {
-    animation: fadeIn 0.5s ease-in;
-}
-
-@keyframes fadeIn {
-    from { opacity: 0; transform: translateY(-20px); }
-    to { opacity: 1; transform: translateY(0); }
-}
-
-#dice-result-display.fade-out {
-    animation: fadeOut 0.5s ease-out;
-}
-
-@keyframes fadeOut {
-    from { opacity: 1; transform: translateY(0); }
-    to { opacity: 0; transform: translateY(-20px); }
-}
-
-/* Mobile Fix: Stelle sicher, dass Würfelergebnis-Display korrekt positioniert ist */
-#dice-result-display {
-    position: relative !important;
-    z-index: auto !important;
-}
-
-@media (max-width: 768px) {
-    #dice-result-display {
-        position: static !important;
-        z-index: auto !important;
-        transform: none !important;
+    /* Admin Moderation Mode Theme - Dark Professional */
+    .moderation-container {
+        background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+        min-height: 100vh;
+        color: white;
+        position: relative;
+        padding: 0;
+        margin: 0;
+        overflow-x: hidden;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
     }
-    
+
+    .moderation-container::before {
+        content: '';
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: linear-gradient(45deg, rgba(52, 73, 94, 0.1) 25%, transparent 25%),
+                    linear-gradient(-45deg, rgba(52, 73, 94, 0.1) 25%, transparent 25%),
+                    linear-gradient(45deg, transparent 75%, rgba(52, 73, 94, 0.1) 75%),
+                    linear-gradient(-45deg, transparent 75%, rgba(52, 73, 94, 0.1) 75%);
+        background-size: 60px 60px;
+        background-position: 0 0, 0 30px, 30px -30px, -30px 0px;
+        animation: movePattern 20s linear infinite;
+        opacity: 0.1;
+        z-index: -1;
+        pointer-events: none;
+    }
+
+    @keyframes movePattern {
+        0% { transform: translateX(0px) translateY(0px); }
+        100% { transform: translateX(60px) translateY(60px); }
+    }
+
+    .moderation-content {
+        position: relative;
+        z-index: 2;
+        padding: 1rem 0;
+        min-height: 100vh;
+    }
+
+    .moderation-header {
+        background: rgba(44, 62, 80, 0.2);
+        border-radius: 20px;
+        padding: 2rem 2.5rem;
+        margin-bottom: 2rem;
+        backdrop-filter: blur(15px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        box-shadow: 0 15px 40px rgba(0, 0, 0, 0.3);
+    }
+
+    .moderation-header h1 {
+        font-size: 2.5rem;
+        font-weight: 700;
+        margin-bottom: 0;
+        background: linear-gradient(45deg, #ecf0f1, #bdc3c7, #ecf0f1);
+        background-size: 200% 200%;
+        background-clip: text;
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        animation: shimmer 3s ease-in-out infinite;
+    }
+
+    @keyframes shimmer {
+        0% { background-position: 0% 50%; }
+        50% { background-position: 100% 50%; }
+        100% { background-position: 0% 50%; }
+    }
+
+    /* Card styling with dark theme */
+    .card {
+        background: rgba(44, 62, 80, 0.15) !important;
+        border: 1px solid rgba(255, 255, 255, 0.1) !important;
+        border-radius: 18px !important;
+        backdrop-filter: blur(15px);
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        color: white !important;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        overflow: hidden;
+        margin-bottom: 2rem;
+    }
+
+    .card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+        border-color: rgba(255, 255, 255, 0.2) !important;
+    }
+
+    .card-header {
+        background: rgba(231, 76, 60, 0.2) !important;
+        border-bottom: 1px solid rgba(231, 76, 60, 0.3) !important;
+        border-radius: 18px 18px 0 0 !important;
+        padding: 1.5rem 2rem !important;
+        color: white !important;
+    }
+
+    .card-header.bg-success {
+        background: rgba(39, 174, 96, 0.2) !important;
+        border-bottom: 1px solid rgba(39, 174, 96, 0.3) !important;
+    }
+
+    .card-header.bg-primary {
+        background: rgba(52, 152, 219, 0.2) !important;
+        border-bottom: 1px solid rgba(52, 152, 219, 0.3) !important;
+    }
+
+    .card-header.bg-warning {
+        background: rgba(241, 196, 15, 0.2) !important;
+        border-bottom: 1px solid rgba(241, 196, 15, 0.3) !important;
+    }
+
+    .card-header.bg-info {
+        background: rgba(26, 188, 156, 0.2) !important;
+        border-bottom: 1px solid rgba(26, 188, 156, 0.3) !important;
+    }
+
+    .card-body {
+        padding: 2rem !important;
+        color: white !important;
+        background: transparent !important;
+    }
+
+    .card-title {
+        color: white !important;
+        font-weight: 600;
+    }
+
+    .card-text {
+        color: rgba(255, 255, 255, 0.9) !important;
+    }
+
+    /* Badge styling */
+    .badge {
+        border-radius: 15px;
+        padding: 0.5rem 0.8rem;
+        font-weight: 600;
+    }
+
+    .badge-lg {
+        padding: 0.8rem 1.2rem;
+        font-size: 1rem;
+    }
+
+    .badge-info {
+        background: linear-gradient(45deg, #3498db, #2980b9) !important;
+    }
+
+    .badge-primary {
+        background: linear-gradient(45deg, #3498db, #2980b9) !important;
+    }
+
+    .badge-secondary {
+        background: rgba(149, 165, 166, 0.8) !important;
+    }
+
+    .badge-success {
+        background: linear-gradient(45deg, #27ae60, #229954) !important;
+    }
+
+    .badge-warning {
+        background: linear-gradient(45deg, #f1c40f, #f39c12) !important;
+        color: #2c3e50 !important;
+    }
+
+    .badge-danger {
+        background: linear-gradient(45deg, #e74c3c, #c0392b) !important;
+    }
+
+    .badge-light {
+        background: rgba(255, 255, 255, 0.2) !important;
+        color: white !important;
+    }
+
+    /* Button styling */
+    .btn {
+        border-radius: 25px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        transition: all 0.3s ease;
+        border: none;
+    }
+
+    .btn:hover {
+        transform: translateY(-2px);
+    }
+
+    .btn-secondary {
+        background: linear-gradient(45deg, #95a5a6, #7f8c8d) !important;
+        color: white !important;
+        box-shadow: 0 5px 15px rgba(149, 165, 166, 0.3);
+    }
+
+    .btn-secondary:hover {
+        background: linear-gradient(45deg, #7f8c8d, #6c7b7d) !important;
+        color: white !important;
+        box-shadow: 0 8px 20px rgba(149, 165, 166, 0.4);
+    }
+
+    .btn-outline-info {
+        border: 2px solid #1abc9c !important;
+        color: #1abc9c !important;
+        background: transparent !important;
+    }
+
+    .btn-outline-info:hover {
+        background: #1abc9c !important;
+        color: white !important;
+        box-shadow: 0 5px 15px rgba(26, 188, 156, 0.3);
+    }
+
+    /* Progress bar styling */
+    .progress {
+        background: rgba(44, 62, 80, 0.3) !important;
+        border-radius: 10px;
+        overflow: hidden;
+        height: 1.5rem;
+    }
+
+    .progress-bar {
+        background: linear-gradient(45deg, #3498db, #2980b9) !important;
+        border-radius: 10px;
+    }
+
+    .progress-bar.bg-info {
+        background: linear-gradient(45deg, #1abc9c, #16a085) !important;
+    }
+
+    /* Alert styling */
+    .alert {
+        border: none !important;
+        border-radius: 10px !important;
+        backdrop-filter: blur(10px);
+        border-left: 4px solid;
+        color: white !important;
+    }
+
+    .alert-success {
+        background: rgba(39, 174, 96, 0.15) !important;
+        color: #a8e6cf !important;
+        border-left-color: #27ae60 !important;
+    }
+
+    .alert-info {
+        background: rgba(52, 152, 219, 0.15) !important;
+        color: #a8d8ea !important;
+        border-left-color: #3498db !important;
+    }
+
+    /* Text colors */
+    .text-warning {
+        color: #f39c12 !important;
+    }
+
+    .text-muted {
+        color: rgba(255, 255, 255, 0.6) !important;
+    }
+
+    .text-primary {
+        color: #3498db !important;
+    }
+
+    .text-success {
+        color: #27ae60 !important;
+    }
+
+    .text-danger {
+        color: #e74c3c !important;
+    }
+
+    /* Dice display styling */
     .dice-display {
         text-align: center;
-        padding: 8px;
+        padding: 1rem;
+        background: rgba(44, 62, 80, 0.1);
+        border-radius: 10px;
+        margin: 0.5rem 0;
     }
-    
+
     .dice-display .h1, .dice-display .h2, .dice-display .h4 {
-        font-size: 1.2rem;
-        margin-bottom: 3px;
+        margin-bottom: 0.5rem;
+        font-weight: bold;
+        color: white;
     }
-    
-    /* Ablaufplan mobile Optimierung */
-    #sequence-info-display .card {
-        margin: 0 10px !important;
+
+    #dice-result-display {
+        animation: fadeIn 0.5s ease-in;
     }
-    
-    #sequence-info-display .row.mb-3 {
-        margin-bottom: 1rem !important;
+
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(-20px); }
+        to { opacity: 1; transform: translateY(0); }
     }
-    
-    #sequence-info-display .col-md-4 {
-        margin-top: 10px;
+
+    #dice-result-display.fade-out {
+        animation: fadeOut 0.5s ease-out;
     }
-    
-    #sequence-info-display .card-body .row .col-md-4 {
-        text-align: center;
-        margin-top: 15px;
+
+    @keyframes fadeOut {
+        from { opacity: 1; transform: translateY(0); }
+        to { opacity: 0; transform: translateY(-20px); }
     }
-    
-    #sequence-info-display .card-body .row .col-md-8 {
-        text-align: center;
+
+    /* Responsive design */
+    @media (max-width: 768px) {
+        .moderation-content .container-fluid {
+            padding-left: 1rem;
+            padding-right: 1rem;
+        }
+
+        .moderation-header {
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+        
+        .moderation-header h1 {
+            font-size: 2rem;
+        }
+
+        .card-body {
+            padding: 1.5rem !important;
+        }
+
+        .card-header {
+            padding: 1rem 1.5rem !important;
+        }
+
+        .dice-display {
+            padding: 0.8rem;
+        }
+        
+        .dice-display .h1, .dice-display .h2, .dice-display .h4 {
+            font-size: 1.2rem;
+            margin-bottom: 0.3rem;
+        }
+
+        .btn {
+            font-size: 0.875rem;
+            padding: 0.6rem 1.2rem;
+        }
     }
-}
+
+    @media (max-width: 576px) {
+        .moderation-header {
+            padding: 1rem;
+        }
+
+        .moderation-header .d-flex {
+            flex-direction: column;
+            gap: 1rem;
+        }
+    }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="container-fluid mt-4">
-    <div class="mb-4">
-        <!-- Desktop: Titel und Button nebeneinander -->
-        <div class="d-none d-md-flex justify-content-between align-items-center">
-            <h1>Moderationsmodus</h1>
-            <a href="{{ url_for('admin.admin_dashboard') }}" class="btn btn-secondary">
-                <i class="fas fa-arrow-left"></i> Zurück zum Admin Dashboard
-            </a>
-        </div>
-        
-        <!-- Mobile: Nur Titel -->
-        <div class="d-md-none">
-            <h1>Moderationsmodus</h1>
-        </div>
-    </div>
+<div class="moderation-container">
+    <div class="moderation-content">
+        <div class="container-fluid">
+            <div class="moderation-header">
+                <!-- Desktop: Titel und Button nebeneinander -->
+                <div class="d-none d-md-flex justify-content-between align-items-center">
+                    <h1>Moderationsmodus</h1>
+                    <a href="{{ url_for('admin.admin_dashboard') }}" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left"></i> Zurück zum Admin Dashboard
+                    </a>
+                </div>
+                
+                <!-- Mobile: Nur Titel -->
+                <div class="d-md-none">
+                    <h1>Moderationsmodus</h1>
+                </div>
+            </div>
     
     <!-- Aktueller Spielstatus -->
     <div class="row mb-4">
@@ -1350,4 +1635,7 @@ document.addEventListener('DOMContentLoaded', function() {
     setTimeout(updateStatus, 1000);
 });
 </script>
+        </div>
+    </div>
+</div>
 {% endblock %}

@@ -2,8 +2,355 @@
 
 {% block title %}Feld-Management - Admin Dashboard{% endblock %}
 
+{% block styles %}
+{{ super() }}
+<style>
+    /* Admin Dashboard Theme - Dark Professional */
+    .admin-dashboard-container {
+        background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+        min-height: 100vh;
+        color: white;
+        position: relative;
+        padding: 0;
+        margin: 0;
+        overflow-x: hidden;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .admin-dashboard-container::before {
+        content: '';
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: linear-gradient(45deg, rgba(52, 73, 94, 0.1) 25%, transparent 25%),
+                    linear-gradient(-45deg, rgba(52, 73, 94, 0.1) 25%, transparent 25%),
+                    linear-gradient(45deg, transparent 75%, rgba(52, 73, 94, 0.1) 75%),
+                    linear-gradient(-45deg, transparent 75%, rgba(52, 73, 94, 0.1) 75%);
+        background-size: 60px 60px;
+        background-position: 0 0, 0 30px, 30px -30px, -30px 0px;
+        animation: movePattern 20s linear infinite;
+        opacity: 0.15;
+        z-index: -1;
+        pointer-events: none;
+    }
+
+    @keyframes movePattern {
+        0% { transform: translateX(0px) translateY(0px); }
+        100% { transform: translateX(60px) translateY(60px); }
+    }
+
+    .admin-content {
+        position: relative;
+        z-index: 2;
+        padding: 2rem 0;
+        min-height: 100vh;
+    }
+
+    .admin-content .container {
+        max-width: 1200px;
+        padding-left: 1.5rem;
+        padding-right: 1.5rem;
+    }
+
+    /* Header styling */
+    .admin-content h1 {
+        color: white;
+        font-weight: 700;
+        margin-bottom: 1rem;
+    }
+
+    /* Alert styling */
+    .alert {
+        border-radius: 15px;
+        border: none;
+        padding: 1rem 1.5rem;
+        backdrop-filter: blur(10px);
+        font-weight: 500;
+    }
+
+    .alert-info {
+        background: rgba(26, 188, 156, 0.2);
+        border: 1px solid rgba(26, 188, 156, 0.3);
+        color: white;
+    }
+
+    .alert-warning {
+        background: rgba(241, 196, 15, 0.2);
+        border: 1px solid rgba(241, 196, 15, 0.3);
+        color: white;
+    }
+
+    .alert-success {
+        background: rgba(39, 174, 96, 0.2);
+        border: 1px solid rgba(39, 174, 96, 0.3);
+        color: white;
+    }
+
+    .alert-danger {
+        background: rgba(231, 76, 60, 0.2);
+        border: 1px solid rgba(231, 76, 60, 0.3);
+        color: white;
+    }
+
+    /* Button styling */
+    .btn {
+        border-radius: 10px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        transition: all 0.3s ease;
+        border: none;
+        padding: 12px 20px;
+    }
+
+    .btn:hover {
+        transform: translateY(-2px);
+    }
+
+    .btn-success {
+        background: linear-gradient(45deg, #27ae60, #229954);
+        color: white;
+        box-shadow: 0 5px 15px rgba(39, 174, 96, 0.3);
+    }
+
+    .btn-success:hover {
+        background: linear-gradient(45deg, #229954, #1e8449);
+        color: white;
+        box-shadow: 0 8px 20px rgba(39, 174, 96, 0.4);
+    }
+
+    .btn-secondary {
+        background: linear-gradient(45deg, #95a5a6, #7f8c8d);
+        color: white;
+        box-shadow: 0 5px 15px rgba(149, 165, 166, 0.3);
+    }
+
+    .btn-secondary:hover {
+        background: linear-gradient(45deg, #7f8c8d, #6c7b7d);
+        color: white;
+        box-shadow: 0 8px 20px rgba(149, 165, 166, 0.4);
+    }
+
+    .btn-info {
+        background: linear-gradient(45deg, #1abc9c, #16a085);
+        color: white;
+        box-shadow: 0 5px 15px rgba(26, 188, 156, 0.3);
+    }
+
+    .btn-info:hover {
+        background: linear-gradient(45deg, #16a085, #138d75);
+        color: white;
+        box-shadow: 0 8px 20px rgba(26, 188, 156, 0.4);
+    }
+
+    .btn-primary {
+        background: linear-gradient(45deg, #3498db, #2980b9);
+        color: white;
+        box-shadow: 0 5px 15px rgba(52, 152, 219, 0.3);
+    }
+
+    .btn-primary:hover {
+        background: linear-gradient(45deg, #2980b9, #21618c);
+        color: white;
+        box-shadow: 0 8px 20px rgba(52, 152, 219, 0.4);
+    }
+
+    .btn-warning {
+        background: linear-gradient(45deg, #f1c40f, #f39c12);
+        color: #2c3e50;
+        box-shadow: 0 5px 15px rgba(241, 196, 15, 0.3);
+    }
+
+    .btn-warning:hover {
+        background: linear-gradient(45deg, #f39c12, #e67e22);
+        color: #2c3e50;
+        box-shadow: 0 8px 20px rgba(241, 196, 15, 0.4);
+    }
+
+    .btn-danger {
+        background: linear-gradient(45deg, #e74c3c, #c0392b);
+        color: white;
+        box-shadow: 0 5px 15px rgba(231, 76, 60, 0.3);
+    }
+
+    .btn-danger:hover {
+        background: linear-gradient(45deg, #c0392b, #a93226);
+        color: white;
+        box-shadow: 0 8px 20px rgba(231, 76, 60, 0.4);
+    }
+
+    .btn-sm {
+        padding: 8px 16px;
+        font-size: 0.85rem;
+    }
+
+    .btn-group {
+        box-shadow: 0 5px 20px rgba(0, 0, 0, 0.2);
+        border-radius: 10px;
+        overflow: hidden;
+    }
+
+    /* Card styling */
+    .card {
+        background: rgba(44, 62, 80, 0.15);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 18px;
+        backdrop-filter: blur(15px);
+        box-shadow: 0 15px 40px rgba(0, 0, 0, 0.3);
+        color: white;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        overflow: hidden;
+        margin-bottom: 2rem;
+    }
+
+    .card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 25px 50px rgba(0, 0, 0, 0.4);
+        border-color: rgba(255, 255, 255, 0.2);
+    }
+
+    .card-header {
+        background: rgba(255, 255, 255, 0.1);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 18px 18px 0 0;
+        padding: 1.5rem 2rem;
+    }
+
+    .card-header h5, .card-header h6 {
+        margin: 0;
+        font-weight: 700;
+        color: white;
+    }
+
+    .card-body {
+        padding: 2rem;
+    }
+
+    /* Table styling */
+    .table {
+        color: white;
+        margin-bottom: 0;
+    }
+
+    .table thead th {
+        border-color: rgba(255, 255, 255, 0.2);
+        background: rgba(255, 255, 255, 0.05);
+        color: white;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        font-size: 0.9rem;
+    }
+
+    .table tbody td {
+        border-color: rgba(255, 255, 255, 0.1);
+        background: rgba(255, 255, 255, 0.02);
+        vertical-align: middle;
+    }
+
+    .table tbody tr:hover {
+        background: rgba(255, 255, 255, 0.08);
+    }
+
+    /* Form styling */
+    .form-control {
+        background: rgba(255, 255, 255, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 10px;
+        color: white;
+        padding: 10px 15px;
+        transition: all 0.3s ease;
+    }
+
+    .form-control:focus {
+        background: rgba(255, 255, 255, 0.15);
+        border-color: rgba(52, 152, 219, 0.5);
+        box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+        color: white;
+    }
+
+    .form-control::placeholder {
+        color: rgba(255, 255, 255, 0.6);
+    }
+
+    /* Select styling */
+    select.form-control {
+        appearance: none;
+        background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%23ffffff' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e");
+        background-position: right 12px center;
+        background-repeat: no-repeat;
+        background-size: 16px 12px;
+        padding-right: 40px;
+    }
+
+    /* Badge styling */
+    .badge {
+        border-radius: 15px;
+        padding: 0.4rem 0.8rem;
+        font-weight: 600;
+        font-size: 0.8rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .badge-success {
+        background: linear-gradient(45deg, #27ae60, #229954);
+        color: white;
+    }
+
+    .badge-warning {
+        background: linear-gradient(45deg, #f1c40f, #f39c12);
+        color: #2c3e50;
+    }
+
+    .badge-danger {
+        background: linear-gradient(45deg, #e74c3c, #c0392b);
+        color: white;
+    }
+
+    .badge-info {
+        background: linear-gradient(45deg, #1abc9c, #16a085);
+        color: white;
+    }
+
+    .badge-secondary {
+        background: rgba(149, 165, 166, 0.8);
+        color: white;
+    }
+
+    /* Text colors */
+    .text-muted {
+        color: rgba(255, 255, 255, 0.6) !important;
+    }
+
+    /* Spinner/Loading */
+    .spinner-border {
+        color: white;
+    }
+
+    /* Close button for alerts */
+    .close {
+        color: rgba(255, 255, 255, 0.8);
+        text-shadow: none;
+        opacity: 0.8;
+    }
+
+    .close:hover {
+        color: white;
+        opacity: 1;
+    }
+
+    /* Field management specific styles */\n    .field-type-badge {\n        font-family: 'Courier New', monospace;\n        font-weight: bold;\n        font-size: 0.8rem;\n        text-transform: none;\n        letter-spacing: 0;\n    }\n\n    .color-preview {\n        cursor: pointer;\n        border-radius: 8px;\n        transition: all 0.3s ease;\n        border: 2px solid rgba(255, 255, 255, 0.2);\n    }\n\n    .color-preview:hover {\n        transform: scale(1.15);\n        border-color: rgba(255, 255, 255, 0.5);\n        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);\n    }\n\n    /* Progress bar styling */\n    .progress {\n        background: rgba(255, 255, 255, 0.1);\n        border-radius: 10px;\n        height: 8px;\n    }\n\n    .progress-bar {\n        border-radius: 10px;\n        background: linear-gradient(45deg, #27ae60, #229954);\n    }\n\n    /* Modal styling */\n    .modal-content {\n        background: rgba(44, 62, 80, 0.95);\n        border: 1px solid rgba(255, 255, 255, 0.2);\n        border-radius: 18px;\n        backdrop-filter: blur(15px);\n        color: white;\n    }\n\n    .modal-header {\n        border-bottom: 1px solid rgba(255, 255, 255, 0.1);\n        border-radius: 18px 18px 0 0;\n    }\n\n    .modal-footer {\n        border-top: 1px solid rgba(255, 255, 255, 0.1);\n        border-radius: 0 0 18px 18px;\n    }\n\n    .modal-title {\n        color: white;\n        font-weight: 700;\n    }\n\n    /* Small adjustments for button groups */\n    .btn-group .btn {\n        margin-right: 2px;\n    }\n\n    .btn-group .btn:last-child {\n        margin-right: 0;\n    }\n\n    @media (max-width: 768px) {\n        .admin-content .container {\n            padding-left: 1rem;\n            padding-right: 1rem;\n        }\n\n        .card-body, .card-header {\n            padding: 1.5rem;\n        }\n\n        .btn-group {\n            flex-direction: column;\n            width: 100%;\n        }\n\n        .btn-group .btn {\n            border-radius: 0;\n            margin-bottom: 1px;\n            margin-right: 0;\n        }\n\n        .btn-group .btn:first-child {\n            border-radius: 10px 10px 0 0;\n        }\n\n        .btn-group .btn:last-child {\n            border-radius: 0 0 10px 10px;\n            margin-bottom: 0;\n        }\n\n        .d-flex.justify-content-between {\n            flex-direction: column;\n            gap: 1rem;\n        }\n\n        .table-responsive {\n            border-radius: 15px;\n            overflow: hidden;\n        }\n    }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="container mt-4">
+<div class="admin-dashboard-container">
+    <div class="admin-content">
+        <div class="container">
     <div class="row">
         <div class="col-12">
             <div class="d-flex justify-content-between align-items-center mb-4">
@@ -266,6 +613,7 @@
                 <i class="fas fa-info-circle"></i> 
                 Verwenden Sie nur Kleinbuchstaben und Unterstriche. Beispiele: volcano, ice_field, portal_blue
             </small>
+            </div>
         </div>
     </div>
 </div>
@@ -321,45 +669,6 @@
     </div>
 </div>
 
-<style>
-.progress {
-    background-color: #e9ecef;
-}
-
-.field-type-badge {
-    font-family: 'Courier New', monospace;
-    font-weight: bold;
-}
-
-.color-preview {
-    cursor: pointer;
-}
-
-.color-preview:hover {
-    transform: scale(1.1);
-    transition: transform 0.2s ease;
-}
-
-.table td {
-    vertical-align: middle;
-}
-
-.card {
-    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-}
-
-.badge {
-    font-size: 0.75em;
-}
-
-.btn-group .btn {
-    margin-right: 2px;
-}
-
-.btn-group .btn:last-child {
-    margin-right: 0;
-}
-</style>
 
 <script>
 function confirmToggleField(fieldType, isCurrentlyEnabled) {
