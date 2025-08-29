@@ -276,6 +276,20 @@
         box-shadow: 0 8px 20px rgba(26, 188, 156, 0.4);
     }
 
+    .btn-success {
+        background: linear-gradient(45deg, #27ae60, #2ecc71) !important;
+        color: white !important;
+        border: none !important;
+        box-shadow: 0 5px 15px rgba(39, 174, 96, 0.3) !important;
+    }
+
+    .btn-success:hover {
+        background: linear-gradient(45deg, #229954, #27ae60) !important;
+        color: white !important;
+        box-shadow: 0 8px 20px rgba(39, 174, 96, 0.4) !important;
+        transform: translateY(-2px) !important;
+    }
+
     /* Badge styling */
     .badge {
         border-radius: 15px;
@@ -646,6 +660,115 @@
     .panel-default {
         background: rgba(44, 62, 80, 0.1) !important;
         color: white !important;
+    }
+
+    /* Admin Question Control Sections */
+    .admin-question-control-section {
+        background: linear-gradient(135deg, rgba(52, 152, 219, 0.15) 0%, rgba(44, 62, 80, 0.2) 100%) !important;
+        border: 2px solid rgba(52, 152, 219, 0.4) !important;
+        border-radius: 20px !important;
+        backdrop-filter: blur(15px) !important;
+        box-shadow: 
+            0 15px 35px rgba(0, 0, 0, 0.3),
+            inset 0 1px 0 rgba(255, 255, 255, 0.1),
+            0 0 20px rgba(52, 152, 219, 0.2) !important;
+    }
+
+    .admin-question-title {
+        color: #3498db !important;
+        font-weight: 700 !important;
+        text-shadow: 0 0 15px rgba(52, 152, 219, 0.6) !important;
+        display: flex !important;
+        align-items: center !important;
+        gap: 0.75rem !important;
+    }
+
+    .admin-question-title i {
+        font-size: 1.8rem !important;
+        filter: drop-shadow(0 0 10px rgba(52, 152, 219, 0.8)) !important;
+        animation: questionIconGlow 3s ease-in-out infinite !important;
+    }
+
+    @keyframes questionIconGlow {
+        0%, 100% { 
+            filter: drop-shadow(0 0 10px rgba(52, 152, 219, 0.8)) !important;
+            transform: scale(1) !important;
+        }
+        50% { 
+            filter: drop-shadow(0 0 20px rgba(52, 152, 219, 1)) !important;
+            transform: scale(1.05) !important;
+        }
+    }
+
+    .admin-responses-list {
+        background: linear-gradient(135deg, rgba(44, 62, 80, 0.4) 0%, rgba(52, 73, 94, 0.3) 100%) !important;
+        border: 1px solid rgba(52, 152, 219, 0.3) !important;
+        border-radius: 15px !important;
+        backdrop-filter: blur(10px) !important;
+        color: white !important;
+        box-shadow: 
+            0 10px 25px rgba(0, 0, 0, 0.2),
+            inset 0 1px 0 rgba(255, 255, 255, 0.05) !important;
+    }
+
+    .admin-minigame-form {
+        background: linear-gradient(135deg, rgba(44, 62, 80, 0.2) 0%, rgba(52, 73, 94, 0.1) 100%) !important;
+        border: 2px solid rgba(231, 76, 60, 0.3) !important;
+        border-radius: 20px !important;
+        backdrop-filter: blur(15px) !important;
+        box-shadow: 
+            0 15px 35px rgba(0, 0, 0, 0.2),
+            inset 0 1px 0 rgba(255, 255, 255, 0.1) !important;
+    }
+
+    /* Result Display Improvements */
+    .result-display {
+        background: linear-gradient(135deg, rgba(44, 62, 80, 0.4) 0%, rgba(52, 73, 94, 0.3) 100%) !important;
+        border: 1px solid rgba(231, 76, 60, 0.3) !important;
+        border-radius: 15px !important;
+        backdrop-filter: blur(10px) !important;
+        color: white !important;
+        box-shadow: 
+            0 10px 25px rgba(0, 0, 0, 0.2),
+            inset 0 1px 0 rgba(255, 255, 255, 0.05) !important;
+    }
+
+    /* Admin Dice Control Section */
+    .admin-dice-control-section {
+        background: linear-gradient(135deg, rgba(255, 193, 7, 0.15) 0%, rgba(44, 62, 80, 0.2) 100%) !important;
+        border: 2px solid rgba(255, 193, 7, 0.4) !important;
+        border-radius: 20px !important;
+        backdrop-filter: blur(15px) !important;
+        box-shadow: 
+            0 15px 35px rgba(0, 0, 0, 0.3),
+            inset 0 1px 0 rgba(255, 255, 255, 0.1),
+            0 0 20px rgba(255, 193, 7, 0.2) !important;
+    }
+
+    .admin-dice-title {
+        color: #ffc107 !important;
+        font-weight: 700 !important;
+        text-shadow: 0 0 15px rgba(255, 193, 7, 0.6) !important;
+        display: flex !important;
+        align-items: center !important;
+        gap: 0.75rem !important;
+    }
+
+    .admin-dice-title i {
+        font-size: 1.8rem !important;
+        filter: drop-shadow(0 0 10px rgba(255, 193, 7, 0.8)) !important;
+        animation: diceIconGlow 3s ease-in-out infinite !important;
+    }
+
+    @keyframes diceIconGlow {
+        0%, 100% { 
+            filter: drop-shadow(0 0 10px rgba(255, 193, 7, 0.8)) !important;
+            transform: scale(1) rotate(0deg) !important;
+        }
+        50% { 
+            filter: drop-shadow(0 0 20px rgba(255, 193, 7, 1)) !important;
+            transform: scale(1.05) rotate(5deg) !important;
+        }
     }
 
     /* Responsive design */
@@ -1197,13 +1320,13 @@
                 <hr>
 
                 <!-- Fragen-Kontrollen -->
-                <div id="question-control-section" class="question-control-section p-4 mb-4 border rounded bg-light" 
+                <div id="question-control-section" class="admin-question-control-section p-4 mb-4 border rounded" 
                      style="{% if active_session.current_phase != 'QUESTION_ACTIVE' or not active_session.current_question_id %}display: none;{% endif %}">
-                    <h4 class="text-primary"><i class="fas fa-question-circle"></i> Frage läuft</h4>
+                    <h4 class="admin-question-title"><i class="fas fa-question-circle"></i> Frage läuft</h4>
                     
                     <div class="row">
                         <div class="col-md-6">
-                            <div class="question-info p-3 bg-white border rounded">
+                            <div class="question-info p-3 border rounded">
                                 <h6><strong>Fragen-Status:</strong></h6>
                                 <p class="mb-2">
                                     <span class="badge badge-primary">Aktiv</span>
@@ -1228,7 +1351,7 @@
                     <!-- Antworten-Übersicht (automatisch) -->
                     <div id="question-responses-container" class="mt-3">
                         <h6>Team-Antworten (Live-Updates):</h6>
-                        <div id="question-responses-list" class="border rounded p-3 bg-white">
+                        <div id="question-responses-list" class="admin-responses-list border rounded p-3">
                             <div class="text-center text-muted">
                                 <i class="fas fa-clock"></i> Warte auf Antworten...
                             </div>
@@ -1237,13 +1360,13 @@
                 </div>
 
                 <!-- Würfel-Steuerung -->
-                <div id="dice-control-section" class="dice-control-section p-4 mb-4 border rounded bg-light"
+                <div id="dice-control-section" class="admin-dice-control-section p-4 mb-4 border rounded"
                      style="{% if active_session.current_phase != 'DICE_ROLLING' %}display: none;{% endif %}">
-                    <h4 class="text-primary"><i class="fas fa-dice"></i> Würfel-Steuerung</h4>
+                    <h4 class="admin-dice-title"><i class="fas fa-dice"></i> Würfel-Steuerung</h4>
                     
                     <div class="row">
                         <div class="col-md-6">
-                            <div class="current-turn-display p-3 mb-3 bg-white border rounded">
+                            <div class="current-turn-display p-3 mb-3 border rounded">
                                 <h6><strong>Aktueller Zug:</strong></h6>
                                 <div id="current-turn-info">
                                     {% if active_session.current_team_turn %}
@@ -1274,7 +1397,7 @@
                         <div class="col-md-6">
                             <div id="dice-result-admin" class="dice-result-admin" style="display: none;">
                                 <h6>Würfelergebnis:</h6>
-                                <div class="result-display p-3 bg-white border rounded">
+                                <div class="result-display p-3 border rounded">
                                     <div class="row text-center">
                                         <div class="col-4">
                                             <div class="result-part">
@@ -1352,7 +1475,7 @@
                     </div>
                     {% endif %}
                     
-                    <form method="POST" action="{{ url_for('admin.set_minigame') }}" class="mb-3 p-3 border rounded bg-light" id="minigame-form">
+                    <form method="POST" action="{{ url_for('admin.set_minigame') }}" class="mb-3 p-3 border rounded admin-minigame-form" id="minigame-form">
                         {{ set_minigame_form.hidden_tag() }}
                         
                         <!-- Inhalts-Quelle auswählen -->
@@ -1840,21 +1963,30 @@
 </div>
 
 <style>
-.dice-control-section, .question-control-section {
-    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-    border-left: 4px solid #007bff;
-}
+/* Old dice-control-section styling - replaced below */
 
 .current-turn-display, .question-info {
-    background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    background: linear-gradient(135deg, rgba(44, 62, 80, 0.3) 0%, rgba(52, 73, 94, 0.2) 100%);
+    border: 2px solid rgba(231, 76, 60, 0.5);
+    border-radius: 15px;
+    backdrop-filter: blur(15px);
+    color: white;
+    box-shadow: 
+        0 10px 30px rgba(0, 0, 0, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
 }
 
 .dice-result-admin {
-    background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
-    border-radius: 8px;
-    padding: 15px;
-    border: 2px solid #ffc107;
+    background: linear-gradient(135deg, rgba(44, 62, 80, 0.3) 0%, rgba(52, 73, 94, 0.2) 100%);
+    border-radius: 15px;
+    padding: 20px;
+    border: 2px solid rgba(255, 193, 7, 0.6);
+    backdrop-filter: blur(15px);
+    color: white;
+    box-shadow: 
+        0 15px 35px rgba(0, 0, 0, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1),
+        0 0 20px rgba(255, 193, 7, 0.3);
 }
 
 .result-number {

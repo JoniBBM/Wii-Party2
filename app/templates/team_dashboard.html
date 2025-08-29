@@ -52,66 +52,48 @@
     <!-- Banner für ausgewählte Spieler (5 Sekunden) -->
     <div class="row mb-4" id="selected-players-banner" style="display: none;">
         <div class="col-md-12">
-            <div class="alert alert-success border-success" role="alert" style="border-width: 3px; box-shadow: 0 4px 8px rgba(0,0,0,0.2);">
-                <div class="text-center">
-                    <h4 class="mb-3">
-                        <i class="fas fa-star mr-2"></i>
-                        Ausgewählte Spieler für das Minispiel
-                        <i class="fas fa-star ml-2"></i>
-                    </h4>
-                    <div id="selected-players-content" class="h5 text-success">
+            <div class="modern-notification-banner selected-players-banner">
+                <div class="banner-glow selected-glow"></div>
+                <div class="notification-content">
+                    <div class="notification-header">
+                        <i class="fas fa-star notification-icon"></i>
+                        <h4 class="notification-title">Ausgewählte Spieler für das Minispiel</h4>
+                        <i class="fas fa-star notification-icon"></i>
+                    </div>
+                    <div id="selected-players-content" class="notification-body">
                         <!-- Wird dynamisch gefüllt -->
                     </div>
-                    <div class="progress mt-3" style="height: 10px;">
-                        <div class="progress-bar bg-success progress-bar-animated" role="progressbar" style="width: 100%" id="banner-progress"></div>
+                    <div class="notification-progress">
+                        <div class="progress-track">
+                            <div class="progress-fill" id="banner-progress"></div>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Permanente Anzeige der ausgewählten Spieler -->
-    <div class="row mb-4" id="selected-players-info" style="display: none;">
-        <div class="col-md-12">
-            <div class="card border-info">
-                <div class="card-header bg-info text-white">
-                    <h6 class="mb-0">
-                        <i class="fas fa-gamepad mr-2"></i>
-                        <span id="current-minigame-title">Aktuelles Minispiel</span>
-                    </h6>
-                </div>
-                <div class="card-body py-2">
-                    <div id="current-minigame-name" class="font-weight-bold mb-1">
-                        <!-- Wird dynamisch gefüllt -->
-                    </div>
-                    <div id="current-minigame-description" class="small text-muted mb-2" style="display: none;">
-                        <!-- Wird dynamisch gefüllt -->
-                    </div>
-                    <div id="selected-players-persistent" class="small text-muted">
-                        <!-- Wird dynamisch gefüllt -->
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
 
     <!-- Fragen-Interface (direkt im Dashboard) -->
     <div class="row mb-4" id="question-interface-section" style="display: none;">
         <div class="col-md-12">
-            <div class="card border-primary question-card">
-                <div class="card-header bg-primary text-white">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0">
-                            <i class="fas fa-question-circle mr-2"></i>
+            <div class="modern-question-card">
+                <div class="question-glow"></div>
+                <div class="question-header">
+                    <div class="question-header-content">
+                        <div class="question-icon-wrapper">
+                            <i class="fas fa-question-circle question-icon"></i>
+                        </div>
+                        <h5 class="question-main-title">
                             <span id="question-title">Aktuelle Frage</span>
                         </h5>
-                        <div class="question-timer">
-                            <i class="fas fa-clock mr-1"></i>
-                            <span id="question-timer">Läuft...</span>
+                        <div class="question-timer-display">
+                            <i class="fas fa-clock timer-icon"></i>
+                            <span id="question-timer" class="timer-text">Läuft...</span>
                         </div>
                     </div>
                 </div>
-                <div class="card-body" id="question-content">
+                <div class="question-body" id="question-content">
                     <!-- Wird dynamisch gefüllt -->
                 </div>
             </div>
@@ -751,6 +733,10 @@
             <button type="button" class="btn btn-info btn-lg mr-3" onclick="refreshDashboard()">
                 <i class="fas fa-sync-alt mr-2"></i>
                 Aktualisieren
+            </button>
+            <button type="button" class="btn btn-secondary btn-lg mr-3" id="view-mode-toggle" onclick="toggleViewMode()">
+                <i class="fas fa-eye mr-2" id="view-mode-icon"></i>
+                <span id="view-mode-text">Einfache Ansicht</span>
             </button>
             <a href="{{ url_for('teams.team_logout') }}" class="btn btn-outline-danger">
                 <i class="fas fa-sign-out-alt mr-2"></i>
@@ -2489,6 +2475,542 @@
 .alert-danger {
     border-left-color: #ff6b6b !important;
     background: linear-gradient(135deg, rgba(255, 107, 107, 0.1) 0%, rgba(26, 26, 46, 0.8) 100%) !important;
+}
+
+/* Einfache Ansicht - Simple Mode */
+.simple-view {
+    /* Hintergrund vereinfachen */
+}
+
+.simple-view .team-dashboard-container {
+    background: #f8f9fa !important;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+}
+
+.simple-view .team-dashboard-container::before {
+    display: none !important;
+}
+
+.simple-view .floating-elements {
+    display: none !important;
+}
+
+/* Team Header vereinfachen */
+.simple-view .team-header-card {
+    background: white !important;
+    border: 2px solid #dee2e6 !important;
+    border-radius: 10px !important;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1) !important;
+    backdrop-filter: none !important;
+}
+
+.simple-view .team-header-background {
+    display: none !important;
+}
+
+.simple-view .team-title {
+    color: #343a40 !important;
+    background: none !important;
+    -webkit-text-fill-color: initial !important;
+    animation: none !important;
+    text-shadow: none !important;
+    font-size: 2rem !important;
+}
+
+.simple-view .team-subtitle {
+    color: #6c757d !important;
+}
+
+.simple-view .character-icon {
+    color: #007bff !important;
+    filter: none !important;
+}
+
+/* Position Ring vereinfachen */
+.simple-view .position-ring {
+    background: white !important;
+    border: 3px solid #007bff !important;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1) !important;
+    animation: none !important;
+    backdrop-filter: none !important;
+}
+
+.simple-view .position-ring::before {
+    display: none !important;
+}
+
+.simple-view .position-number {
+    color: #007bff !important;
+    background: none !important;
+    -webkit-text-fill-color: initial !important;
+    text-shadow: none !important;
+    filter: none !important;
+}
+
+.simple-view .position-label {
+    color: #6c757d !important;
+    text-shadow: none !important;
+}
+
+/* Statistik-Karten vereinfachen */
+.simple-view .modern-stat-card {
+    background: white !important;
+    border: 2px solid #dee2e6 !important;
+    border-radius: 10px !important;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1) !important;
+    backdrop-filter: none !important;
+    transform: none !important;
+}
+
+.simple-view .modern-stat-card::before {
+    display: none !important;
+}
+
+.simple-view .stat-glow {
+    display: none !important;
+}
+
+.simple-view .modern-stat-icon {
+    background: #f8f9fa !important;
+    border: 2px solid #dee2e6 !important;
+    backdrop-filter: none !important;
+    box-shadow: none !important;
+}
+
+.simple-view .rank-icon.modern-stat-icon {
+    background: #fff3cd !important;
+    border-color: #ffc107 !important;
+    color: #856404 !important;
+}
+
+.simple-view .goal-icon.modern-stat-icon {
+    background: #d4edda !important;
+    border-color: #28a745 !important;
+    color: #155724 !important;
+}
+
+.simple-view .teams-icon.modern-stat-icon {
+    background: #ffeaa7 !important;
+    border-color: #fd7e14 !important;
+    color: #8a4b00 !important;
+}
+
+.simple-view .dice-icon.modern-stat-icon {
+    background: #e2e3f1 !important;
+    border-color: #6f42c1 !important;
+    color: #493375 !important;
+}
+
+.simple-view .stat-number {
+    color: #343a40 !important;
+    background: none !important;
+    -webkit-text-fill-color: initial !important;
+    text-shadow: none !important;
+}
+
+.simple-view .stat-description,
+.simple-view .stat-label {
+    color: #6c757d !important;
+}
+
+.simple-view .stat-decoration {
+    display: none !important;
+}
+
+/* Karten vereinfachen */
+.simple-view .modern-card {
+    background: white !important;
+    border: 2px solid #dee2e6 !important;
+    border-radius: 10px !important;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1) !important;
+    backdrop-filter: none !important;
+    transform: none !important;
+}
+
+.simple-view .modern-card-header {
+    background: #f8f9fa !important;
+    border-bottom: 2px solid #dee2e6 !important;
+    padding: 1rem 1.5rem !important;
+}
+
+.simple-view .card-title {
+    color: #343a40 !important;
+    background: none !important;
+    -webkit-text-fill-color: initial !important;
+}
+
+.simple-view .title-text {
+    color: #343a40 !important;
+    background: none !important;
+    -webkit-text-fill-color: initial !important;
+}
+
+.simple-view .card-icon {
+    filter: none !important;
+}
+
+.simple-view .rankings-header .card-icon {
+    color: #ffc107 !important;
+}
+
+.simple-view .game-info-header .card-icon {
+    color: #28a745 !important;
+}
+
+.simple-view .card-subtitle {
+    color: #6c757d !important;
+}
+
+.simple-view .header-decoration {
+    display: none !important;
+}
+
+/* Status Card vereinfachen */
+.simple-view .modern-status-card {
+    background: white !important;
+    border: 2px solid #007bff !important;
+    border-radius: 10px !important;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1) !important;
+    backdrop-filter: none !important;
+}
+
+.simple-view .modern-status-card::before {
+    display: none !important;
+}
+
+.simple-view .modern-status-card .alert-heading {
+    color: #007bff !important;
+    background: none !important;
+    -webkit-text-fill-color: initial !important;
+    text-shadow: none !important;
+}
+
+.simple-view .modern-status-card .live-indicator {
+    color: #28a745 !important;
+    animation: none !important;
+    text-shadow: none !important;
+}
+
+.simple-view .modern-status-card .text-primary {
+    color: #007bff !important;
+    text-shadow: none !important;
+}
+
+.simple-view .modern-status-card p,
+.simple-view .modern-status-card strong,
+.simple-view .modern-status-card em {
+    color: #343a40 !important;
+}
+
+/* Tabellen vereinfachen */
+.simple-view .table {
+    background: white !important;
+    border: 2px solid #dee2e6 !important;
+    border-radius: 10px !important;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1) !important;
+    backdrop-filter: none !important;
+}
+
+.simple-view .modern-table-header th {
+    background: #f8f9fa !important;
+    color: #495057 !important;
+    text-shadow: none !important;
+    border-bottom: 2px solid #dee2e6 !important;
+}
+
+.simple-view .table td,
+.simple-view .table th {
+    color: #495057 !important;
+    border-color: #dee2e6 !important;
+}
+
+.simple-view .table tbody tr:hover {
+    background: #f8f9fa !important;
+    transform: none !important;
+    box-shadow: none !important;
+}
+
+.simple-view .table-primary {
+    background: #cce7ff !important;
+    border-color: #007bff !important;
+    box-shadow: none !important;
+}
+
+/* Buttons vereinfachen */
+.simple-view .btn {
+    border-radius: 8px !important;
+    text-transform: none !important;
+    letter-spacing: normal !important;
+    backdrop-filter: none !important;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
+    transform: none !important;
+}
+
+.simple-view .btn::before {
+    display: none !important;
+}
+
+.simple-view .btn:hover {
+    transform: none !important;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.15) !important;
+}
+
+.simple-view .btn-primary {
+    background: #007bff !important;
+    border: 1px solid #0056b3 !important;
+}
+
+.simple-view .btn-success {
+    background: #28a745 !important;
+    border: 1px solid #1e7e34 !important;
+}
+
+.simple-view .btn-info {
+    background: #17a2b8 !important;
+    border: 1px solid #117a8b !important;
+}
+
+.simple-view .btn-secondary {
+    background: #6c757d !important;
+    border: 1px solid #545b62 !important;
+}
+
+/* Progress Bars vereinfachen */
+.simple-view .progress {
+    background: #e9ecef !important;
+    border: 1px solid #dee2e6 !important;
+    border-radius: 5px !important;
+}
+
+.simple-view .progress-bar {
+    background: #007bff !important;
+    animation: none !important;
+    box-shadow: none !important;
+}
+
+/* Alle Animationen deaktivieren */
+.simple-view * {
+    animation: none !important;
+    transition: none !important;
+}
+
+.simple-view *:hover {
+    animation: none !important;
+}
+
+/* Modern Notification Banners */
+.modern-notification-banner {
+    position: relative;
+    border-radius: 25px;
+    padding: 0;
+    overflow: hidden;
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 
+        0 20px 40px rgba(0, 0, 0, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    margin-bottom: 1rem;
+}
+
+.banner-glow {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 1;
+    animation: bannerGlow 3s ease-in-out infinite;
+}
+
+.selected-glow.banner-glow {
+    background: linear-gradient(135deg, rgba(78, 205, 196, 0.2) 0%, rgba(69, 183, 209, 0.1) 50%, rgba(34, 197, 94, 0.15) 100%);
+}
+
+@keyframes bannerGlow {
+    0%, 100% { opacity: 0.6; }
+    50% { opacity: 0.9; }
+}
+
+.notification-content {
+    position: relative;
+    z-index: 2;
+    padding: 2rem;
+    color: white;
+}
+
+.notification-header {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.notification-icon {
+    font-size: 1.5rem;
+    color: #4ecdc4;
+    filter: drop-shadow(0 0 10px rgba(78, 205, 196, 0.6));
+    animation: iconPulse 2s ease-in-out infinite;
+}
+
+@keyframes iconPulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+}
+
+.notification-title {
+    font-size: 1.8rem;
+    font-weight: 700;
+    margin: 0;
+    background: linear-gradient(45deg, #4ecdc4, #45b7d1, #22c55e);
+    background-clip: text;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    text-shadow: 0 0 20px rgba(78, 205, 196, 0.5);
+}
+
+.notification-body {
+    font-size: 1.3rem;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.9);
+    text-align: center;
+    margin-bottom: 1.5rem;
+}
+
+.notification-progress {
+    width: 100%;
+}
+
+.progress-track {
+    width: 100%;
+    height: 8px;
+    background: rgba(26, 26, 46, 0.6);
+    border-radius: 10px;
+    overflow: hidden;
+    border: 1px solid rgba(78, 205, 196, 0.3);
+}
+
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #4ecdc4, #45b7d1, #22c55e);
+    border-radius: 10px;
+    box-shadow: 0 0 10px rgba(78, 205, 196, 0.6);
+    transition: width 0.1s linear;
+    animation: progressShimmer 2s ease-in-out infinite;
+}
+
+@keyframes progressShimmer {
+    0%, 100% { box-shadow: 0 0 10px rgba(78, 205, 196, 0.6); }
+    50% { box-shadow: 0 0 20px rgba(78, 205, 196, 0.9); }
+}
+
+/* Modern Question Card */
+.modern-question-card {
+    position: relative;
+    border-radius: 25px;
+    padding: 0;
+    overflow: hidden;
+    backdrop-filter: blur(20px);
+    border: 2px solid rgba(69, 183, 209, 0.3);
+    box-shadow: 
+        0 25px 50px rgba(0, 0, 0, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1),
+        0 0 30px rgba(69, 183, 209, 0.2);
+    margin-bottom: 1rem;
+}
+
+.question-glow {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(135deg, rgba(69, 183, 209, 0.15) 0%, rgba(78, 205, 196, 0.1) 50%, rgba(255, 107, 107, 0.08) 100%);
+    z-index: 1;
+    animation: questionGlow 4s ease-in-out infinite;
+}
+
+@keyframes questionGlow {
+    0%, 100% { opacity: 0.7; }
+    50% { opacity: 1; }
+}
+
+.question-header {
+    position: relative;
+    z-index: 2;
+    background: linear-gradient(135deg, rgba(69, 183, 209, 0.2) 0%, rgba(78, 205, 196, 0.1) 100%);
+    padding: 1.5rem 2rem;
+    border-bottom: 1px solid rgba(69, 183, 209, 0.3);
+}
+
+.question-header-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.question-icon-wrapper {
+    display: flex;
+    align-items: center;
+}
+
+.question-icon {
+    font-size: 2rem;
+    color: #45b7d1;
+    filter: drop-shadow(0 0 15px rgba(69, 183, 209, 0.8));
+    animation: questionIconPulse 3s ease-in-out infinite;
+}
+
+@keyframes questionIconPulse {
+    0%, 100% { transform: scale(1); filter: drop-shadow(0 0 15px rgba(69, 183, 209, 0.8)); }
+    50% { transform: scale(1.1); filter: drop-shadow(0 0 25px rgba(69, 183, 209, 1)); }
+}
+
+.question-main-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin: 0;
+    color: white;
+    background: linear-gradient(45deg, #45b7d1, #4ecdc4, #ff6b6b);
+    background-clip: text;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    text-shadow: 0 0 20px rgba(69, 183, 209, 0.5);
+}
+
+.question-timer-display {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: rgba(26, 26, 46, 0.4);
+    padding: 0.75rem 1.25rem;
+    border-radius: 15px;
+    border: 1px solid rgba(69, 183, 209, 0.3);
+    backdrop-filter: blur(10px);
+}
+
+.timer-icon {
+    color: #4ecdc4;
+    animation: timerPulse 1s ease-in-out infinite;
+}
+
+@keyframes timerPulse {
+    0%, 100% { color: #4ecdc4; }
+    50% { color: #ff6b6b; }
+}
+
+.timer-text {
+    color: white;
+    font-weight: 600;
+    font-size: 1rem;
+}
+
+.question-body {
+    position: relative;
+    z-index: 2;
+    padding: 2rem;
+    color: white;
+    background: rgba(26, 26, 46, 0.3);
 }
 
 /* Modern Status Card - Transparent like Header */
@@ -5284,6 +5806,41 @@ window.addEventListener('beforeunload', function() {
     }
     if (progressChart) {
         progressChart.destroy();
+    }
+});
+
+// View Mode Toggle Funktionalität
+function toggleViewMode() {
+    const body = document.body;
+    const isSimple = body.classList.contains('simple-view');
+    
+    if (isSimple) {
+        // Zurück zu Gaming View
+        body.classList.remove('simple-view');
+        document.getElementById('view-mode-text').textContent = 'Einfache Ansicht';
+        document.getElementById('view-mode-icon').className = 'fas fa-eye mr-2';
+        localStorage.setItem('viewMode', 'gaming');
+    } else {
+        // Wechsel zu Simple View
+        body.classList.add('simple-view');
+        document.getElementById('view-mode-text').textContent = 'Gaming Ansicht';
+        document.getElementById('view-mode-icon').className = 'fas fa-eye-slash mr-2';
+        localStorage.setItem('viewMode', 'simple');
+    }
+}
+
+// Ansichtmodus beim Laden wiederherstellen
+document.addEventListener('DOMContentLoaded', function() {
+    const savedMode = localStorage.getItem('viewMode');
+    
+    if (savedMode === 'simple') {
+        document.body.classList.add('simple-view');
+        document.getElementById('view-mode-text').textContent = 'Gaming Ansicht';
+        document.getElementById('view-mode-icon').className = 'fas fa-eye-slash mr-2';
+    } else {
+        // Standard ist Gaming View
+        document.getElementById('view-mode-text').textContent = 'Einfache Ansicht';
+        document.getElementById('view-mode-icon').className = 'fas fa-eye mr-2';
     }
 });
 </script>

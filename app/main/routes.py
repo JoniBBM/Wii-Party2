@@ -1407,10 +1407,23 @@ def get_player_faces():
         if not active_session:
             return jsonify({"success": False, "error": "Keine aktive Spielsitzung"}), 404
         
-        # Prüfe ob Minispiel läuft (normale Minigames oder Feld-Minigames)
+        # VERBESSERT: Prüfe ob Minispiel läuft (normale Minigames oder Feld-Minigames)
         # Zeige Gesichter bei verschiedenen Minispiel-Phasen
-        minigame_phases = ['MINIGAME_ANNOUNCED', 'SETUP_MINIGAME', 'MINIGAME_STARTED', 'MINIGAME_RESULTS', 'DICE_ROLLING']
-        field_minigame_phases = ['FIELD_MINIGAME_TRIGGERED']
+        minigame_phases = [
+            'MINIGAME_ANNOUNCED', 
+            'SETUP_MINIGAME',        # Admin bereitet Minigame vor
+            'MINIGAME_STARTED', 
+            'MINIGAME_RESULTS', 
+            'QUESTION_ACTIVE',       # Frage ist aktiv
+            'QUESTION_COMPLETED',    # Frage beendet
+            'DICE_ROLLING'           # Auch bei Würfelphasen (können nach Minigames kommen)
+        ]
+        field_minigame_phases = [
+            'FIELD_MINIGAME_SELECTION_PENDING', 
+            'FIELD_MINIGAME_TRIGGERED',
+            'FIELD_MINIGAME_ACTIVE',
+            'FIELD_MINIGAME_COMPLETED'
+        ]
         
         is_normal_minigame = active_session.current_phase in minigame_phases
         is_field_minigame = active_session.current_phase in field_minigame_phases
@@ -1429,12 +1442,40 @@ def get_player_faces():
         # Für normale Minigames: Hole ausgewählte Spieler aus der Session
         selected_players = active_session.get_selected_players()
         
+        # VERBESSERT: Fallback wenn keine Spieler explizit ausgewählt sind
         if not selected_players:
-            return jsonify({
-                "success": True, 
-                "show_faces": False,
-                "message": "Keine Spieler ausgewählt"
-            })
+            current_app.logger.info("Keine Spieler explizit ausgewählt - verwende alle verfügbaren Teams")
+            
+            # Hole alle Teams und deren Spieler als Fallback
+            all_teams = Team.query.all()
+            if not all_teams:
+                return jsonify({
+                    "success": True, 
+                    "show_faces": False,
+                    "message": "Keine Teams gefunden"
+                })
+            
+            # Baue selected_players Dictionary mit allen verfügbaren Spielern auf
+            selected_players = {}
+            for team in all_teams:
+                if team.members:
+                    # Hole alle Spieler die ausgewählt werden können
+                    selectable_players = team.get_selectable_players()
+                    if selectable_players:
+                        selected_players[str(team.id)] = selectable_players
+                    else:
+                        # Fallback: alle Teammitglieder wenn keine speziell ausgewählt
+                        all_members = [m.strip() for m in team.members.split(',') if m.strip()]
+                        selected_players[str(team.id)] = all_members
+            
+            if not selected_players:
+                return jsonify({
+                    "success": True, 
+                    "show_faces": False,
+                    "message": "Keine spielfähigen Teams gefunden"
+                })
+            
+            current_app.logger.info(f"Fallback: {len(selected_players)} Teams mit Spielern gefunden")
         
         # Sammle Profilbilder der ausgewählten Spieler
         player_faces = []
@@ -1442,6 +1483,7 @@ def get_player_faces():
         for team_id_str, player_names in selected_players.items():
             team = Team.query.get(int(team_id_str))
             if not team:
+                current_app.logger.warning(f"Team mit ID {team_id_str} nicht gefunden")
                 continue
                 
             team_name = team.name
@@ -1449,47 +1491,73 @@ def get_player_faces():
             
             # Hole gespeicherte Player-Konfiguration (enthält gespeicherte Emojis)
             player_config = team.get_player_config()
+            current_app.logger.debug(f"Team {team_name}: player_config = {player_config}")
             
             for player_name in player_names:
-                # Hole Profilbild aus Team-Daten
-                profile_image = team.get_profile_image(player_name)
+                # Versuche zuerst vollständige Spieler-Info zu bekommen
+                player_info = team.get_player_by_name(player_name)
                 
-                if profile_image:
+                if player_info and player_info.get('profile_image'):
+                    # Hat Profilbild
                     player_faces.append({
                         "player_name": player_name,
                         "team_name": team_name,
                         "team_id": team.id,
                         "team_color": team_color,
-                        "image_path": profile_image,
-                        "has_photo": True
+                        "image_path": player_info['profile_image'],
+                        "has_photo": True,
+                        "emoji": player_info.get('emoji')  # Emoji als Backup auch bei Foto
                     })
+                    current_app.logger.debug(f"Spieler {player_name}: Profilbild gefunden")
                 else:
-                    # Prüfe zuerst nach gespeichertem Emoji in player_config
+                    # Kein Profilbild - verwende Emoji
                     saved_emoji = None
-                    if player_config and player_name in player_config:
-                        saved_emoji = player_config[player_name].get('emoji')
                     
-                    # Verwende gespeichertes Emoji oder falle zurück auf deterministisches
-                    emoji = saved_emoji if saved_emoji else get_consistent_emoji_for_player(player_name)
+                    # Prüfe player_info für Emoji (modernere Methode)
+                    if player_info and player_info.get('emoji'):
+                        saved_emoji = player_info['emoji']
+                        current_app.logger.debug(f"Spieler {player_name}: Emoji aus player_info = {saved_emoji}")
+                    # Fallback: direkt aus player_config
+                    elif player_config and player_name in player_config:
+                        saved_emoji = player_config[player_name].get('emoji')
+                        current_app.logger.debug(f"Spieler {player_name}: Emoji aus player_config = {saved_emoji}")
+                    
+                    # Letzter Fallback: deterministisches Emoji generieren
+                    final_emoji = saved_emoji if saved_emoji else get_consistent_emoji_for_player(player_name)
+                    current_app.logger.debug(f"Spieler {player_name}: Final emoji = {final_emoji}")
                     
                     player_faces.append({
                         "player_name": player_name,
                         "team_name": team_name,
                         "team_id": team.id,
                         "team_color": team_color,
-                        "emoji": emoji,
+                        "emoji": final_emoji,
                         "has_photo": False
                     })
         
         # Zeige Gesichter auch wenn nur Emojis vorhanden sind
         show_faces = len(player_faces) > 0
         
-        return jsonify({
+        # Debug-Logging
+        current_app.logger.info(f"Player faces generiert: {len(player_faces)} Spieler, Phase: {active_session.current_phase}")
+        for face in player_faces:
+            img_type = "Foto" if face.get("has_photo") else f"Emoji({face.get('emoji', 'N/A')})"
+            current_app.logger.debug(f"  - {face.get('player_name')} ({face.get('team_name')}): {img_type}")
+        
+        result = {
             "success": True,
             "show_faces": show_faces,
             "player_faces": player_faces,
-            "total_players": len(player_faces)
-        })
+            "total_players": len(player_faces),
+            "debug_info": {
+                "phase": active_session.current_phase,
+                "minigame_name": active_session.current_minigame_name,
+                "selected_players_count": len(selected_players)
+            }
+        }
+        
+        current_app.logger.info(f"API Response: show_faces={show_faces}, total_players={len(player_faces)}")
+        return jsonify(result)
         
     except Exception as e:
         current_app.logger.error(f"Fehler beim Abrufen der Spieler-Gesichter: {e}", exc_info=True)
@@ -1761,6 +1829,8 @@ def get_all_player_images():
         teams = Team.query.all()
         all_players = []
         
+        current_app.logger.info(f"API get-all-player-images: Lade {len(teams)} Teams")
+        
         
         for team in teams:
             # Hole Team-Farbe
@@ -1810,6 +1880,11 @@ def get_all_player_images():
                             })
             except:
                 pass
+        
+        current_app.logger.info(f"API get-all-player-images: Gebe {len(all_players)} Spieler zurück")
+        for player in all_players:
+            img_type = "Foto" if player.get("has_photo") else f"Emoji({player.get('emoji', 'N/A')})"
+            current_app.logger.debug(f"  - {player.get('player_name')} ({player.get('team_name')}): {img_type}")
         
         return jsonify({
             "success": True,

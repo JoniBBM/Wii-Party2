@@ -7535,8 +7535,13 @@ function checkForFaceOverlay() {
         console.log('🔄 Phase-Wechsel:', lastKnownPhase, '->', currentPhase);
     }
     
-    // Erweiterte Phasen-Erkennung für Minispiele  
-    const minigameStartPhases = ['MINIGAME_ANNOUNCED']; // Nur beim ersten Ankündigen
+    // VERBESSERT: Erweiterte Phasen-Erkennung für Minispiele  
+    const minigameStartPhases = [
+        'MINIGAME_ANNOUNCED', 
+        'SETUP_MINIGAME',      // Admin wählt Minigame aus
+        'MINIGAME_STARTED',    // Minigame läuft
+        'QUESTION_ACTIVE'      // Frage ist aktiv
+    ];
     const shouldShowFaces = minigameStartPhases.includes(currentPhase) && 
                            lastKnownPhase !== currentPhase && 
                            faceOverlayShownForPhase !== currentPhase;
@@ -7551,29 +7556,44 @@ function checkForFaceOverlay() {
         fetch('/api/get-player-faces')
             .then(response => response.json())
             .then(data => {
-                if (data.success && data.show_faces && data.player_faces.length > 0) {
+                console.log('📡 API Response get-player-faces:', data);
+                
+                if (data.success && data.show_faces && data.player_faces && data.player_faces.length > 0) {
                     console.log('🎭 Zeige ausgewählte Spieler:', data.player_faces);
                     showFaceOverlay(data.player_faces);
                     faceOverlayShownForPhase = currentPhase;
                 } else {
-                    // Fallback: Zeige alle verfügbaren Spieler wenn keine Auswahl getroffen wurde
-                    console.log('🎭 Keine Spieler ausgewählt, zeige alle verfügbaren Spieler');
-                    fetch('/api/get-all-player-images')
-                        .then(response => response.json())
-                        .then(allData => {
-                            if (allData.success && allData.players.length > 0) {
-                                console.log('🎭 Zeige alle verfügbaren Spieler:', allData.players);
-                                showFloatingBubbles(allData.players);
-                                faceOverlayShownForPhase = currentPhase;
-                            }
-                        })
-                        .catch(error => {
-                            console.log('Fehler beim Laden aller Spieler:', error);
-                        });
+                    // VERBESSERT: Bessere Fallback-Logik
+                    console.log('🎭 Keine spezifischen Spieler ausgewählt. API Response:', data.message || 'Keine Message');
+                    
+                    // Wenn die API trotzdem player_faces zurückgibt (auch wenn show_faces false ist)
+                    if (data.success && data.player_faces && data.player_faces.length > 0) {
+                        console.log('🎯 Verwende player_faces aus API trotz show_faces=false:', data.player_faces);
+                        showFloatingBubbles(data.player_faces);
+                        faceOverlayShownForPhase = currentPhase;
+                    } else {
+                        // Letzter Fallback: alle verfügbaren Spieler
+                        console.log('🔄 Lade alle verfügbaren Spieler als Fallback');
+                        fetch('/api/get-all-player-images')
+                            .then(response => response.json())
+                            .then(allData => {
+                                console.log('📡 API Response get-all-player-images:', allData);
+                                if (allData.success && allData.players && allData.players.length > 0) {
+                                    console.log('🎭 Zeige alle verfügbaren Spieler:', allData.players);
+                                    showFloatingBubbles(allData.players);
+                                    faceOverlayShownForPhase = currentPhase;
+                                } else {
+                                    console.log('⚠️ Keine Spielerdaten verfügbar');
+                                }
+                            })
+                            .catch(error => {
+                                console.error('❌ Fehler beim Laden aller Spieler:', error);
+                            });
+                    }
                 }
             })
             .catch(error => {
-                console.log('Face-Overlay-Check failed (normal if no faces available):', error);
+                console.error('❌ Face-Overlay-Check failed:', error);
             });
     }
     
@@ -8178,27 +8198,35 @@ function showFloatingBubbles(playerFaces) {
         return;
     }
     
-    // Filter alle gültigen Spieler (mit Bildern ODER Emojis)
+    // VERBESSERT: Filter alle gültigen Spieler (mit Bildern ODER Emojis)
     const validPlayers = playerFaces.filter(player => {
         if (!player || typeof player !== 'object') {
             console.log('⚠️ Ungültiger Spieler:', player);
             return false;
         }
         
+        // Verbesserte Bild-Erkennung - weniger restriktiv
         const hasValidImage = player.image_path && 
                player.image_path.trim() !== '' && 
-               !player.image_path.includes('default') &&
-               (player.image_path.includes('profile_images') || player.image_path.includes('team_images'));
+               player.image_path !== 'null' &&
+               player.image_path !== 'undefined';
                
+        // Emoji-Erkennung - akzeptiere alle Unicode-Emoji
         const hasEmoji = player.emoji && player.emoji.trim() !== '';
         
-        if (hasValidImage) {
+        // ZUSÄTZLICH: Fallback wenn has_photo explizit true ist
+        const hasPhotoFlag = player.has_photo === true;
+        
+        if (hasValidImage || hasPhotoFlag) {
             console.log('✅ Gültiger Spieler mit Bild gefunden:', player.player_name || player.name, player.image_path);
         } else if (hasEmoji) {
             console.log('😀 Gültiger Spieler mit Emoji gefunden:', player.player_name || player.name, player.emoji);
+        } else {
+            console.log('⚠️ Spieler ohne gültiges Bild/Emoji:', player.player_name || player.name);
         }
         
-        return hasValidImage || hasEmoji;
+        // WICHTIG: Zeige auch Spieler ohne Bild/Emoji (wird später automatisches Emoji generieren)
+        return hasValidImage || hasPhotoFlag || hasEmoji || (player.player_name || player.name);
     });
     
     console.log('🖼️ Gültige Spieler gefunden:', validPlayers.length, 'von', playerFaces.length);
@@ -8267,10 +8295,12 @@ function createFloatingBubble(player, index) {
     
     // Erstelle Bild oder Emoji basierend auf verfügbaren Daten
     let imageElement;
-    const hasValidImage = player.image_path && 
+    // VERBESSERT: Weniger restriktive Bild-Erkennung
+    const hasValidImage = (player.image_path && 
            player.image_path.trim() !== '' && 
-           !player.image_path.includes('default') &&
-           (player.image_path.includes('profile_images') || player.image_path.includes('team_images'));
+           player.image_path !== 'null' &&
+           player.image_path !== 'undefined') || 
+           player.has_photo === true;
     
     if (hasValidImage) {
         // Verwende Profilbild
@@ -8321,14 +8351,21 @@ function createFloatingBubble(player, index) {
             box-shadow: 0 8px 30px rgba(0,0,0,0.3) !important;
         `;
     } else {
-        // Fallback: Default Avatar
+        // VERBESSERT: Fallback mit automatischer Emoji-Generierung
+        let fallbackEmoji = '👤';
+        
+        // Verwende die gleiche deterministische Emoji-Logik wie das Backend
+        if (player.player_name || player.name) {
+            fallbackEmoji = getPlayerEmojiForBoard(player.player_name || player.name);
+        }
+        
         imageElement = document.createElement('div');
-        imageElement.textContent = '👤';
+        imageElement.textContent = fallbackEmoji;
         imageElement.style.cssText = `
             width: 200px !important;
             height: 200px !important;
             border-radius: 50% !important;
-            border: 6px solid ${player.team_color} !important;
+            border: 6px solid ${player.team_color || '#CCCCCC'} !important;
             background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%) !important;
             display: flex !important;
             align-items: center !important;
@@ -8336,6 +8373,7 @@ function createFloatingBubble(player, index) {
             font-size: 80px !important;
             box-shadow: 0 8px 30px rgba(0,0,0,0.3) !important;
         `;
+        console.log('🎭 Verwende Fallback-Emoji:', fallbackEmoji, 'für Spieler:', player.player_name || player.name);
     }
     
     const name = document.createElement('div');
