@@ -1,6 +1,6 @@
 ---
-id: jonibbm-wii-party2
-name: Jonibbm Wii Party2
+id: wii-party2
+name: Wii-Party2
 summary: TODO Ein Satz, was diese App macht.
 tech: []
 # repo: https://github.com/org/repo
